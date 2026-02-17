@@ -1,0 +1,46 @@
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      /* Google Fonts import for accurate styling - fallback to system fonts if offline */
+      @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500&amp;family=Roboto:wght@700&amp;display=swap');
+      
+      .dark-color { fill: #0d1b45; stroke: #0d1b45; }
+      .light-color { fill: #3baaf0; stroke: #3baaf0; }
+      .ring-stroke { stroke: #0d1b45; stroke-width: 3; fill: none; }
+      
+      /* Typography */
+      .center-text { 
+        font-family: 'Times New Roman', serif; 
+        font-size: 110px; 
+        font-weight: normal;
+        text-anchor: middle;
+        dominant-baseline: central;
+      }
+      
+      .circle-text {
+        font-family: 'Roboto', 'Arial', sans-serif;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+      }
+    </style>
+  </defs>
+
+  <circle cx="200" cy="200" r="190" class="ring-stroke" stroke-width="2"/>
+
+  <circle cx="200" cy="200" r="130" class="ring-stroke" stroke-width="2"/>
+
+  <path id="textArc" d="M 40,200 A 160,160 0 1,1 360,200" fill="none" />
+
+  <text class="circle-text" dy="-10">
+    <textPath href="#textArc" startOffset="50%" text-anchor="middle">
+      <tspan class="light-color">BNC GLOBAL</tspan> 
+      <tspan dx="10" class="dark-color">SERVICES</tspan>
+    </textPath>
+  </text>
+
+  <text x="200" y="200" class="center-text" dy="10">
+    <tspan class="dark-color">B</tspan><tspan class="light-color" dx="-5">NC</tspan>
+  </text>
+</svg>
