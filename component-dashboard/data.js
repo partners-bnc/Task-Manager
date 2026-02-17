@@ -1,0 +1,91 @@
+export const USERS = [
+  {
+    id: 'u1',
+    name: 'John Doe',
+    email: 'john@example.com',
+    role: 'Admin',
+    avatar: 'https://picsum.photos/id/1011/100/100',
+  },
+  {
+    id: 'u2',
+    name: 'Adam Cole',
+    email: 'adam@timetoprogram.com',
+    role: 'Member',
+    avatar: 'https://picsum.photos/id/1005/100/100',
+  },
+  {
+    id: 'u3',
+    name: 'Luke Ryan',
+    email: 'luke@timetoprogram.com',
+    role: 'Member',
+    avatar: 'https://picsum.photos/id/1001/100/100',
+  },
+  {
+    id: 'u4',
+    name: 'Sophia Gray',
+    email: 'sophia@timetoprogram.com',
+    role: 'Member',
+    avatar: 'https://picsum.photos/id/1027/100/100',
+  },
+];
+
+export const INITIAL_TASKS = [
+  {
+    id: 't1',
+    title: 'Create App UI',
+    description:
+      'Design and implement the main dashboard user interface with responsive components.',
+    priority: 'High',
+    status: 'In Progress',
+    startDate: '16 Mar 2025',
+    dueDate: '21 Mar 2025',
+    completedSubtasks: 4,
+    totalSubtasks: 10,
+    assignees: ['u1', 'u2'],
+    subtasks: [
+      { id: 'st1', title: 'Design wireframes', completed: true },
+      { id: 'st2', title: 'Create components', completed: true },
+      { id: 'st3', title: 'Add responsive layout', completed: true },
+      { id: 'st4', title: 'Hook dummy data', completed: true },
+      { id: 'st5', title: 'QA polish', completed: false },
+    ],
+    attachments: 2,
+  },
+  {
+    id: 't2',
+    title: 'Social Media Campaign',
+    description:
+      'Develop a content plan for the upcoming launch and coordinate media assets.',
+    priority: 'Medium',
+    status: 'Pending',
+    startDate: '18 Mar 2025',
+    dueDate: '25 Mar 2025',
+    completedSubtasks: 2,
+    totalSubtasks: 8,
+    assignees: ['u2', 'u3'],
+    subtasks: [
+      { id: 'st1', title: 'Draft strategy', completed: true },
+      { id: 'st2', title: 'Collect assets', completed: true },
+      { id: 'st3', title: 'Schedule posts', completed: false },
+    ],
+    attachments: 1,
+  },
+  {
+    id: 't3',
+    title: 'Backend API Integration',
+    description: 'Connect the dashboard to backend APIs and validate all CRUD endpoints.',
+    priority: 'Low',
+    status: 'Completed',
+    startDate: '10 Mar 2025',
+    dueDate: '14 Mar 2025',
+    completedSubtasks: 6,
+    totalSubtasks: 6,
+    assignees: ['u1', 'u4'],
+    subtasks: [
+      { id: 'st1', title: 'Auth endpoint', completed: true },
+      { id: 'st2', title: 'Task list endpoint', completed: true },
+      { id: 'st3', title: 'Mutation endpoint', completed: true },
+    ],
+    attachments: 3,
+  },
+];

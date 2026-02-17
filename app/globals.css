@@ -1,0 +1,240 @@
+﻿@import "tailwindcss";
+
+@theme {
+  --color-primary: #7f40ee;
+  --color-primary-hover: #6a31d1;
+  --color-primary-light: #f3e8ff;
+  --color-dark: #0f172a;
+}
+
+:root {
+  --bg: #f5f4f0;
+  --surface: #ffffff;
+  --surface2: #eceae4;
+  --border: #dbd8d0;
+  --border2: #c8c4ba;
+  --text: #1a1814;
+  --text-dim: #5c5850;
+  --text-muted: #9c9890;
+  --accent: #c8860a;
+  --accent2: #e05a1a;
+  --accent-dim: rgba(200, 134, 10, 0.1);
+  --green: #1a9e50;
+  --red: #c0392b;
+  --blue: #2a72c3;
+  --purple: #7e3fb5;
+  --mono: 'Space Mono', monospace;
+  --display: 'Bricolage Grotesque', sans-serif;
+  --body: 'DM Sans', sans-serif;
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes pulse-glow-alt {
+
+  0%,
+  100% {
+    opacity: 0.8;
+    transform: scale(1) rotate(0deg);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(5deg);
+  }
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes loaderPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(0.85);
+    opacity: 0.4;
+  }
+}
+
+@keyframes loaderFade {
+
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes loaderProgress {
+  0% {
+    width: 0%;
+    left: 0;
+  }
+
+  50% {
+    width: 70%;
+    left: 0;
+  }
+
+  100% {
+    width: 0%;
+    left: 100%;
+  }
+}
+
+.taskflow-loader-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  opacity: 1;
+  pointer-events: all;
+  visibility: visible;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.taskflow-loader-overlay.is-visible {
+  opacity: 1;
+  pointer-events: all;
+  visibility: visible;
+}
+
+.taskflow-loader-overlay.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.taskflow-loader-overlay.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 9999;
+}
+
+.taskflow-loader-overlay.is-inline {
+  position: relative;
+  width: 100%;
+  min-height: 260px;
+}
+
+.taskflow-loader-core {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+}
+
+.taskflow-loader-icon-wrap {
+  width: 80px;
+  height: 80px;
+  position: relative;
+}
+
+.taskflow-loader-square {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  border-radius: 3px;
+  animation: loaderPulse 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.taskflow-loader-square:nth-child(1) {
+  top: 0;
+  left: 0;
+  animation-delay: 0s;
+}
+
+.taskflow-loader-square:nth-child(2) {
+  top: 0;
+  right: 0;
+  opacity: 0.6;
+  animation-delay: 0.2s;
+}
+
+.taskflow-loader-square:nth-child(3) {
+  bottom: 0;
+  left: 0;
+  opacity: 0.6;
+  animation-delay: 0.6s;
+}
+
+.taskflow-loader-square:nth-child(4) {
+  bottom: 0;
+  right: 0;
+  animation-delay: 0.4s;
+}
+
+.taskflow-loader-text {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  animation: loaderFade 1.6s ease-in-out infinite;
+}
+
+.taskflow-loader-progress {
+  width: 140px;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.taskflow-loader-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  animation: loaderProgress 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes infinite-scroll {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-infinite-scroll {
+  animation: infinite-scroll 28s linear infinite;
+}
