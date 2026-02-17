@@ -102,7 +102,6 @@ export function Navbar() {
               </Link>
             )
           ))}
-          <Button className="w-full justify-center">Purchase Template</Button>
         </div>
       )}
     </nav>
