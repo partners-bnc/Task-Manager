@@ -3,32 +3,28 @@ import Image from 'next/image';
 const logos = [
   {
     name: 'BNC Global',
-    src: 'https://framerusercontent.com/images/1Llcmv1c2q6Gzc8PLAZn6FVsl24.png',
+    src: '/assets/bnc-global.avif',
   },
   {
     name: 'BNC Global',
-    src: 'https://framerusercontent.com/images/7Owr2A45BzBhY30q3tohNTbREQ.png',
+    src: '/assets/bnc-global.avif',
   },
   {
     name: 'BNC Global',
-    src: 'https://framerusercontent.com/images/zbuC3EcdzkBkQzP0jv0SB4Vd8M.png',
+    src: '/assets/bnc-global.avif',
   },
   {
     name: 'BNC Global',
-    src: 'https://framerusercontent.com/images/1maVSrfk3qzoDoF7isozxI1xeM.png',
+    src: '/assets/bnc-global.avif',
   },
   {
     name: 'BNC Global',
-    src: 'https://framerusercontent.com/images/xfqs7XNXtRUCfSofBqeA4zicBgA.png',
+    src: '/assets/bnc-global.avif',
   },
   {
     name: 'BNC Global',
-    src: 'https://framerusercontent.com/images/mWEyhK9Yqsp5kUMBqmjcCRtsth8.png',
-  },
-  {
-    name: 'BNC Global',
-    src: 'https://framerusercontent.com/images/73eHyPw5UZ7rZAFywlVd572sz4.png',
-  },
+    src: '/assets/bnc-global.avif',
+  }
 ];
 
 export function LogoTicker() {
