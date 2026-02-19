@@ -1,6 +1,17 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import { enqueueEmployeeCreatedEmail } from '@/utils/email-outbox';
+
+function generateTempPassword(length = 12) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+  const randomValues = crypto.getRandomValues(new Uint32Array(length));
+  let output = '';
+  for (let i = 0; i < length; i += 1) {
+    output += alphabet[randomValues[i] % alphabet.length];
+  }
+  return output;
+}
 
 // GET - Fetch all employees
 export async function GET(request) {
@@ -68,19 +79,19 @@ export async function POST(request) {
     const name = String(formData.get('name') || '').trim();
     const username = String(formData.get('username') || '').trim().toLowerCase();
     const role = String(formData.get('role') || '').trim();
-    const password = String(formData.get('password') || '');
+    const providedPassword = String(formData.get('password') || '');
     const profilePicture = formData.get('profilePicture');
 
     // Validate required fields
-    if (!employeeId || !name || !username || !role || !password) {
+    if (!employeeId || !name || !username || !role) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // Hash the password
-    const passwordHash = await bcrypt.hash(password, 10);
+    const tempPassword = providedPassword || generateTempPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
 
     let profilePictureUrl = null;
 
@@ -133,6 +144,8 @@ export async function POST(request) {
           email: email,
           role: role,
           password_hash: passwordHash,
+          must_change_password: true,
+          password_set_at: null,
           profile_picture_url: profilePictureUrl,
         },
       ])
@@ -156,15 +169,90 @@ export async function POST(request) {
       );
     }
 
+    try {
+      await enqueueEmployeeCreatedEmail({
+        employeeId: employee.id,
+        recipientEmail: employee.email,
+        employeeName: employee.name,
+        username: employee.username,
+        tempPassword,
+      });
+    } catch (emailError) {
+      console.error('Failed to enqueue employee onboarding email:', emailError);
+    }
+
     return NextResponse.json(
       { 
-        message: 'Employee added successfully',
+        message: 'Employee added successfully. Credentials email has been queued.',
         employee: employee
       },
       { status: 201 }
     );
   } catch (error) {
     console.error('Error in POST /api/employees:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH - Update employee by id
+export async function PATCH(request) {
+  try {
+    const supabase = await createClient();
+    const body = await request.json();
+
+    const id = String(body?.id || '').trim();
+    const name = body?.name !== undefined ? String(body.name).trim() : undefined;
+    const username = body?.username !== undefined ? String(body.username).trim().toLowerCase() : undefined;
+    const email = body?.email !== undefined ? String(body.email).trim().toLowerCase() : undefined;
+    const role = body?.role !== undefined ? String(body.role).trim() : undefined;
+    const employeeId = body?.employeeId !== undefined ? String(body.employeeId).trim().toLowerCase() : undefined;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Employee id is required' },
+        { status: 400 }
+      );
+    }
+
+    const payload = {};
+    if (name !== undefined) payload.name = name;
+    if (username !== undefined) payload.username = username;
+    if (email !== undefined) payload.email = email;
+    if (role !== undefined) payload.role = role;
+    if (employeeId !== undefined) payload.employee_id = employeeId;
+
+    if (Object.keys(payload).length === 0) {
+      return NextResponse.json(
+        { error: 'No fields provided for update' },
+        { status: 400 }
+      );
+    }
+
+    const { data: employee, error } = await supabase
+      .from('employees')
+      .update(payload)
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error) {
+      console.error('Error updating employee:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(
+      { message: 'Employee updated successfully', employee },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error('Error in PATCH /api/employees:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

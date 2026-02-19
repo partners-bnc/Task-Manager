@@ -64,6 +64,7 @@ export async function GET(request) {
           description,
           priority,
           status,
+          created_by,
           created_at,
           due_date,
           task_attachments (
@@ -95,20 +96,14 @@ export async function GET(request) {
 
     const tasks = (assignmentRows || []).map((row) => row.task).filter(Boolean);
 
-    const memberMap = new Map();
-    memberMap.set(employee.id, employee);
+    const { data: members, error: membersError } = await adminClient
+      .from('employees')
+      .select('id, name, email, role, profile_picture_url')
+      .order('created_at', { ascending: false });
 
-    for (const task of tasks) {
-      const assignments = Array.isArray(task?.task_assignments) ? task.task_assignments : [];
-      for (const assignment of assignments) {
-        const teammate = assignment?.employee;
-        if (teammate?.id) {
-          memberMap.set(teammate.id, teammate);
-        }
-      }
+    if (membersError) {
+      return NextResponse.json({ error: membersError.message }, { status: 500 });
     }
-
-    const members = Array.from(memberMap.values());
 
     const stats = {
       total: tasks.length,
@@ -117,7 +112,7 @@ export async function GET(request) {
       completed: tasks.filter((task) => task.status === 'completed').length,
     };
 
-    return NextResponse.json({ employee, tasks, members, stats, success: true });
+    return NextResponse.json({ employee, tasks, members: members || [], stats, success: true });
   } catch (error) {
     console.error('Error fetching employee tasks:', error);
     return NextResponse.json({ error: 'Failed to fetch tasks', success: false }, { status: 500 });

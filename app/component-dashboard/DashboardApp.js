@@ -9,11 +9,12 @@ import ManageTasks from './ManageTasks';
 import CreateTask from './CreateTask';
 import TeamMembers from './TeamMembers';
 import Todos from './Todos';
+import AdminSettings from './AdminSettings';
 import { USERS } from './data';
 
 function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const { user, loading, isAdminMode } = useData();
-  const safeInitialView = !isAdminMode && initialView === 'create-task' ? 'tasks' : initialView;
+  const safeInitialView = initialView;
   const [currentView, setCurrentView] = useState(safeInitialView);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -38,11 +39,11 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
       case 'todos':
         return isAdminMode ? <Dashboard onNavigate={setCurrentView} /> : <Todos />;
       case 'create-task':
-        return isAdminMode
-          ? <CreateTask onCancel={() => setCurrentView('tasks')} />
-          : <ManageTasks />;
+        return <CreateTask onCancel={() => setCurrentView('tasks')} />;
       case 'team':
         return <TeamMembers />;
+      case 'settings':
+        return isAdminMode ? <AdminSettings /> : <Dashboard onNavigate={setCurrentView} />;
       default:
         return <Dashboard onNavigate={setCurrentView} />;
     }

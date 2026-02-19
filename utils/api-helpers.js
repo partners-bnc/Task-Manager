@@ -36,6 +36,24 @@ export async function requireAdmin(request) {
     return { supabase, user };
 }
 
+/**
+ * Verifies the request is from an authenticated admin or employee actor.
+ * Returns { supabase, actor } on success or a NextResponse error.
+ */
+export async function requireTaskManager(request) {
+    const actor = await getActor(request);
+
+    if (!actor) {
+        return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+    }
+
+    if (actor.type !== 'admin' && actor.type !== 'employee') {
+        return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+    }
+
+    return { supabase: adminClient, actor };
+}
+
 // ─── Actor Resolution (admin or employee) ────────────────────────────────────
 
 /**

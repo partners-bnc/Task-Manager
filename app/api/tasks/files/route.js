@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/utils/api-helpers';
+import { requireTaskManager } from '@/utils/api-helpers';
 
 const TASK_FILES_BUCKET_CANDIDATES = ['task-files', 'task_files'];
 
@@ -27,9 +27,9 @@ function sanitizeFileName(fileName = '') {
 
 export async function POST(request) {
   try {
-    const auth = await requireAdmin(request);
+    const auth = await requireTaskManager(request);
     if (auth.error) return auth.error;
-    const { supabase, user } = auth;
+    const { supabase, actor } = auth;
 
     const bucket = await resolveTaskFilesBucket(supabase);
     if (!bucket) {
@@ -53,7 +53,8 @@ export async function POST(request) {
 
     for (const file of files) {
       const safeName = sanitizeFileName(file.name);
-      const storagePath = `pending/${user.id}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
+      const actorId = actor.type === 'admin' ? actor.userId : actor.employeeId;
+      const storagePath = `pending/${actorId}/${Date.now()}-${crypto.randomUUID()}-${safeName}`;
       const fileBuffer = Buffer.from(await file.arrayBuffer());
 
       const { error: uploadError } = await supabase.storage

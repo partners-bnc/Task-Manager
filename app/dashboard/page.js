@@ -1,1 +1,1 @@
-export { default, metadata } from '@/component-dashboard/page';
+export { default, metadata } from '@/app/component-dashboard/page';

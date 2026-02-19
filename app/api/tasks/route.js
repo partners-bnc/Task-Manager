@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { requireAdmin, normalizeDueDate, normalizeSubtasks, syncTaskSubtasks } from '@/utils/api-helpers';
+import { requireAdmin, requireTaskManager, normalizeDueDate, normalizeSubtasks, syncTaskSubtasks } from '@/utils/api-helpers';
 
 
 export async function GET() {
@@ -39,9 +39,9 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireTaskManager(request);
     if (auth.error) return auth.error;
-    const { supabase, user } = auth;
+    const { supabase, actor } = auth;
 
     const body = await request.json();
     const { taskName, description, priority, dueDate, assignedMembers, attachments, subtasks } = body;
@@ -57,7 +57,7 @@ export async function POST(request) {
         priority,
         due_date: normalizedDueDate,
         status: 'pending',
-        created_by: user.id
+        created_by: actor.type === 'admin' ? actor.userId : null
       })
       .select()
       .single();
@@ -133,7 +133,7 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireTaskManager(request);
     if (auth.error) return auth.error;
     const { supabase } = auth;
 
