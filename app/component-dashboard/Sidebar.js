@@ -2,7 +2,8 @@
 
 import { useRef, useState } from 'react';
 import Image from 'next/image';
-import { LayoutDashboard, ListTodo, PlusSquare, Users, Settings, LogOut, Camera, ChevronLeft, ChevronRight } from 'lucide-react';
+import Link from 'next/link';
+import { LayoutDashboard, ListTodo, PlusSquare, Users, Settings, LogOut, Camera, ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import { useData } from './DataContext';
 
 export default function Sidebar({ currentView, onNavigate, isCollapsed = false, onToggleCollapse }) {
@@ -124,6 +125,14 @@ export default function Sidebar({ currentView, onNavigate, isCollapsed = false, 
         >
           {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
         </button>
+        <Link
+          href="/"
+          title="Home"
+          className={`w-full mb-2 flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 text-slate-600 hover:text-[#7F40EE] hover:bg-[#7F40EE]/10 rounded-lg transition-colors`}
+        >
+          <Home size={20} />
+          {!isCollapsed && <span className="font-medium">Home</span>}
+        </Link>
         <button
           title="Logout"
           onClick={async () => {

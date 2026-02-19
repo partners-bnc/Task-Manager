@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from 'next/image';
+import Link from 'next/link';
 import { Eye, EyeOff } from "lucide-react";
 import { useData } from "./DataContext";
 
@@ -31,7 +32,15 @@ export default function Login({ onSuccess }) {
   return (
     <div className="min-h-screen flex w-full bg-white">
       {/* Left Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-12 lg:px-24 z-10 bg-white">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-12 lg:px-24 z-10 bg-white relative">
+        <div className="absolute top-6 right-6">
+          <Link
+            href="/"
+            className="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Home
+          </Link>
+        </div>
         <div className="mb-10">
           <h1 className="text-2xl font-bold text-black mb-10">Task Manager</h1>
           <h2 className="text-3xl font-bold text-slate-900 mb-2">
