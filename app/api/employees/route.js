@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { enqueueEmployeeCreatedEmail } from '@/utils/email-outbox';
 
+const EMAIL_NOTIFICATIONS_ENABLED = process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true';
+
 function generateTempPassword(length = 12) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
   const randomValues = crypto.getRandomValues(new Uint32Array(length));
@@ -183,7 +185,9 @@ export async function POST(request) {
 
     return NextResponse.json(
       { 
-        message: 'Employee added successfully. Credentials email has been queued.',
+        message: EMAIL_NOTIFICATIONS_ENABLED
+          ? 'Employee added successfully. Credentials email has been queued.'
+          : 'Employee added successfully. Credentials email is currently paused.',
         employee: employee
       },
       { status: 201 }

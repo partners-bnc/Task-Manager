@@ -3,6 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 let APP_BASE_URL = Deno.env.get('APP_BASE_URL') ?? '';
+const EMAIL_NOTIFICATIONS_ENABLED = (Deno.env.get('EMAIL_NOTIFICATIONS_ENABLED') ?? 'false').trim().toLowerCase() === 'true';
 
 type OutboxRow = {
   id: string;
@@ -104,9 +105,22 @@ Deno.serve(async (req) => {
   });
 
   const requestBody = await req.json().catch(() => ({}));
+  const requestEnabledFlag = String(requestBody?.email_notifications_enabled ?? '').trim().toLowerCase();
+  const notificationsEnabled =
+    requestEnabledFlag === 'true' ? true : requestEnabledFlag === 'false' ? false : EMAIL_NOTIFICATIONS_ENABLED;
   const resendApiKey = String(requestBody?.resend_api_key ?? '').trim();
   const resendFromEmail = String(requestBody?.resend_from_email ?? 'onboarding@resend.dev').trim();
   APP_BASE_URL = String(requestBody?.app_base_url ?? APP_BASE_URL).trim();
+
+  if (!notificationsEnabled) {
+    return jsonResponse(200, {
+      success: true,
+      paused: true,
+      claimed: 0,
+      sent: 0,
+      failed: 0,
+    });
+  }
 
   if (!resendApiKey) {
     return jsonResponse(500, { error: 'Missing resend_api_key in request payload' });

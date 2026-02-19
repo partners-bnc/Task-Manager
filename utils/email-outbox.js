@@ -1,5 +1,7 @@
 import { adminClient } from '@/utils/supabase/admin';
 
+const EMAIL_NOTIFICATIONS_ENABLED = process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true';
+
 export async function enqueueEmployeeCreatedEmail({
   employeeId,
   recipientEmail,
@@ -7,6 +9,8 @@ export async function enqueueEmployeeCreatedEmail({
   username,
   tempPassword,
 }) {
+  if (!EMAIL_NOTIFICATIONS_ENABLED) return;
+
   const normalizedEmail = String(recipientEmail || '').trim().toLowerCase();
   if (!normalizedEmail) return;
 
