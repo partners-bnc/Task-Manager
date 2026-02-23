@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 let APP_BASE_URL = Deno.env.get('APP_BASE_URL') ?? '';
-const EMAIL_NOTIFICATIONS_ENABLED = (Deno.env.get('EMAIL_NOTIFICATIONS_ENABLED') ?? 'false').trim().toLowerCase() === 'true';
+const EMAIL_NOTIFICATIONS_ENABLED = (Deno.env.get('EMAIL_NOTIFICATIONS_ENABLED') ?? 'true').trim().toLowerCase() === 'true';
 
 type OutboxRow = {
   id: string;
@@ -60,33 +60,38 @@ function renderEmail(row: OutboxRow) {
   };
 }
 
-async function sendWithResend(row: OutboxRow) {
-  const resendApiKey = String(row.payload?.resend_api_key ?? '');
-  const resendFromEmail = String(row.payload?.resend_from_email ?? 'onboarding@resend.dev');
+async function sendWithBrevo(row: OutboxRow) {
+  const brevoApiKey = String(row.payload?.brevo_api_key ?? '').trim();
+  const brevoFromEmail = String(row.payload?.brevo_from_email ?? '').trim();
+  const brevoFromName = String(row.payload?.brevo_from_name ?? 'TaskFlow').trim();
   const { subject, text, html } = renderEmail(row);
 
-  const response = await fetch('https://api.resend.com/emails', {
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${resendApiKey}`,
+      'api-key': brevoApiKey,
+      Accept: 'application/json',
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      from: resendFromEmail,
-      to: [row.recipient_email],
+      sender: {
+        name: brevoFromName || 'TaskFlow',
+        email: brevoFromEmail,
+      },
+      to: [{ email: row.recipient_email }],
       subject,
-      text,
-      html,
+      textContent: text,
+      htmlContent: html,
     }),
   });
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = String(payload?.message || payload?.error || `Resend failed with status ${response.status}`);
+    const message = String(payload?.message || payload?.code || `Brevo failed with status ${response.status}`);
     throw new Error(message);
   }
 
-  return String(payload?.id || '');
+  return String(payload?.messageId || payload?.message_id || '');
 }
 
 Deno.serve(async (req) => {
@@ -108,8 +113,9 @@ Deno.serve(async (req) => {
   const requestEnabledFlag = String(requestBody?.email_notifications_enabled ?? '').trim().toLowerCase();
   const notificationsEnabled =
     requestEnabledFlag === 'true' ? true : requestEnabledFlag === 'false' ? false : EMAIL_NOTIFICATIONS_ENABLED;
-  const resendApiKey = String(requestBody?.resend_api_key ?? '').trim();
-  const resendFromEmail = String(requestBody?.resend_from_email ?? 'onboarding@resend.dev').trim();
+  const brevoApiKey = String(requestBody?.brevo_api_key ?? '').trim();
+  const brevoFromEmail = String(requestBody?.brevo_from_email ?? '').trim();
+  const brevoFromName = String(requestBody?.brevo_from_name ?? 'TaskFlow').trim();
   APP_BASE_URL = String(requestBody?.app_base_url ?? APP_BASE_URL).trim();
 
   if (!notificationsEnabled) {
@@ -122,8 +128,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  if (!resendApiKey) {
-    return jsonResponse(500, { error: 'Missing resend_api_key in request payload' });
+  if (!brevoApiKey) {
+    return jsonResponse(500, { error: 'Missing brevo_api_key in request payload' });
+  }
+
+  if (!brevoFromEmail) {
+    return jsonResponse(500, { error: 'Missing brevo_from_email in request payload' });
   }
 
   const { error: dueSeedError } = await supabase.rpc('enqueue_due_task_emails');
@@ -142,12 +152,13 @@ Deno.serve(async (req) => {
 
   for (const job of jobs) {
     try {
-      const providerId = await sendWithResend({
+      const providerId = await sendWithBrevo({
         ...job,
         payload: {
           ...(job.payload || {}),
-          resend_api_key: resendApiKey,
-          resend_from_email: resendFromEmail,
+          brevo_api_key: brevoApiKey,
+          brevo_from_email: brevoFromEmail,
+          brevo_from_name: brevoFromName,
         },
       });
       await supabase.rpc('mark_email_outbox_success', {
