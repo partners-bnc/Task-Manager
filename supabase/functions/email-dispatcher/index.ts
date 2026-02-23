@@ -2,7 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-let APP_BASE_URL = Deno.env.get('APP_BASE_URL') ?? '';
+const DEFAULT_APP_BASE_URL = 'https://tasks.bncglobal.in/login';
+let APP_BASE_URL = Deno.env.get('APP_BASE_URL') ?? DEFAULT_APP_BASE_URL;
 const EMAIL_NOTIFICATIONS_ENABLED = (Deno.env.get('EMAIL_NOTIFICATIONS_ENABLED') ?? 'true').trim().toLowerCase() === 'true';
 
 type OutboxRow = {
@@ -19,10 +20,22 @@ function jsonResponse(status: number, body: Record<string, unknown>) {
   });
 }
 
+function getAppRootUrl(): string {
+  const normalized = APP_BASE_URL.replace(/\/$/, '');
+  return normalized.endsWith('/login') ? normalized.slice(0, -'/login'.length) : normalized;
+}
+
+function getLoginUrl(): string {
+  const normalized = APP_BASE_URL.replace(/\/$/, '');
+  if (!normalized) return '';
+  return normalized.endsWith('/login') ? normalized : `${normalized}/login`;
+}
+
 function buildTaskUrl(taskId: string | null): string {
-  if (!taskId) return APP_BASE_URL || '';
-  if (!APP_BASE_URL) return '';
-  return `${APP_BASE_URL.replace(/\/$/, '')}/dashboard/tasks/${taskId}`;
+  const appRootUrl = getAppRootUrl();
+  if (!taskId) return appRootUrl;
+  if (!appRootUrl) return '';
+  return `${appRootUrl}/dashboard/tasks/${taskId}`;
 }
 
 function renderEmail(row: OutboxRow) {
@@ -30,7 +43,7 @@ function renderEmail(row: OutboxRow) {
     const employeeName = String(row.payload?.employee_name ?? 'Employee');
     const username = String(row.payload?.username ?? '');
     const tempPassword = String(row.payload?.temp_password ?? '');
-    const loginUrl = APP_BASE_URL ? `${APP_BASE_URL.replace(/\/$/, '')}/login` : '';
+    const loginUrl = getLoginUrl();
     return {
       subject: 'Your TaskFlow account credentials',
       text: `Hi ${employeeName}, your account is ready.\nUsername: ${username}\nTemporary password: ${tempPassword}\nLogin: ${loginUrl}`,
@@ -116,7 +129,8 @@ Deno.serve(async (req) => {
   const brevoApiKey = String(requestBody?.brevo_api_key ?? '').trim();
   const brevoFromEmail = String(requestBody?.brevo_from_email ?? '').trim();
   const brevoFromName = String(requestBody?.brevo_from_name ?? 'TaskFlow').trim();
-  APP_BASE_URL = String(requestBody?.app_base_url ?? APP_BASE_URL).trim();
+  const requestAppBaseUrl = String(requestBody?.app_base_url ?? '').trim();
+  APP_BASE_URL = requestAppBaseUrl || APP_BASE_URL || DEFAULT_APP_BASE_URL;
 
   if (!notificationsEnabled) {
     return jsonResponse(200, {

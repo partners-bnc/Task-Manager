@@ -18,7 +18,7 @@ export default function Sidebar({ currentView, onNavigate, isCollapsed = false, 
     ...(!isAdminMode ? [{ label: '+ Add Todos', icon: PlusSquare, view: 'todos' }] : []),
     { label: 'Create Task', icon: PlusSquare, view: 'create-task' },
     { label: 'Team Members', icon: Users, view: 'team' },
-    ...(isAdminMode ? [{ label: 'Settings', icon: Settings, view: 'settings' }] : []),
+    { label: 'Settings', icon: Settings, view: 'settings' },
   ];
 
   if (!user) return null;
@@ -47,12 +47,12 @@ export default function Sidebar({ currentView, onNavigate, isCollapsed = false, 
   };
 
   return (
-    <aside className={`${isCollapsed ? 'w-20' : 'w-64'} bg-white h-screen fixed left-0 top-0 border-r border-gray-200 flex flex-col z-20 transition-all duration-200`}>
-      <div className={`${isCollapsed ? 'p-3' : 'p-8 pb-4'} flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-2`}>
+    <aside className={`${isCollapsed ? 'w-20' : 'w-64'} bg-white h-screen fixed left-0 top-0 border-r border-gray-200 flex flex-col overflow-hidden z-20 transition-all duration-200`}>
+      <div className={`${isCollapsed ? 'p-3' : 'p-8 pb-4'} flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} gap-2 shrink-0`}>
         {!isCollapsed && <h1 className="text-2xl font-bold text-black">Task Manager</h1>}
       </div>
 
-      <div className={`${isCollapsed ? 'px-2 py-4' : 'px-8 py-6'} flex flex-col items-center border-b border-gray-100`}>
+      <div className={`${isCollapsed ? 'px-2 py-4' : 'px-8 py-6'} flex flex-col items-center border-b border-gray-100 shrink-0`}>
         <div className={`${isCollapsed ? 'w-12 h-12 mb-2' : 'w-20 h-20 mb-3'} rounded-full border-4 border-[#7F40EE]/20 overflow-hidden relative group`}>
           {avatarSrc ? (
             <Image src={avatarSrc} alt={user.name} fill className="object-cover" unoptimized />
@@ -94,7 +94,7 @@ export default function Sidebar({ currentView, onNavigate, isCollapsed = false, 
         )}
       </div>
 
-      <nav className={`flex-1 ${isCollapsed ? 'px-2 py-4' : 'px-4 py-6'} space-y-1`}>
+      <nav className={`flex-1 min-h-0 overflow-y-auto ${isCollapsed ? 'px-2 py-4' : 'px-4 py-6'} space-y-1`}>
         {menuItems.map((item) => {
           const isActive = currentView === item.view;
           return (
@@ -115,7 +115,7 @@ export default function Sidebar({ currentView, onNavigate, isCollapsed = false, 
         })}
       </nav>
 
-      <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-gray-100`}>
+      <div className={`${isCollapsed ? 'p-2' : 'p-4'} border-t border-gray-100 bg-white shrink-0`}>
         <button
           type="button"
           onClick={onToggleCollapse}

@@ -10,6 +10,7 @@ import CreateTask from './CreateTask';
 import TeamMembers from './TeamMembers';
 import Todos from './Todos';
 import AdminSettings from './AdminSettings';
+import EmployeeSettings from './EmployeeSettings';
 import { USERS } from './data';
 
 function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
@@ -43,7 +44,7 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
       case 'team':
         return <TeamMembers />;
       case 'settings':
-        return isAdminMode ? <AdminSettings /> : <Dashboard onNavigate={setCurrentView} />;
+        return isAdminMode ? <AdminSettings /> : <EmployeeSettings />;
       default:
         return <Dashboard onNavigate={setCurrentView} />;
     }
