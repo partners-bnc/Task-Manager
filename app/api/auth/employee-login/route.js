@@ -5,6 +5,15 @@ import { adminClient } from '@/utils/supabase/admin';
 const SESSION_COOKIE = 'employee_session';
 const SESSION_DAYS = 7;
 
+async function findEmployeeBy(column, value) {
+  return adminClient
+    .from('employees')
+    .select('id, name, email, role, password_hash')
+    .eq(column, value)
+    .limit(1)
+    .maybeSingle();
+}
+
 export async function POST(request) {
   try {
     const { email, password } = await request.json();
@@ -26,26 +35,26 @@ export async function POST(request) {
       ? normalizedIdentifier.split('@')[0]
       : normalizedIdentifier;
 
-    let { data: employee, error: employeeError } = await adminClient
-      .from('employees')
-      .select('id, name, email, role, password_hash')
-      .eq('email', normalizedIdentifier)
-      .single();
+    let { data: employee, error: employeeError } = await findEmployeeBy('email', normalizedIdentifier);
 
     if ((!employee || employeeError) && localPart) {
-      const { data: byUsername, error: byUsernameError } = await adminClient
-        .from('employees')
-        .select('id, name, email, role, password_hash')
-        .eq('username', localPart)
-        .single();
+      const { data: byUsername, error: byUsernameError } = await findEmployeeBy('username', localPart);
 
       employee = byUsername;
       employeeError = byUsernameError;
     }
 
-    if (employeeError && employeeError.code !== 'PGRST116') {
+    if (employeeError) {
+      const details = [
+        employeeError.code || 'NO_CODE',
+        employeeError.message || 'No message',
+        employeeError.details || '',
+      ]
+        .filter(Boolean)
+        .join(' | ');
+
       console.error('Employee lookup error:', employeeError);
-      return NextResponse.json({ error: 'Employee auth query failed. Check service role key and DB access.' }, { status: 500 });
+      return NextResponse.json({ error: `Employee auth query failed: ${details}` }, { status: 500 });
     }
 
     if (!employee) {

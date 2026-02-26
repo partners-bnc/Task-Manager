@@ -144,7 +144,8 @@ export function normalizeDueDate(input) {
 // ─── Subtask Sync ────────────────────────────────────────────────────────────
 
 /**
- * Normalizes subtask input: accepts strings or objects with { id, title, is_completed }.
+ * Normalizes subtask input: accepts strings or objects with
+ * { id, title, is_completed, assigned_employee_id }.
  */
 export function normalizeSubtasks(input) {
     if (!Array.isArray(input)) return [];
@@ -157,6 +158,7 @@ export function normalizeSubtasks(input) {
                 id: subtask?.id,
                 title: String(subtask?.title || '').trim(),
                 is_completed: Boolean(subtask?.is_completed),
+                assigned_employee_id: subtask?.assigned_employee_id || null,
             };
         })
         .filter((subtask) => subtask.title.length > 0);
@@ -168,7 +170,7 @@ export function normalizeSubtasks(input) {
 export async function syncTaskSubtasks(supabase, taskId, subtasks) {
     const { data: existingSubtasks, error: existingSubtasksError } = await supabase
         .from('task_subtasks')
-        .select('id, title, is_completed')
+        .select('id, title, is_completed, assigned_employee_id')
         .eq('task_id', taskId);
 
     if (existingSubtasksError) {
@@ -196,7 +198,12 @@ export async function syncTaskSubtasks(supabase, taskId, subtasks) {
     // Insert new subtasks
     const toInsert = subtasks
         .filter((s) => !s.id)
-        .map((s) => ({ task_id: taskId, title: s.title, is_completed: !!s.is_completed }));
+        .map((s) => ({
+            task_id: taskId,
+            title: s.title,
+            is_completed: !!s.is_completed,
+            assigned_employee_id: s.assigned_employee_id || null,
+        }));
 
     if (toInsert.length > 0) {
         const { error: insertError } = await supabase.from('task_subtasks').insert(toInsert);
@@ -207,7 +214,11 @@ export async function syncTaskSubtasks(supabase, taskId, subtasks) {
     const toUpdate = incomingWithId.filter((s) => {
         const existing = existingById.get(s.id);
         if (!existing) return false;
-        return !(existing.title === s.title && existing.is_completed === !!s.is_completed);
+        return !(
+            existing.title === s.title &&
+            existing.is_completed === !!s.is_completed &&
+            (existing.assigned_employee_id || null) === (s.assigned_employee_id || null)
+        );
     });
 
     if (toUpdate.length > 0) {
@@ -216,7 +227,12 @@ export async function syncTaskSubtasks(supabase, taskId, subtasks) {
             toUpdate.map((s) =>
                 supabase
                     .from('task_subtasks')
-                    .update({ title: s.title, is_completed: !!s.is_completed, updated_at: now })
+                    .update({
+                        title: s.title,
+                        is_completed: !!s.is_completed,
+                        assigned_employee_id: s.assigned_employee_id || null,
+                        updated_at: now,
+                    })
                     .eq('id', s.id)
                     .eq('task_id', taskId)
             )

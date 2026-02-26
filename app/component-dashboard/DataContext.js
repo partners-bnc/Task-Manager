@@ -319,6 +319,7 @@ export function DataProvider({ children, initialUser = null, mode = 'employee' }
         subtasks: (newTask.subtasks || []).map((subtask) => ({
           title: subtask.title,
           is_completed: !!subtask.completed,
+          assigned_employee_id: subtask.assigned_employee_id || null,
         })),
       }),
     });

@@ -24,6 +24,7 @@ export async function GET() {
         id,
         title,
         is_completed,
+        assigned_employee_id,
         created_at,
         updated_at
       )
@@ -91,6 +92,7 @@ export async function POST(request) {
         task_id: task.id,
         title: subtask.title,
         is_completed: !!subtask.is_completed,
+        assigned_employee_id: subtask.assigned_employee_id || null,
       }));
 
       const { error: subtaskError } = await supabase

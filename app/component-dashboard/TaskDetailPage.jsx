@@ -75,6 +75,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [error, setError] = useState('');
   const [pendingSubtaskIds, setPendingSubtaskIds] = useState([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState('');
 
   const [editForm, setEditForm] = useState({
     taskName: '',
@@ -90,6 +91,11 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const canComment = !!viewer?.canComment;
   const canManageSubtasks = !!viewer?.canManageSubtasks;
   const canManageStatus = viewer?.type === 'admin' || viewer?.type === 'employee';
+
+  const subtaskAssignees = useMemo(
+    () => (task?.task_assignments || []).map((assignment) => assignment.employee).filter(Boolean),
+    [task]
+  );
 
   const completion = useMemo(() => {
     const subtasks = task?.task_subtasks || [];
@@ -252,7 +258,10 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtaskTitle: title }),
+        body: JSON.stringify({
+          subtaskTitle: title,
+          assignedEmployeeId: newSubtaskAssigneeId || null,
+        }),
       });
 
       const result = await response.json();
@@ -271,10 +280,46 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       }
 
       setNewSubtaskTitle('');
+      setNewSubtaskAssigneeId('');
     } catch (err) {
       setError(err.message || 'Failed to add checklist item');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateSubtaskAssignee = async (subtaskId, assignedEmployeeId) => {
+    if (!canManageSubtasks) return;
+
+    const nextAssignee = assignedEmployeeId || null;
+    const previousSubtasks = task?.task_subtasks || [];
+
+    setTask((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        task_subtasks: (prev.task_subtasks || []).map((subtask) =>
+          subtask.id === subtaskId
+            ? { ...subtask, assigned_employee_id: nextAssignee }
+            : subtask
+        ),
+      };
+    });
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtaskId, assignedEmployeeId: nextAssignee }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to assign subtask');
+      }
+    } catch (err) {
+      setTask((prev) => (prev ? { ...prev, task_subtasks: previousSubtasks } : prev));
+      setError(err.message || 'Failed to assign subtask');
     }
   };
 
@@ -486,6 +531,20 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                       }
                     }}
                   />
+                  {canManageSubtasks && (
+                    <select
+                      value={newSubtaskAssigneeId}
+                      onChange={(event) => setNewSubtaskAssigneeId(event.target.value)}
+                      className='rounded-lg border border-slate-200 px-3 py-2 text-sm'
+                    >
+                      <option value=''>Unassigned</option>
+                      {subtaskAssignees.map((employee) => (
+                        <option key={employee.id} value={employee.id}>
+                          {employee.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     type='button'
                     disabled={saving || !newSubtaskTitle.trim()}
@@ -498,17 +557,42 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
               )}
               <div className='space-y-2'>
                 {(task.task_subtasks || []).map((subtask) => (
-                  <label key={subtask.id} className='flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2'>
+                  <div key={subtask.id} className='flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2'>
                     <input
                       type='checkbox'
                       checked={!!subtask.is_completed}
                       disabled={!canManageSubtasks || saving || pendingSubtaskIds.includes(subtask.id)}
                       onChange={() => toggleSubtask(subtask.id, subtask.is_completed)}
+                      aria-label={`Toggle subtask ${subtask.title}`}
                     />
-                    <span className={subtask.is_completed ? 'text-slate-400 line-through' : 'text-slate-700'}>
+                    <span className={`flex-1 ${subtask.is_completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
                       {subtask.title}
                     </span>
-                  </label>
+                    {canManageSubtasks ? (
+                      <select
+                        value={subtask.assigned_employee_id || ''}
+                        onChange={(event) => updateSubtaskAssignee(subtask.id, event.target.value)}
+                        disabled={saving}
+                        className='rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700'
+                      >
+                        <option value=''>Unassigned</option>
+                        {subtaskAssignees.map((employee) => (
+                          <option key={employee.id} value={employee.id}>
+                            {employee.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className='text-xs text-slate-500'>
+                        {(() => {
+                          const assigned = subtaskAssignees.find(
+                            (employee) => employee.id === subtask.assigned_employee_id
+                          );
+                          return assigned ? `Assigned: ${assigned.name}` : 'Unassigned';
+                        })()}
+                      </span>
+                    )}
+                  </div>
                 ))}
                 {(!task.task_subtasks || task.task_subtasks.length === 0) && (
                   <p className='text-sm text-slate-500'>No subtasks.</p>

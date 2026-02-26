@@ -98,6 +98,7 @@ async function fetchTaskById(taskId) {
         id,
         title,
         is_completed,
+        assigned_employee_id,
         created_at,
         updated_at
       )
@@ -182,8 +183,40 @@ export async function PATCH(request, { params }) {
     }
 
     const body = await request.json();
+    const { data: taskAssignments } = await adminClient
+      .from('task_assignments')
+      .select('employee_id')
+      .eq('task_id', taskId);
+    const assignableEmployeeIds = new Set((taskAssignments || []).map((row) => row.employee_id));
 
     if (body?.subtaskId && typeof body?.isCompleted === 'boolean') {
+      if (actor.type === 'employee') {
+        const { data: existingSubtask, error: subtaskFetchError } = await adminClient
+          .from('task_subtasks')
+          .select('id, assigned_employee_id')
+          .eq('id', body.subtaskId)
+          .eq('task_id', taskId)
+          .maybeSingle();
+
+        if (subtaskFetchError) {
+          return NextResponse.json({ error: subtaskFetchError.message }, { status: 500 });
+        }
+
+        if (!existingSubtask) {
+          return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+        }
+
+        if (
+          existingSubtask.assigned_employee_id &&
+          existingSubtask.assigned_employee_id !== actor.employeeId
+        ) {
+          return NextResponse.json(
+            { error: 'Subtask is assigned to another employee' },
+            { status: 403 }
+          );
+        }
+      }
+
       const { data: updatedSubtask, error: updateError } = await adminClient
         .from('task_subtasks')
         .update({
@@ -206,10 +239,50 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: 'Subtask updated' });
     }
 
+    if (body?.subtaskId && Object.prototype.hasOwnProperty.call(body, 'assignedEmployeeId')) {
+      const assignedEmployeeId = body.assignedEmployeeId || null;
+
+      if (assignedEmployeeId && !assignableEmployeeIds.has(assignedEmployeeId)) {
+        return NextResponse.json(
+          { error: 'Subtask can only be assigned to task members' },
+          { status: 400 }
+        );
+      }
+
+      const { data: updatedSubtask, error: updateError } = await adminClient
+        .from('task_subtasks')
+        .update({
+          assigned_employee_id: assignedEmployeeId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', body.subtaskId)
+        .eq('task_id', taskId)
+        .select('id')
+        .maybeSingle();
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      if (!updatedSubtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask assignee updated' });
+    }
+
     if (body?.subtaskTitle) {
       const title = String(body.subtaskTitle || '').trim();
+      const assignedEmployeeId = body.assignedEmployeeId || null;
       if (!title) {
         return NextResponse.json({ error: 'Subtask title is required' }, { status: 400 });
+      }
+
+      if (assignedEmployeeId && !assignableEmployeeIds.has(assignedEmployeeId)) {
+        return NextResponse.json(
+          { error: 'Subtask can only be assigned to task members' },
+          { status: 400 }
+        );
       }
 
       const { data: subtask, error: insertError } = await adminClient
@@ -218,8 +291,9 @@ export async function PATCH(request, { params }) {
           task_id: taskId,
           title,
           is_completed: false,
+          assigned_employee_id: assignedEmployeeId,
         })
-        .select('id, task_id, title, is_completed, created_at, updated_at')
+        .select('id, task_id, title, is_completed, assigned_employee_id, created_at, updated_at')
         .single();
 
       if (insertError) {

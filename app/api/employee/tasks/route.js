@@ -74,6 +74,7 @@ export async function GET(request) {
             id,
             title,
             is_completed,
+            assigned_employee_id,
             created_at
           ),
           task_assignments (
@@ -154,6 +155,7 @@ export async function PATCH(request) {
           task_id: taskId,
           title: cleanTitle,
           is_completed: false,
+          assigned_employee_id: employee.id,
         })
         .select()
         .single();
@@ -168,7 +170,7 @@ export async function PATCH(request) {
     if (subtaskId && typeof isCompleted === 'boolean') {
       const { data: subtask, error: subtaskError } = await adminClient
         .from('task_subtasks')
-        .select('id, task_id')
+        .select('id, task_id, assigned_employee_id')
         .eq('id', subtaskId)
         .single();
 
@@ -185,6 +187,13 @@ export async function PATCH(request) {
 
       if (assignmentError || !assignment) {
         return NextResponse.json({ error: 'Task is not assigned to you' }, { status: 403 });
+      }
+
+      if (subtask.assigned_employee_id && subtask.assigned_employee_id !== employee.id) {
+        return NextResponse.json(
+          { error: 'Subtask is assigned to another employee' },
+          { status: 403 }
+        );
       }
 
       const { error: subtaskUpdateError } = await adminClient

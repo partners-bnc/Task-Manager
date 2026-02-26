@@ -52,14 +52,14 @@ export default function Login({ onSuccess }) {
         <form onSubmit={handleLogin} className="space-y-6 max-w-md">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              Email Address
+              Email or Username
             </label>
             <input
-              type="email"
+              type="text"
               value={identifier}
               onChange={(event) => setIdentifier(event.target.value)}
               required
-              placeholder="john@example.com"
+              placeholder="john@example.com or john123"
               className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-black"
             />
           </div>

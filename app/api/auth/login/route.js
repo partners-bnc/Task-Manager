@@ -6,6 +6,15 @@ import { adminClient } from '@/utils/supabase/admin';
 const SESSION_COOKIE = 'employee_session';
 const SESSION_DAYS = 7;
 
+async function findEmployeeBy(column, value) {
+  return adminClient
+    .from('employees')
+    .select('id, name, email, role, password_hash')
+    .eq(column, value)
+    .limit(1)
+    .maybeSingle();
+}
+
 async function tryAdminLogin(email, password) {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -44,25 +53,25 @@ async function tryEmployeeLogin(email, password) {
     ? normalizedIdentifier.split('@')[0]
     : normalizedIdentifier;
 
-  let { data: employee, error: employeeError } = await adminClient
-    .from('employees')
-    .select('id, name, email, role, password_hash')
-    .eq('email', normalizedIdentifier)
-    .single();
+  let { data: employee, error: employeeError } = await findEmployeeBy('email', normalizedIdentifier);
 
   if ((!employee || employeeError) && localPart) {
-    const { data: byUsername, error: byUsernameError } = await adminClient
-      .from('employees')
-      .select('id, name, email, role, password_hash')
-      .eq('username', localPart)
-      .single();
+    const { data: byUsername, error: byUsernameError } = await findEmployeeBy('username', localPart);
 
     employee = byUsername;
     employeeError = byUsernameError;
   }
 
-  if (employeeError && employeeError.code !== 'PGRST116') {
-    throw new Error('Employee auth query failed. Check service role key and DB access.');
+  if (employeeError) {
+    const details = [
+      employeeError.code || 'NO_CODE',
+      employeeError.message || 'No message',
+      employeeError.details || '',
+    ]
+      .filter(Boolean)
+      .join(' | ');
+
+    throw new Error(`Employee auth query failed: ${details}`);
   }
 
   if (!employee) {

@@ -14,7 +14,7 @@ export default function CreateTask({ onCancel }) {
   const [dueDate, setDueDate] = useState('');
   const [assignees, setAssignees] = useState([]);
 
-  const [checklist, setChecklist] = useState(['']);
+  const [checklist, setChecklist] = useState([{ title: '', assignedEmployeeId: '' }]);
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [tempAssignees, setTempAssignees] = useState([]);
@@ -50,7 +50,7 @@ export default function CreateTask({ onCancel }) {
   };
 
   const handleAddChecklistItem = () => {
-    setChecklist([...checklist, '']);
+    setChecklist([...checklist, { title: '', assignedEmployeeId: '' }]);
   };
 
   const handleRemoveChecklistItem = (index) => {
@@ -61,7 +61,13 @@ export default function CreateTask({ onCancel }) {
 
   const handleChecklistChange = (index, value) => {
     const newList = [...checklist];
-    newList[index] = value;
+    newList[index] = { ...newList[index], title: value };
+    setChecklist(newList);
+  };
+
+  const handleChecklistAssigneeChange = (index, assignedEmployeeId) => {
+    const newList = [...checklist];
+    newList[index] = { ...newList[index], assignedEmployeeId };
     setChecklist(newList);
   };
 
@@ -80,6 +86,14 @@ export default function CreateTask({ onCancel }) {
 
   const confirmAssignees = () => {
     setAssignees(tempAssignees);
+    const selected = new Set(tempAssignees);
+    setChecklist((prev) =>
+      prev.map((item) =>
+        item.assignedEmployeeId && !selected.has(item.assignedEmployeeId)
+          ? { ...item, assignedEmployeeId: '' }
+          : item
+      )
+    );
     setIsUserModalOpen(false);
   };
 
@@ -109,7 +123,12 @@ export default function CreateTask({ onCancel }) {
         uploadedAttachments = uploadResult.attachments || [];
       }
 
-      const cleanedChecklist = checklist.filter((c) => c.trim() !== '');
+      const cleanedChecklist = checklist
+        .map((item) => ({
+          title: String(item?.title || '').trim(),
+          assignedEmployeeId: item?.assignedEmployeeId || '',
+        }))
+        .filter((item) => item.title !== '');
       const newTask = {
         id: `t${Date.now()}`,
         title,
@@ -131,7 +150,12 @@ export default function CreateTask({ onCancel }) {
         completedSubtasks: 0,
         totalSubtasks: cleanedChecklist.length,
         assignees,
-        subtasks: cleanedChecklist.map((c, i) => ({ id: `st${i}`, title: c, completed: false })),
+        subtasks: cleanedChecklist.map((item, i) => ({
+          id: `st${i}`,
+          title: item.title,
+          completed: false,
+          assigned_employee_id: item.assignedEmployeeId || null,
+        })),
         attachments: uploadedAttachments,
       };
 
@@ -253,14 +277,30 @@ export default function CreateTask({ onCancel }) {
           <label className="block text-sm font-semibold text-slate-700 mb-2">TODO Checklist</label>
           <div className="space-y-3">
             {checklist.map((item, index) => (
-              <div key={index} className="flex gap-2">
+              <div key={index} className="flex flex-wrap gap-2 md:flex-nowrap">
                 <input
                   type="text"
-                  value={item}
+                  value={item.title}
                   onChange={(e) => handleChecklistChange(index, e.target.value)}
                   placeholder={index === 0 ? 'Create Product Card' : 'Add item...'}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gray-50 border-none focus:ring-1 focus:ring-[#7F40EE] outline-none text-sm"
+                  className="min-w-[220px] flex-1 px-4 py-2 rounded-lg bg-gray-50 border-none focus:ring-1 focus:ring-[#7F40EE] outline-none text-sm"
                 />
+                <select
+                  value={item.assignedEmployeeId}
+                  onChange={(event) => handleChecklistAssigneeChange(index, event.target.value)}
+                  className="w-full md:w-52 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-slate-700"
+                >
+                  <option value="">Unassigned</option>
+                  {assignees.map((uid) => {
+                    const u = users.find((user) => user.id === uid);
+                    if (!u) return null;
+                    return (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    );
+                  })}
+                </select>
                 <button onClick={() => handleRemoveChecklistItem(index)} className="text-red-400 hover:text-red-600 p-2">
                   <Trash2 size={18} />
                 </button>
