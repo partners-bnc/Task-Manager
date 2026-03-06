@@ -604,15 +604,25 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                       <button
                         key={option.value}
                         type='button'
-                        disabled={saving || isActive}
+                        disabled={saving}
                         onClick={() => updateTaskStatus(option.value)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
                           isActive ? style.active : style.inactive
                         }`}
+                        aria-pressed={isActive}
                       >
-                        <span className='inline-flex items-center gap-2'>
-                          <span className={`inline-block h-2 w-2 rounded-full ${style.dot}`} aria-hidden='true'></span>
-                          <span>Mark as {option.label}</span>
+                        <span className='inline-flex items-center gap-2.5'>
+                          <span
+                            className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] font-bold leading-none ${
+                              isActive
+                                ? 'border-current bg-white/80 text-current'
+                                : 'border-slate-400 bg-white text-transparent'
+                            }`}
+                            aria-hidden='true'
+                          >
+                            ✓
+                          </span>
+                          <span>{option.label}</span>
                         </span>
                       </button>
                     );

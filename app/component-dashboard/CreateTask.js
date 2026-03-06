@@ -18,9 +18,19 @@ export default function CreateTask({ onCancel }) {
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [tempAssignees, setTempAssignees] = useState([]);
+  const [assigneeSearch, setAssigneeSearch] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
+
+  const filteredUsers = users.filter((user) => {
+    const query = assigneeSearch.trim().toLowerCase();
+    if (!query) return true;
+
+    return [user?.name, user?.email, user?.username, user?.employee_id]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+  });
 
   const renderUserAvatar = (user, className = 'w-10 h-10 rounded-full') => {
     const avatarSrc = user?.avatar || null;
@@ -73,6 +83,7 @@ export default function CreateTask({ onCancel }) {
 
   const openUserModal = () => {
     setTempAssignees([...assignees]);
+    setAssigneeSearch('');
     setIsUserModalOpen(true);
   };
 
@@ -373,31 +384,45 @@ export default function CreateTask({ onCancel }) {
               </button>
             </div>
 
+            <div className="mb-4">
+              <input
+                type="text"
+                value={assigneeSearch}
+                onChange={(event) => setAssigneeSearch(event.target.value)}
+                placeholder="Search employee"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#7F40EE]"
+              />
+            </div>
+
             <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-              {users.map((user) => (
-                <div
-                  key={user.id}
-                  onClick={() => toggleUserSelection(user.id)}
-                  className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    {renderUserAvatar(user, 'w-10 h-10 rounded-full')}
-                    <div>
-                      <div className="font-bold text-sm text-slate-800">{user.name}</div>
-                      <div className="text-xs text-slate-500">{user.email}</div>
+              {filteredUsers.length > 0 ? (
+                filteredUsers.map((user) => (
+                  <div
+                    key={user.id}
+                    onClick={() => toggleUserSelection(user.id)}
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
+                  >
+                    <div className="flex items-center gap-3">
+                      {renderUserAvatar(user, 'w-10 h-10 rounded-full')}
+                      <div>
+                        <div className="font-bold text-sm text-slate-800">{user.name}</div>
+                        <div className="text-xs text-slate-500">{user.email}</div>
+                      </div>
+                    </div>
+                    <div
+                      className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                        tempAssignees.includes(user.id)
+                          ? 'bg-[#7F40EE] border-[#7F40EE]'
+                          : 'border-gray-300 group-hover:border-[#7F40EE]'
+                      }`}
+                    >
+                      {tempAssignees.includes(user.id) && <Check size={12} className="text-white" />}
                     </div>
                   </div>
-                  <div
-                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                      tempAssignees.includes(user.id)
-                        ? 'bg-[#7F40EE] border-[#7F40EE]'
-                        : 'border-gray-300 group-hover:border-[#7F40EE]'
-                    }`}
-                  >
-                    {tempAssignees.includes(user.id) && <Check size={12} className="text-white" />}
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p className="px-1 py-2 text-sm text-slate-500">No employees found.</p>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
