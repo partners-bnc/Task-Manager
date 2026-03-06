@@ -126,6 +126,19 @@ export default function ManageTasks() {
               </div>
             </div>
 
+            <div className="mb-6">
+              <div className="flex justify-between items-center text-xs font-semibold text-slate-600 mb-2">
+                <span>Task Progress</span>
+                <span>{task.progressPercentage ?? 0}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2">
+                <div
+                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${task.progressPercentage ?? 0}%` }}
+                ></div>
+              </div>
+            </div>
+
             <div className="border-t border-gray-100 pt-4 flex justify-between items-end">
               <div className="flex -space-x-2">
                 {task.assignees.map((uid) => {

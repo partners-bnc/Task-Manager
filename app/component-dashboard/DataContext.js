@@ -85,6 +85,11 @@ const deriveSharedUsersFromTasks = (tasks = [], currentEmployee = null) => {
 const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
   const subtasks = Array.isArray(task.task_subtasks) ? task.task_subtasks : [];
   const completedSubtasks = subtasks.filter((subtask) => subtask.is_completed).length;
+  const checklistProgress = subtasks.length > 0 ? Math.round((completedSubtasks / subtasks.length) * 100) : 0;
+  const dbProgress = Number(task?.progress_percentage);
+  const progressPercentage = Number.isFinite(dbProgress)
+    ? Math.min(100, Math.max(0, Math.round(dbProgress)))
+    : checklistProgress;
   const assignees = Array.isArray(task.task_assignments)
     ? task.task_assignments.map((assignment) => assignment?.employee?.id).filter(Boolean)
     : fallbackAssignees;
@@ -102,6 +107,7 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     dueDate: formatDate(deriveDueDate(task)),
     completedSubtasks,
     totalSubtasks: subtasks.length,
+    progressPercentage,
     assignees,
     subtasks: subtasks.map((subtask) => ({
       id: subtask.id,

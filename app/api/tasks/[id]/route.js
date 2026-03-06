@@ -74,6 +74,7 @@ async function fetchTaskById(taskId) {
       description,
       priority,
       status,
+      progress_percentage,
       due_date,
       created_at,
       updated_at,
@@ -153,6 +154,7 @@ export async function GET(request, { params }) {
 
     const viewer = {
       type: actor.type,
+      employeeId: actor.type === 'employee' ? actor.employeeId : null,
       canManageTask: actor.type === 'admin',
       canManageSubtasks: actor.type === 'admin' || actor.type === 'employee',
       canComment: actor.type === 'admin' || actor.type === 'employee',
@@ -271,7 +273,61 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: 'Subtask assignee updated' });
     }
 
-    if (body?.subtaskTitle) {
+    if (body?.subtaskId && typeof body?.subtaskTitle === 'string') {
+      const title = String(body.subtaskTitle || '').trim();
+      if (!title) {
+        return NextResponse.json({ error: 'Subtask title is required' }, { status: 400 });
+      }
+
+      const { data: existingSubtask, error: subtaskFetchError } = await adminClient
+        .from('task_subtasks')
+        .select('id, assigned_employee_id')
+        .eq('id', body.subtaskId)
+        .eq('task_id', taskId)
+        .maybeSingle();
+
+      if (subtaskFetchError) {
+        return NextResponse.json({ error: subtaskFetchError.message }, { status: 500 });
+      }
+
+      if (!existingSubtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+
+      if (actor.type === 'employee') {
+        const isUnassigned = !existingSubtask.assigned_employee_id;
+        const isAssignedToActor = existingSubtask.assigned_employee_id === actor.employeeId;
+        if (!isUnassigned && !isAssignedToActor) {
+          return NextResponse.json(
+            { error: 'Subtask is assigned to another employee' },
+            { status: 403 }
+          );
+        }
+      }
+
+      const { data: updatedSubtask, error: updateError } = await adminClient
+        .from('task_subtasks')
+        .update({
+          title,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', body.subtaskId)
+        .eq('task_id', taskId)
+        .select('id')
+        .maybeSingle();
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      if (!updatedSubtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask title updated' });
+    }
+
+    if (!body?.subtaskId && typeof body?.subtaskTitle === 'string') {
       const title = String(body.subtaskTitle || '').trim();
       const assignedEmployeeId = body.assignedEmployeeId || null;
       if (!title) {
@@ -305,6 +361,32 @@ export async function PATCH(request, { params }) {
 
     const allowedStatuses = ['pending', 'in_progress', 'completed'];
     const allowedPriorities = ['low', 'medium', 'high'];
+    const hasProgressUpdate = Object.prototype.hasOwnProperty.call(body || {}, 'progressPercentage');
+    const rawProgress = Number(body?.progressPercentage);
+    const normalizedProgress = Number.isFinite(rawProgress) ? Math.round(rawProgress) : NaN;
+
+    if (hasProgressUpdate) {
+      if (Number.isNaN(normalizedProgress) || normalizedProgress < 0 || normalizedProgress > 100) {
+        return NextResponse.json(
+          { error: 'progressPercentage must be a number between 0 and 100' },
+          { status: 400 }
+        );
+      }
+
+      const { error: progressError } = await adminClient
+        .from('tasks')
+        .update({
+          progress_percentage: normalizedProgress,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', taskId);
+
+      if (progressError) {
+        return NextResponse.json({ error: progressError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Task progress updated' });
+    }
 
     if (actor.type !== 'admin' && body?.status) {
       if (!['pending', 'in_progress', 'completed'].includes(body.status)) {

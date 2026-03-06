@@ -74,8 +74,12 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [pendingSubtaskIds, setPendingSubtaskIds] = useState([]);
+  const [pendingSubtaskTitleIds, setPendingSubtaskTitleIds] = useState([]);
+  const [editingSubtaskId, setEditingSubtaskId] = useState(null);
+  const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState('');
+  const [progressDraft, setProgressDraft] = useState(0);
 
   const [editForm, setEditForm] = useState({
     taskName: '',
@@ -127,6 +131,11 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       const fetchedTask = taskJson.task;
 
       setTask(fetchedTask);
+      setProgressDraft(
+        Number.isFinite(Number(fetchedTask?.progress_percentage))
+          ? Math.min(100, Math.max(0, Math.round(Number(fetchedTask.progress_percentage))))
+          : 0
+      );
       setViewer(taskJson.viewer || null);
       setComments(commentsJson.comments || []);
       setEditForm({
@@ -285,6 +294,121 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       setError(err.message || 'Failed to add checklist item');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const updateTaskProgress = async (nextProgress) => {
+    if (!canManageStatus || !task) return;
+
+    const normalized = Math.min(100, Math.max(0, Math.round(Number(nextProgress) || 0)));
+    const previousProgress = Number.isFinite(Number(task.progress_percentage))
+      ? Math.min(100, Math.max(0, Math.round(Number(task.progress_percentage))))
+      : 0;
+
+    if (normalized === previousProgress) return;
+
+    setSaving(true);
+    setError('');
+    setTask((prev) => (prev ? { ...prev, progress_percentage: normalized } : prev));
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ progressPercentage: normalized }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update task progress');
+      }
+    } catch (err) {
+      setTask((prev) => (prev ? { ...prev, progress_percentage: previousProgress } : prev));
+      setProgressDraft(previousProgress);
+      setError(err.message || 'Failed to update task progress');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const canEditSubtaskTitle = (subtask) => {
+    if (!canManageSubtasks || !subtask) return false;
+    if (viewer?.type === 'admin') return true;
+    if (viewer?.type !== 'employee') return false;
+    return !subtask.assigned_employee_id || subtask.assigned_employee_id === viewer?.employeeId;
+  };
+
+  const startSubtaskTitleEdit = (subtask) => {
+    if (!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)) return;
+    setEditingSubtaskId(subtask.id);
+    setEditingSubtaskTitle(subtask.title || '');
+    setError('');
+  };
+
+  const cancelSubtaskTitleEdit = () => {
+    setEditingSubtaskId(null);
+    setEditingSubtaskTitle('');
+  };
+
+  const saveSubtaskTitle = async (subtask) => {
+    if (!subtask || editingSubtaskId !== subtask.id) return;
+
+    const nextTitle = editingSubtaskTitle.trim();
+    const previousTitle = subtask.title || '';
+
+    if (!nextTitle) {
+      setError('Subtask title cannot be empty');
+      cancelSubtaskTitleEdit();
+      return;
+    }
+
+    if (nextTitle === previousTitle) {
+      cancelSubtaskTitleEdit();
+      return;
+    }
+
+    if (!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)) {
+      cancelSubtaskTitleEdit();
+      return;
+    }
+
+    setPendingSubtaskTitleIds((prev) => [...prev, subtask.id]);
+    setTask((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        task_subtasks: (prev.task_subtasks || []).map((item) =>
+          item.id === subtask.id ? { ...item, title: nextTitle } : item
+        ),
+      };
+    });
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtaskId: subtask.id, subtaskTitle: nextTitle }),
+      });
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update subtask title');
+      }
+
+      cancelSubtaskTitleEdit();
+    } catch (err) {
+      setTask((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          task_subtasks: (prev.task_subtasks || []).map((item) =>
+            item.id === subtask.id ? { ...item, title: previousTitle } : item
+          ),
+        };
+      });
+      setError(err.message || 'Failed to update subtask title');
+    } finally {
+      setPendingSubtaskTitleIds((prev) => prev.filter((id) => id !== subtask.id));
     }
   };
 
@@ -454,8 +578,8 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
           </div>
         )}
 
-        <div className='grid gap-6 lg:grid-cols-[2fr_1fr]'>
-          <section className='rounded-xl bg-white p-6 shadow-sm space-y-5'>
+        <div className='grid gap-6 lg:grid-cols-3'>
+          <section className='rounded-xl bg-white p-6 shadow-sm space-y-5 lg:col-span-2'>
             <div className='flex flex-wrap gap-2'>
               <span className='rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold uppercase text-purple-700'>
                 {task.status.replace('_', ' ')}
@@ -494,6 +618,36 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {canManageStatus && (
+              <div>
+                <div className='mb-2 flex items-center justify-between text-sm text-slate-600'>
+                  <span>Task Progress</span>
+                  <span className='font-semibold text-slate-800'>{progressDraft}%</span>
+                </div>
+                <input
+                  type='range'
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={progressDraft}
+                  disabled={saving}
+                  onChange={(event) => setProgressDraft(Number(event.target.value))}
+                  onMouseUp={() => updateTaskProgress(progressDraft)}
+                  onTouchEnd={() => updateTaskProgress(progressDraft)}
+                  onKeyUp={(event) => {
+                    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Home' || event.key === 'End') {
+                      updateTaskProgress(progressDraft);
+                    }
+                  }}
+                  aria-label='Task progress percentage'
+                  style={{
+                    background: `linear-gradient(to right, #7F40EE 0%, #7F40EE ${progressDraft}%, #e2e8f0 ${progressDraft}%, #e2e8f0 100%)`,
+                  }}
+                  className='h-2 w-full cursor-pointer appearance-none rounded-lg'
+                />
               </div>
             )}
 
@@ -561,18 +715,56 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                     <input
                       type='checkbox'
                       checked={!!subtask.is_completed}
-                      disabled={!canManageSubtasks || saving || pendingSubtaskIds.includes(subtask.id)}
+                      disabled={
+                        !canManageSubtasks ||
+                        saving ||
+                        pendingSubtaskIds.includes(subtask.id) ||
+                        pendingSubtaskTitleIds.includes(subtask.id)
+                      }
                       onChange={() => toggleSubtask(subtask.id, subtask.is_completed)}
                       aria-label={`Toggle subtask ${subtask.title}`}
                     />
-                    <span className={`flex-1 ${subtask.is_completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
-                      {subtask.title}
-                    </span>
+                    {editingSubtaskId === subtask.id ? (
+                      <input
+                        value={editingSubtaskTitle}
+                        onChange={(event) => setEditingSubtaskTitle(event.target.value)}
+                        onBlur={() => saveSubtaskTitle(subtask)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            saveSubtaskTitle(subtask);
+                            return;
+                          }
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            cancelSubtaskTitleEdit();
+                          }
+                        }}
+                        autoFocus
+                        className='flex-1 min-w-0 rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700'
+                        disabled={pendingSubtaskTitleIds.includes(subtask.id)}
+                        aria-label='Edit subtask title'
+                      />
+                    ) : (
+                      <button
+                        type='button'
+                        onClick={() => startSubtaskTitleEdit(subtask)}
+                        disabled={!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)}
+                        className={`flex-1 min-w-0 text-left break-words ${
+                          subtask.is_completed ? 'text-slate-400 line-through' : 'text-slate-700'
+                        } ${
+                          canEditSubtaskTitle(subtask) ? 'cursor-text' : 'cursor-default'
+                        } disabled:opacity-70`}
+                        title={canEditSubtaskTitle(subtask) ? 'Click to edit subtask title' : subtask.title}
+                      >
+                        {subtask.title}
+                      </button>
+                    )}
                     {canManageSubtasks ? (
                       <select
                         value={subtask.assigned_employee_id || ''}
                         onChange={(event) => updateSubtaskAssignee(subtask.id, event.target.value)}
-                        disabled={saving}
+                        disabled={saving || pendingSubtaskTitleIds.includes(subtask.id)}
                         className='rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-700'
                       >
                         <option value=''>Unassigned</option>
@@ -621,7 +813,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
             </div>
           </section>
 
-          <aside className='space-y-6'>
+          <aside className='space-y-6 lg:col-span-1'>
             <section className='rounded-xl bg-white p-5 shadow-sm'>
               <h3 className='mb-3 text-sm font-semibold text-slate-600'>Assigned Members</h3>
               <div className='space-y-3'>

@@ -64,6 +64,7 @@ export async function GET(request) {
           description,
           priority,
           status,
+          progress_percentage,
           created_by,
           created_at,
           due_date,
