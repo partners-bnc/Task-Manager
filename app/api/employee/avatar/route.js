@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { getActor } from '@/utils/api-helpers';
 
-const SESSION_COOKIE = 'employee_session';
 const AVATAR_BUCKET = 'employee-avatars';
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 
@@ -18,36 +18,24 @@ function getStoragePathFromPublicUrl(url) {
   return url.slice(index + marker.length);
 }
 
-async function getSessionEmployee(request) {
-  const sessionToken = request.cookies.get(SESSION_COOKIE)?.value;
+async function getActorEmployee(request) {
+  const actor = await getActor(request);
 
-  if (!sessionToken) {
+  if (!actor) {
     return { error: 'Unauthorized', status: 401 };
   }
 
-  const { data: session, error: sessionError } = await adminClient
-    .from('employee_sessions')
-    .select('employee_id, expires_at')
-    .eq('token', sessionToken)
-    .single();
-
-  if (sessionError || !session) {
-    return { error: 'Unauthorized', status: 401 };
-  }
-
-  if (new Date(session.expires_at).getTime() <= Date.now()) {
-    await adminClient.from('employee_sessions').delete().eq('token', sessionToken);
-    return { error: 'Session expired', status: 401 };
+  if (actor.type !== 'employee') {
+    return { error: 'Forbidden', status: 403 };
   }
 
   const { data: employee, error: employeeError } = await adminClient
     .from('employees')
     .select('id, profile_picture_url')
-    .eq('id', session.employee_id)
+    .eq('id', actor.employeeId)
     .single();
 
   if (employeeError || !employee) {
-    await adminClient.from('employee_sessions').delete().eq('token', sessionToken);
     return { error: 'Unauthorized', status: 401 };
   }
 
@@ -56,13 +44,13 @@ async function getSessionEmployee(request) {
 
 export async function POST(request) {
   try {
-    const sessionData = await getSessionEmployee(request);
+    const actorData = await getActorEmployee(request);
 
-    if (sessionData.error) {
-      return NextResponse.json({ error: sessionData.error }, { status: sessionData.status });
+    if (actorData.error) {
+      return NextResponse.json({ error: actorData.error }, { status: actorData.status });
     }
 
-    const { employee } = sessionData;
+    const { employee } = actorData;
     const formData = await request.formData();
     const avatar = formData.get('avatar');
 

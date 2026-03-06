@@ -11,13 +11,14 @@ import TeamMembers from './TeamMembers';
 import Todos from './Todos';
 import AdminSettings from './AdminSettings';
 import EmployeeSettings from './EmployeeSettings';
+import ChatPanel from './ChatPanel';
 import { USERS } from './data';
 
 function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const { user, loading, isAdminMode } = useData();
   const safeInitialView = initialView;
   const [currentView, setCurrentView] = useState(safeInitialView);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
   if (loading) {
     return (
@@ -45,6 +46,8 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
         return <TeamMembers />;
       case 'settings':
         return isAdminMode ? <AdminSettings /> : <EmployeeSettings />;
+      case 'chat':
+        return <ChatPanel />;
       default:
         return <Dashboard onNavigate={setCurrentView} />;
     }

@@ -1,11 +1,62 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis } from 'recharts';
 import { ArrowRight } from 'lucide-react';
 import { useData } from './DataContext';
 
+const IST_TIMEZONE = 'Asia/Kolkata';
+
+const getOrdinalSuffix = (day) => {
+  if (day > 3 && day < 21) return 'th';
+
+  switch (day % 10) {
+    case 1:
+      return 'st';
+    case 2:
+      return 'nd';
+    case 3:
+      return 'rd';
+    default:
+      return 'th';
+  }
+};
+
+const getDashboardDateTime = () => {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-IN', {
+    timeZone: IST_TIMEZONE,
+    weekday: 'long',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    hour12: false,
+  }).formatToParts(now);
+
+  const getPart = (type) => parts.find((part) => part.type === type)?.value || '';
+  const hour = Number(getPart('hour'));
+  const day = Number(getPart('day'));
+
+  let greeting = 'Good Evening';
+  if (hour >= 5 && hour < 12) greeting = 'Good Morning';
+  if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
+
+  return {
+    greeting,
+    date: `${getPart('weekday')} ${day}${getOrdinalSuffix(day)} ${getPart('month')} ${getPart('year')}`,
+  };
+};
+
 export default function Dashboard({ onNavigate }) {
   const { user, tasks, isAdminMode } = useData();
+  const [dashboardDateTime, setDashboardDateTime] = useState(() => getDashboardDateTime());
+
+  useEffect(() => {
+    const updateDateTime = () => setDashboardDateTime(getDashboardDateTime());
+    const intervalId = setInterval(updateDateTime, 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   const stats = {
     total: tasks.length,
@@ -64,8 +115,8 @@ export default function Dashboard({ onNavigate }) {
   return (
     <div className="p-8">
       <div className="bg-white rounded-xl p-6 mb-8 shadow-sm">
-        <h2 className="text-2xl font-bold text-black mb-6">Good Morning! {user?.name}</h2>
-        <p className="text-slate-500 mb-6">Tuesday 25th Mar 2025</p>
+        <h2 className="text-2xl font-bold text-black mb-6">{dashboardDateTime.greeting}! {user?.name}</h2>
+        <p className="text-slate-500 mb-6">{dashboardDateTime.date}</p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           <div className="flex items-center space-x-3">

@@ -2,14 +2,19 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
+import {
+  ensureEmployeeAuthUser,
+  getResetRedirectUrl,
+  sendEmployeeResetPasswordEmail,
+  syncEmployeePasswordToAuth,
+} from '@/utils/employee-auth';
 
 const SESSION_COOKIE = 'employee_session';
-const SESSION_DAYS = 7;
 
 async function findEmployeeBy(column, value) {
   return adminClient
     .from('employees')
-    .select('id, name, email, role, password_hash')
+    .select('id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id')
     .eq(column, value)
     .limit(1)
     .maybeSingle();
@@ -47,7 +52,9 @@ async function tryAdminLogin(email, password) {
   };
 }
 
-async function tryEmployeeLogin(email, password) {
+async function tryEmployeeLogin(request, email, password) {
+  const supabase = await createClient();
+
   const normalizedIdentifier = String(email).trim().toLowerCase();
   const localPart = normalizedIdentifier.includes('@')
     ? normalizedIdentifier.split('@')[0]
@@ -57,59 +64,112 @@ async function tryEmployeeLogin(email, password) {
 
   if ((!employee || employeeError) && localPart) {
     const { data: byUsername, error: byUsernameError } = await findEmployeeBy('username', localPart);
-
     employee = byUsername;
     employeeError = byUsernameError;
   }
 
   if (employeeError) {
-    const details = [
-      employeeError.code || 'NO_CODE',
-      employeeError.message || 'No message',
-      employeeError.details || '',
-    ]
-      .filter(Boolean)
-      .join(' | ');
-
-    throw new Error(`Employee auth query failed: ${details}`);
+    throw new Error(employeeError.message || 'Employee auth query failed');
   }
 
   if (!employee) {
     return { ok: false };
   }
 
-  const isPasswordValid = await bcrypt.compare(password, employee.password_hash || '');
-  if (!isPasswordValid) {
-    return { ok: false };
-  }
+  const authUserId = await ensureEmployeeAuthUser(employee);
+  employee = { ...employee, auth_user_id: authUserId };
 
-  const token = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000).toISOString();
-
-  const { error: sessionInsertError } = await adminClient
-    .from('employee_sessions')
-    .insert({
-      employee_id: employee.id,
-      token,
-      expires_at: expiresAt,
-    });
-
-  if (sessionInsertError) {
-    throw new Error('Failed to create session');
-  }
-
-  const payload = {
-    success: true,
-    role: 'employee',
-    employee: {
-      id: employee.id,
-      name: employee.name,
+  const attemptSupabaseSignIn = async () => {
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: employee.email,
-      role: employee.role,
-    },
+      password,
+    });
+    return { data, error };
   };
 
-  return { ok: true, payload, token };
+  if (employee.must_change_password) {
+    const isOldPassword = await bcrypt.compare(password, employee.password_hash || '');
+
+    if (isOldPassword) {
+      await sendEmployeeResetPasswordEmail(employee.email, getResetRedirectUrl(request));
+      return {
+        ok: false,
+        resetRequired: true,
+        message: 'Password reset required. We sent a reset link to your email.',
+      };
+    }
+
+    const { data, error } = await attemptSupabaseSignIn();
+    if (error || !data?.user) {
+      return { ok: false };
+    }
+
+    await adminClient
+      .from('employees')
+      .update({
+        must_change_password: false,
+        password_set_at: new Date().toISOString(),
+      })
+      .eq('id', employee.id);
+
+    return {
+      ok: true,
+      payload: {
+        success: true,
+        role: 'employee',
+        employee: {
+          id: employee.id,
+          name: employee.name,
+          email: employee.email,
+          role: employee.role,
+        },
+      },
+    };
+  }
+
+  let { data, error } = await attemptSupabaseSignIn();
+
+  if (error || !data?.user) {
+    const legacyPasswordValid = await bcrypt.compare(password, employee.password_hash || '');
+    if (!legacyPasswordValid) {
+      return { ok: false };
+    }
+
+    await syncEmployeePasswordToAuth(employee, password);
+    const retry = await attemptSupabaseSignIn();
+    data = retry.data;
+    error = retry.error;
+
+    if (error || !data?.user) {
+      return { ok: false };
+    }
+  }
+
+  return {
+    ok: true,
+    payload: {
+      success: true,
+      role: 'employee',
+      employee: {
+        id: employee.id,
+        name: employee.name,
+        email: employee.email,
+        role: employee.role,
+      },
+    },
+  };
+}
+
+function clearLegacyEmployeeSessionCookie(response) {
+  response.cookies.set({
+    name: SESSION_COOKIE,
+    value: '',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0,
+  });
 }
 
 export async function POST(request) {
@@ -120,37 +180,31 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    // 1) Try admin auth (Supabase Auth + profiles.role=admin)
     const adminResult = await tryAdminLogin(email, password);
     if (adminResult.ok) {
-      return NextResponse.json(adminResult.payload);
+      const response = NextResponse.json(adminResult.payload);
+      clearLegacyEmployeeSessionCookie(response);
+      return response;
     }
 
-    // 2) Try employee auth (employees + employee_sessions)
-    const serviceRoleKey = process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY;
-    if (!serviceRoleKey || serviceRoleKey === 'your_supabase_service_role_key') {
+    const employeeResult = await tryEmployeeLogin(request, email, password);
+
+    if (employeeResult.resetRequired) {
       return NextResponse.json(
-        { error: 'Employee auth is not configured. Set NEXT_SUPABASE_SERVICE_ROLE_KEY in .env.local and restart the server.' },
-        { status: 500 }
+        {
+          error: employeeResult.message,
+          code: 'PASSWORD_RESET_REQUIRED',
+        },
+        { status: 403 }
       );
     }
 
-    const employeeResult = await tryEmployeeLogin(email, password);
     if (!employeeResult.ok) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
     const response = NextResponse.json(employeeResult.payload);
-    response.cookies.set({
-      name: SESSION_COOKIE,
-      value: employeeResult.token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: SESSION_DAYS * 24 * 60 * 60,
-    });
-
+    clearLegacyEmployeeSessionCookie(response);
     return response;
   } catch (error) {
     console.error('Error in unified login:', error);

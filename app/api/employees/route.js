@@ -2,6 +2,8 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { enqueueEmployeeCreatedEmail } from '@/utils/email-outbox';
+import { ensureEmployeeAuthUser } from '@/utils/employee-auth';
+import { adminClient } from '@/utils/supabase/admin';
 
 const EMAIL_NOTIFICATIONS_ENABLED = process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true';
 
@@ -136,7 +138,7 @@ export async function POST(request) {
     const email = rawEmail || `${username}@taskflow.io`;
 
     // Insert employee into database
-    const { data: employee, error: insertError } = await supabase
+    const { data: employeeRow, error: insertError } = await supabase
       .from('employees')
       .insert([
         {
@@ -149,6 +151,7 @@ export async function POST(request) {
           must_change_password: true,
           password_set_at: null,
           profile_picture_url: profilePictureUrl,
+          auth_user_id: null,
         },
       ])
       .select()
@@ -170,6 +173,24 @@ export async function POST(request) {
         { status: 500 }
       );
     }
+
+    let authUserId = null;
+    try {
+      authUserId = await ensureEmployeeAuthUser(employeeRow, tempPassword);
+    } catch (authError) {
+      console.error('Error creating Supabase Auth user for employee:', authError);
+      await supabase.from('employees').delete().eq('id', employeeRow.id);
+      if (profilePictureUrl) {
+        const filePath = profilePictureUrl.split('/').pop();
+        await supabase.storage.from('employee-avatars').remove([filePath]);
+      }
+      return NextResponse.json(
+        { error: authError.message || 'Failed to provision employee auth account' },
+        { status: 500 }
+      );
+    }
+
+    const employee = { ...employeeRow, auth_user_id: authUserId };
 
     try {
       await enqueueEmployeeCreatedEmail({
@@ -249,6 +270,27 @@ export async function PATCH(request) {
 
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    if (employee.auth_user_id && (email !== undefined || name !== undefined)) {
+      const authPayload = {};
+      if (email !== undefined) authPayload.email = employee.email;
+      if (name !== undefined) {
+        authPayload.user_metadata = {
+          full_name: employee.name || '',
+          employee_uuid: employee.id,
+          role: 'employee',
+        };
+      }
+
+      const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(
+        employee.auth_user_id,
+        authPayload
+      );
+
+      if (authUpdateError) {
+        return NextResponse.json({ error: authUpdateError.message }, { status: 500 });
+      }
     }
 
     return NextResponse.json(

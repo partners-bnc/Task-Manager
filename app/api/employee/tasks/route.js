@@ -1,59 +1,40 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { getActor } from '@/utils/api-helpers';
 
-const SESSION_COOKIE = 'employee_session';
+async function getEmployeeActor(request) {
+  const actor = await getActor(request);
 
-async function getSessionEmployee(request) {
-  const sessionToken = request.cookies.get(SESSION_COOKIE)?.value;
-
-  if (!sessionToken) {
+  if (!actor) {
     return { error: 'Unauthorized', status: 401 };
   }
 
-  const { data: session, error: sessionError } = await adminClient
-    .from('employee_sessions')
-    .select('employee_id, expires_at')
-    .eq('token', sessionToken)
-    .single();
-
-  if (sessionError || !session) {
-    return { error: 'Unauthorized', status: 401 };
-  }
-
-  const isExpired = new Date(session.expires_at).getTime() <= Date.now();
-  if (isExpired) {
-    await adminClient.from('employee_sessions').delete().eq('token', sessionToken);
-    return { error: 'Session expired', status: 401 };
-  }
-
-  if (!session.employee_id) {
-    await adminClient.from('employee_sessions').delete().eq('token', sessionToken);
-    return { error: 'Unauthorized', status: 401 };
+  if (actor.type !== 'employee' || !actor.employeeId) {
+    return { error: 'Forbidden', status: 403 };
   }
 
   const { data: employee, error: employeeError } = await adminClient
     .from('employees')
     .select('id, name, email, role, employee_id, username, profile_picture_url')
-    .eq('id', session.employee_id)
+    .eq('id', actor.employeeId)
     .single();
 
   if (employeeError || !employee) {
-    await adminClient.from('employee_sessions').delete().eq('token', sessionToken);
     return { error: 'Unauthorized', status: 401 };
   }
 
-  return { sessionToken, employee };
+  return { employee };
 }
 
 export async function GET(request) {
   try {
-    const sessionData = await getSessionEmployee(request);
+    const actorData = await getEmployeeActor(request);
 
-    if (sessionData.error) {
-      return NextResponse.json({ error: sessionData.error }, { status: sessionData.status });
+    if (actorData.error) {
+      return NextResponse.json({ error: actorData.error }, { status: actorData.status });
     }
 
-    const employee = sessionData.employee;
+    const employee = actorData.employee;
 
     const { data: assignmentRows, error: tasksError } = await adminClient
       .from('task_assignments')
@@ -123,13 +104,13 @@ export async function GET(request) {
 
 export async function PATCH(request) {
   try {
-    const sessionData = await getSessionEmployee(request);
+    const actorData = await getEmployeeActor(request);
 
-    if (sessionData.error) {
-      return NextResponse.json({ error: sessionData.error }, { status: sessionData.status });
+    if (actorData.error) {
+      return NextResponse.json({ error: actorData.error }, { status: actorData.status });
     }
 
-    const employee = sessionData.employee;
+    const employee = actorData.employee;
     const { taskId, status, subtaskTitle, subtaskId, isCompleted } = await request.json();
 
     if (taskId && subtaskTitle) {
@@ -191,10 +172,7 @@ export async function PATCH(request) {
       }
 
       if (subtask.assigned_employee_id && subtask.assigned_employee_id !== employee.id) {
-        return NextResponse.json(
-          { error: 'Subtask is assigned to another employee' },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: 'Subtask is assigned to another employee' }, { status: 403 });
       }
 
       const { error: subtaskUpdateError } = await adminClient
