@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, CalendarDays, CircleCheckBig, Clock3, Loader2, TriangleAlert, UserRoundCheck } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CircleCheckBig, Clock3, Loader2, Star, TriangleAlert, UserRoundCheck } from 'lucide-react';
 
 const STATUS_STYLES = {
   pending: 'bg-purple-100 text-purple-700',
@@ -24,17 +24,17 @@ function formatDate(value, { includeTime = false } = {}) {
 
   return date.toLocaleString('en-GB', includeTime
     ? {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }
     : {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      });
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
 }
 
 function getDisplayName(person, fallback = 'Unknown') {
@@ -71,6 +71,7 @@ function MetricCard({ icon: Icon, label, value, tone = 'slate' }) {
     sky: 'bg-sky-100 text-sky-700',
     emerald: 'bg-emerald-100 text-emerald-700',
     rose: 'bg-rose-100 text-rose-700',
+    amber: 'bg-amber-100 text-amber-700',
   }[tone] || 'bg-slate-100 text-slate-700';
 
   return (
@@ -241,11 +242,12 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <MetricCard icon={UserRoundCheck} label="Total Assigned" value={stats?.totalAssigned ?? 0} tone="slate" />
           <MetricCard icon={Clock3} label="Pending" value={stats?.pending ?? 0} tone="purple" />
           <MetricCard icon={CalendarDays} label="In Progress" value={stats?.inProgress ?? 0} tone="sky" />
           <MetricCard icon={CircleCheckBig} label="Completed" value={stats?.completed ?? 0} tone="emerald" />
+          <MetricCard icon={Star} label="Avg Rating" value={stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A'} tone="amber" />
           <MetricCard icon={TriangleAlert} label="Overdue" value={stats?.overdue ?? 0} tone="rose" />
         </section>
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Star } from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
@@ -111,6 +112,33 @@ const getActivityAccent = (action) => {
   };
 };
 
+function TaskRating({ rating, hoverRating, setHoverRating, onRate, canRate }) {
+  return (
+    <div className="flex items-center gap-1" title={canRate ? "Rate this task" : "Task rating"}>
+      {[1, 2, 3, 4, 5].map((star) => {
+        const isFilled = (hoverRating || rating) >= star;
+        return (
+          <button
+            key={star}
+            type="button"
+            disabled={!canRate}
+            onMouseEnter={() => canRate && setHoverRating(star)}
+            onMouseLeave={() => canRate && setHoverRating(0)}
+            onClick={() => canRate && onRate(star)}
+            className={`p-1 transition-transform ${canRate ? 'cursor-pointer hover:scale-110' : 'cursor-default opacity-90'}`}
+            aria-label={`Rate ${star} stars`}
+          >
+            <Star
+              size={20}
+              className={`transition-colors ${isFilled ? 'fill-amber-400 text-amber-400' : 'fill-transparent text-slate-300'}`}
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Avatar({ name, src, size = 'w-9 h-9' }) {
   const initial = name?.trim()?.charAt(0)?.toUpperCase() || 'U';
 
@@ -148,9 +176,8 @@ function AssigneePicker({
   return (
     <details className='relative min-w-[180px]' data-assignee-picker>
       <summary
-        className={`flex list-none items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-sm text-slate-700 shadow-sm transition marker:content-none ${
-          disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-slate-300'
-        }`}
+        className={`flex list-none items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-sm text-slate-700 shadow-sm transition marker:content-none ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-slate-300'
+          }`}
       >
         <span className='flex min-w-0 items-center gap-2'>
           {selected ? (
@@ -281,6 +308,8 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [taskLabels, setTaskLabels] = useState([]);
   const [newLabelName, setNewLabelName] = useState('');
   const [creatingLabel, setCreatingLabel] = useState(false);
+  const [ratingDraft, setRatingDraft] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
 
   const [editForm, setEditForm] = useState({
     taskName: '',
@@ -348,6 +377,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       const fetchedTask = taskJson.task;
 
       setTask(fetchedTask);
+      setRatingDraft(typeof fetchedTask?.rating === 'number' ? fetchedTask.rating : 0);
       setProgressDraft(
         Number.isFinite(Number(fetchedTask?.progress_percentage))
           ? Math.min(100, Math.max(0, Math.round(Number(fetchedTask.progress_percentage))))
@@ -567,6 +597,37 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       setTask((prev) => (prev ? { ...prev, progress_percentage: previousProgress } : prev));
       setProgressDraft(previousProgress);
       setError(err.message || 'Failed to update task progress');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateTaskRating = async (nextRating) => {
+    if (!viewer?.canRateTask || !task) return;
+
+    const previousRating = task.rating || 0;
+    if (nextRating === previousRating) return;
+
+    setSaving(true);
+    setError('');
+    setTask((prev) => (prev ? { ...prev, rating: nextRating } : prev));
+    setRatingDraft(nextRating);
+
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rating: nextRating }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update task rating');
+      }
+    } catch (err) {
+      setTask((prev) => (prev ? { ...prev, rating: previousRating } : prev));
+      setRatingDraft(previousRating);
+      setError(err.message || 'Failed to update task rating');
     } finally {
       setSaving(false);
     }
@@ -800,14 +861,26 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
               Back to tasks
             </Link>
             <h1 className='mt-2 text-2xl font-bold text-slate-900'>{task.task_name}</h1>
-            {task.label && (
-              <div className='mt-3'>
+            <div className='mt-3 flex flex-wrap items-center gap-4'>
+              {(task.status === 'completed' || ratingDraft > 0) && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-slate-600">Rating:</span>
+                  <TaskRating
+                    rating={ratingDraft}
+                    hoverRating={hoverRating}
+                    setHoverRating={setHoverRating}
+                    onRate={updateTaskRating}
+                    canRate={!!viewer?.canRateTask}
+                  />
+                </div>
+              )}
+              {task.label && (
                 <span className='inline-flex rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700'>
                   {task.label}
                 </span>
-              </div>
-            )}
-            <p className='mt-1 text-sm text-slate-500'>Created {formatDate(task.created_at)}</p>
+              )}
+            </div>
+            <p className='mt-2 text-sm text-slate-500'>Created {formatDate(task.created_at)}</p>
           </div>
 
           {canEditTask && (
@@ -861,18 +934,16 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                         type='button'
                         disabled={saving}
                         onClick={() => updateTaskStatus(option.value)}
-                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                          isActive ? style.active : style.inactive
-                        }`}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${isActive ? style.active : style.inactive
+                          }`}
                         aria-pressed={isActive}
                       >
                         <span className='inline-flex items-center gap-2.5'>
                           <span
-                            className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] font-bold leading-none ${
-                              isActive
+                            className={`inline-flex h-4 w-4 items-center justify-center rounded border text-[10px] font-bold leading-none ${isActive
                                 ? 'border-current bg-white/80 text-current'
                                 : 'border-slate-400 bg-white text-transparent'
-                            }`}
+                              }`}
                             aria-hidden='true'
                           >
                             ✓
@@ -1008,11 +1079,9 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                         type='button'
                         onClick={() => startSubtaskTitleEdit(subtask)}
                         disabled={!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)}
-                        className={`flex-1 min-w-0 text-left break-words ${
-                          subtask.is_completed ? 'text-slate-400 line-through' : 'text-slate-700'
-                        } ${
-                          canEditSubtaskTitle(subtask) ? 'cursor-text' : 'cursor-default'
-                        } disabled:opacity-70`}
+                        className={`flex-1 min-w-0 text-left break-words ${subtask.is_completed ? 'text-slate-400 line-through' : 'text-slate-700'
+                          } ${canEditSubtaskTitle(subtask) ? 'cursor-text' : 'cursor-default'
+                          } disabled:opacity-70`}
                         title={canEditSubtaskTitle(subtask) ? 'Click to edit subtask title' : subtask.title}
                       >
                         {subtask.title}

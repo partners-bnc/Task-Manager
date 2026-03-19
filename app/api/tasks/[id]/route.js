@@ -99,6 +99,8 @@ async function fetchTaskById(taskId) {
       status,
       progress_percentage,
       due_date,
+      rating,
+      created_by,
       created_at,
       updated_at,
       task_assignments (
@@ -186,6 +188,7 @@ export async function GET(request, { params }) {
       canManageTask: actor.type === 'admin',
       canManageSubtasks: actor.type === 'admin' || actor.type === 'employee',
       canComment: actor.type === 'admin' || actor.type === 'employee',
+      canRateTask: task.status === 'completed' && !!actor.authUserId && task.created_by === actor.authUserId,
     };
 
     return NextResponse.json({ success: true, task, viewer, employees, assignmentActivity });
@@ -214,6 +217,42 @@ export async function PATCH(request, { params }) {
 
     const body = await request.json();
     const actorPayload = getAssignmentActivityActorPayload(actor);
+
+    if (typeof body?.rating === 'number') {
+      const { data: taskToCheck, error: fetchError } = await adminClient
+        .from('tasks')
+        .select('created_by, status')
+        .eq('id', taskId)
+        .single();
+        
+      if (fetchError || !taskToCheck) {
+        return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      }
+      
+      if (taskToCheck.created_by !== actor.authUserId) {
+        return NextResponse.json({ error: 'Only the task creator can rate this task' }, { status: 403 });
+      }
+      if (taskToCheck.status !== 'completed') {
+        return NextResponse.json({ error: 'Task must be completed before rating' }, { status: 400 });
+      }
+      if (body.rating < 1 || body.rating > 5) {
+        return NextResponse.json({ error: 'Rating must be between 1 and 5' }, { status: 400 });
+      }
+      
+      const { error: ratingError } = await adminClient
+        .from('tasks')
+        .update({
+          rating: Math.round(body.rating),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', taskId);
+
+      if (ratingError) {
+        return NextResponse.json({ error: ratingError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Task rating updated' });
+    }
 
     if (body?.subtaskId && typeof body?.isCompleted === 'boolean') {
       if (actor.type === 'employee') {
@@ -544,3 +583,4 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
   }
 }
+

@@ -64,12 +64,12 @@ function mapActivity(activity) {
     actor: activity?.assigned_by_actor_type === 'employee'
       ? activity?.assigned_by_employee || null
       : {
-          id: activity?.assigned_by_admin?.id || null,
-          name: activity?.assigned_by_admin?.full_name || activity?.assigned_by_admin?.email || 'Unknown',
-          email: activity?.assigned_by_admin?.email || '',
-          role: 'admin',
-          profile_picture_url: null,
-        },
+        id: activity?.assigned_by_admin?.id || null,
+        name: activity?.assigned_by_admin?.full_name || activity?.assigned_by_admin?.email || 'Unknown',
+        email: activity?.assigned_by_admin?.email || '',
+        role: 'admin',
+        profile_picture_url: null,
+      },
   };
 }
 
@@ -133,14 +133,15 @@ function buildTaskPayload(assignments = [], activities = []) {
         created_at: task.created_at || null,
         updated_at: task.updated_at || null,
         progress_percentage: getDerivedProgress(task),
+        rating: typeof task.rating === 'number' ? task.rating : null,
         assigned_at: latestActivity?.created_at || assignment?.assigned_at || null,
         assigned_by: latestActivity ? getActorName(latestActivity) : 'Assigned',
         assignment_action: latestActivity?.action || 'assigned',
         assignment_source: latestActivity?.entity_type || 'task',
         assignees: Array.isArray(task.task_assignments)
           ? task.task_assignments
-              .map((taskAssignment) => taskAssignment?.employee)
-              .filter(Boolean)
+            .map((taskAssignment) => taskAssignment?.employee)
+            .filter(Boolean)
           : [],
         subtasks_total: taskSubtasks.length,
         subtasks_completed: completedSubtasks,
@@ -162,6 +163,12 @@ function buildStats(tasks = []) {
   }).length;
   const completionRate = totalAssigned > 0 ? Math.round((completed / totalAssigned) * 100) : 0;
 
+  const completedTasks = tasks.filter((task) => task.status === 'completed');
+  const ratedTasks = completedTasks.filter((task) => typeof task.rating === 'number');
+  const averageRating = ratedTasks.length > 0
+    ? ratedTasks.reduce((sum, task) => sum + task.rating, 0) / ratedTasks.length
+    : null;
+
   const nextDueTask = [...tasks]
     .filter((task) => task?.due_date && task.status !== 'completed')
     .sort((left, right) => new Date(left.due_date).getTime() - new Date(right.due_date).getTime())[0] || null;
@@ -173,12 +180,13 @@ function buildStats(tasks = []) {
     completed,
     overdue,
     completionRate,
+    averageRating,
     nextDueTask: nextDueTask
       ? {
-          id: nextDueTask.id,
-          task_name: nextDueTask.task_name,
-          due_date: nextDueTask.due_date,
-        }
+        id: nextDueTask.id,
+        task_name: nextDueTask.task_name,
+        due_date: nextDueTask.due_date,
+      }
       : null,
   };
 }
@@ -213,6 +221,7 @@ export async function GET(request, { params }) {
             created_at,
             updated_at,
             progress_percentage,
+            rating,
             task_assignments (
               employee:employees (
                 id,
