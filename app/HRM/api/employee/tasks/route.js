@@ -1,30 +1,96 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { createClient } from '@/utils/supabase/server';
+import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import {
   findEmployeeById,
-  getActor,
   insertAssignmentActivityRows,
 } from '@/utils/api-helpers';
 
-async function getEmployeeActor(request) {
-  const actor = await getActor(request);
+async function findTaskManagerMembers() {
+  const { data: members, error } = await adminClient
+    .from('hrm_employees')
+    .select(`
+      id,
+      employee_id,
+      username,
+      name,
+      email,
+      role,
+      profile_picture_url,
+      module_access:hrm_module_access!module_access_employee_id_fkey (
+        task_manager,
+        task_manager_role,
+        hrm_admin,
+        auditing,
+        crm
+      )
+    `)
+    .order('created_at', { ascending: false });
 
-  if (!actor) {
+  if (error) {
+    throw new Error(error.message || 'Failed to load task members');
+  }
+
+  return (members || []).filter((member) => {
+    const access = Array.isArray(member.module_access) ? member.module_access[0] : member.module_access;
+    return Boolean(access?.task_manager);
+  });
+}
+
+async function getEmployeeActor(request) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
     return { error: 'Unauthorized', status: 401 };
   }
 
-  if (actor.type !== 'employee' || !actor.employeeId) {
+  const authContext = await resolveAuthenticatedUserContext(supabase, user);
+
+  if (authContext?.accountType !== 'employee') {
     return { error: 'Forbidden', status: 403 };
   }
 
+  const employeeId =
+    authContext.employee?.id ||
+    user.user_metadata?.employee_uuid ||
+    null;
+
+  if (!employeeId) {
+    return { error: 'Unauthorized', status: 401 };
+  }
+
   const { data: employee, error: employeeError } = await adminClient
-    .from('employees')
-    .select('id, name, email, role, employee_id, username, profile_picture_url')
-    .eq('id', actor.employeeId)
+    .from('hrm_employees')
+    .select(`
+      id,
+      name,
+      email,
+      role,
+      employee_id,
+      username,
+      profile_picture_url,
+      module_access:hrm_module_access!module_access_employee_id_fkey (
+        task_manager
+      )
+    `)
+    .eq('id', employeeId)
     .single();
 
   if (employeeError || !employee) {
     return { error: 'Unauthorized', status: 401 };
+  }
+
+  const moduleAccess = Array.isArray(employee.module_access)
+    ? employee.module_access[0]
+    : employee.module_access;
+
+  if (!moduleAccess?.task_manager) {
+    return { error: 'Task Manager access is not enabled', status: 403 };
   }
 
   return { employee };
@@ -65,7 +131,7 @@ export async function GET(request) {
             created_at
           ),
           task_assignments (
-            employee:employees (
+            employee:hrm_employees (
               id,
               name,
               email,
@@ -84,14 +150,7 @@ export async function GET(request) {
 
     const tasks = (assignmentRows || []).map((row) => row.task).filter(Boolean);
 
-    const { data: members, error: membersError } = await adminClient
-      .from('employees')
-      .select('id, name, email, role, profile_picture_url')
-      .order('created_at', { ascending: false });
-
-    if (membersError) {
-      return NextResponse.json({ error: membersError.message }, { status: 500 });
-    }
+    const members = await findTaskManagerMembers();
 
     const stats = {
       total: tasks.length,
@@ -100,7 +159,7 @@ export async function GET(request) {
       completed: tasks.filter((task) => task.status === 'completed').length,
     };
 
-    return NextResponse.json({ employee, tasks, members: members || [], stats, success: true });
+    return NextResponse.json({ employee, tasks, members, stats, success: true });
   } catch (error) {
     console.error('Error fetching employee tasks:', error);
     return NextResponse.json({ error: 'Failed to fetch tasks', success: false }, { status: 500 });
@@ -138,7 +197,9 @@ export async function PATCH(request) {
       }
 
       if (nextAssignedEmployeeId) {
-        const employeeRecord = await findEmployeeById(nextAssignedEmployeeId, adminClient);
+        const employeeRecord = await findEmployeeById(nextAssignedEmployeeId, adminClient, {
+          taskManagerOnly: true,
+        });
         if (!employeeRecord) {
           return NextResponse.json({ error: 'Assigned employee not found' }, { status: 400 });
         }
@@ -263,3 +324,4 @@ export async function PATCH(request) {
     return NextResponse.json({ error: 'Failed to update task status', success: false }, { status: 500 });
   }
 }
+

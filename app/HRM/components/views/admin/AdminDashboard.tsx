@@ -1,220 +1,314 @@
-import React from 'react';
+'use client';
 
-export default function AdminDashboard() {
+import React, { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+
+function getInitials(name = '') {
+  return String(name)
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'E';
+}
+
+function formatDate(value) {
+  if (!value) {
+    return '--';
+  }
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatBirthday(value) {
+  if (!value) {
+    return '--';
+  }
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+function getBirthdayCopy(employee) {
+  if (!employee) {
+    return {
+      heading: 'No birthdays lined up yet',
+      body: 'Add employee birth dates in the HR master record to start celebrating milestones here.',
+    };
+  }
+
+  if (employee.daysUntilBirthday === 0) {
+    return {
+      heading: `Today is ${employee.name}'s birthday`,
+      body: 'Share your wishes and make the day feel special for the team.',
+    };
+  }
+
+  if (employee.daysUntilBirthday === 1) {
+    return {
+      heading: `${employee.name}'s birthday is tomorrow`,
+      body: 'A perfect time to prepare the celebration and the birthday note.',
+    };
+  }
+
+  return {
+    heading: `${employee.name}'s celebration is coming up`,
+    body: `Only ${employee.daysUntilBirthday} day${employee.daysUntilBirthday === 1 ? '' : 's'} left, so the HR team can plan ahead.`,
+  };
+}
+
+function MetricCard({ title, value, subtitle, icon, tone }) {
   return (
-    <div className="p-10 max-w-7xl mx-auto">
-      {/* Hero Header */}
-      <section className="flex justify-between items-end mb-12 flex-wrap gap-4 w-full">
+    <div className={`rounded-[1.75rem] border border-outline-variant/10 p-5 shadow-sm ${tone}`}>
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-headline text-4xl lg:text-5xl font-extrabold tracking-tight text-on-surface mb-2">Good Morning, Alex</h2>
-          <p className="text-on-surface-variant font-medium text-lg">Your sanctuary for team growth and organizational harmony.</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-on-surface-variant/70">{title}</p>
+          <p className="mt-4 text-4xl font-headline font-extrabold text-on-surface">{value}</p>
+          <p className="mt-2 text-sm text-on-surface-variant">{subtitle}</p>
         </div>
-        <div className="flex gap-4">
-          <div className="h-16 w-16 rounded-2xl bg-tertiary-container flex items-center justify-center text-on-tertiary-container">
-            <span className="material-symbols-outlined text-3xl">calendar_today</span>
-          </div>
-          <div className="h-16 w-16 rounded-2xl bg-secondary-container flex items-center justify-center text-on-secondary-container">
-            <span className="material-symbols-outlined text-3xl">wb_sunny</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Bento Grid: Key Metrics */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-        {/* Total Employees */}
-        <div className="bg-surface-container-lowest p-8 rounded-[1.5rem] flex flex-col justify-between h-48 group hover:-translate-y-1 transition-transform duration-300 shadow-sm border border-outline-variant/10">
-          <div className="flex justify-between items-start">
-            <span className="material-symbols-outlined text-primary p-2 bg-primary/5 rounded-lg">person_add</span>
-            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+12%</span>
-          </div>
-          <div>
-            <h3 className="text-4xl font-bold font-headline">1,284</h3>
-            <p className="text-on-surface-variant text-sm font-medium mt-1">Total Employees</p>
-          </div>
-        </div>
-        
-        {/* Pending Leaves */}
-        <div className="bg-surface-container-lowest p-8 rounded-[1.5rem] flex flex-col justify-between h-48 group hover:-translate-y-1 transition-transform duration-300 shadow-sm border border-outline-variant/10">
-          <div className="flex justify-between items-start">
-            <span className="material-symbols-outlined text-error p-2 bg-error/5 rounded-lg">event_busy</span>
-            <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded-full">High</span>
-          </div>
-          <div>
-            <h3 className="text-4xl font-bold font-headline">24</h3>
-            <p className="text-on-surface-variant text-sm font-medium mt-1">Leave Requests</p>
-          </div>
-        </div>
-        
-        {/* Payroll */}
-        <div className="bg-surface-container-lowest p-8 rounded-[1.5rem] flex flex-col justify-between h-48 group hover:-translate-y-1 transition-transform duration-300 shadow-sm border border-outline-variant/10">
-          <div className="flex justify-between items-start">
-            <span className="material-symbols-outlined text-primary p-2 bg-primary/5 rounded-lg">account_balance_wallet</span>
-            <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-1 rounded-full">Active</span>
-          </div>
-          <div>
-            <h3 className="text-4xl font-bold font-headline">98%</h3>
-            <p className="text-on-surface-variant text-sm font-medium mt-1">Payroll Status</p>
-          </div>
-        </div>
-        
-        {/* Open Positions */}
-        <div className="bg-surface-container-lowest p-8 rounded-[1.5rem] flex flex-col justify-between h-48 group hover:-translate-y-1 transition-transform duration-300 shadow-sm border border-outline-variant/10">
-          <div className="flex justify-between items-start">
-            <span className="material-symbols-outlined text-tertiary p-2 bg-tertiary/5 rounded-lg">work</span>
-            <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-2 py-1 rounded-full">8 New</span>
-          </div>
-          <div>
-            <h3 className="text-4xl font-bold font-headline">14</h3>
-            <p className="text-on-surface-variant text-sm font-medium mt-1">Open Positions</p>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-        {/* Left Column: Activity & Actions */}
-        <div className="xl:col-span-2 space-y-8">
-          {/* Quick Actions Banner */}
-          <div className="bg-gradient-to-br from-primary to-primary-container p-8 rounded-[1.5rem] text-on-primary flex flex-col lg:flex-row justify-between items-start lg:items-center relative overflow-hidden gap-6">
-            <div className="relative z-10 w-full">
-              <h4 className="text-2xl font-bold font-headline mb-2">Empower Your Team</h4>
-              <p className="opacity-80 mb-6 max-w-md">Streamline your workflows with our intelligent HR tools designed for modern leadership.</p>
-              <div className="flex flex-wrap gap-4">
-                <button className="bg-surface text-primary px-6 py-3 rounded-xl font-bold text-sm shadow-xl active:scale-95 transition-transform flex items-center gap-2">
-                  <span className="material-symbols-outlined text-lg">person_add</span>
-                  Add New Employee
-                </button>
-                <button className="bg-surface/20 backdrop-blur-md text-on-primary px-6 py-3 rounded-xl font-bold text-sm hover:bg-surface/30 active:scale-95 transition-transform flex items-center gap-2 border border-surface/30">
-                  <span className="material-symbols-outlined text-lg">payments</span>
-                  Run Payroll
-                </button>
-              </div>
-            </div>
-            <div className="absolute right-[-20px] top-[-20px] opacity-10 hidden md:block">
-              <span className="material-symbols-outlined text-[160px]">rocket_launch</span>
-            </div>
-          </div>
-
-          {/* Recent Activity Feed */}
-          <div className="bg-surface-container-lowest p-8 rounded-[1.5rem] shadow-sm border border-outline-variant/10">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-              <h4 className="font-headline text-2xl font-bold text-on-surface">Recent Activity</h4>
-              <button className="text-primary font-bold text-sm hover:underline">View All</button>
-            </div>
-            <div className="space-y-6">
-              <div className="flex gap-4 p-4 hover:bg-surface-container-low rounded-2xl transition-colors group">
-                <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 shrink-0">
-                  <span className="material-symbols-outlined">person_add_alt</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:justify-between items-start">
-                    <p className="font-bold text-on-surface truncate pr-4">Alex Rivera <span className="font-normal text-on-surface-variant">joined as Senior Frontend Engineer</span></p>
-                    <span className="text-xs text-on-surface-variant shrink-0 mt-1 sm:mt-0">2h ago</span>
-                  </div>
-                  <p className="text-sm text-on-surface-variant mt-1 truncate">Engineering Team • San Francisco HQ</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-4 p-4 hover:bg-surface-container-low rounded-2xl transition-colors group">
-                <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 shrink-0">
-                  <span className="material-symbols-outlined">pending_actions</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:justify-between items-start">
-                    <p className="font-bold text-on-surface truncate pr-4">Leave Approved <span className="font-normal text-on-surface-variant">for Marcus Chen</span></p>
-                    <span className="text-xs text-on-surface-variant shrink-0 mt-1 sm:mt-0">5h ago</span>
-                  </div>
-                  <p className="text-sm text-on-surface-variant mt-1 truncate">Medical Leave • 5 Days • Starting Oct 12</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-4 p-4 hover:bg-surface-container-low rounded-2xl transition-colors group">
-                <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
-                  <span className="material-symbols-outlined">update</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:justify-between items-start">
-                    <p className="font-bold text-on-surface truncate pr-4">System Update <span className="font-normal text-on-surface-variant">v2.4 deployed successfully</span></p>
-                    <span className="text-xs text-on-surface-variant shrink-0 mt-1 sm:mt-0">Yesterday</span>
-                  </div>
-                  <p className="text-sm text-on-surface-variant mt-1 truncate">New analytics modules and performance optimizations enabled.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Distribution & Quick Post */}
-        <div className="space-y-8">
-          {/* Distribution Chart Card */}
-          <div className="bg-surface-container-lowest p-8 rounded-[1.5rem] flex flex-col shadow-sm border border-outline-variant/10">
-            <h4 className="font-headline text-xl font-bold mb-8 text-on-surface">Departmental Mix</h4>
-            <div className="flex-1 flex flex-col space-y-6">
-              <div className="space-y-4 pt-4">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold uppercase tracking-wider mb-1 text-on-surface-variant">
-                    <span>Engineering</span>
-                    <span>42%</span>
-                  </div>
-                  <div className="h-3 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div className="h-full bg-primary rounded-full transition-all duration-1000" style={{ width: '42%' }}></div>
-                  </div>
-                </div>
-                
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold uppercase tracking-wider mb-1 text-on-surface-variant">
-                    <span>Design</span>
-                    <span>28%</span>
-                  </div>
-                  <div className="h-3 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div className="h-full bg-[#516bfc] rounded-full transition-all duration-1000 delay-100" style={{ width: '28%' }}></div>
-                  </div>
-                </div>
-                
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold uppercase tracking-wider mb-1 text-on-surface-variant">
-                    <span>Operations</span>
-                    <span>18%</span>
-                  </div>
-                  <div className="h-3 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div className="h-full bg-tertiary-container rounded-full transition-all duration-1000 delay-200" style={{ width: '18%' }}></div>
-                  </div>
-                </div>
-                
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold uppercase tracking-wider mb-1 text-on-surface-variant">
-                    <span>Marketing</span>
-                    <span>12%</span>
-                  </div>
-                  <div className="h-3 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div className="h-full bg-surface-variant rounded-full transition-all duration-1000 delay-300" style={{ width: '12%' }}></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Action Card: Post Job */}
-          <div className="bg-surface-container-low p-8 rounded-[1.5rem] border border-outline-variant/20 border-dashed hover:bg-surface-container transition-colors">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm mb-4 border border-outline-variant/10">
-                <span className="material-symbols-outlined text-primary text-3xl">post_add</span>
-              </div>
-              <h4 className="font-headline text-lg font-bold text-on-surface">Need more talent?</h4>
-              <p className="text-sm text-on-surface-variant mt-2 mb-6">Create a job posting and reach thousands of candidates instantly.</p>
-              <button className="w-full bg-on-surface text-surface py-3 rounded-xl font-bold hover:bg-opacity-90 transition-colors active:scale-95">
-                Post Job Opening
-              </button>
-            </div>
-          </div>
-        </div>
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/80 shadow-sm">
+          <span className="material-symbols-outlined block text-2xl leading-none text-on-surface">
+            {icon}
+          </span>
+        </span>
       </div>
+    </div>
+  );
+}
 
-      {/* Floating Quick Help */}
-      <div className="fixed bottom-8 right-8 z-50">
-        <button className="h-14 w-14 rounded-full bg-primary text-on-primary shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-transform hover:shadow-primary/50">
-          <span className="material-symbols-outlined">auto_awesome</span>
+export default function AdminDashboard({ admin, setCurrentTab }) {
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDashboard() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const response = await fetch('/HRM/api/admin/dashboard', { method: 'GET', cache: 'no-store' });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load HR admin dashboard');
+        }
+
+        if (active) {
+          setDashboard(result);
+        }
+      } catch (requestError) {
+        if (active) {
+          setError(requestError.message || 'Failed to load HR admin dashboard');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadDashboard();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const greetingName = admin?.name || dashboard?.admin?.name || 'HR Admin';
+  const helperText = useMemo(() => {
+    const department = dashboard?.admin?.department || admin?.department || 'HR';
+    const designation = dashboard?.admin?.designation || admin?.designation || 'Administrator';
+    return `${designation} • ${department}`;
+  }, [admin?.department, admin?.designation, dashboard?.admin?.department, dashboard?.admin?.designation]);
+
+  const metrics = dashboard?.metrics || {
+    hrAdminCount: 0,
+    employeeCount: 0,
+    activeEmployeeCount: 0,
+    onLeaveEmployeeCount: 0,
+    departmentCount: 0,
+    designationCount: 0,
+  };
+  const featuredBirthday = dashboard?.upcomingBirthdays?.[0] || null;
+  const birthdayCopy = getBirthdayCopy(featuredBirthday);
+
+  return (
+    <div className="mx-auto max-w-7xl p-10">
+      <section className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-sm uppercase tracking-[0.3em] text-on-surface-variant">HR Command Center</p>
+          <h2 className="mt-3 font-headline text-4xl font-extrabold tracking-tight text-on-surface lg:text-5xl">
+            Welcome, {greetingName}
+          </h2>
+          <p className="mt-3 text-base font-medium text-on-surface-variant">{helperText}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setCurrentTab?.('admin-add-employee')}
+          className="rounded-2xl bg-primary px-7 py-3.5 text-sm font-bold text-on-primary shadow-lg shadow-primary/20"
+        >
+          Add New Employee
         </button>
-      </div>
+      </section>
+
+      {loading && (
+        <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-low px-5 py-4 text-sm text-on-surface-variant">
+          Loading HR dashboard...
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && dashboard && (
+        <div className="space-y-8">
+          <section className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard title="Total Employees" value={metrics.employeeCount} subtitle={`${metrics.activeEmployeeCount} active right now`} icon="groups" tone="bg-gradient-to-br from-violet-50 via-white to-fuchsia-100/70" />
+            <MetricCard title="Employees On Leave" value={metrics.onLeaveEmployeeCount} subtitle="Pulled from live employee status" icon="event_busy" tone="bg-gradient-to-br from-amber-50 via-white to-orange-100/60" />
+            <MetricCard title="HR Admins" value={metrics.hrAdminCount} subtitle={`${metrics.departmentCount} departments supported`} icon="admin_panel_settings" tone="bg-gradient-to-br from-purple-50 via-white to-violet-100/70" />
+            <MetricCard title="Designations" value={metrics.designationCount} subtitle="Current organization structure" icon="badge" tone="bg-gradient-to-br from-emerald-50 via-white to-teal-100/70" />
+          </section>
+
+          <section className="grid grid-cols-1 items-start gap-8 xl:grid-cols-[minmax(0,1.7fr)_300px]">
+            <div className="self-start rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-7 shadow-sm">
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-headline text-2xl font-bold text-on-surface">Recent Employees</h3>
+                  <p className="mt-1 text-sm text-on-surface-variant">Latest employee records created in the HRM system.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab?.('admin-employee-list')}
+                  className="rounded-full border border-outline-variant/20 bg-surface px-4 py-2 text-xs font-bold text-on-surface-variant"
+                >
+                  View Directory
+                </button>
+              </div>
+
+              <div className="overflow-hidden rounded-[1.5rem] border border-outline-variant/10 bg-surface">
+                {(dashboard.recentEmployees || []).length === 0 ? (
+                  <p className="px-5 py-8 text-sm text-on-surface-variant">No employee records are available yet.</p>
+                ) : (
+                  <div className="divide-y divide-outline-variant/10">
+                    {(dashboard.recentEmployees || []).map((employee) => (
+                      <div
+                        key={employee.id}
+                        className="flex flex-col gap-4 px-5 py-4 transition-colors hover:bg-surface-container-low/35 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="flex min-w-0 items-center gap-4">
+                          {employee.profile_picture_url ? (
+                            <Image
+                              src={employee.profile_picture_url}
+                              alt={employee.name || 'Employee'}
+                              width={48}
+                              height={48}
+                              className="h-12 w-12 rounded-full object-cover border border-outline-variant/10"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                              {getInitials(employee.name)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-base font-bold text-on-surface">{employee.name || 'Employee'}</p>
+                            <p className="truncate text-sm text-on-surface-variant">{employee.email || 'No email added'}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-3 md:min-w-[380px] md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-on-surface">
+                              {employee.designation?.title || 'Designation not set'}
+                            </p>
+                            <p className="truncate text-xs text-on-surface-variant">
+                              {employee.department?.name || 'Department not set'}
+                            </p>
+                          </div>
+
+                          <div className="inline-flex w-fit rounded-full bg-surface-container-low px-3 py-1.5 text-xs font-semibold text-on-surface-variant">
+                            {employee.employee_id || 'No ID'}
+                          </div>
+
+                          <div className="text-left md:text-right">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant/60">Created</p>
+                            <p className="mt-1 text-sm font-semibold text-on-surface">
+                              {formatDate(employee.created_at?.slice?.(0, 10) || employee.created_at)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="relative self-start overflow-hidden rounded-[2rem] border border-[#E9D8FF] bg-[#F6ECFF] p-5 shadow-[0_22px_70px_rgba(137,92,246,0.16)] xl:max-w-[300px]">
+              <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-[#D8B4FE]/60 blur-3xl" />
+              <div className="pointer-events-none absolute left-1/2 top-0 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#F0ABFC]/45 blur-2xl" />
+              <div className="pointer-events-none absolute -left-8 bottom-12 h-28 w-28 rounded-full bg-[#BFDBFE]/35 blur-3xl" />
+              <div className="pointer-events-none absolute right-6 top-16 h-2.5 w-2.5 rounded-full bg-[#A855F7]/65" />
+              <div className="pointer-events-none absolute right-12 top-24 h-1.5 w-1.5 rounded-full bg-[#EC4899]/70" />
+              <div className="pointer-events-none absolute left-8 top-20 h-2 w-2 rounded-full bg-[#8B5CF6]/60" />
+
+              <div className="relative flex h-full flex-col">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#B45309]">Upcoming Birthday</p>
+                  </div>
+                  <span className="material-symbols-outlined text-[28px] text-[#EA580C]">celebration</span>
+                </div>
+
+                {(dashboard.upcomingBirthdays || []).length === 0 ? (
+                  <div className="mt-6 rounded-[1.5rem] bg-white/45 px-5 py-7 text-sm text-[#7C5A49] backdrop-blur-sm">
+                    No employee birthdays are available yet.
+                  </div>
+                ) : (
+                  <div className="mt-6 flex flex-col items-center px-1 pb-1 text-center">
+                    {featuredBirthday?.profile_picture_url ? (
+                      <Image
+                        src={featuredBirthday.profile_picture_url}
+                        alt={featuredBirthday.name || 'Birthday employee'}
+                        width={168}
+                        height={168}
+                        className="h-36 w-36 rounded-full object-cover border-4 border-white/90 shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="flex h-36 w-36 items-center justify-center rounded-full border-4 border-white/90 bg-white text-4xl font-extrabold text-[#7C3AED] shadow-[0_18px_36px_rgba(139,92,246,0.22)]">
+                        {getInitials(featuredBirthday?.name)}
+                      </div>
+                    )}
+                    <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.24em] text-[#C2410C]">
+                      {featuredBirthday?.employee_id || 'Employee milestone'}
+                    </p>
+                    <p className="mt-3 text-xl font-extrabold leading-tight text-[#4A2412]">
+                      {birthdayCopy.heading}
+                    </p>
+                    <p className="mt-3 max-w-[15rem] text-sm leading-6 text-[#7C5A49]">
+                      {birthdayCopy.body}
+                    </p>
+                    <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/85 px-4 py-2 text-sm font-bold text-[#9A3412] shadow-sm">
+                      <span className="material-symbols-outlined text-[18px] text-[#EA580C]">cake</span>
+                      {formatBirthday(featuredBirthday?.date_of_birth)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

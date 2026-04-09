@@ -2,7 +2,7 @@ import { Button } from './ui/Button';
 import { Twitter, Instagram, Linkedin, Facebook } from 'lucide-react';
 import Image from 'next/image';
 
-export function Footer() {
+export function Footer({ taskManagerHref = '/login' }) {
   const companyLinks = [
     { label: 'About Us', href: 'https://www.bncglobal.in/about-us' },
     { label: 'Contact Us', href: 'https://www.bncglobal.in/contact-8' },
@@ -30,7 +30,7 @@ export function Footer() {
               trial today!
             </h2>
             <Button
-              href="/Taskmanager/dashboard"
+              href={taskManagerHref}
               size="xl"
               className="shadow-xl shadow-primary/20 hover:scale-105 transform duration-300"
             >

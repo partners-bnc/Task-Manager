@@ -1,4 +1,14 @@
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import type { AttendanceRecord, AttendanceResponse } from './attendanceShared';
+
+type HolidayItem = {
+  id: string;
+  date: string;
+  title: string;
+  type: string;
+};
 
 // Dummy holiday data for the dashboard card and full calendar modal
 const holidays = [
@@ -68,13 +78,44 @@ const holidays = [
   },
 ];
 
-const cardHolidays = holidays.slice(0, 3);
+function formatHolidayTypeLabel(type) {
+  if (type === 'company') {
+    return 'General';
+  }
 
-export default function Dashboard() {
+  if (!type) {
+    return 'General';
+  }
+
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+export default function Dashboard({
+  employee,
+  setCurrentTab,
+}: {
+  employee?: { name?: string; employee_id?: string; working_days?: string[]; second_saturday_off?: boolean } | null;
+  setCurrentTab?: (tab: string) => void;
+}) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isSwipesModalOpen, setIsSwipesModalOpen] = useState(false);
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDate, setSelectedDate] = useState<HolidayItem | null>(null);
+  const [todayAttendance, setTodayAttendance] = useState(null);
+  const [todayAction, setTodayAction] = useState<'check_in' | 'check_out'>('check_in');
+  const [todaySwipes, setTodaySwipes] = useState<{ id: string; swipeTime: string; swipeType: string; doorAddress: string }[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [attendanceSummary, setAttendanceSummary] = useState({
+    presentCount: 0,
+    lateCount: 0,
+    absentCount: 0,
+    halfDayCount: 0,
+  });
+  const [attendanceSetupPending, setAttendanceSetupPending] = useState(false);
+  const [isAttendanceUpdating, setIsAttendanceUpdating] = useState(false);
+  const [holidayItems, setHolidayItems] = useState<HolidayItem[]>([]);
+  const attendanceMonth = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}`;
+  const todayDateKey = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
 
   // Escape key handler for modals
   useEffect(() => {
@@ -92,6 +133,104 @@ export default function Dashboard() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadTodayAttendance() {
+      try {
+        const [attendanceResponse, swipeResponse] = await Promise.all([
+          fetch(`/HRM/api/attendance?month=${attendanceMonth}`, { method: 'GET' }),
+          fetch(`/HRM/api/attendance/swipes?date=${todayDateKey}`, { method: 'GET' }),
+        ]);
+        const result: AttendanceResponse & { setupPending?: boolean; error?: string } = await attendanceResponse.json();
+        const swipeResult = await swipeResponse.json();
+
+        if (!active || !attendanceResponse.ok) {
+          return;
+        }
+
+        setTodayAttendance(result.todayRecord || null);
+        setTodayAction(result.todayAction === 'check_out' ? 'check_out' : 'check_in');
+        setAttendanceRecords(result.records || []);
+        setAttendanceSummary(
+          result.summary || {
+            presentCount: 0,
+            lateCount: 0,
+            absentCount: 0,
+            halfDayCount: 0,
+          }
+        );
+        setAttendanceSetupPending(Boolean(result.setupPending));
+        setTodaySwipes(Array.isArray(swipeResult?.swipes) ? swipeResult.swipes : []);
+      } catch {
+        if (active) {
+          setTodayAttendance(null);
+          setTodayAction('check_in');
+          setTodaySwipes([]);
+          setAttendanceRecords([]);
+          setAttendanceSummary({
+            presentCount: 0,
+            lateCount: 0,
+            absentCount: 0,
+            halfDayCount: 0,
+          });
+          setAttendanceSetupPending(false);
+        }
+      }
+    }
+
+    loadTodayAttendance();
+
+    const handleAttendanceRefresh = () => {
+      loadTodayAttendance();
+    };
+
+    window.addEventListener('hrm-attendance-updated', handleAttendanceRefresh);
+    return () => {
+      active = false;
+      window.removeEventListener('hrm-attendance-updated', handleAttendanceRefresh);
+    };
+  }, [attendanceMonth, todayDateKey]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadHolidays() {
+      try {
+        const response = await fetch('/HRM/api/holidays', { method: 'GET', cache: 'no-store' });
+        const result = await response.json();
+
+        if (!response.ok || !active) {
+          return;
+        }
+
+        setHolidayItems(
+          (result.holidays || []).map((holiday) => ({
+            id: holiday.id,
+            date: holiday.date,
+            title: holiday.name,
+            type: holiday.type || 'General',
+          }))
+        );
+      } catch {
+        if (active) {
+          setHolidayItems([]);
+        }
+      }
+    }
+
+    loadHolidays();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const cardHolidays = useMemo(() => {
+    const today = new Date();
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return holidayItems.filter((holiday) => holiday.date >= todayKey).slice(0, 3);
+  }, [holidayItems]);
 
   const formattedFullDate = currentTime.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const formattedShortDate = currentTime.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -120,7 +259,7 @@ export default function Dashboard() {
     // Current month days
     for (let i = 1; i <= totalDays; i++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-      const holiday = holidays.find(h => h.date === dateStr);
+      const holiday = holidayItems.find(h => h.date === dateStr);
       const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === i;
       days.push({ 
         day: i, 
@@ -145,7 +284,7 @@ export default function Dashboard() {
     return new Date(year, month - 1, 1);
   };
 
-  const getHolidayForMonth = (date) => holidays.find((holiday) => {
+  const getHolidayForMonth = (date) => holidayItems.find((holiday) => {
     const holidayDate = parseDate(holiday.date);
     return holidayDate.getFullYear() === date.getFullYear() && holidayDate.getMonth() === date.getMonth();
   });
@@ -154,12 +293,12 @@ export default function Dashboard() {
   const getDefaultMonth = () => {
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
-    const nextHoliday = holidays.find(h => h.date >= todayStr);
+    const nextHoliday = holidayItems.find(h => h.date >= todayStr);
     if (nextHoliday) {
       return getMonthFromHoliday(nextHoliday.date);
     }
 
-    const latestHoliday = holidays[holidays.length - 1];
+    const latestHoliday = holidayItems[holidayItems.length - 1];
     if (latestHoliday) {
       return getMonthFromHoliday(latestHoliday.date);
     }
@@ -169,6 +308,54 @@ export default function Dashboard() {
 
   const [calendarMonth, setCalendarMonth] = useState(() => getDefaultMonth());
   const monthData = getMonthData(calendarMonth);
+
+  useEffect(() => {
+    if (!holidayItems.length) {
+      return;
+    }
+
+    const resolveMonthFromHoliday = (holidayDate) => {
+      const [year, month] = holidayDate.split('-').map(Number);
+      return new Date(year, month - 1, 1);
+    };
+
+    const resolveDefaultMonth = () => {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const nextHoliday = holidayItems.find((holiday) => holiday.date >= todayStr);
+      if (nextHoliday) {
+        return resolveMonthFromHoliday(nextHoliday.date);
+      }
+
+      const latestHoliday = holidayItems[holidayItems.length - 1];
+      if (latestHoliday) {
+        return resolveMonthFromHoliday(latestHoliday.date);
+      }
+
+      return new Date(today.getFullYear(), today.getMonth(), 1);
+    };
+
+    const resolveHolidayForMonth = (date) =>
+      holidayItems.find((holiday) => {
+        const holidayDate = parseDate(holiday.date);
+        return holidayDate.getFullYear() === date.getFullYear() && holidayDate.getMonth() === date.getMonth();
+      });
+
+    setCalendarMonth((current) => {
+      const hasHolidayInCurrentMonth = holidayItems.some((holiday) => {
+        const holidayDate = parseDate(holiday.date);
+        return holidayDate.getFullYear() === current.getFullYear() && holidayDate.getMonth() === current.getMonth();
+      });
+
+      if (hasHolidayInCurrentMonth) {
+        return current;
+      }
+
+      return resolveDefaultMonth();
+    });
+
+    setSelectedDate((current) => current || resolveHolidayForMonth(resolveDefaultMonth()) || null);
+  }, [holidayItems]);
 
   const changeCalendarMonth = (offset) => {
     const nextMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + offset, 1);
@@ -180,7 +367,7 @@ export default function Dashboard() {
   const goToNextMonth = () => changeCalendarMonth(1);
 
   const openHolidayModal = () => {
-    const defaultMonth = getDefaultMonth();
+    const defaultMonth = selectedDate ? getMonthFromHoliday(selectedDate.date) : getDefaultMonth();
     setCalendarMonth(defaultMonth);
     setSelectedDate(getHolidayForMonth(defaultMonth) || null);
     setIsHolidayModalOpen(true);
@@ -206,19 +393,115 @@ export default function Dashboard() {
     };
   };
 
+  const displayName = employee?.name || employee?.employee_id || 'Employee';
+  const loginId = employee?.employee_id || 'not assigned yet';
+  const averageWorkHoursLabel = useMemo(() => {
+    const minutes = attendanceRecords.reduce((total, record) => {
+      const match = typeof record.workHours === 'string' ? record.workHours.match(/(\d+)h\s+(\d+)m/) : null;
+      if (!match) {
+        return total;
+      }
+
+      return total + (Number(match[1]) * 60) + Number(match[2]);
+    }, 0);
+
+    const countedDays = attendanceRecords.filter((record) => typeof record.workHours === 'string' && /\dh\s+\d+m/.test(record.workHours)).length;
+    if (!countedDays) {
+      return '0h 00m';
+    }
+
+    const averageMinutes = Math.round(minutes / countedDays);
+    const hours = Math.floor(averageMinutes / 60);
+    const mins = averageMinutes % 60;
+    return `${hours}h ${String(mins).padStart(2, '0')}m`;
+  }, [attendanceRecords]);
+
+  const onTimeArrivalLabel = useMemo(() => {
+    const totalTracked = attendanceSummary.presentCount + attendanceSummary.lateCount + attendanceSummary.halfDayCount;
+    if (!totalTracked) {
+      return '0%';
+    }
+
+    const onTimePercentage = Math.round((attendanceSummary.presentCount / totalTracked) * 1000) / 10;
+    return `${onTimePercentage}%`;
+  }, [attendanceSummary]);
+
+  const weeklyBars = useMemo(() => {
+    const now = new Date();
+    const monday = new Date(now);
+    const dayOffset = (now.getDay() + 6) % 7;
+    monday.setDate(now.getDate() - dayOffset);
+    const normalizedWorkingDays = Array.isArray(employee?.working_days) && employee.working_days.length > 0
+      ? employee.working_days
+      : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+    const weekdayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    return weekdayOrder
+      .map((dayName, index) => ({ dayName, index }))
+      .filter(({ dayName }) => normalizedWorkingDays.includes(dayName))
+      .map(({ index }) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + index);
+      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const record = attendanceRecords.find((item) => item.date === dateKey);
+      const match = record?.workHours?.match(/(\d+)h\s+(\d+)m/);
+      const workMinutes = match ? (Number(match[1]) * 60) + Number(match[2]) : 0;
+      const heightPercent = workMinutes ? Math.max(14, Math.min(100, Math.round((workMinutes / 540) * 100))) : 14;
+
+      return {
+        label: date.toLocaleDateString('en-GB', { weekday: 'short' }),
+        dayName: date.toLocaleDateString('en-GB', { weekday: 'long' }),
+        workLabel: workMinutes ? `${Math.floor(workMinutes / 60)}h ${String(workMinutes % 60).padStart(2, '0')}m` : '0h 00m',
+        heightPercent,
+        hasData: Boolean(record && workMinutes),
+      };
+    });
+  }, [attendanceRecords, employee?.working_days]);
+
+  const attendanceActionLabel = useMemo(() => {
+    return todayAction === 'check_out' ? 'Check Out' : 'Check In';
+  }, [todayAction]);
+
+  const handleAttendanceAction = async () => {
+    if (isAttendanceUpdating) {
+      return;
+    }
+
+    try {
+      setIsAttendanceUpdating(true);
+      const response = await fetch('/HRM/api/attendance', { method: 'POST' });
+      const result = await response.json();
+
+      if (!response.ok) {
+        window.alert(result.error || 'Unable to update attendance right now.');
+        return;
+      }
+
+      setTodayAttendance(result.attendance || null);
+      setTodayAction(result.action === 'checked_in' ? 'check_out' : 'check_in');
+      window.dispatchEvent(new CustomEvent('hrm-attendance-updated'));
+    } catch {
+      window.alert('Unable to update attendance right now.');
+    } finally {
+      setIsAttendanceUpdating(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-8">
       {/* Welcome Hero Section */}
-      <section className="flex justify-between items-end">
+      <section className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-3xl font-extrabold font-headline text-on-background mb-1 tracking-tight">Good Afternoon, Alex</h2>
-          <p className="text-on-surface-variant text-base">You have no pending approvals for today. Have a productive session!</p>
+          <h2 className="text-3xl font-extrabold font-headline text-on-background mb-1 tracking-tight">
+            Good Afternoon, {displayName}
+          </h2>
+          <p className="text-on-surface-variant text-base">
+            Your login ID is {loginId}. Have a productive session!
+          </p>
         </div>
-        <div className="flex items-center gap-4">
-          <button className="px-5 py-2.5 bg-secondary-container text-on-secondary-container rounded-xl font-semibold text-sm flex items-center gap-2 hover:opacity-90 transition-opacity">
-            <span className="material-symbols-outlined text-lg">download</span>
-            Export Monthly Report
-          </button>
+        <div className="shrink-0 text-left lg:text-right">
+          <p className="text-base font-bold font-headline text-on-surface">{formattedFullDate}</p>
+          <p className="text-sm text-on-surface-variant">{dayName}</p>
         </div>
       </section>
 
@@ -241,7 +524,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-xs text-on-surface-variant font-medium">Avg. Work Hours</p>
-                  <p className="text-xl font-bold font-headline">8h 42m</p>
+                  <p className="text-xl font-bold font-headline">{attendanceSetupPending ? 'Setup Pending' : averageWorkHoursLabel}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -250,34 +533,38 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-xs text-on-surface-variant font-medium">On-time Arrival</p>
-                  <p className="text-xl font-bold font-headline">98.2%</p>
+                  <p className="text-xl font-bold font-headline">{attendanceSetupPending ? 'Setup Pending' : onTimeArrivalLabel}</p>
                 </div>
               </div>
+              {attendanceSetupPending && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  Attendance tables are not created in the database yet, so live attendance summary is waiting for setup.
+                </p>
+              )}
             </div>
             
-            <div className="flex-1 h-32 flex items-end justify-around px-4 w-full border-l border-outline-variant/10">
-              {/* Custom Data Visualization Elements */}
-              <div className="w-10 bg-primary/20 rounded-t-lg h-[60%] hover:bg-primary transition-colors cursor-pointer relative group">
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">Mon</span>
-              </div>
-              <div className="w-10 bg-primary/20 rounded-t-lg h-[85%] hover:bg-primary transition-colors cursor-pointer relative group">
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">Tue</span>
-              </div>
-              <div className="w-10 bg-primary/20 rounded-t-lg h-[75%] hover:bg-primary transition-colors cursor-pointer relative group">
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">Wed</span>
-              </div>
-              <div className="w-10 bg-primary/20 rounded-t-lg h-[95%] hover:bg-primary transition-colors cursor-pointer relative group">
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">Thu</span>
-              </div>
-              <div className="w-10 bg-primary/20 rounded-t-lg h-[70%] hover:bg-primary transition-colors cursor-pointer relative group">
-                <span className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity">Fri</span>
+            <div className="flex-1 w-full border-l border-outline-variant/10 pl-5">
+              <div className="flex h-36 items-end justify-between gap-3">
+                {weeklyBars.map((bar) => (
+                  <div key={bar.dayName} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2">
+                    <span className="text-[10px] font-semibold text-on-surface-variant">{bar.workLabel}</span>
+                    <div className="flex h-28 w-full items-end justify-center">
+                      <div
+                        className={`${bar.hasData ? 'bg-primary/20 hover:bg-primary/80' : 'bg-slate-200/80'} w-full max-w-[2.75rem] rounded-t-xl transition-colors`}
+                        style={{ height: `${bar.heightPercent}%` }}
+                        title={`${bar.dayName}: ${bar.workLabel}`}
+                      />
+                    </div>
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-on-surface-variant">{bar.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
 
         {/* Review Cards (Empty State Placeholder) */}
-        <div className="col-span-12 lg:col-span-4 bg-tertiary-container/30 rounded-2xl p-6 flex flex-col items-center justify-center text-center editorial-shadow">
+        <div className="col-span-12 lg:col-span-4 rounded-2xl bg-[#F6ECFF] p-6 flex flex-col items-center justify-center text-center editorial-shadow">
           <div className="w-16 h-16 bg-surface-container-lowest rounded-full flex items-center justify-center mb-4 shadow-sm">
             <span className="material-symbols-outlined text-tertiary text-3xl">auto_awesome</span>
           </div>
@@ -293,6 +580,11 @@ export default function Dashboard() {
             <button className="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors text-xl">more_horiz</button>
           </div>
           <div className="space-y-4">
+            {cardHolidays.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-outline-variant/20 bg-surface-container-low px-4 py-6 text-sm text-on-surface-variant">
+                No upcoming holidays have been added yet.
+              </div>
+            )}
             {cardHolidays.map((holiday) => {
               const dateInfo = getHolidayDateInfo(holiday.date);
               const weekday = parseDate(holiday.date).toLocaleDateString('en-GB', { weekday: 'short' });
@@ -304,7 +596,7 @@ export default function Dashboard() {
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-bold text-on-surface">{holiday.title}</p>
-                    <p className="text-xs text-on-surface-variant">{weekday} • {holiday.type}</p>
+                    <p className="text-xs text-on-surface-variant">{weekday} • {formatHolidayTypeLabel(holiday.type)}</p>
                   </div>
                 </div>
               );
@@ -329,7 +621,13 @@ export default function Dashboard() {
                   <span className="material-symbols-outlined text-lg">flight_takeoff</span>
                   <h4 className="text-base font-bold font-headline">Request Leave</h4>
                 </div>
-                <button className="px-3 py-1.5 bg-surface-container-lowest/90 text-primary rounded-lg text-xs font-bold shadow-sm hover:scale-105 hover:bg-surface-container-lowest transition-all">Apply Now</button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab?.('leave')}
+                  className="px-3 py-1.5 bg-surface-container-lowest/90 text-primary rounded-lg text-xs font-bold shadow-sm hover:scale-105 hover:bg-surface-container-lowest transition-all"
+                >
+                  Apply Now
+                </button>
               </div>
               <p className="text-xs opacity-80 mt-1">Planning a getaway? Submit your leave application in just a few clicks.</p>
             </div>
@@ -347,11 +645,11 @@ export default function Dashboard() {
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-white via-slate-50 to-slate-100 border border-slate-200/60 p-6 rounded-2xl text-on-surface flex flex-col justify-between h-full min-h-65 shadow-sm relative overflow-hidden group">
+          <div className="bg-gradient-to-br from-white via-slate-50 to-slate-100 border border-slate-200/60 p-6 rounded-2xl text-on-surface flex flex-col h-full min-h-65 shadow-sm relative overflow-hidden group">
             {/* Subtle background pattern */}
             <div className="absolute inset-0 opacity-40">
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-primary/5 to-transparent rounded-full blur-2xl"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-blue-500/5 to-transparent rounded-full blur-2xl"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-violet-500/10 to-transparent rounded-full blur-2xl"></div>
             </div>
             
             {/* Live indicator */}
@@ -363,34 +661,35 @@ export default function Dashboard() {
               <span className="text-[10px] font-medium text-emerald-600 uppercase tracking-wide">Live</span>
             </div>
             
-            <div className="space-y-3 relative z-10">
-              {/* Date with clean styling */}
-              <div className="inline-flex items-center gap-2">
-                <span className="material-symbols-outlined text-base text-slate-400">calendar_today</span>
-                <p className="text-sm font-medium text-slate-600">
-                  {formattedFullDate}
-                </p>
+            <div className="relative z-10 flex flex-1 flex-col">
+              <div className="space-y-3 self-start text-left">
+                <div className="inline-flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-slate-400">calendar_today</span>
+                  <p className="text-sm font-medium text-slate-600">
+                    {formattedFullDate}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-medium text-slate-500">{dayName}</span>
+                  <span className="w-px h-3 bg-slate-300" />
+                  <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gradient-to-r from-violet-50 to-fuchsia-50 border border-violet-100">
+                    <span className="text-[11px] font-bold text-violet-600 font-mono">{loginId}</span>
+                  </span>
+                </div>
               </div>
-              
-              {/* Day and shift info */}
-              <div className="flex items-center gap-3">
-                <span className="text-xs font-medium text-slate-500">{dayName}</span>
-                <span className="w-px h-3 bg-slate-300"></span>
-                <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-100">
-                  <span className="text-[11px] font-bold text-indigo-600 font-mono">1019</span>
-                </span>
-              </div>
-              
-              {/* Clock display - more elegant */}
-              <div className="mt-3 flex items-baseline gap-0">
-                <span className="font-mono text-4xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600 tracking-tight">
-                  {timeString.hours}
-                </span>
-                <span className="font-mono text-4xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600 tracking-tight animate-pulse">:</span>
-                <span className="font-mono text-4xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-blue-600 tracking-tight">
-                  {timeString.minutes}
-                </span>
-                <span className="font-mono text-xl font-medium text-slate-400 ml-1">:{timeString.seconds}</span>
+
+              <div className="flex flex-1 items-center justify-center">
+                <div className="flex items-end justify-center gap-0 text-center">
+                  <span className="font-mono text-5xl md:text-6xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-500 tracking-tight">
+                    {timeString.hours}
+                  </span>
+                  <span className="font-mono text-5xl md:text-6xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-500 tracking-tight animate-pulse">:</span>
+                  <span className="font-mono text-5xl md:text-6xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-500 tracking-tight">
+                    {timeString.minutes}
+                  </span>
+                  <span className="font-mono text-2xl md:text-3xl font-medium text-slate-400 ml-2 mb-1">:{timeString.seconds}</span>
+                </div>
               </div>
             </div>
             
@@ -398,14 +697,20 @@ export default function Dashboard() {
             <div className="flex items-center gap-3 mt-6 relative z-10">
               <button 
                 onClick={() => setIsSwipesModalOpen(true)}
-                className="group flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-md hover:shadow-indigo-500/10 transition-all duration-200"
+                className="group flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 hover:border-violet-300 hover:text-violet-600 hover:shadow-md hover:shadow-violet-500/10 transition-all duration-200"
               >
                 <span className="material-symbols-outlined text-base group-hover:scale-110 transition-transform">badge</span>
                 View Swipes
               </button>
-              <button className="flex-1 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-700 hover:to-indigo-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-500/25 hover:shadow-lg hover:shadow-indigo-500/30 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2">
-                <span className="material-symbols-outlined text-base">logout</span>
-                Sign Out
+              <button
+                onClick={handleAttendanceAction}
+                disabled={isAttendanceUpdating}
+                className="flex-1 px-4 py-2.5 bg-gradient-to-r from-violet-600 to-fuchsia-500 hover:from-violet-700 hover:to-fuchsia-600 text-white rounded-xl text-xs font-semibold shadow-md shadow-violet-500/25 hover:shadow-lg hover:shadow-violet-500/30 hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+              >
+                <span className="material-symbols-outlined text-base">
+                  {attendanceActionLabel === 'Check Out' ? 'logout' : 'login'}
+                </span>
+                {isAttendanceUpdating ? 'Updating...' : attendanceActionLabel}
               </button>
             </div>
           </div>
@@ -432,12 +737,12 @@ export default function Dashboard() {
               <div className="flex flex-wrap gap-x-8 gap-y-4 items-center text-sm mb-6 text-on-surface-variant">
                 <div>Date <span className="font-semibold text-on-surface ml-1">{formattedShortDate}</span></div>
                 <div>Shift Time <span className="font-semibold text-on-surface ml-1">10:00 to 19:00</span></div>
-                <div>Shift Type <span className="font-semibold text-on-surface ml-1">1019</span></div>
+                <div>Employee ID <span className="font-semibold text-on-surface ml-1">{loginId}</span></div>
               </div>
               
               <div className="overflow-hidden rounded-xl border border-outline-variant/20">
                 <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-[#eaf4fa] text-on-surface-variant font-semibold">
+                  <thead className="bg-[#f5ecff] text-on-surface-variant font-semibold">
                     <tr>
                       <th className="px-4 py-3 border-b border-outline-variant/10">Swipe Time</th>
                       <th className="px-4 py-3 border-b border-outline-variant/10">In/Out</th>
@@ -445,16 +750,19 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="bg-surface-container-lowest divide-y divide-outline-variant/10">
-                    <tr className="hover:bg-surface-container-low/50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-on-surface">10:00:03</td>
-                      <td className="px-4 py-3 font-semibold text-on-surface">IN</td>
-                      <td className="px-4 py-3 text-on-surface-variant">-</td>
-                    </tr>
-                    <tr className="hover:bg-surface-container-low/50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-on-surface opacity-30">--:--:--</td>
-                      <td className="px-4 py-3 font-semibold text-on-surface-variant opacity-30">-</td>
-                      <td className="px-4 py-3 text-on-surface-variant opacity-30">-</td>
-                    </tr>
+                    {todaySwipes.length > 0 ? todaySwipes.map((swipe) => (
+                      <tr key={swipe.id} className="hover:bg-surface-container-low/50 transition-colors">
+                        <td className="px-4 py-3 font-mono text-on-surface">{swipe.swipeTime}</td>
+                        <td className="px-4 py-3 font-semibold text-on-surface">{swipe.swipeType}</td>
+                        <td className="px-4 py-3 text-on-surface-variant">{swipe.doorAddress}</td>
+                      </tr>
+                    )) : (
+                      <tr className="hover:bg-surface-container-low/50 transition-colors">
+                        <td className="px-4 py-3 font-mono text-on-surface opacity-30">--:--:--</td>
+                        <td className="px-4 py-3 font-semibold text-on-surface-variant opacity-30">-</td>
+                        <td className="px-4 py-3 text-on-surface-variant opacity-30">-</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -602,18 +910,20 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="pt-4 border-t border-outline-variant/10">
-                      <p className="text-xs text-on-surface-variant mb-1">Occasion</p>
+                      <p className="text-xs text-on-surface-variant mb-1">Holiday</p>
                       <span className="inline-flex px-3 py-1 rounded-full bg-surface-container text-on-surface-variant text-xs font-semibold border border-outline-variant/20">
-                        {selectedDate.occasion}
+                        {selectedDate.title}
                       </span>
                     </div>
                     <div className="pt-4 border-t border-outline-variant/10">
                       <p className="text-xs text-on-surface-variant mb-2">Holiday Type</p>
-                      <p className="text-sm font-medium text-on-surface">{selectedDate.type}</p>
+                      <p className="text-sm font-medium text-on-surface">{formatHolidayTypeLabel(selectedDate.type)}</p>
                     </div>
                     <div className="pt-4 border-t border-outline-variant/10">
                       <p className="text-xs text-on-surface-variant mb-2">About This Holiday</p>
-                      <p className="text-sm leading-6 text-on-surface-variant">{selectedDate.description}</p>
+                      <p className="text-sm leading-6 text-on-surface-variant">
+                        {selectedDate.title} is marked in the holiday calendar, so attendance cannot be marked on this date.
+                      </p>
                     </div>
                   </div>
                 ) : (

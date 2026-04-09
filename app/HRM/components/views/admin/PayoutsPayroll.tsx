@@ -263,7 +263,7 @@ export default function PayoutsPayroll() {
       <section className="bg-tertiary-container/30 rounded-[2rem] p-10 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-8 border border-tertiary/10">
         <div className="relative z-10 max-w-lg text-center md:text-left">
           <h4 className="text-2xl font-extrabold font-headline mb-3 text-on-surface">Optimize your tax filings</h4>
-          <p className="text-on-surface-variant font-medium leading-relaxed">Lumina's new AI-driven tax engine can help you automate quarterly reporting and ensure compliance across all 50 states.</p>
+          <p className="text-on-surface-variant font-medium leading-relaxed">Lumina&apos;s new AI-driven tax engine can help you automate quarterly reporting and ensure compliance across all 50 states.</p>
           <button className="mt-6 px-6 py-3 bg-tertiary text-white rounded-xl font-bold border-b-2 border-tertiary-dim hover:-translate-y-0.5 active:translate-y-0 hover:shadow-lg transition-all">
             Enable Automation
           </button>

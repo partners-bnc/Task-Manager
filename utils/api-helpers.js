@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { isHrAdminRole } from '@/utils/auth/roles';
 
-const EMPLOYEE_DIRECTORY_SELECT = 'id, name, email, role, profile_picture_url';
+const EMPLOYEE_DIRECTORY_SELECT = `
+  id,
+  employee_id,
+  username,
+  name,
+  email,
+  role,
+  profile_picture_url,
+  module_access:hrm_module_access!module_access_employee_id_fkey (
+    task_manager,
+    task_manager_role,
+    hrm_admin,
+    auditing,
+    crm
+  )
+`;
 const ASSIGNMENT_ACTIVITY_SELECT = `
   id,
   entity_type,
@@ -14,28 +30,28 @@ const ASSIGNMENT_ACTIVITY_SELECT = `
     id,
     title
   ),
-  from_employee:employees!task_assignment_activity_from_employee_id_fkey (
+  from_employee:hrm_employees!task_assignment_activity_from_employee_id_fkey (
     id,
     name,
     email,
     role,
     profile_picture_url
   ),
-  to_employee:employees!task_assignment_activity_to_employee_id_fkey (
+  to_employee:hrm_employees!task_assignment_activity_to_employee_id_fkey (
     id,
     name,
     email,
     role,
     profile_picture_url
   ),
-  assigned_by_employee:employees!task_assignment_activity_assigned_by_employee_id_fkey (
+  assigned_by_employee:hrm_employees!task_assignment_activity_assigned_by_employee_id_fkey (
     id,
     name,
     email,
     role,
     profile_picture_url
   ),
-  assigned_by_admin:profiles!task_assignment_activity_assigned_by_admin_user_id_fkey (
+  assigned_by_admin:hrm_profiles!task_assignment_activity_assigned_by_admin_user_id_fkey (
     id,
     full_name,
     email
@@ -57,6 +73,17 @@ export function parseActorKey(actorKey) {
   return { type, id };
 }
 
+function getModuleAccessRecord(employee) {
+  if (!employee?.module_access) return null;
+  return Array.isArray(employee.module_access)
+    ? employee.module_access[0] || null
+    : employee.module_access;
+}
+
+function employeeHasTaskManagerAccess(employee) {
+  return Boolean(getModuleAccessRecord(employee)?.task_manager);
+}
+
 export async function requireAdmin() {
   const supabase = await createClient();
   const {
@@ -68,12 +95,12 @@ export async function requireAdmin() {
   }
 
   const { data: profile } = await supabase
-    .from('profiles')
+    .from('hrm_profiles')
     .select('role')
     .eq('id', user.id)
     .single();
 
-  if (profile?.role !== 'admin') {
+  if (!isHrAdminRole(profile?.role)) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
 
@@ -81,7 +108,7 @@ export async function requireAdmin() {
 }
 
 export async function requireTaskManager(request) {
-  const actor = await getActor(request);
+  const actor = await getActor(request, { requireTaskManagerAccess: true });
   if (!actor) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
@@ -94,6 +121,11 @@ export async function requireTaskManager(request) {
 }
 
 async function getActorFromSupabaseUser() {
+  return getActorFromSupabaseUserWithOptions({});
+}
+
+async function getActorFromSupabaseUserWithOptions(options = {}) {
+  const { requireTaskManagerAccess = false } = options;
   const supabase = await createClient();
   const {
     data: { user },
@@ -104,18 +136,95 @@ async function getActorFromSupabaseUser() {
   // Run profile + employee lookups in parallel (both only need user.id)
   const [{ data: profile }, { data: employee }] = await Promise.all([
     supabase
-      .from('profiles')
-      .select('role, full_name')
+      .from('hrm_profiles')
+      .select('role, full_name, email, employee_id')
       .eq('id', user.id)
       .maybeSingle(),
     adminClient
-      .from('employees')
-      .select('id, name, email, role, profile_picture_url')
+      .from('hrm_employees')
+      .select(`
+        id,
+        employee_id,
+        username,
+        name,
+        email,
+        role,
+        profile_picture_url,
+        module_access:hrm_module_access!module_access_employee_id_fkey (
+          task_manager,
+          task_manager_role,
+          hrm_admin,
+          auditing,
+          crm
+        )
+      `)
       .eq('auth_user_id', user.id)
       .maybeSingle(),
   ]);
 
-  if (profile?.role === 'admin') {
+  let resolvedEmployee = employee || null;
+
+  if (!resolvedEmployee) {
+    const profileEmployeeId =
+      typeof profile?.employee_id === 'string' ? profile.employee_id.trim() : '';
+    const metadataEmployeeId =
+      typeof user.user_metadata?.employee_id === 'string' ? user.user_metadata.employee_id.trim() : '';
+    const metadataEmployeeUuid =
+      typeof user.user_metadata?.employee_uuid === 'string' ? user.user_metadata.employee_uuid.trim() : '';
+
+    if (metadataEmployeeUuid) {
+      const { data: employeeByUuid } = await adminClient
+        .from('hrm_employees')
+        .select(`
+          id,
+          employee_id,
+          username,
+          name,
+          email,
+          role,
+          profile_picture_url,
+          module_access:hrm_module_access!module_access_employee_id_fkey (
+            task_manager,
+            task_manager_role,
+            hrm_admin,
+            auditing,
+            crm
+          )
+        `)
+        .eq('id', metadataEmployeeUuid)
+        .maybeSingle();
+
+      resolvedEmployee = employeeByUuid || resolvedEmployee;
+    }
+
+    if (!resolvedEmployee && (profileEmployeeId || metadataEmployeeId)) {
+      const employeeCode = profileEmployeeId || metadataEmployeeId;
+      const { data: employeeByCode } = await adminClient
+        .from('hrm_employees')
+        .select(`
+          id,
+          employee_id,
+          username,
+          name,
+          email,
+          role,
+          profile_picture_url,
+          module_access:hrm_module_access!module_access_employee_id_fkey (
+            task_manager,
+            task_manager_role,
+            hrm_admin,
+            auditing,
+            crm
+          )
+        `)
+        .ilike('employee_id', employeeCode)
+        .maybeSingle();
+
+      resolvedEmployee = employeeByCode || null;
+    }
+  }
+
+  if (isHrAdminRole(profile?.role)) {
     return {
       type: 'admin',
       userId: user.id,
@@ -126,21 +235,23 @@ async function getActorFromSupabaseUser() {
     };
   }
 
-  if (!employee) return null;
+  if (!resolvedEmployee) return null;
+  if (requireTaskManagerAccess && !employeeHasTaskManagerAccess(resolvedEmployee)) return null;
 
   return {
     type: 'employee',
-    employeeId: employee.id,
+    employeeId: resolvedEmployee.id,
     authUserId: user.id,
-    name: employee.name || user.email || 'Employee',
-    email: employee.email || user.email || '',
-    role: employee.role || 'Employee',
-    avatarUrl: employee.profile_picture_url || user.user_metadata?.avatar_url || null,
+    name: resolvedEmployee.name || profile?.full_name || user.email || 'Employee',
+    email: resolvedEmployee.email || profile?.email || user.email || '',
+    role: resolvedEmployee.role || 'Employee',
+    avatarUrl: resolvedEmployee.profile_picture_url || user.user_metadata?.avatar_url || null,
+    moduleAccess: getModuleAccessRecord(resolvedEmployee),
   };
 }
 
-export async function getActor(request) {
-  return getActorFromSupabaseUser();
+export async function getActor(request, options = {}) {
+  return getActorFromSupabaseUserWithOptions(options);
 }
 
 export async function hasTaskAccess(taskId, actor) {
@@ -157,9 +268,10 @@ export async function hasTaskAccess(taskId, actor) {
   return !error && !!assignment;
 }
 
-export async function fetchEmployeeDirectory(supabase = adminClient) {
+export async function fetchEmployeeDirectory(supabase = adminClient, options = {}) {
+  const { taskManagerOnly = false } = options;
   const { data, error } = await supabase
-    .from('employees')
+    .from('hrm_employees')
     .select(EMPLOYEE_DIRECTORY_SELECT)
     .order('name', { ascending: true });
 
@@ -167,14 +279,18 @@ export async function fetchEmployeeDirectory(supabase = adminClient) {
     throw new Error(error.message);
   }
 
-  return data || [];
+  const employees = data || [];
+  return taskManagerOnly
+    ? employees.filter((employee) => employeeHasTaskManagerAccess(employee))
+    : employees;
 }
 
-export async function findEmployeeById(employeeId, supabase = adminClient) {
+export async function findEmployeeById(employeeId, supabase = adminClient, options = {}) {
+  const { taskManagerOnly = false } = options;
   if (!employeeId) return null;
 
   const { data, error } = await supabase
-    .from('employees')
+    .from('hrm_employees')
     .select(EMPLOYEE_DIRECTORY_SELECT)
     .eq('id', employeeId)
     .maybeSingle();
@@ -183,7 +299,12 @@ export async function findEmployeeById(employeeId, supabase = adminClient) {
     throw new Error(error.message);
   }
 
-  return data || null;
+  if (!data) return null;
+  if (taskManagerOnly && !employeeHasTaskManagerAccess(data)) {
+    return null;
+  }
+
+  return data;
 }
 
 export async function getTaskAssignmentEmployeeIds(taskId, supabase = adminClient) {
@@ -399,3 +520,4 @@ export async function syncTaskSubtasks(supabase, taskId, subtasks) {
     }
   }
 }
+

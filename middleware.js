@@ -1,20 +1,31 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
+import { resolveAuthenticatedUserContext } from '@/utils/auth/context'
+import { supabasePublicKey, supabaseUrl } from '@/utils/supabase/config'
 
 export async function middleware(request) {
   const pathname = request.nextUrl.pathname
-  const isAdminPath = pathname.startsWith('/Taskmanager/admin')
-  const isDashboardPath = pathname.startsWith('/Taskmanager/dashboard')
-  const isHRMPath = pathname.startsWith('/HRM/hrm')
+  const isTaskAdminPath = pathname.startsWith('/Taskmanager/admin')
+  const isTaskDashboardPath = pathname.startsWith('/Taskmanager/dashboard')
+  const isHRMAdminPath = pathname.startsWith('/HRM/hrm/admin')
+  const isHRMEmployeePath = pathname.startsWith('/HRM/hrm') && !isHRMAdminPath
   const isAuditingPath = pathname.startsWith('/Auditing/auditing')
+  const isSuperAdminPath = pathname.startsWith('/superadmin')
+  const isProtectedPath =
+    isTaskAdminPath ||
+    isTaskDashboardPath ||
+    isHRMAdminPath ||
+    isHRMEmployeePath ||
+    isAuditingPath ||
+    isSuperAdminPath
 
   let supabaseResponse = NextResponse.next({
     request,
   })
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseUrl,
+    supabasePublicKey,
     {
       cookies: {
         getAll() {
@@ -37,58 +48,61 @@ export async function middleware(request) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Admin pages require Supabase auth
-  if (!user && isAdminPath) {
+  if (!user && isProtectedPath) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Dashboard pages require Supabase auth
-  if (!user && isDashboardPath) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
+  if (user) {
+    const authContext = await resolveAuthenticatedUserContext(supabase, user)
 
-  // HRM pages require Supabase auth
-  if (!user && isHRMPath) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
-  }
-
-  // If user is authenticated, check role for admin routes
-  if (user && isAdminPath) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.role !== 'admin') {
+    if (!authContext) {
       const url = request.nextUrl.clone()
-      url.pathname = '/Taskmanager/dashboard'
+      url.pathname = '/login'
       return NextResponse.redirect(url)
     }
-  }
 
-  // Redirect authenticated Supabase users away from login page
-  if (user && pathname === '/login') {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    if (pathname === '/login') {
+      const url = request.nextUrl.clone()
+      url.pathname = authContext.destination
+      return NextResponse.redirect(url)
+    }
 
-    const url = request.nextUrl.clone()
-    url.pathname = profile?.role === 'admin' ? '/Taskmanager/admin' : '/Taskmanager/dashboard'
-    return NextResponse.redirect(url)
+    if (isSuperAdminPath && !authContext.isSuperAdmin) {
+      const url = request.nextUrl.clone()
+      url.pathname = authContext.destination
+      return NextResponse.redirect(url)
+    }
+
+    if (isHRMAdminPath && !authContext.isHrAdmin) {
+      const url = request.nextUrl.clone()
+      url.pathname = authContext.destination
+      return NextResponse.redirect(url)
+    }
+
+    if (isHRMEmployeePath && authContext.accountType !== 'employee') {
+      const url = request.nextUrl.clone()
+      url.pathname = authContext.destination
+      return NextResponse.redirect(url)
+    }
+
+    if (isTaskAdminPath && !authContext.isHrAdmin) {
+      const url = request.nextUrl.clone()
+      url.pathname = authContext.destination
+      return NextResponse.redirect(url)
+    }
+
+    if (isTaskDashboardPath && authContext.accountType !== 'employee') {
+      const url = request.nextUrl.clone()
+      url.pathname = authContext.destination
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse
 }
 
 export const config = {
-  matcher: ['/Taskmanager/admin/:path*', '/Taskmanager/dashboard/:path*', '/HRM/hrm/:path*', '/Auditing/auditing/:path*', '/login'],
+  matcher: ['/Taskmanager/admin/:path*', '/Taskmanager/dashboard/:path*', '/HRM/hrm/:path*', '/Auditing/auditing/:path*', '/superadmin/:path*', '/login'],
 }

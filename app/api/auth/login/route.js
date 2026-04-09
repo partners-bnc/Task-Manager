@@ -2,6 +2,13 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
+import {
+  getAccountTypeLabel,
+  matchesLoginPortal,
+  normalizeLoginPortal,
+} from '@/utils/auth/roles';
+import { isEmployeeLoginBlocked } from '@/utils/hrm-employment';
 import {
   ensureEmployeeAuthUser,
   syncEmployeePasswordToAuth,
@@ -9,59 +16,80 @@ import {
 
 async function findEmployeeBy(column, value) {
   return adminClient
-    .from('employees')
-    .select('id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id')
+    .from('hrm_employees')
+    .select('id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id, employee_status, employment_lifecycle_status, current_stage')
     .eq(column, value)
     .limit(1)
     .maybeSingle();
 }
 
-async function tryAdminLogin(email, password) {
+async function tryPrivilegedLogin(identifier, password, loginAs) {
+  const normalizedEmail = String(identifier).trim().toLowerCase();
+
+  if (!normalizedEmail.includes('@')) {
+    return { ok: false };
+  }
+
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password,
+  });
 
   if (error || !data?.user) {
     return { ok: false };
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', data.user.id)
-    .single();
+  const authContext = await resolveAuthenticatedUserContext(supabase, data.user);
 
-  if (profile?.role !== 'admin') {
+  if (!authContext || authContext.accountType === 'employee') {
     await supabase.auth.signOut();
     return { ok: false };
+  }
+
+  if (!matchesLoginPortal(loginAs, authContext.accountType)) {
+    await supabase.auth.signOut();
+    return {
+      ok: false,
+      payload: {
+        error: `This account belongs to ${getAccountTypeLabel(authContext.accountType)}. Please choose the correct login type.`,
+      },
+      status: 403,
+    };
   }
 
   return {
     ok: true,
     payload: {
       success: true,
-      role: 'admin',
+      role: authContext.accountType,
+      destination: authContext.destination,
       user: {
-        id: data.user.id,
-        email: data.user.email,
+        id: authContext.user.id,
+        email: authContext.user.email,
+        name: authContext.user.name,
       },
     },
   };
 }
 
-async function tryEmployeeLogin(email, password) {
+async function tryEmployeeLogin(identifier, password, loginAs) {
   const supabase = await createClient();
 
-  const normalizedIdentifier = String(email).trim().toLowerCase();
-  const localPart = normalizedIdentifier.includes('@')
-    ? normalizedIdentifier.split('@')[0]
-    : normalizedIdentifier;
+  const rawIdentifier = String(identifier).trim();
+  const normalizedIdentifier = rawIdentifier.toLowerCase();
 
   let { data: employee, error: employeeError } = await findEmployeeBy('email', normalizedIdentifier);
 
-  if ((!employee || employeeError) && localPart) {
-    const { data: byUsername, error: byUsernameError } = await findEmployeeBy('username', localPart);
-    employee = byUsername;
-    employeeError = byUsernameError;
+  if (!employee || employeeError) {
+    const { data: byEmployeeId, error: byEmployeeIdError } = await adminClient
+      .from('hrm_employees')
+      .select('id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id, employee_status, employment_lifecycle_status, current_stage')
+      .ilike('employee_id', rawIdentifier)
+      .limit(1)
+      .maybeSingle();
+    employee = byEmployeeId;
+    employeeError = byEmployeeIdError;
   }
 
   if (employeeError) {
@@ -70,6 +98,16 @@ async function tryEmployeeLogin(email, password) {
 
   if (!employee) {
     return { ok: false };
+  }
+
+  if (isEmployeeLoginBlocked(employee)) {
+    return {
+      ok: false,
+      payload: {
+        error: 'Your employee account is inactive or terminated. Please contact HR.',
+      },
+      status: 403,
+    };
   }
 
   const authUserId = await ensureEmployeeAuthUser(employee);
@@ -96,18 +134,37 @@ async function tryEmployeeLogin(email, password) {
     }
 
     await adminClient
-      .from('employees')
+      .from('hrm_employees')
       .update({
         must_change_password: false,
         password_set_at: new Date().toISOString(),
       })
       .eq('id', employee.id);
 
+    const authContext = await resolveAuthenticatedUserContext(supabase, data.user);
+
+    if (!authContext || authContext.accountType !== 'employee') {
+      await supabase.auth.signOut();
+      return { ok: false };
+    }
+
+    if (!matchesLoginPortal(loginAs, authContext.accountType)) {
+      await supabase.auth.signOut();
+      return {
+        ok: false,
+        payload: {
+          error: `This account belongs to ${getAccountTypeLabel(authContext.accountType)}. Please choose the correct login type.`,
+        },
+        status: 403,
+      };
+    }
+
     return {
       ok: true,
       payload: {
         success: true,
         role: 'employee',
+        destination: authContext.destination,
         employee: {
           id: employee.id,
           name: employee.name,
@@ -136,11 +193,30 @@ async function tryEmployeeLogin(email, password) {
     }
   }
 
+  const authContext = await resolveAuthenticatedUserContext(supabase, data.user);
+
+  if (!authContext || authContext.accountType !== 'employee') {
+    await supabase.auth.signOut();
+    return { ok: false };
+  }
+
+  if (!matchesLoginPortal(loginAs, authContext.accountType)) {
+    await supabase.auth.signOut();
+    return {
+      ok: false,
+      payload: {
+        error: `This account belongs to ${getAccountTypeLabel(authContext.accountType)}. Please choose the correct login type.`,
+      },
+      status: 403,
+    };
+  }
+
   return {
     ok: true,
     payload: {
       success: true,
       role: 'employee',
+      destination: authContext.destination,
       employee: {
         id: employee.id,
         name: employee.name,
@@ -153,18 +229,27 @@ async function tryEmployeeLogin(email, password) {
 
 export async function POST(request) {
   try {
-    const { email, password } = await request.json();
+    const { email, password, loginAs } = await request.json();
+    const selectedPortal = normalizeLoginPortal(loginAs);
 
     if (!email || !password) {
       return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
     }
 
-    const adminResult = await tryAdminLogin(email, password);
-    if (adminResult.ok) {
-      return NextResponse.json(adminResult.payload);
+    const privilegedResult = await tryPrivilegedLogin(email, password, selectedPortal);
+    if (privilegedResult.ok) {
+      return NextResponse.json(privilegedResult.payload);
     }
 
-    const employeeResult = await tryEmployeeLogin(email, password);
+    if (privilegedResult.payload?.error) {
+      return NextResponse.json(privilegedResult.payload, { status: privilegedResult.status || 403 });
+    }
+
+    const employeeResult = await tryEmployeeLogin(email, password, selectedPortal);
+
+    if (!employeeResult.ok && employeeResult.payload?.error) {
+      return NextResponse.json(employeeResult.payload, { status: employeeResult.status || 403 });
+    }
 
     if (!employeeResult.ok) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
@@ -176,3 +261,4 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
+

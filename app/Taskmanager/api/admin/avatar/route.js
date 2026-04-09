@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { isHrAdminRole } from '@/utils/auth/roles';
 
 const AVATAR_BUCKET = 'employee-avatars';
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -30,12 +31,12 @@ async function getAdminContext() {
   }
 
   const { data: profile, error: profileError } = await supabase
-    .from('profiles')
+    .from('hrm_profiles')
     .select('role')
     .eq('id', user.id)
     .single();
 
-  if (profileError || profile?.role !== 'admin') {
+  if (profileError || !isHrAdminRole(profile?.role)) {
     return { error: 'Forbidden', status: 403 };
   }
 
@@ -113,3 +114,4 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Failed to update avatar' }, { status: 500 });
   }
 }
+

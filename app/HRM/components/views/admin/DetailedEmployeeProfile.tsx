@@ -1,497 +1,1066 @@
-import React from 'react';
+'use client';
 
-export default function DetailedEmployeeProfile() {
+import React, { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import {
+  CURRENT_STAGE_OPTIONS,
+  EMPLOYEE_TYPE_OPTIONS,
+  EMPLOYMENT_LIFECYCLE_STATUS_OPTIONS,
+  formatEmploymentValue,
+  getEmployeeTypeLabel,
+} from '@/utils/hrm-employment';
+
+const BLOOD_GROUP_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+const RESIDENTIAL_STATUS_OPTIONS = ['Resident', 'Non-Resident', 'Resident but Not Ordinarily Resident'];
+const RELIGION_OPTIONS = ['Hindu', 'Muslim', 'Sikh', 'Christian', 'Buddhist', 'Jain', 'Parsi', 'Other'];
+const YES_NO_OPTIONS = ['Yes', 'No'];
+
+const defaultForm = {
+  employeeId: '',
+  name: '',
+  email: '',
+  phone: '',
+  personalEmail: '',
+  dateOfBirth: '',
+  bloodGroup: '',
+  fatherName: '',
+  maritalStatus: '',
+  marriageDate: '',
+  spouseName: '',
+  nationality: '',
+  residentialStatus: '',
+  placeOfBirth: '',
+  countryOfOrigin: '',
+  religion: '',
+  isInternational: 'No',
+  isPhysicallyChallenged: 'No',
+  heightCm: '',
+  weightKg: '',
+  hobby: '',
+  caste: '',
+  address: '',
+  city: '',
+  district: '',
+  state: '',
+  country: '',
+  pincode: '',
+  phone2: '',
+  mobile: '',
+  joinedOn: '',
+  confirmationDate: '',
+  employeeType: 'full_time_employee',
+  lifecycleStatus: 'active',
+  currentStage: 'none',
+  probationPeriodDays: '',
+  noticePeriodDays: '',
+  referredBy: '',
+  currentCompanyExperience: '',
+  previousExperience: '',
+  totalExperience: '',
+  department: '',
+  division: '',
+  designation: '',
+  reportingTo: '',
+  company: '',
+  workingScheduleLabel: '',
+  secondSaturdayOff: 'No',
+  taskManagerAccess: 'No',
+  aadhaarNumber: '',
+  panNumber: '',
+  passportNumber: '',
+  bankAccountNumber: '',
+  bankAccountHolderName: '',
+  bankIfscCode: '',
+  bankName: '',
+};
+
+function toInputDate(value?: string | null) {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+}
+
+function toDisplayDate(value?: string | null) {
+  if (!value) return '--';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatStatus(status?: string | null) {
+  return formatEmploymentValue(status);
+}
+
+function getInitials(name?: string | null) {
+  return String(name || '')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'E';
+}
+
+function statusTone(status?: string | null) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'active') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  if (normalized === 'inactive') return 'bg-slate-100 text-slate-700 border-slate-200';
+  if (normalized === 'terminated') return 'bg-rose-50 text-rose-700 border-rose-200';
+  return 'bg-surface-container-low text-on-surface-variant border-outline-variant/10';
+}
+
+function stageTone(stage?: string | null) {
+  const normalized = String(stage || '').toLowerCase();
+  if (normalized === 'probation') return 'bg-violet-50 text-violet-700 border-violet-200';
+  if (normalized === 'on_leave') return 'bg-amber-50 text-amber-700 border-amber-200';
+  if (normalized === 'notice_period') return 'bg-sky-50 text-sky-700 border-sky-200';
+  return 'bg-surface-container-low text-on-surface-variant border-outline-variant/10';
+}
+
+function toYesNo(value?: boolean | string | null) {
+  return value ? 'Yes' : 'No';
+}
+
+function pickFirstText(...values: Array<string | number | null | undefined>) {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const normalized = String(value).trim();
+    if (normalized) return normalized;
+  }
+
+  return '';
+}
+
+function formatDocumentLabel(value?: string | null) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return 'Employee Document';
+
+  return normalized
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function formatFileSize(value?: number | null) {
+  if (!value || value <= 0) return 'Size unavailable';
+
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getDocumentIcon(documentType?: string | null, fileName?: string | null) {
+  const normalizedType = String(documentType || '').toLowerCase();
+  const extension = String(fileName || '').split('.').pop()?.toLowerCase();
+
+  if (normalizedType.includes('aadhaar') || normalizedType.includes('pan') || normalizedType.includes('passport')) {
+    return 'badge';
+  }
+
+  if (normalizedType.includes('salary')) {
+    return 'receipt_long';
+  }
+
+  if (normalizedType.includes('letter')) {
+    return 'description';
+  }
+
+  if (extension === 'pdf') return 'picture_as_pdf';
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(extension || '')) return 'image';
+
+  return 'folder_open';
+}
+
+function formatReportingTarget(employee: any) {
+  const name = employee?.reporting_manager_name || 'Not assigned';
+  const kind = employee?.reporting_manager_kind || '';
+
+  if (!employee?.reporting_manager_name) {
+    return name;
+  }
+
+  if (kind === 'super_admin') {
+    return `${name} (Super Admin)`;
+  }
+
+  return name;
+}
+
+function normalizeEmployeeToForm(employee: any) {
+  const access = Array.isArray(employee?.module_access) ? employee.module_access[0] : employee?.module_access;
+
+  return {
+    employeeId: employee?.employee_id || '',
+    name: employee?.name || '',
+    email: employee?.email || '',
+    phone: employee?.phone || '',
+    personalEmail: employee?.personal_email || '',
+    dateOfBirth: toInputDate(employee?.date_of_birth),
+    bloodGroup: employee?.blood_group || '',
+    fatherName: employee?.father_name || '',
+    maritalStatus: employee?.marital_status || '',
+    marriageDate: toInputDate(employee?.marriage_date),
+    spouseName: employee?.spouse_name || '',
+    nationality: employee?.nationality || '',
+    residentialStatus: employee?.residential_status || '',
+    placeOfBirth: employee?.place_of_birth || '',
+    countryOfOrigin: employee?.country_of_origin || '',
+    religion: employee?.religion || '',
+    isInternational: toYesNo(employee?.is_international),
+    isPhysicallyChallenged: toYesNo(employee?.is_physically_challenged),
+    heightCm: employee?.height_cm ? String(employee.height_cm) : '',
+    weightKg: employee?.weight_kg ? String(employee.weight_kg) : '',
+    hobby: employee?.hobby || '',
+    caste: employee?.caste || '',
+    address: employee?.address || '',
+    city: employee?.city || '',
+    district: employee?.district || '',
+    state: employee?.state || '',
+    country: employee?.country || '',
+    pincode: employee?.pincode || '',
+    phone2: employee?.alternate_phone || '',
+    mobile: employee?.mobile_phone || '',
+    joinedOn: toInputDate(employee?.date_of_joining),
+    confirmationDate: toInputDate(employee?.confirmation_date),
+    employeeType: employee?.resolved_employee_type || employee?.employee_type || 'full_time_employee',
+    lifecycleStatus: employee?.resolved_employment_lifecycle_status || employee?.employment_lifecycle_status || 'active',
+    currentStage: employee?.resolved_current_stage || employee?.current_stage || 'none',
+    probationPeriodDays: employee?.probation_period_days ? String(employee.probation_period_days) : '',
+    noticePeriodDays: employee?.notice_period_days ? String(employee.notice_period_days) : '',
+    referredBy: employee?.referred_by || '',
+    currentCompanyExperience: employee?.current_company_experience || '',
+    previousExperience: employee?.previous_experience || '',
+    totalExperience: employee?.total_experience || '',
+    department: employee?.department?.name || employee?.resolved_department_name || '',
+    division: employee?.division || '',
+    designation: employee?.designation?.title || employee?.resolved_designation_title || '',
+    reportingTo: employee?.reporting_manager_value || '',
+    company: employee?.company || '',
+    workingScheduleLabel: employee?.working_schedule_label || '',
+    secondSaturdayOff: toYesNo(employee?.second_saturday_off),
+    taskManagerAccess: access?.task_manager ? 'Yes' : 'No',
+    aadhaarNumber: employee?.aadhaar_number || '',
+    panNumber: employee?.pan_number || '',
+    passportNumber: employee?.passport_number || '',
+    bankAccountNumber: employee?.bank_account_number || '',
+    bankAccountHolderName: employee?.bank_account_holder_name || '',
+    bankIfscCode: employee?.bank_ifsc || '',
+    bankName: employee?.bank_name || '',
+  };
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="p-8 max-w-[1600px] mx-auto w-full">
-      {/* Profile Header Section */}
-      <section className="flex flex-col lg:flex-row items-start lg:items-end justify-between gap-8 mb-8">
-        <div className="flex flex-col md:flex-row gap-8 items-center md:items-end">
-          <div className="relative">
-            <img 
-              alt="Sarah Jenkins" 
-              className="w-40 h-40 rounded-xl object-cover bg-white shadow-lg" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvlkiLByZj2dumxFhjNy1TBfEu3veHSETiEjWjjpOVrnRYM4o1N3pIp0FowU3VLSSqRCZNBFXfpiT2UOOFsrRSfqFWoGHGJHO8pwr7x-XKlE2UqoJh0NnJ-_HdKWIfd23uuFkkdxqFcyzcl9E258WtrlaTA3HRm70YTz10vwCM3YBEEywRH2AfUuI2R5vU0pWmEx1EeFAGPOJvh7owHn-5ufZk8raHiGPNlVx4Ke--K-UIa6LywHC9YIAaeIZkOwgJvniQaGh3u5s"
-            />
-            <div className="absolute -bottom-2 -right-2 bg-green-500 w-6 h-6 rounded-full border-4 border-surface shadow-sm" title="Active Status"></div>
+    <label className="flex flex-col gap-2">
+      <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function inputClassName(disabled = false, multiline = false) {
+  return `w-full rounded-2xl border border-outline-variant/15 bg-white px-4 py-3 text-sm text-on-surface outline-none transition ${
+    multiline ? 'min-h-[120px] resize-y' : ''
+  } ${
+    disabled
+      ? 'cursor-default bg-surface-container-low text-on-surface-variant'
+      : 'focus:border-primary focus:ring-2 focus:ring-primary/10'
+  }`;
+}
+
+function SectionShell({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-8 shadow-sm">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-on-surface">{title}</h2>
+        <p className="mt-2 text-sm text-on-surface-variant">{subtitle}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export default function DetailedEmployeeProfile({
+  employeeId,
+  setCurrentTab,
+}: {
+  employeeId?: string | null;
+  setCurrentTab?: (tab: string) => void;
+}) {
+  const [employee, setEmployee] = useState<any>(null);
+  const [form, setForm] = useState(defaultForm);
+  const [meta, setMeta] = useState<any>({ employees: [], departments: [], designations: [] });
+  const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [activeSection, setActiveSection] = useState('personal');
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadEmployee() {
+      if (!employeeId) {
+        setEmployee(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError('');
+        setMessage('');
+
+        const response = await fetch(`/HRM/api/employees?id=${employeeId}&includeMeta=1`, {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load employee');
+        }
+
+        if (!active) return;
+
+        setEmployee(result.employee || null);
+        setForm(normalizeEmployeeToForm(result.employee || {}));
+        setMeta({
+          employees: result.employeeOptions || result.employees || [],
+          superAdmins: result.superAdminOptions || [],
+          departments: result.departments || [],
+          designations: result.designations || [],
+        });
+      } catch (requestError: any) {
+        if (active) {
+          setEmployee(null);
+          setError(requestError?.message || 'Failed to load employee');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadEmployee();
+    return () => {
+      active = false;
+    };
+  }, [employeeId]);
+
+  const reportingManagerOptions = useMemo(() => {
+    return (meta.employees || []).filter((item: any) => item.id !== employee?.id);
+  }, [employee?.id, meta.employees]);
+
+  const superAdminOptions = useMemo(() => meta.superAdmins || [], [meta.superAdmins]);
+
+  const filteredDesignations = useMemo(() => {
+    const selectedDepartment = (meta.departments || []).find((item: any) => item.name === form.department);
+    if (!selectedDepartment?.id) {
+      return meta.designations || [];
+    }
+
+    return (meta.designations || []).filter(
+      (item: any) => !item.department_id || item.department_id === selectedDepartment.id
+    );
+  }, [form.department, meta.departments, meta.designations]);
+
+  const documentList = useMemo(() => {
+    if (!Array.isArray(employee?.documents)) return [];
+
+    return [...employee.documents].sort((left: any, right: any) => {
+      const leftTime = new Date(left?.updated_at || left?.created_at || 0).getTime();
+      const rightTime = new Date(right?.updated_at || right?.created_at || 0).getTime();
+      return rightTime - leftTime;
+    });
+  }, [employee?.documents]);
+
+  const documentSummary = useMemo(() => {
+    const totalSize = documentList.reduce((sum: number, item: any) => sum + (Number(item?.file_size) || 0), 0);
+    const latestDocument = documentList[0];
+
+    return {
+      totalDocuments: documentList.length,
+      totalSizeLabel: formatFileSize(totalSize),
+      latestUpdatedLabel: latestDocument ? toDisplayDate(latestDocument.updated_at || latestDocument.created_at) : '--',
+    };
+  }, [documentList]);
+
+  const summaryItems = useMemo(
+    () => [
+      { label: 'Employee Type', value: getEmployeeTypeLabel(employee?.resolved_employee_type || employee?.employee_type) },
+      { label: 'Lifecycle Status', value: formatStatus(employee?.resolved_employment_lifecycle_status || employee?.employment_lifecycle_status) },
+      { label: 'Current Stage', value: formatStatus(employee?.resolved_current_stage || employee?.current_stage) },
+      { label: 'Department', value: employee?.resolved_department_name || employee?.department?.name || '--' },
+      { label: 'Designation', value: employee?.resolved_designation_title || employee?.designation?.title || '--' },
+      { label: 'Reporting To', value: formatReportingTarget(employee) },
+      { label: 'Created By', value: employee?.created_by_name || 'HR Admin' },
+      { label: 'Date Of Joining', value: toDisplayDate(employee?.date_of_joining) },
+      { label: 'Task Manager', value: form.taskManagerAccess === 'Yes' ? 'Enabled' : 'Disabled' },
+    ],
+    [employee, form.taskManagerAccess]
+  );
+
+  function handleChange(
+    event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) {
+    const { name, value } = event.target;
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === 'lifecycleStatus' && value === 'terminated' ? { currentStage: 'none' } : {}),
+    }));
+    setMessage('');
+    setError('');
+  }
+
+  async function handleSave() {
+    if (!employee?.id) return;
+
+    try {
+      setSaving(true);
+      setError('');
+      setMessage('');
+
+      const response = await fetch('/HRM/api/employees', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: employee.id,
+          ...form,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update employee');
+      }
+
+      const nextEmployee = result.employee || employee;
+      setEmployee(nextEmployee);
+      setForm(normalizeEmployeeToForm(nextEmployee));
+      setIsEditing(false);
+      setMessage('Employee details updated successfully.');
+    } catch (requestError: any) {
+      setError(requestError?.message || 'Failed to update employee');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleStatusUpdate(nextStatus: string) {
+    if (!employee?.id) return;
+    const confirmed = window.confirm(`Mark this employee as ${formatStatus(nextStatus)}?`);
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      setError('');
+      setMessage('');
+
+      const response = await fetch('/HRM/api/employees', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: employee.id,
+          lifecycleStatus: nextStatus,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update employee status');
+      }
+
+      setEmployee(result.employee || employee);
+      setForm((current) => ({
+        ...current,
+        lifecycleStatus: nextStatus,
+        ...(nextStatus === 'terminated' ? { currentStage: 'none' } : {}),
+      }));
+      setMessage(`Employee marked as ${formatStatus(nextStatus)}.`);
+    } catch (requestError: any) {
+      setError(requestError?.message || 'Failed to update employee status');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!employee?.id) return;
+    const confirmed = window.confirm('Delete this employee record permanently?');
+    if (!confirmed) return;
+
+    try {
+      setSaving(true);
+      setError('');
+      setMessage('');
+
+      const response = await fetch(`/HRM/api/employees?id=${employee.id}`, {
+        method: 'DELETE',
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete employee');
+      }
+
+      setCurrentTab?.('admin-employee-list');
+    } catch (requestError: any) {
+      setError(requestError?.message || 'Failed to delete employee');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function renderPersonalSection() {
+    return (
+      <SectionShell
+        title="Personal Details"
+        subtitle="Core personal, contact, and residential information for this employee."
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <Field label="Full Name">
+            <input name="name" value={form.name} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Official Email">
+            <input name="email" value={form.email} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Phone Number">
+            <input name="phone" value={form.phone} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Personal Email">
+            <input name="personalEmail" value={form.personalEmail} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Date Of Birth">
+            <input type="date" name="dateOfBirth" value={form.dateOfBirth} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Blood Group">
+            <select name="bloodGroup" value={form.bloodGroup} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              <option value="">Select blood group</option>
+              {BLOOD_GROUP_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Father's Name">
+            <input name="fatherName" value={form.fatherName} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Marital Status">
+            <input name="maritalStatus" value={form.maritalStatus} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Marriage Date">
+            <input type="date" name="marriageDate" value={form.marriageDate} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Spouse Name">
+            <input name="spouseName" value={form.spouseName} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Nationality">
+            <input name="nationality" value={form.nationality} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Residential Status">
+            <select name="residentialStatus" value={form.residentialStatus} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              <option value="">Select residential status</option>
+              {RESIDENTIAL_STATUS_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Place Of Birth">
+            <input name="placeOfBirth" value={form.placeOfBirth} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Country Of Origin">
+            <input name="countryOfOrigin" value={form.countryOfOrigin} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Religion">
+            <select name="religion" value={form.religion} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              <option value="">Select religion</option>
+              {RELIGION_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="International Employee">
+            <select name="isInternational" value={form.isInternational} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              {YES_NO_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Physically Challenged">
+            <select name="isPhysicallyChallenged" value={form.isPhysicallyChallenged} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              {YES_NO_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Height (cm)">
+            <input name="heightCm" value={form.heightCm} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Weight (kg)">
+            <input name="weightKg" value={form.weightKg} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Hobby">
+            <input name="hobby" value={form.hobby} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Caste">
+            <input name="caste" value={form.caste} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Alternate Phone">
+            <input name="phone2" value={form.phone2} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Mobile">
+            <input name="mobile" value={form.mobile} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <div className="md:col-span-2 xl:col-span-3">
+            <Field label="Address">
+              <textarea name="address" value={form.address} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing, true)} />
+            </Field>
           </div>
-          <div className="space-y-2 text-center md:text-left">
-            <div className="flex items-center gap-3 justify-center md:justify-start">
-              <h1 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface">Sarah Jenkins</h1>
-              <span className="bg-secondary-container text-on-secondary-container text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest border border-secondary/10">Active</span>
+          <Field label="City">
+            <input name="city" value={form.city} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="District">
+            <input name="district" value={form.district} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="State">
+            <input name="state" value={form.state} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Country">
+            <input name="country" value={form.country} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Pincode">
+            <input name="pincode" value={form.pincode} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+        </div>
+      </SectionShell>
+    );
+  }
+
+  function renderProfessionalSection() {
+    return (
+      <SectionShell
+        title="Professional Details"
+        subtitle="Position, reporting, schedule, and employment lifecycle information."
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <Field label="Employee ID">
+            <input name="employeeId" value={form.employeeId} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Employee Type">
+            <select name="employeeType" value={form.employeeType} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              {EMPLOYEE_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Lifecycle Status">
+            <select name="lifecycleStatus" value={form.lifecycleStatus} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              {EMPLOYMENT_LIFECYCLE_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Current Stage">
+            <select name="currentStage" value={form.currentStage} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              {CURRENT_STAGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Date Of Joining">
+            <input type="date" name="joinedOn" value={form.joinedOn} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Confirmation Date">
+            <input type="date" name="confirmationDate" value={form.confirmationDate} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Probation Period (days)">
+            <input name="probationPeriodDays" value={form.probationPeriodDays} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Notice Period (days)">
+            <input name="noticePeriodDays" value={form.noticePeriodDays} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Department">
+            <select name="department" value={form.department} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              <option value="">Select department</option>
+              {(meta.departments || []).map((item: any) => (
+                <option key={item.id} value={item.name}>{item.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Division">
+            <input name="division" value={form.division} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Designation">
+            <select name="designation" value={form.designation} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              <option value="">Select designation</option>
+              {filteredDesignations.map((item: any) => (
+                <option key={item.id} value={item.title}>{item.title}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Reporting To">
+            <select name="reportingTo" value={form.reportingTo} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              <option value="">Manager not assigned</option>
+              {superAdminOptions.length > 0 ? (
+                <optgroup label="Super Admins">
+                  {superAdminOptions.map((item: any) => (
+                    <option key={`super-${item.id}`} value={`super_admin:${item.id}`}>
+                      {item.name} {item.email ? `(${item.email})` : ''}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              <optgroup label="Employees">
+                {reportingManagerOptions.map((item: any) => (
+                  <option key={item.id} value={`employee:${item.id}`}>
+                    {item.name} {item.employee_id ? `(${item.employee_id})` : ''}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </Field>
+          <Field label="Company">
+            <input name="company" value={form.company} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Referred By">
+            <input name="referredBy" value={form.referredBy} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Company Experience">
+            <input name="currentCompanyExperience" value={form.currentCompanyExperience} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Previous Experience">
+            <input name="previousExperience" value={form.previousExperience} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Total Experience">
+            <input name="totalExperience" value={form.totalExperience} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Working Schedule">
+            <input name="workingScheduleLabel" value={form.workingScheduleLabel} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Second Saturday Off">
+            <select name="secondSaturdayOff" value={form.secondSaturdayOff} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              {YES_NO_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Task Manager Access">
+            <select name="taskManagerAccess" value={form.taskManagerAccess} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              {YES_NO_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </Field>
+        </div>
+      </SectionShell>
+    );
+  }
+
+  function renderIdentityFinanceSection() {
+    return (
+      <SectionShell
+        title="Identity & Finance"
+        subtitle="Compliance and bank details used for payroll and employee verification."
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <Field label="Aadhaar Number">
+            <input name="aadhaarNumber" value={form.aadhaarNumber} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="PAN Number">
+            <input name="panNumber" value={form.panNumber} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Passport Number">
+            <input name="passportNumber" value={form.passportNumber} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Bank Account Number">
+            <input name="bankAccountNumber" value={form.bankAccountNumber} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Account Holder Name">
+            <input name="bankAccountHolderName" value={form.bankAccountHolderName} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="IFSC Code">
+            <input name="bankIfscCode" value={form.bankIfscCode} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Bank Name">
+            <input name="bankName" value={form.bankName} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+        </div>
+      </SectionShell>
+    );
+  }
+
+  function renderDocumentsSection() {
+    return (
+      <SectionShell
+        title="Documents & Record Snapshot"
+        subtitle="Current employee files and record metadata available in the system."
+      >
+        <div className="space-y-5">
+          <div className="rounded-[1.75rem] border border-outline-variant/10 bg-white/85 p-6 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary/75">Employee Documents</p>
+                <h3 className="mt-2 text-2xl font-bold text-on-surface">Clean, organized employee records</h3>
+                <p className="mt-2 text-sm text-on-surface-variant">
+                  Every uploaded file is grouped into a polished card with quick metadata and a direct open action.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 lg:min-w-[360px] lg:grid-cols-3">
+                <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Uploaded</p>
+                  <p className="mt-2 text-lg font-bold text-on-surface">{documentSummary.totalDocuments}</p>
+                </div>
+                <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Storage</p>
+                  <p className="mt-2 text-lg font-bold text-on-surface">{documentSummary.totalSizeLabel}</p>
+                </div>
+                <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest px-4 py-3 col-span-2 lg:col-span-1">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Latest Update</p>
+                  <p className="mt-2 text-lg font-bold text-on-surface">{documentSummary.latestUpdatedLabel}</p>
+                </div>
+              </div>
             </div>
-            <p className="text-lg text-primary font-headline font-semibold">Senior UX Designer <span className="text-on-surface-variant/40 mx-2">|</span> Product Design</p>
-            <div className="flex items-center gap-4 text-on-surface-variant text-sm font-medium justify-center md:justify-start">
-              <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">id_card</span> EMP-94202
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-sm">location_on</span> London Hub
-              </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            {documentList.length === 0 ? (
+              <div className="rounded-[1.75rem] border border-dashed border-outline-variant/20 bg-surface-container-lowest px-6 py-10 text-sm text-on-surface-variant md:col-span-2">
+                No uploaded documents are available for this employee yet.
+              </div>
+            ) : (
+              documentList.map((item: any) => (
+                <a
+                  key={item.id}
+                  href={item.file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group relative overflow-hidden rounded-[1.75rem] border border-outline-variant/10 bg-white p-5 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.45)] transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_24px_60px_-32px_rgba(139,92,246,0.28)]"
+                >
+                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-400 via-primary to-fuchsia-300 opacity-90" />
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/15">
+                        <span className="material-symbols-outlined text-[26px]">
+                          {getDocumentIcon(item.document_type, item.file_name)}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="inline-flex rounded-full bg-primary/8 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
+                            {formatDocumentLabel(item.document_type)}
+                          </span>
+                          <span className="inline-flex rounded-full border border-outline-variant/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                            {pickFirstText(item.file_name?.split('.').pop()?.toUpperCase(), 'FILE')}
+                          </span>
+                        </div>
+                        <h4 className="mt-3 break-words text-lg font-bold text-on-surface">
+                          {pickFirstText(item.file_name, 'Open file')}
+                        </h4>
+                        <p className="mt-1 text-sm text-on-surface-variant">
+                          Secure employee file ready for review, download, or verification.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-lowest text-on-surface-variant transition group-hover:border-primary/20 group-hover:text-primary">
+                      <span className="material-symbols-outlined">open_in_new</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-surface-container-lowest px-4 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">File Size</p>
+                      <p className="mt-1 text-sm font-semibold text-on-surface">{formatFileSize(item.file_size)}</p>
+                    </div>
+                    <div className="rounded-2xl bg-surface-container-lowest px-4 py-3">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">Updated</p>
+                      <p className="mt-1 text-sm font-semibold text-on-surface">
+                        {toDisplayDate(item.updated_at || item.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                </a>
+              ))
+            )}
+          </div>
+
+          <div className="rounded-[1.75rem] border border-outline-variant/10 bg-white/85 p-6 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.3)] backdrop-blur">
+            <h3 className="text-lg font-bold text-on-surface">Quick Facts</h3>
+            <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="rounded-[1.5rem] border border-outline-variant/10 bg-surface-container-lowest px-4 py-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Created On</p>
+                <p className="mt-2 text-base font-semibold text-on-surface">{toDisplayDate(employee?.created_at)}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-outline-variant/10 bg-surface-container-lowest px-4 py-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Last Updated</p>
+                <p className="mt-2 text-base font-semibold text-on-surface">{toDisplayDate(employee?.updated_at)}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-outline-variant/10 bg-surface-container-lowest px-4 py-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Working Days</p>
+                <p className="mt-2 text-base font-semibold text-on-surface">
+                  {Array.isArray(employee?.working_days) && employee.working_days.length
+                    ? employee.working_days.join(', ')
+                    : '--'}
+                </p>
+              </div>
+              <div className="rounded-[1.5rem] border border-outline-variant/10 bg-surface-container-lowest px-4 py-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Document Count</p>
+                <p className="mt-2 text-base font-semibold text-on-surface">{documentSummary.totalDocuments}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-outline-variant/10 bg-surface-container-lowest px-4 py-4 sm:col-span-2">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Employee UUID</p>
+                <p className="mt-2 break-all text-sm font-medium text-on-surface">{employee?.id || '--'}</p>
+              </div>
             </div>
           </div>
         </div>
-        
-        <div className="flex flex-wrap gap-3 w-full lg:w-auto">
-          <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-primary text-on-primary px-6 py-3 rounded-lg font-headline font-bold hover:shadow-lg transition-all active:scale-95 shadow-sm">
-            <span className="material-symbols-outlined text-lg">edit</span>
-            Edit Profile
+      </SectionShell>
+    );
+  }
+
+  const sections = [
+    { id: 'personal', label: 'Personal Details' },
+    { id: 'professional', label: 'Professional Details' },
+    { id: 'identity', label: 'Identity & Finance' },
+    { id: 'documents', label: 'Documents' },
+  ];
+
+  let mainSection = renderPersonalSection();
+  if (activeSection === 'professional') mainSection = renderProfessionalSection();
+  if (activeSection === 'identity') mainSection = renderIdentityFinanceSection();
+  if (activeSection === 'documents') mainSection = renderDocumentsSection();
+
+  if (loading) {
+    return (
+      <div className="p-10 w-full">
+        <div className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest px-8 py-20 text-center text-on-surface-variant shadow-sm">
+          Loading employee profile...
+        </div>
+      </div>
+    );
+  }
+
+  if (!employeeId || !employee) {
+    return (
+      <div className="p-10 w-full">
+        <div className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest px-8 py-20 text-center shadow-sm">
+          <p className="text-2xl font-bold text-on-surface">Select an employee from the directory</p>
+          <p className="mt-3 text-on-surface-variant">The detailed HR profile will open here for view, edit, status change, and record management.</p>
+          <button
+            type="button"
+            onClick={() => setCurrentTab?.('admin-employee-list')}
+            className="mt-8 rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-on-primary"
+          >
+            Back to Employee Directory
           </button>
-          <button className="flex-1 lg:flex-none flex items-center justify-center gap-2 bg-surface-container-lowest text-on-surface px-6 py-3 rounded-lg font-headline font-bold hover:bg-surface-container-low transition-all border border-outline-variant/10 shadow-sm">
-            <span className="material-symbols-outlined text-lg">chat</span>
-            Message
-          </button>
-          <button className="w-12 h-12 flex items-center justify-center bg-surface-container-lowest text-on-surface rounded-lg hover:bg-surface-container-low border border-outline-variant/10 shadow-sm transition-colors">
-            <span className="material-symbols-outlined">more_vert</span>
-          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-10 pb-14 w-full space-y-8">
+      <section className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest px-8 py-8 shadow-sm">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-8">
+          <div className="flex flex-col lg:flex-row gap-6 lg:items-center">
+            <button type="button" onClick={() => setCurrentTab?.('admin-employee-list')} className="flex h-12 w-12 items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface text-on-surface-variant transition hover:border-primary/20 hover:text-primary">
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
+            <div className="flex flex-col md:flex-row md:items-center gap-5">
+              {employee.profile_picture_url ? (
+                <Image src={employee.profile_picture_url} alt={employee.name || 'Employee'} width={112} height={112} className="h-28 w-28 rounded-[2rem] object-cover border border-outline-variant/10 shadow-sm" unoptimized />
+              ) : (
+                <div className="flex h-28 w-28 items-center justify-center rounded-[2rem] bg-primary text-3xl font-extrabold text-on-primary shadow-lg shadow-primary/15">
+                  {getInitials(employee.name)}
+                </div>
+              )}
+              <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="text-4xl font-extrabold tracking-tight text-on-surface">{employee.employee_id || '--'} - {employee.name || 'Employee'}</h1>
+                  <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${statusTone(employee.resolved_employment_lifecycle_status || employee.employment_lifecycle_status)}`}>
+                    {formatStatus(employee.resolved_employment_lifecycle_status || employee.employment_lifecycle_status)}
+                  </span>
+                  {(employee.resolved_current_stage || employee.current_stage) && (employee.resolved_current_stage || employee.current_stage) !== 'none' ? (
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${stageTone(employee.resolved_current_stage || employee.current_stage)}`}>
+                      {formatStatus(employee.resolved_current_stage || employee.current_stage)}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-lg font-semibold text-primary">
+                  {employee.resolved_designation_title || employee.designation?.title || 'Designation not set'}
+                  <span className="mx-2 text-on-surface-variant/40">|</span>
+                  {employee.resolved_department_name || employee.department?.name || 'Department not set'}
+                </p>
+                <div className="flex flex-wrap items-center gap-4 text-sm text-on-surface-variant">
+                  <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-base">call</span>{employee.resolved_phone_number || employee.phone || employee.mobile_phone || '--'}</span>
+                  <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-base">mail</span>{employee.email || '--'}</span>
+                  <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-base">account_tree</span>{formatReportingTarget(employee)}</span>
+                  <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-base">location_on</span>{[employee.city, employee.state].filter(Boolean).join(', ') || '--'}</span>
+                </div>
+                <p className="text-sm text-on-surface-variant">Created by <span className="font-semibold text-on-surface">{employee.created_by_name || 'HR Admin'}</span><span className="mx-2">•</span>Last updated {toDisplayDate(employee.updated_at)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {isEditing ? (
+              <>
+                <button type="button" onClick={() => { setForm(normalizeEmployeeToForm(employee)); setIsEditing(false); setError(''); setMessage(''); }} className="rounded-2xl border border-outline-variant/15 bg-white px-5 py-3 text-sm font-bold text-on-surface">
+                  Cancel
+                </button>
+                <button type="button" onClick={handleSave} disabled={saving} className="rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-lg shadow-primary/20 disabled:cursor-not-allowed disabled:opacity-60">
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={() => setIsEditing(true)} className="rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-lg shadow-primary/20">
+                Edit Employee
+              </button>
+            )}
+            <button type="button" onClick={() => handleStatusUpdate('inactive')} disabled={saving} className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-bold text-amber-700 disabled:opacity-60">Mark Inactive</button>
+            <button type="button" onClick={() => handleStatusUpdate('terminated')} disabled={saving} className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-bold text-rose-700 disabled:opacity-60">Terminate</button>
+            <button type="button" onClick={handleDelete} disabled={saving} className="rounded-2xl border border-outline-variant/15 bg-white px-5 py-3 text-sm font-bold text-on-surface-variant disabled:opacity-60">Delete</button>
+          </div>
         </div>
       </section>
 
-      {/* Navigation Tabs for High Density Data */}
-      <div className="flex gap-8 border-b border-outline-variant/20 mb-8 overflow-x-auto no-scrollbar">
-        <button className="pb-4 text-primary font-bold border-b-2 border-primary whitespace-nowrap px-1">Profile Details</button>
-        <button className="pb-4 text-on-surface-variant font-medium hover:text-primary transition-colors whitespace-nowrap px-1">Career Path</button>
-        <button className="pb-4 text-on-surface-variant font-medium hover:text-primary transition-colors whitespace-nowrap px-1">Documents</button>
-        <button className="pb-4 text-on-surface-variant font-medium hover:text-primary transition-colors whitespace-nowrap px-1">Attendance & Leave</button>
-        <button className="pb-4 text-on-surface-variant font-medium hover:text-primary transition-colors whitespace-nowrap px-1">Assets</button>
+      <div className="flex gap-3 overflow-x-auto rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest px-5 py-4 shadow-sm">
+        {sections.map((section) => (
+          <button key={section.id} type="button" onClick={() => setActiveSection(section.id)} className={`whitespace-nowrap rounded-2xl px-5 py-3 text-sm font-bold transition ${activeSection === section.id ? 'bg-primary text-on-primary shadow-lg shadow-primary/20' : 'bg-surface text-on-surface-variant hover:text-on-surface'}`}>
+            {section.label}
+          </button>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        {/* Main Data Content */}
-        <div className="xl:col-span-8 space-y-8">
-          {/* Personal Information */}
-          <section className="bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/5 shadow-[0_2px_12px_rgba(45,51,53,0.03)] hover:shadow-[0_4px_24px_rgba(45,51,53,0.06)] transition-shadow">
-            <div className="flex items-center justify-between mb-8 border-l-4 border-primary pl-4">
-              <h2 className="text-xl font-extrabold font-headline">Personal Information</h2>
-              <button className="p-2 hover:bg-primary/5 rounded-full transition-colors text-on-surface-variant hover:text-primary active:scale-95">
-                <span className="material-symbols-outlined text-lg">edit</span>
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">DOB</p>
-                <div className="flex items-center gap-2 group cursor-pointer w-fit">
-                  <p className="font-medium">14 Mar 1992</p>
-                  <span className="material-symbols-outlined text-sm opacity-60 group-hover:opacity-100 group-hover:text-primary transition-all">visibility</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Birthday</p>
-                <p className="font-medium">14 March</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Blood Group</p>
-                <p className="font-medium">O +ve</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Father&apos;s Name</p>
-                <p className="font-medium">David Jenkins</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Marital Status</p>
-                <p className="font-medium">Married</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Marriage Date</p>
-                <p className="font-medium">20 Jun 2018</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Spouse Name</p>
-                <p className="font-medium">James Peterson</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Nationality</p>
-                <p className="font-medium">British</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Residential Status</p>
-                <p className="font-medium">Resident</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Place of Birth</p>
-                <p className="font-medium">London</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Country of Origin</p>
-                <p className="font-medium">United Kingdom</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Religion</p>
-                <p className="font-medium">None</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Int. Employee</p>
-                <p className="font-medium border border-outline-variant/20 px-2 py-0.5 rounded text-xs w-fit">No</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Physically Challenged</p>
-                <p className="font-medium border border-outline-variant/20 px-2 py-0.5 rounded text-xs w-fit">No</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Is Director</p>
-                <p className="font-medium border border-outline-variant/20 px-2 py-0.5 rounded text-xs w-fit">No</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Personal Email</p>
-                <p className="font-medium text-primary hover:underline cursor-pointer">sarah.j@gmail.com</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Height</p>
-                <p className="font-medium">168 cm</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Weight</p>
-                <p className="font-medium">62 kg</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">ID Mark</p>
-                <p className="font-medium">Mole on right wrist</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Hobby</p>
-                <p className="font-medium">Photography, Cycling</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Caste</p>
-                <p className="font-medium text-on-surface-variant">-</p>
-              </div>
-            </div>
-          </section>
+      {message && <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-700">{message}</div>}
+      {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">{error}</div>}
 
-          {/* Joining Details & Current Position */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Joining Details */}
-            <section className="bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/5 shadow-[0_2px_12px_rgba(45,51,53,0.03)] hover:shadow-[0_4px_24px_rgba(45,51,53,0.06)] transition-shadow">
-              <div className="flex items-center justify-between mb-8 border-l-4 border-secondary pl-4">
-                <h2 className="text-xl font-extrabold font-headline">Joining Details</h2>
-                <button className="p-2 hover:bg-secondary/5 rounded-full transition-colors text-on-surface-variant hover:text-secondary active:scale-95">
-                  <span className="material-symbols-outlined text-lg">history</span>
-                </button>
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-8 items-start">
+        <div>{mainSection}</div>
+        <aside className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-8 shadow-sm xl:sticky xl:top-8">
+          <h2 className="text-2xl font-bold text-on-surface">Employee Details</h2>
+          <div className="mt-6 space-y-5">
+            {summaryItems.map((item) => (
+              <div key={item.label} className="border-b border-outline-variant/10 pb-4 last:border-b-0 last:pb-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">{item.label}</p>
+                <p className="mt-2 text-base font-semibold text-on-surface">{item.value || '--'}</p>
               </div>
-              <div className="grid grid-cols-2 gap-y-6 gap-x-4">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Joined On</p>
-                  <p className="font-medium">12 Aug 2020</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Confirmation Date</p>
-                  <p className="font-medium">12 Feb 2021</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Status</p>
-                  <p className="font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded w-fit border border-emerald-100 text-sm">Confirmed</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Probation Period</p>
-                  <p className="font-medium">180 days</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Notice Period</p>
-                  <p className="font-medium">90 days</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Co. Experience</p>
-                  <p className="font-medium">3Y 6M</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Prev. Experience</p>
-                  <p className="font-medium">4Y 2M</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Total Experience</p>
-                  <p className="font-medium font-bold">7Y 8M</p>
-                </div>
-                <div className="col-span-2 space-y-1 bg-surface-container-low/50 p-3 rounded-xl border border-outline-variant/10">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Referred By</p>
-                  <p className="font-medium text-primary cursor-pointer hover:underline">Internal Program</p>
-                </div>
-              </div>
-            </section>
-
-            {/* Current Position */}
-            <section className="bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/5 shadow-[0_2px_12px_rgba(45,51,53,0.03)] hover:shadow-[0_4px_24px_rgba(45,51,53,0.06)] transition-shadow">
-              <div className="flex items-center justify-between mb-8 border-l-4 border-primary pl-4">
-                <h2 className="text-xl font-extrabold font-headline">Current Position</h2>
-                <button className="p-2 hover:bg-primary/5 rounded-full transition-colors text-on-surface-variant hover:text-primary active:scale-95">
-                  <span className="material-symbols-outlined text-lg">work</span>
-                </button>
-              </div>
-              
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-y-6 gap-x-4">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Location</p>
-                    <p className="font-medium flex items-center gap-1.5"><span className="material-symbols-outlined text-[16px] text-primary">location_on</span> London Hub</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Department</p>
-                    <p className="font-medium px-2 py-0.5 bg-secondary-container text-secondary-dim border border-secondary/10 rounded-md w-fit text-sm">Product Design</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Division</p>
-                    <p className="font-medium">UX Research</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Designation</p>
-                    <p className="font-medium font-bold text-on-surface">Senior UX Designer</p>
-                  </div>
-                </div>
-                
-                <div className="pt-5 border-t border-surface-container">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-3">Reporting To</p>
-                  <div className="flex items-center gap-3 p-3 hover:bg-surface-container-low transition-colors rounded-xl cursor-pointer border border-transparent hover:border-outline-variant/10">
-                    <img 
-                      alt="Marcus Thompson" 
-                      className="w-11 h-11 rounded-full object-cover ring-2 ring-white shadow-sm" 
-                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuDuWEW5pwU3q-c63E-g9dmFA1AmpcQrjP0ohK2I32gptMPuDf_AsKr3pj_z1Oj-JpJuWQpBAkCOHap1J2ocWHhDiQKLWSQJPV95qkb0o22LZLSa1MmI3guB6QATDjMF-llnPeFlWom2wHfSZMXKtZF-CzEeZG4oCmsIuF4NqdOOAd1rdFfVYFAIxhajnRmC8F7TGPVNu5qULR9vQD_-JquEbE63t2535B1OiAuYnPZlNsie1f-THMw4pPy3wpmM6qUDE3UoQ1x8bOg"
-                    />
-                    <div>
-                      <p className="text-sm font-bold group-hover:text-primary transition-colors">Marcus Thompson</p>
-                      <p className="text-xs text-on-surface-variant">Design Director</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Company</p>
-                  <p className="font-medium text-sm flex items-center gap-1.5 text-on-surface-variant"><span className="material-symbols-outlined text-[16px]">business</span> Sanctuary HRMS UK Ltd</p>
-                </div>
-              </div>
-            </section>
+            ))}
           </div>
-
-          {/* Employee Identity & Bank Details */}
-          <section className="bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/5 shadow-[0_2px_12px_rgba(45,51,53,0.03)] hover:shadow-[0_4px_24px_rgba(45,51,53,0.06)] transition-shadow">
-            <div className="flex items-center justify-between mb-8 border-l-4 border-error pl-4">
-              <h2 className="text-xl font-extrabold font-headline">Employee Identity & Financials</h2>
-              <button className="text-primary text-xs font-bold uppercase tracking-widest hover:underline active:opacity-80 transition-opacity flex items-center gap-1">
-                <span className="material-symbols-outlined text-[16px]">add</span> Add New
-              </button>
-            </div>
-            
-            <div className="space-y-8">
-              {/* Identity Toggles */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="p-5 bg-surface-container-low/50 rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-colors">
-                  <div className="flex justify-between items-center mb-4">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">AADHAAR / National ID</p>
-                    <button className="text-primary hover:bg-primary/10 p-1.5 rounded-full transition-colors active:scale-95">
-                      <span className="material-symbols-outlined text-[18px]">visibility_off</span>
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-on-surface-variant text-3xl">badge</span>
-                    <p className="text-lg font-mono font-bold tracking-[0.2em] text-on-surface">•••• •••• 9422</p>
-                  </div>
-                </div>
-                
-                <div className="p-5 bg-surface-container-low/50 rounded-xl border border-outline-variant/10 hover:border-primary/30 transition-colors">
-                  <div className="flex justify-between items-center mb-4">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Permanent Account Number (PAN)</p>
-                    <button className="text-primary hover:bg-primary/10 p-1.5 rounded-full transition-colors active:scale-95">
-                      <span className="material-symbols-outlined text-[18px]">visibility</span>
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-on-surface-variant text-3xl">credit_card</span>
-                    <p className="text-lg font-mono font-bold tracking-[0.2em] text-on-surface">ABCDE1234F</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bank Details */}
-              <div className="p-6 border border-outline-variant/20 rounded-xl hover:border-primary/20 transition-colors bg-white">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 text-primary flex items-center justify-center rounded-lg">
-                      <span className="material-symbols-outlined">account_balance</span>
-                    </div>
-                    <h3 className="font-bold text-lg font-headline">Bank Details for Identification</h3>
-                  </div>
-                  <button className="text-on-surface-variant p-2 hover:bg-surface-container-high rounded-full transition-colors" title="Bank Details Info">
-                    <span className="material-symbols-outlined text-xl">info</span>
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-surface-container-lowest">
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1">Account Number</p>
-                    <div className="flex items-center justify-between p-3.5 bg-surface-container-low/30 border border-outline-variant/20 rounded-xl group focus-within:ring-2 ring-primary/20 transition-all">
-                      <input 
-                        type="password" 
-                        readOnly 
-                        value="123456781032" 
-                        className="font-mono font-bold tracking-wider bg-transparent border-none p-0 focus:ring-0 text-on-surface w-full"
-                      />
-                      <button className="text-primary hover:bg-primary/10 p-1.5 rounded-full transition-colors active:scale-95 ml-2">
-                        <span className="material-symbols-outlined text-[18px]">visibility_off</span>
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest ml-1">IFSC Code / Sort Code</p>
-                    <div className="flex items-center p-3.5 bg-surface-container-low/30 border border-outline-variant/20 rounded-xl">
-                      <p className="font-mono font-bold text-on-surface tracking-wider">SNCT0000421</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        {/* Right Column Sidebar */}
-        <div className="xl:col-span-4 space-y-8">
-          {/* Summary Stats Card */}
-          <section className="bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/5 shadow-[0_2px_12px_rgba(45,51,53,0.03)] hover:shadow-[0_4px_24px_rgba(45,51,53,0.06)] transition-shadow">
-            <h2 className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-6 flex items-center justify-between">
-              Key Performance
-              <span className="material-symbols-outlined text-sm cursor-pointer hover:text-primary transition-colors">moving</span>
-            </h2>
-            
-            <div className="space-y-8">
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-sm font-semibold text-on-surface">Performance Score</span>
-                  <div className="flex items-center gap-1"><span className="text-lg font-extrabold text-primary">4.9</span><span className="text-xs font-medium text-on-surface-variant">/ 5.0</span></div>
-                </div>
-                <div className="h-2 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div className="h-full bg-primary w-[98%] rounded-full shadow-[0_0_10px_rgba(49,78,224,0.5)]"></div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-surface-container-low/80 p-5 rounded-xl border border-white hover:border-primary/20 transition-colors">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Attendance</p>
-                    <span className="material-symbols-outlined text-emerald-500 text-[16px]">how_to_reg</span>
-                  </div>
-                  <p className="text-3xl font-extrabold font-headline">98%</p>
-                </div>
-                
-                <div className="bg-surface-container-low/80 p-5 rounded-xl border border-white hover:border-primary/20 transition-colors">
-                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">Projects</p>
-                    <span className="material-symbols-outlined text-secondary text-[16px]">folder_special</span>
-                  </div>
-                  <p className="text-3xl font-extrabold font-headline">24</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Skills & Competencies */}
-          <section className="bg-surface-container-lowest p-8 rounded-2xl border border-outline-variant/5 shadow-[0_2px_12px_rgba(45,51,53,0.03)] hover:shadow-[0_4px_24px_rgba(45,51,53,0.06)] transition-shadow">
-            <h2 className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-6 flex items-center justify-between">
-              Skills & Competencies
-              <span className="material-symbols-outlined text-sm cursor-pointer hover:text-primary transition-colors">edit</span>
-            </h2>
-            
-            <div className="space-y-6">
-              <div className="space-y-2 group">
-                <div className="flex justify-between text-xs font-bold text-on-surface group-hover:text-primary transition-colors">
-                  <span>UX Strategy</span>
-                  <span className="text-primary">95%</span>
-                </div>
-                <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div className="h-full bg-primary w-[95%] rounded-full group-hover:bg-primary-dim transition-colors"></div>
-                </div>
-              </div>
-              
-              <div className="space-y-2 group">
-                <div className="flex justify-between text-xs font-bold text-on-surface group-hover:text-primary transition-colors">
-                  <span>Figma Master</span>
-                  <span className="text-primary">100%</span>
-                </div>
-                <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div className="h-full bg-primary w-[100%] rounded-full group-hover:bg-primary-dim transition-colors"></div>
-                </div>
-              </div>
-              
-              <div className="space-y-2 group">
-                <div className="flex justify-between text-xs font-bold text-on-surface group-hover:text-primary transition-colors">
-                  <span>Design Systems</span>
-                  <span className="text-primary">90%</span>
-                </div>
-                <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                  <div className="h-full bg-primary w-[90%] rounded-full group-hover:bg-primary-dim transition-colors"></div>
-                </div>
-              </div>
-              
-              <div className="pt-6 border-t border-surface-container flex flex-wrap gap-2">
-                <span className="bg-secondary-container/50 border border-secondary/10 text-secondary-dim text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider hover:bg-secondary-container transition-colors cursor-default">Leadership</span>
-                <span className="bg-secondary-container/50 border border-secondary/10 text-secondary-dim text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider hover:bg-secondary-container transition-colors cursor-default">A/B Testing</span>
-                <button className="bg-surface-container-low border border-dashed border-outline-variant/40 text-on-surface-variant text-[10px] font-bold px-3 py-1.5 rounded-lg uppercase tracking-wider hover:bg-surface-container hover:text-primary transition-all flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[14px]">add</span> Add
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* Compensation (Enhanced) */}
-          <section className="bg-primary text-on-primary p-8 rounded-2xl shadow-xl shadow-primary/20 relative overflow-hidden group hover:shadow-2xl hover:shadow-primary/30 transition-all cursor-pointer">
-            <div className="absolute -right-16 -top-16 w-48 h-48 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-500"></div>
-            <div className="absolute -left-8 -bottom-8 w-32 h-32 bg-primary-dim/50 rounded-full blur-2xl group-hover:scale-110 transition-transform duration-500"></div>
-            
-            <div className="flex items-center justify-between mb-8 relative z-10">
-              <h2 className="text-[11px] font-bold uppercase tracking-widest text-on-primary/80">Compensation Package</h2>
-              <button className="hover:scale-110 transition-transform bg-white/10 p-1.5 rounded-full hover:bg-white/20 active:scale-95">
-                <span className="material-symbols-outlined text-[18px]">visibility_off</span>
-              </button>
-            </div>
-            
-            <div className="space-y-6 relative z-10">
-              <div>
-                <p className="text-[10px] font-semibold text-on-primary/70 uppercase tracking-widest mb-1">Current Base Salary</p>
-                <p className="text-4xl font-extrabold font-headline tracking-tighter">£•••••••</p>
-              </div>
-              
-              <div className="space-y-4 pt-4 border-t border-white/10">
-                <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5 backdrop-blur-sm hover:bg-white/10 transition-colors">
-                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-white text-[16px]">payments</span>
-                  </div>
-                  <p className="text-xs font-semibold">15% Performance Bonus</p>
-                </div>
-                
-                <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/5 backdrop-blur-sm hover:bg-white/10 transition-colors">
-                  <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center">
-                    <span className="material-symbols-outlined text-white text-[16px]">health_and_safety</span>
-                  </div>
-                  <p className="text-xs font-semibold">BUPA Private Healthcare</p>
-                </div>
-              </div>
-              
-              <button className="w-full py-3.5 mt-2 bg-on-primary text-primary hover:bg-white rounded-xl text-[11px] font-bold uppercase tracking-widest transition-colors shadow-lg active:scale-95 shadow-black/10">
-                View Detailed Breakdown
-              </button>
-            </div>
-          </section>
-
-          {/* Quick Action Shortcuts */}
-          <div className="space-y-3 pt-2">
-            <h2 className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-4 px-2">Quick Actions</h2>
-            <button className="w-full py-4 px-5 bg-surface-container-lowest border border-outline-variant/10 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 rounded-xl transition-all flex items-center justify-start gap-4 text-left group">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined">download</span>
-              </div>
-              <div>
-                <span className="block text-[11px] font-extrabold uppercase tracking-widest text-on-surface">Export Personnel File</span>
-                <span className="block text-xs font-medium text-on-surface-variant mt-0.5">Download full PDF report</span>
-              </div>
-            </button>
-            
-            <button className="w-full py-4 px-5 bg-surface-container-lowest border border-outline-variant/10 hover:border-secondary/30 hover:shadow-md hover:-translate-y-0.5 rounded-xl transition-all flex items-center justify-start gap-4 text-left group">
-              <div className="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary group-hover:scale-110 transition-transform">
-                <span className="material-symbols-outlined">clinical_notes</span>
-              </div>
-              <div>
-                <span className="block text-[11px] font-extrabold uppercase tracking-widest text-on-surface">Tax Documents (P60)</span>
-                <span className="block text-xs font-medium text-on-surface-variant mt-0.5">Generate compliant docs</span>
-              </div>
-            </button>
-          </div>
-        </div>
+        </aside>
       </div>
     </div>
   );

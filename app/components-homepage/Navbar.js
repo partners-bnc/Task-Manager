@@ -4,13 +4,15 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { Menu, X } from 'lucide-react';
-import { createClient } from '@/utils/supabase/client';
 
-export function Navbar({ isOthersOpen = false, onToggleOthers = () => {} }) {
+export function Navbar({
+  isOthersOpen = false,
+  onToggleOthers = () => {},
+  workspaceHref = '/login',
+  workspaceLabel = 'Login',
+}) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -19,56 +21,6 @@ export function Navbar({ isOthersOpen = false, onToggleOthers = () => {} }) {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-    const supabase = createClient();
-
-    const loadAuthState = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!isMounted) {
-        return;
-      }
-
-      setIsAuthenticated(Boolean(user));
-
-      if (!user) {
-        setIsAdmin(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('/Taskmanager/api/admin/me', { method: 'GET', credentials: 'include' });
-
-        if (isMounted) {
-          setIsAdmin(response.ok);
-        }
-      } catch {
-        if (isMounted) {
-          setIsAdmin(false);
-        }
-      }
-    };
-
-    loadAuthState();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
-      loadAuthState();
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const workspaceHref = isAdmin ? '/Taskmanager/admin' : isAuthenticated ? '/Taskmanager/dashboard' : '/login';
-  const workspaceLabel = isAuthenticated ? 'Workspace' : 'Login';
 
   const navLinks = [
     { name: 'Home', href: '#', external: true },

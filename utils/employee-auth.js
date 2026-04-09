@@ -1,5 +1,6 @@
 import { adminClient } from '@/utils/supabase/admin';
 import { getLoginUrl } from '@/utils/app-url';
+import { isHrAdminRole } from '@/utils/auth/roles';
 
 function randomBootstrapPassword() {
   return `${crypto.randomUUID()}${crypto.randomUUID()}`;
@@ -21,7 +22,7 @@ async function findEmployeeForReset(identifier) {
   if (!normalized) return null;
 
   let { data: employee, error } = await adminClient
-    .from('employees')
+    .from('hrm_employees')
     .select('id, email')
     .eq('email', normalized)
     .limit(1)
@@ -35,31 +36,25 @@ async function findEmployeeForReset(identifier) {
     return employee;
   }
 
-  const localPart = normalized.includes('@') ? normalized.split('@')[0] : normalized;
-
-  if (!localPart) {
-    return null;
-  }
-
-  const { data: employeeByUsername, error: usernameError } = await adminClient
-    .from('employees')
+  const { data: employeeById, error: employeeIdError } = await adminClient
+    .from('hrm_employees')
     .select('id, email')
-    .eq('username', localPart)
+    .ilike('employee_id', normalized)
     .limit(1)
     .maybeSingle();
 
-  if (usernameError) {
-    throw new Error(usernameError.message || 'Failed to look up employee username');
+  if (employeeIdError) {
+    throw new Error(employeeIdError.message || 'Failed to look up employee id');
   }
 
-  return employeeByUsername || null;
+  return employeeById || null;
 }
 
 async function isAdminAuthUser(userId) {
   if (!userId) return false;
 
   const { data: profile, error } = await adminClient
-    .from('profiles')
+    .from('hrm_profiles')
     .select('role')
     .eq('id', userId)
     .maybeSingle();
@@ -68,7 +63,7 @@ async function isAdminAuthUser(userId) {
     throw new Error(error.message || 'Failed to look up admin profile');
   }
 
-  return profile?.role === 'admin';
+  return isHrAdminRole(profile?.role);
 }
 
 export async function resolvePasswordResetEmail(identifier) {
@@ -128,7 +123,7 @@ export async function ensureEmployeeAuthUser(employee, password) {
   }
 
   const { error: updateEmployeeError } = await adminClient
-    .from('employees')
+    .from('hrm_employees')
     .update({ auth_user_id: authUserId })
     .eq('id', employee.id);
 
@@ -149,6 +144,7 @@ export async function syncEmployeePasswordToAuth(employee, password) {
     email_confirm: true,
     user_metadata: {
       full_name: employee.name || '',
+      employee_id: employee.employee_id || '',
       employee_uuid: employee.id,
       role: 'employee',
     },
@@ -182,3 +178,4 @@ export async function sendPasswordResetEmailForIdentifier(identifier, redirectTo
 export function getResetRedirectUrl() {
   return getLoginUrl();
 }
+

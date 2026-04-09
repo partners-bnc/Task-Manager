@@ -155,16 +155,7 @@ export default function TeamMembers() {
 
   const openCreateModal = () => {
     if (!isAdminMode) return;
-    setCreateForm({
-      employeeId: '',
-      name: '',
-      username: '',
-      email: '',
-      role: '',
-    });
-    setCreateProfilePicture(null);
-    setCreateError('');
-    setIsCreateOpen(true);
+    router.push('/HRM/hrm/admin?tab=admin-add-employee');
   };
 
   const closeCreateModal = () => {
@@ -224,7 +215,7 @@ export default function TeamMembers() {
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#7F40EE] text-white hover:bg-[#6A31D1] transition-colors"
           >
             <Plus size={16} />
-            Add Member
+            Manage In HR
           </button>
           <button className="flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors">
             <FileDown size={18} />

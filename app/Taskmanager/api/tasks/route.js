@@ -38,7 +38,7 @@ export async function GET() {
     .select(`
       *,
       task_assignments (
-        employee:employees (
+        employee:hrm_employees!task_assignments_employee_id_fkey (
           id,
           name,
           email,
@@ -78,7 +78,7 @@ export async function POST(request) {
     const normalizedLabel = normalizeLabel(label);
     const normalizedFrequency = ['weekly', 'monthly', 'yearly'].includes(frequency) ? frequency : null;
     const actorPayload = getAssignmentActivityActorPayload(actor);
-    const employeeDirectory = await fetchEmployeeDirectory(supabase);
+    const employeeDirectory = await fetchEmployeeDirectory(supabase, { taskManagerOnly: true });
     const validEmployeeIds = new Set(employeeDirectory.map((employee) => employee.id));
     const invalidAssignments = (assignedMembers || []).filter((employeeId) => !validEmployeeIds.has(employeeId));
 
@@ -232,7 +232,7 @@ export async function PUT(request) {
     const normalizedDueDate = normalizeDueDate(dueDate);
     const normalizedLabel = normalizeLabel(label);
     const actorPayload = getAssignmentActivityActorPayload(actor);
-    const employeeDirectory = await fetchEmployeeDirectory(supabase);
+    const employeeDirectory = await fetchEmployeeDirectory(supabase, { taskManagerOnly: true });
     const validEmployeeIds = new Set(employeeDirectory.map((employee) => employee.id));
     const invalidAssignments = (assignedMembers || []).filter((employeeId) => !validEmployeeIds.has(employeeId));
 

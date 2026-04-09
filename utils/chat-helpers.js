@@ -28,7 +28,7 @@ function mapEmployeeToChatUser(employee) {
 }
 
 export async function getChatActor(request) {
-  const actor = await getActor(request);
+  const actor = await getActor(request, { requireTaskManagerAccess: true });
   if (!actor) return null;
   if (actor.type === 'employee' && !actor.authUserId) return null;
 
@@ -55,7 +55,7 @@ export async function getChatUserByKey(actorKey) {
 
   if (parsed.type === 'admin') {
     const { data } = await adminClient
-      .from('profiles')
+      .from('hrm_profiles')
       .select('id, full_name, email, role')
       .eq('id', parsed.id)
       .eq('role', 'admin')
@@ -65,7 +65,7 @@ export async function getChatUserByKey(actorKey) {
   }
 
   const { data } = await adminClient
-    .from('employees')
+    .from('hrm_employees')
     .select('id, name, email, profile_picture_url')
     .eq('id', parsed.id)
     .maybeSingle();
@@ -77,13 +77,13 @@ export async function searchChatUsers({ query, excludeKey, limit = 25 }) {
   const text = sanitizeSearchText(query);
 
   let adminQuery = adminClient
-    .from('profiles')
+    .from('hrm_profiles')
     .select('id, full_name, email, role')
     .eq('role', 'admin')
     .limit(limit);
 
   let employeeQuery = adminClient
-    .from('employees')
+    .from('hrm_employees')
     .select('id, name, email, profile_picture_url')
     .limit(limit);
 
@@ -112,3 +112,4 @@ export function derivePeerKey(thread, selfKey) {
   if (thread.participant_b_key === selfKey) return thread.participant_a_key;
   return null;
 }
+

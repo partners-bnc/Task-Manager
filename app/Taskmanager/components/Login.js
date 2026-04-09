@@ -17,6 +17,7 @@ export default function Login({ onSuccess }) {
   const [isForgotPasswordMode, setIsForgotPasswordMode] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [loginAs, setLoginAs] = useState('employee');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -92,14 +93,14 @@ export default function Login({ onSuccess }) {
     setLoading(true);
     setError('');
 
-    const result = await login({ identifier, password });
+    const result = await login({ identifier, password, loginAs });
     if (!result.success) {
       setError(result.error || 'Invalid credentials');
       setLoading(false);
       return;
     }
 
-    onSuccess();
+    onSuccess?.();
   };
 
   const handleForgotPasswordSubmit = async (event) => {
@@ -111,7 +112,7 @@ export default function Login({ onSuccess }) {
     const normalizedIdentifier = identifier.trim();
 
     if (!normalizedIdentifier) {
-      setError('Email or username is required.');
+      setError('Employee ID or work email is required.');
       setLoading(false);
       return;
     }
@@ -187,7 +188,38 @@ export default function Login({ onSuccess }) {
           </Link>
         </div>
         <div className="mb-10">
-          <h1 className="text-2xl font-bold text-black mb-10">Task Manager</h1>
+          <h1 className="text-2xl font-bold text-black mb-10">Sanctum Enterprise Suite</h1>
+          {!isRecoveryMode && !isForgotPasswordMode ? (
+            <div className="mb-6">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Sign In As
+              </p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {[
+                  { id: 'super_admin', label: 'Super Admin', hint: 'Company-level controls' },
+                  { id: 'hr_admin', label: 'HR Admin', hint: 'HR and employee management' },
+                  { id: 'employee', label: 'Employee', hint: 'Attendance, leave, and daily work' },
+                ].map((option) => {
+                  const isActive = loginAs === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setLoginAs(option.id)}
+                      className={`rounded-2xl border px-4 py-4 text-left transition-all ${
+                        isActive
+                          ? 'border-[#7F40EE] bg-violet-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="text-sm font-semibold text-slate-900">{option.label}</div>
+                      <div className="mt-1 text-xs text-slate-500">{option.hint}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           <h2 className="text-3xl font-bold text-slate-900 mb-2">
             {isRecoveryMode ? 'Reset Password' : isForgotPasswordMode ? 'Forgot Password' : 'Welcome Back'}
           </h2>
@@ -195,8 +227,8 @@ export default function Login({ onSuccess }) {
             {isRecoveryMode
               ? 'Create a new password to finish your first sign-in.'
               : isForgotPasswordMode
-                ? 'Enter your email or username and we will send a reset link if the account exists.'
-                : 'Please enter your details to log in'}
+                ? 'Enter your employee ID or work email and we will send a reset link if the account exists.'
+                : 'Use the central login and choose the correct workspace before signing in.'}
           </p>
         </div>
 
@@ -214,14 +246,14 @@ export default function Login({ onSuccess }) {
             <>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Email or Username
+                  Employee ID or Work Email
                 </label>
                 <input
                   type="text"
                   value={identifier}
                   onChange={(event) => setIdentifier(event.target.value)}
                   required
-                  placeholder="john@example.com or john123"
+                  placeholder="e046 or john@example.com"
                   className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-black"
                 />
               </div>
@@ -252,14 +284,14 @@ export default function Login({ onSuccess }) {
           ) : !isRecoveryMode ? (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-2">
-                Email or Username
+                Employee ID or Work Email
               </label>
               <input
                 type="text"
                 value={identifier}
                 onChange={(event) => setIdentifier(event.target.value)}
                 required
-                placeholder="john@example.com or john123"
+                placeholder="e046 or john@example.com"
                 className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-black"
               />
             </div>

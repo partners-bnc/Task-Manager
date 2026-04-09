@@ -5,7 +5,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { Badge } from './ui/Badge';
 import { Button } from './ui/Button';
 
-export function Hero() {
+export function Hero({ taskManagerHref = '/login' }) {
   const { scrollY } = useScroll();
 
   const rotateX = useTransform(scrollY, [0, 700], [30, 0]);
@@ -53,7 +53,7 @@ export function Hero() {
             collaboration and success
           </p>
 
-          <Button href="/Taskmanager/dashboard" size="lg" className="mb-10 shadow-2xl shadow-violet-900/40 border border-white/20">
+          <Button href={taskManagerHref} size="lg" className="mb-10 shadow-2xl shadow-violet-900/40 border border-white/20">
             Get Access
           </Button>
         </div>

@@ -54,7 +54,7 @@ export async function POST(request) {
     }
 
     const { data: employee, error: employeeError } = await adminClient
-      .from('employees')
+      .from('hrm_employees')
       .select('id, email, password_hash, auth_user_id, name')
       .eq('id', actor.employeeId)
       .single();
@@ -83,6 +83,7 @@ export async function POST(request) {
       email_confirm: true,
       user_metadata: {
         full_name: employee.name || '',
+        employee_id: employee.employee_id || '',
         employee_uuid: employee.id,
         role: 'employee',
       },
@@ -94,7 +95,7 @@ export async function POST(request) {
 
     const nextPasswordHash = await bcrypt.hash(newPassword, 10);
     const { error: updateError } = await adminClient
-      .from('employees')
+      .from('hrm_employees')
       .update({
         password_hash: nextPasswordHash,
         must_change_password: false,

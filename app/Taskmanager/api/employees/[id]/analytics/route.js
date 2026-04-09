@@ -14,28 +14,28 @@ const EMPLOYEE_ANALYTICS_ACTIVITY_SELECT = `
     id,
     title
   ),
-  from_employee:employees!task_assignment_activity_from_employee_id_fkey (
+  from_employee:hrm_employees!task_assignment_activity_from_employee_id_fkey (
     id,
     name,
     email,
     role,
     profile_picture_url
   ),
-  to_employee:employees!task_assignment_activity_to_employee_id_fkey (
+  to_employee:hrm_employees!task_assignment_activity_to_employee_id_fkey (
     id,
     name,
     email,
     role,
     profile_picture_url
   ),
-  assigned_by_employee:employees!task_assignment_activity_assigned_by_employee_id_fkey (
+  assigned_by_employee:hrm_employees!task_assignment_activity_assigned_by_employee_id_fkey (
     id,
     name,
     email,
     role,
     profile_picture_url
   ),
-  assigned_by_admin:profiles!task_assignment_activity_assigned_by_admin_user_id_fkey (
+  assigned_by_admin:hrm_profiles!task_assignment_activity_assigned_by_admin_user_id_fkey (
     id,
     full_name,
     email
@@ -203,7 +203,7 @@ export async function GET(request, { params }) {
 
     const [employeeResult, assignmentResult, activityResult] = await Promise.all([
       adminClient
-        .from('employees')
+        .from('hrm_employees')
         .select('id, employee_id, name, username, email, role, profile_picture_url, created_at, updated_at')
         .eq('id', id)
         .maybeSingle(),
@@ -223,7 +223,7 @@ export async function GET(request, { params }) {
             progress_percentage,
             rating,
             task_assignments (
-              employee:employees (
+              employee:hrm_employees!task_assignments_employee_id_fkey (
                 id,
                 name,
                 email,

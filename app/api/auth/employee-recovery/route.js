@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { isHrAdminRole } from '@/utils/auth/roles';
 
 export async function POST(request) {
   try {
@@ -26,7 +27,7 @@ export async function POST(request) {
     }
 
     const { data: employee, error: employeeError } = await adminClient
-      .from('employees')
+      .from('hrm_employees')
       .select('id, email, name, auth_user_id')
       .eq('auth_user_id', user.id)
       .maybeSingle();
@@ -36,7 +37,7 @@ export async function POST(request) {
     }
 
     const { data: profile, error: profileError } = await adminClient
-      .from('profiles')
+      .from('hrm_profiles')
       .select('role, full_name')
       .eq('id', user.id)
       .maybeSingle();
@@ -45,7 +46,7 @@ export async function POST(request) {
       return NextResponse.json({ error: profileError.message }, { status: 500 });
     }
 
-    if (!employee && profile?.role !== 'admin') {
+    if (!employee && !isHrAdminRole(profile?.role)) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
@@ -59,7 +60,7 @@ export async function POST(request) {
       : {
           ...(user.user_metadata || {}),
           full_name: profile?.full_name || user.user_metadata?.full_name || '',
-          role: 'admin',
+          role: isHrAdminRole(profile?.role) ? 'hr_admin' : 'employee',
         };
 
     const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(user.id, {
@@ -81,7 +82,7 @@ export async function POST(request) {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     const { error: updateError } = await adminClient
-      .from('employees')
+      .from('hrm_employees')
       .update({
         password_hash: passwordHash,
         must_change_password: false,
@@ -102,3 +103,4 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+

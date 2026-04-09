@@ -1,37 +1,58 @@
+'use client';
+
+import Image from 'next/image';
 import React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 interface AdminSidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
+  admin?: {
+    name?: string;
+    designation?: string;
+    avatar?: string;
+  } | null;
 }
 
-export default function AdminSidebar({ currentTab, setCurrentTab }: AdminSidebarProps) {
-  const router = useRouter();
+export default function AdminSidebar({ currentTab, setCurrentTab, admin }: AdminSidebarProps) {
+  const fallbackInitial = admin?.name?.trim()?.charAt(0)?.toUpperCase() || 'H';
 
   const navItems = [
     { id: 'admin-dashboard', label: 'Admin Dashboard', icon: 'admin_panel_settings' },
     { id: 'admin-employee-list', label: 'Employee Directory', icon: 'groups' },
+    { id: 'admin-holidays', label: 'Holiday', icon: 'calendar_month' },
+    { id: 'admin-leaves', label: 'Leave', icon: 'event_busy' },
+    { id: 'admin-regularization', label: 'Regularization', icon: 'fact_check' },
     { id: 'admin-payouts', label: 'Payouts & Payroll', icon: 'account_balance_wallet' },
     { id: 'admin-analytics', label: 'Analytics', icon: 'insights' },
   ];
 
   return (
     <aside className="h-screen w-64 fixed left-0 top-0 overflow-y-auto bg-surface-container-low flex flex-col py-6 pr-4 border-r border-outline-variant/20 z-50">
-      <div className="px-6 mb-8">
-        <h1 className="text-xl font-bold text-on-background font-headline">HR Admin</h1>
+      <div className="mb-8 px-6 text-center">
+        <h1 className="text-2xl font-extrabold tracking-tight text-on-background font-headline">HR Admin</h1>
       </div>
       
       <div className="px-6 mb-8 flex items-center gap-4">
-        <img 
-          alt="Admin Avatar" 
-          className="w-10 h-10 rounded-full object-cover" 
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9uJH1i8zKJXpfoh9Yh7RZq-cTIioMkp9r80fWS8nWmkFmSlAR6QQxpRyQeDtE_9Wd0EMhYRoe1ggQDke6PEOzhTnhpnEkRsd1tsMnXXNCmA5NiFdaEB2vZ36t48qERBFgrPdQ-vsjFkPIYoT1rgK-_V1L2GUz9AHHp6W3Wj_iAD9uO3DFM53TyeACEXl8hT8r3zGTBhrEumYXhJ_PIwkjBuM_PQr_4_IAA2KHVpN50FvS2_BfHcEmxMSDMl0o9e7CZgE2KpxQcqk"
-        />
+        <div className="w-10 h-10 rounded-full overflow-hidden bg-surface-container-high flex items-center justify-center text-sm font-bold text-on-surface">
+          {admin?.avatar ? (
+            <Image
+              alt={admin?.name || 'HR Admin'}
+              className="w-10 h-10 rounded-full object-cover"
+              src={admin.avatar}
+              width={40}
+              height={40}
+              unoptimized
+            />
+          ) : (
+            <span>{fallbackInitial}</span>
+          )}
+        </div>
         <div>
-          <p className="font-headline text-sm font-bold text-on-surface">Alex Rivers</p>
-          <p className="text-[10px] tracking-widest uppercase text-error font-bold">Administrator</p>
+          <p className="font-headline text-sm font-bold text-on-surface">{admin?.name || 'HR Admin'}</p>
+          <p className="text-[10px] tracking-widest uppercase text-error font-bold">
+            {admin?.designation || 'Administrator'}
+          </p>
         </div>
       </div>
 

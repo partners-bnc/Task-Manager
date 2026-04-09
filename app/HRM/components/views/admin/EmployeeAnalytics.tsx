@@ -237,7 +237,7 @@ export default function EmployeeAnalytics() {
           <div className="mt-8 space-y-4">
             <div className="flex justify-between items-center px-3 py-2 bg-primary/5 rounded-lg border border-primary/10">
               <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-primary shadow-[0_0_8px_rgba(49,78,224,0.4)]"></span>
+                <span className="w-3 h-3 rounded-full bg-primary shadow-[0_0_8px_rgba(139,92,246,0.35)]"></span>
                 <span className="text-sm font-semibold text-primary">Female</span>
               </div>
               <span className="text-sm font-extrabold text-primary">54%</span>
@@ -277,7 +277,7 @@ export default function EmployeeAnalytics() {
               </div>
               <div className="space-y-4">
                 <div className="h-48 bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl relative flex items-end overflow-hidden group cursor-pointer">
-                  <div className="w-full bg-primary/80 h-[48%] group-hover:h-[55%] group-hover:bg-primary transition-all duration-500 shadow-[0_-4px_12px_rgba(49,78,224,0.15)] flex justify-center items-start pt-2">
+                  <div className="w-full bg-primary/80 h-[48%] group-hover:h-[55%] group-hover:bg-primary transition-all duration-500 shadow-[0_-4px_12px_rgba(139,92,246,0.18)] flex justify-center items-start pt-2">
                      <span className="text-[10px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity">48%</span>
                   </div>
                 </div>

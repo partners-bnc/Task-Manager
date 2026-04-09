@@ -30,7 +30,7 @@ async function getActorEmployee(request) {
   }
 
   const { data: employee, error: employeeError } = await adminClient
-    .from('employees')
+    .from('hrm_employees')
     .select('id, profile_picture_url')
     .eq('id', actor.employeeId)
     .single();
@@ -92,7 +92,7 @@ export async function POST(request) {
     const oldStoragePath = getStoragePathFromPublicUrl(employee.profile_picture_url);
 
     const { error: updateError } = await adminClient
-      .from('employees')
+      .from('hrm_employees')
       .update({ profile_picture_url: avatarUrl })
       .eq('id', employee.id);
 

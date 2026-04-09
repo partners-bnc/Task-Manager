@@ -105,7 +105,7 @@ async function fetchTaskById(taskId) {
       updated_at,
       task_assignments (
         employee_id,
-        employee:employees (
+        employee:hrm_employees!task_assignments_employee_id_fkey (
           id,
           name,
           email,
@@ -181,7 +181,7 @@ export async function GET(request, { params }) {
     }
 
     const [employees, assignmentActivity, commentsResult, labelsResult] = await Promise.all([
-      fetchEmployeeDirectory(adminClient),
+      fetchEmployeeDirectory(adminClient, { taskManagerOnly: true }),
       fetchAssignmentActivity(taskId, adminClient),
       adminClient
         .from('task_comments')
@@ -328,7 +328,9 @@ export async function PATCH(request, { params }) {
     if (body?.subtaskId && Object.prototype.hasOwnProperty.call(body, 'assignedEmployeeId')) {
       const assignedEmployeeId = body.assignedEmployeeId || null;
       const [nextEmployee, existingSubtask] = await Promise.all([
-        assignedEmployeeId ? findEmployeeById(assignedEmployeeId, adminClient) : Promise.resolve(null),
+        assignedEmployeeId
+          ? findEmployeeById(assignedEmployeeId, adminClient, { taskManagerOnly: true })
+          : Promise.resolve(null),
         adminClient
           .from('task_subtasks')
           .select('id, title, assigned_employee_id')
@@ -439,7 +441,9 @@ export async function PATCH(request, { params }) {
 
       const assignedEmployeeId = body.assignedEmployeeId || null;
       if (assignedEmployeeId) {
-        const employee = await findEmployeeById(assignedEmployeeId, adminClient);
+        const employee = await findEmployeeById(assignedEmployeeId, adminClient, {
+          taskManagerOnly: true,
+        });
         if (!employee) {
           return NextResponse.json({ error: 'Assigned employee not found' }, { status: 400 });
         }

@@ -52,10 +52,13 @@ const deriveDueDate = (task) => {
 const normalizeUsers = (rows = []) =>
   rows.map((row) => ({
     id: row.id,
+    employee_id: row.employee_id,
+    username: row.username,
     name: row.name,
     email: row.email,
     role: row.role,
     avatar: row.profile_picture_url || '',
+    module_access: row.module_access || null,
   }));
 
 const deriveSharedUsersFromTasks = (tasks = [], currentEmployee = null) => {
@@ -126,7 +129,7 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
   };
 };
 
-export function DataProvider({ children, initialUser = null, mode = 'employee' }) {
+export function DataProvider({ children, initialUser = null, mode = 'employee', bootstrap = true }) {
   const [user, setUser] = useState(initialUser);
   const [users, setUsers] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -140,7 +143,7 @@ export function DataProvider({ children, initialUser = null, mode = 'employee' }
   const fetchAdminData = async () => {
     const [tasksRes, usersRes, adminMeRes, taskLabelsRes] = await Promise.all([
       fetch('/Taskmanager/api/tasks', { method: 'GET' }),
-      fetch('/HRM/api/employees', { method: 'GET' }),
+      fetch('/HRM/api/employees?taskManagerOnly=1', { method: 'GET' }),
       fetch('/Taskmanager/api/admin/me', { method: 'GET' }),
       fetch('/Taskmanager/api/task-labels', { method: 'GET' }),
     ]);
@@ -248,16 +251,22 @@ export function DataProvider({ children, initialUser = null, mode = 'employee' }
   };
 
   useEffect(() => {
+    if (!bootstrap) {
+      setLoading(false);
+      setFetchError('');
+      return;
+    }
+
     refreshData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdminMode]);
+  }, [bootstrap, isAdminMode]);
 
-  const login = async ({ identifier, password }) => {
+  const login = async ({ identifier, password, loginAs }) => {
     setError('');
     const response = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: identifier, password }),
+      body: JSON.stringify({ email: identifier, password, loginAs }),
     });
 
     const result = await response.json();
@@ -268,15 +277,13 @@ export function DataProvider({ children, initialUser = null, mode = 'employee' }
       return { success: false, error: message };
     }
 
-    if (result.role === 'admin') {
-      if (typeof window !== 'undefined') {
-        window.location.href = '/Taskmanager/admin';
-      }
-      return { success: true, role: 'admin' };
+    const destination = result.destination || '/HRM/hrm';
+
+    if (typeof window !== 'undefined') {
+      window.location.href = destination;
     }
 
-    await refreshData();
-    return { success: true, role: result.role || 'employee' };
+    return { success: true, role: result.role || 'employee', destination };
   };
 
   const logout = async () => {

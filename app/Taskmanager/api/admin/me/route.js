@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { getAccountTypeLabel } from '@/utils/auth/roles';
+import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 
 export async function GET() {
   try {
@@ -13,25 +15,45 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, full_name')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || profile?.role !== 'admin') {
+    const authContext = await resolveAuthenticatedUserContext(supabase, user);
+    if (!authContext?.isHrAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const fallbackName = user.email ? user.email.split('@')[0] : 'Admin User';
+    if (authContext.isSuperAdmin && authContext.superAdmin) {
+      return NextResponse.json({
+        success: true,
+        admin: {
+          id: user.id,
+          srNo: 'SA-1',
+          name: authContext.superAdmin.name,
+          email: authContext.superAdmin.email,
+          phone: '',
+          department: 'Executive',
+          designation: 'Super Admin',
+          status: authContext.superAdmin.status || 'Active',
+          role: 'Super Admin',
+          avatar: user.user_metadata?.avatar_url || '',
+        },
+      });
+    }
+
+    if (!authContext.hrAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     return NextResponse.json({
       success: true,
       admin: {
         id: user.id,
-        name: profile?.full_name || fallbackName,
-        email: user.email || '',
-        role: 'Admin',
+        srNo: authContext.hrAdmin.sr_no,
+        name: authContext.hrAdmin.name,
+        email: authContext.hrAdmin.email,
+        phone: authContext.hrAdmin.phone || '',
+        department: authContext.hrAdmin.department?.name || '',
+        designation: authContext.hrAdmin.designation?.title || '',
+        status: authContext.hrAdmin.status || 'Active',
+        role: getAccountTypeLabel('hr_admin'),
         avatar: user.user_metadata?.avatar_url || '',
       },
     });
@@ -53,13 +75,8 @@ export async function PATCH(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || profile?.role !== 'admin') {
+    const authContext = await resolveAuthenticatedUserContext(supabase, user);
+    if (!authContext?.isHrAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -72,13 +89,37 @@ export async function PATCH(request) {
     }
 
     if (fullName !== undefined) {
-      const { error: updateProfileError } = await supabase
-        .from('profiles')
-        .update({ full_name: fullName || null })
-        .eq('id', user.id);
+      const updates = [
+        supabase
+          .from('hrm_profiles')
+          .update({ full_name: fullName || null })
+          .eq('id', user.id),
+      ];
 
-      if (updateProfileError) {
-        return NextResponse.json({ error: updateProfileError.message }, { status: 500 });
+      if (authContext.isSuperAdmin && authContext.superAdmin) {
+        updates.push(
+          supabase
+            .from('super_admins')
+            .update({ name: fullName || null, updated_at: new Date().toISOString() })
+            .eq('auth_user_id', user.id)
+        );
+      } else if (authContext.hrAdmin) {
+        updates.push(
+          supabase
+            .from('hr_admins')
+            .update({ name: fullName || null, updated_at: new Date().toISOString() })
+            .eq('auth_user_id', user.id)
+        );
+      }
+
+      const [updateProfileResult, secondaryUpdateResult] = await Promise.all(updates);
+
+      if (updateProfileResult.error) {
+        return NextResponse.json({ error: updateProfileResult.error.message }, { status: 500 });
+      }
+
+      if (secondaryUpdateResult?.error) {
+        return NextResponse.json({ error: secondaryUpdateResult.error.message }, { status: 500 });
       }
     }
 
@@ -101,3 +142,4 @@ export async function PATCH(request) {
     return NextResponse.json({ error: 'Failed to update admin profile' }, { status: 500 });
   }
 }
+

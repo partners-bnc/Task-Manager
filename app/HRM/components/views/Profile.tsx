@@ -1,51 +1,454 @@
-import React from 'react';
+'use client';
 
-export default function Profile() {
+import Image from 'next/image';
+import React, { useMemo, useState } from 'react';
+import { formatEmploymentValue, getEmployeeTypeLabel } from '@/utils/hrm-employment';
+
+function InfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value?: string | null;
+}) {
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-8">
-      {/* Header Section (Bento Style) */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        <div className="lg:col-span-8 bg-surface-container-lowest p-6 rounded-3xl flex flex-col md:flex-row gap-6 items-center md:items-start relative overflow-hidden editorial-shadow">
-          {/* Subtle Gradient background element */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-          
-          <div className="relative z-10">
-            <img 
-              className="w-32 h-32 rounded-2xl object-cover shadow-xl shadow-on-surface/5 border-4 border-surface-container-lowest" 
-              alt="Alex Rivers Large Profile Avatar" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3ooqjodDgMxcO4uaQOdhoy1obLpnNawjPQ-bdgn-rQMx8LJlq7KBfGLEfV0NmkymWjSeiwlb8VXt5rj9Lyy4Z5NRWICK5kuHULRlJhe4Q37W3PS_Nuxzx-C4us65m2SmK_O0NkojMIXYu0I2u-aiY3j5UWLWgbizwlZtlmXWT11ZZx-80mmEH45ynY32SFYASOQ097pvlFxvNEXvVTeROKq5P96hnL978rolGCxfHoqYpadDqWDJpzWhXTgkJ635E7MTMKcoVhZ4"
-            />
-            <div className="absolute -bottom-2 -right-2 bg-primary text-on-primary p-2 rounded-lg shadow-lg">
-              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+    <div className="space-y-1">
+      <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">{label}</p>
+      <p className="text-xs font-semibold text-on-surface">{value || 'Not available'}</p>
+    </div>
+  );
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return 'Not available';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function formatStatus(status?: string | null) {
+  return formatEmploymentValue(status || 'active');
+}
+
+function formatReportingTarget(employee?: any) {
+  const name = employee?.reporting_manager_name || employee?.directory_reporting_manager || 'Not assigned';
+  const kind = employee?.reporting_manager_kind || '';
+
+  if (!employee?.reporting_manager_name && !employee?.directory_reporting_manager) {
+    return name;
+  }
+
+  if (kind === 'super_admin') {
+    return `${name} (Super Admin)`;
+  }
+
+  return name;
+}
+
+function pickFirstText(...values: Array<string | number | null | undefined>) {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const normalized = String(value).trim();
+    if (normalized) return normalized;
+  }
+
+  return '';
+}
+
+function formatDocumentLabel(value?: string | null) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return 'Employee Document';
+
+  return normalized
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function getDocumentIcon(documentType?: string | null, fileName?: string | null) {
+  const normalizedType = String(documentType || '').toLowerCase();
+  const extension = String(fileName || '').split('.').pop()?.toLowerCase();
+
+  if (normalizedType.includes('aadhaar') || normalizedType.includes('pan') || normalizedType.includes('passport')) {
+    return 'badge';
+  }
+
+  if (normalizedType.includes('salary')) return 'receipt_long';
+  if (normalizedType.includes('letter')) return 'description';
+  if (extension === 'pdf') return 'picture_as_pdf';
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(extension || '')) return 'image';
+
+  return 'folder_open';
+}
+
+export default function Profile({ employee }: { employee?: any }) {
+  const [activeSection, setActiveSection] = useState('personal');
+
+  const name = employee?.name || 'Employee';
+  const employeeId = employee?.employee_id || 'Not assigned';
+  const loginId = employee?.employee_id || employee?.email || 'Not assigned';
+  const designation = employee?.designation?.title || employee?.resolved_designation_title || employee?.role || 'Employee';
+  const department = employee?.department?.name || employee?.resolved_department_name || 'Unassigned';
+  const avatar = employee?.profile_picture_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=F3E8FF&color=6D28D9`;
+
+  const lifecycleStatus = formatStatus(employee?.employment_lifecycle_status || employee?.employee_status);
+  const currentStage = formatStatus(employee?.current_stage);
+  const employeeType = getEmployeeTypeLabel(employee?.resolved_employee_type || employee?.employee_type);
+  const reportingManager = formatReportingTarget(employee);
+  const workPhone = pickFirstText(employee?.phone, employee?.mobile_phone, employee?.alternate_phone, 'Not available');
+  const moduleAccess = Array.isArray(employee?.module_access) ? employee.module_access[0] : employee?.module_access;
+  const address = pickFirstText(
+    employee?.address,
+    [employee?.city, employee?.district, employee?.state, employee?.country].filter(Boolean).join(', ')
+  ) || 'Not available';
+  const documents = useMemo(() => {
+    if (!Array.isArray(employee?.documents)) return [];
+
+    return [...employee.documents].sort((left: any, right: any) => {
+      const leftTime = new Date(left?.updated_at || left?.created_at || 0).getTime();
+      const rightTime = new Date(right?.updated_at || right?.created_at || 0).getTime();
+      return rightTime - leftTime;
+    });
+  }, [employee?.documents]);
+
+  const sections = [
+    { id: 'personal', label: 'Personal Info' },
+    { id: 'job', label: 'Job Details' },
+    { id: 'documents', label: 'Documents' },
+    { id: 'performance', label: 'Performance' },
+    { id: 'skills', label: 'Skills & Certs' },
+  ];
+
+  function renderPersonalSection() {
+    return {
+      main: (
+        <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+          <h2 className="text-lg font-bold font-headline mb-6 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-xl">badge</span>
+            Personal Information
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
+            <InfoRow label="Full Name" value={name} />
+            <InfoRow label="Login ID" value={loginId} />
+            <InfoRow label="Employee Code" value={employeeId} />
+            <InfoRow label="Date of Joining" value={formatDate(employee?.date_of_joining)} />
+            <InfoRow label="Designation" value={designation} />
+            <InfoRow label="Nationality" value={employee?.nationality} />
+            <InfoRow label="Marital Status" value={employee?.marital_status} />
+            <InfoRow label="Date of Birth" value={formatDate(employee?.date_of_birth)} />
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-outline-variant/10">
+            <h3 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-4">Contact Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-5 gap-x-8">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-surface-variant text-base">alternate_email</span>
+                </div>
+                <div>
+                  <p className="text-[10px] text-on-surface-variant">Work Email</p>
+                  <p className="text-xs font-semibold text-on-surface mt-0.5">{employee?.email || 'Not available'}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-surface-variant text-base">call</span>
+                </div>
+                <div>
+                  <p className="text-[10px] text-on-surface-variant">Phone Number</p>
+                  <p className="text-xs font-semibold text-on-surface mt-0.5">{workPhone}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 md:col-span-2">
+                <div className="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center">
+                  <span className="material-symbols-outlined text-on-surface-variant text-base">location_on</span>
+                </div>
+                <div>
+                  <p className="text-[10px] text-on-surface-variant">Current Address</p>
+                  <p className="text-xs font-semibold text-on-surface mt-0.5">{address}</p>
+                </div>
+              </div>
             </div>
           </div>
-          
+        </div>
+      ),
+      side: (
+        <>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Profile Snapshot</h3>
+            <div className="space-y-5">
+              <InfoRow label="Lifecycle Status" value={lifecycleStatus} />
+              <InfoRow label="Employee Type" value={employeeType} />
+              <InfoRow label="Current Stage" value={currentStage} />
+              <InfoRow label="Department" value={department} />
+              <InfoRow label="Designation" value={designation} />
+              <InfoRow label="Reporting To" value={reportingManager} />
+            </div>
+          </div>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Quick Contact</h3>
+            <div className="space-y-3 text-sm text-on-surface-variant">
+              <p>{employee?.email || 'No work email available.'}</p>
+              <p>{workPhone}</p>
+            </div>
+          </div>
+        </>
+      ),
+    };
+  }
+
+  function renderJobSection() {
+    return {
+      main: (
+        <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+          <h2 className="text-lg font-bold font-headline mb-6 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-xl">business_center</span>
+            Job Details
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
+            <InfoRow label="Department" value={department} />
+            <InfoRow label="Designation" value={designation} />
+            <InfoRow label="Reporting To" value={reportingManager} />
+            <InfoRow label="Lifecycle Status" value={lifecycleStatus} />
+            <InfoRow label="Employee Type" value={employeeType} />
+            <InfoRow label="Current Stage" value={currentStage} />
+            <InfoRow label="Date of Joining" value={formatDate(employee?.date_of_joining)} />
+            <InfoRow label="Confirmation Date" value={formatDate(employee?.confirmation_date)} />
+            <InfoRow label="Current Company Experience" value={employee?.current_company_experience} />
+            <InfoRow label="Total Experience" value={employee?.total_experience} />
+            <InfoRow label="Previous Experience" value={employee?.previous_experience} />
+            <InfoRow label="Working Schedule" value={employee?.working_schedule_label} />
+            <InfoRow label="Second Saturday Off" value={employee?.second_saturday_off ? 'Yes' : 'No'} />
+            <InfoRow label="Task Manager Access" value={moduleAccess?.task_manager ? 'Enabled' : 'Not enabled'} />
+          </div>
+        </div>
+      ),
+      side: (
+        <>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Employment Summary</h3>
+            <div className="space-y-5">
+              <InfoRow label="Employee ID" value={employeeId} />
+              <InfoRow label="Join Date" value={formatDate(employee?.date_of_joining)} />
+              <InfoRow label="Company" value={employee?.company} />
+              <InfoRow label="Division" value={employee?.division} />
+            </div>
+          </div>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Manager Notes</h3>
+            <div className="text-sm text-on-surface-variant">
+              Reporting structure and additional role details will continue to appear here as HR completes the employee setup.
+            </div>
+          </div>
+        </>
+      ),
+    };
+  }
+
+  function renderDocumentsSection() {
+    return {
+      main: (
+        <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+          <h2 className="text-lg font-bold font-headline mb-6 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-xl">folder_open</span>
+            Documents
+          </h2>
+          <div className="space-y-4">
+            {documents.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-outline-variant/20 bg-surface-container-low px-4 py-8 text-sm text-on-surface-variant">
+                Documents uploaded by HR will appear here once they are available.
+              </div>
+            ) : (
+              documents.map((item: any) => (
+                <a
+                  key={item.id}
+                  href={item.file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-start gap-4 rounded-2xl border border-outline-variant/10 bg-surface p-4 transition hover:border-primary/20 hover:bg-surface-container-low"
+                >
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <span className="material-symbols-outlined">{getDocumentIcon(item.document_type, item.file_name)}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-on-surface">{pickFirstText(item.file_name, 'Employee Document')}</p>
+                    <p className="mt-1 text-xs text-on-surface-variant">{formatDocumentLabel(item.document_type)}</p>
+                    <p className="mt-2 text-[11px] text-on-surface-variant">Updated {formatDate(item.updated_at || item.created_at)}</p>
+                  </div>
+                  <span className="material-symbols-outlined text-on-surface-variant">open_in_new</span>
+                </a>
+              ))
+            )}
+          </div>
+        </div>
+      ),
+      side: (
+        <>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Document Summary</h3>
+            <div className="space-y-5">
+              <InfoRow label="Uploaded Files" value={String(documents.length)} />
+              <InfoRow label="Latest Update" value={formatDate(documents[0]?.updated_at || documents[0]?.created_at)} />
+              <InfoRow label="Employee Code" value={employeeId} />
+            </div>
+          </div>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Access</h3>
+            <div className="text-sm text-on-surface-variant">
+              These records are view-only for employees. Uploads and edits are managed by HR.
+            </div>
+          </div>
+        </>
+      ),
+    };
+  }
+
+  function renderPerformanceSection() {
+    return {
+      main: (
+        <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+          <h2 className="text-lg font-bold font-headline mb-6 flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-xl">monitoring</span>
+            Performance
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-2xl bg-surface-container-low p-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Current Status</p>
+              <p className="mt-3 text-lg font-bold text-on-surface">No active review cycle</p>
+              <p className="mt-2 text-sm text-on-surface-variant">Performance reviews assigned by HR or managers will appear here.</p>
+            </div>
+            <div className="rounded-2xl bg-surface-container-low p-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Manager Feedback</p>
+              <p className="mt-3 text-lg font-bold text-on-surface">Awaiting updates</p>
+              <p className="mt-2 text-sm text-on-surface-variant">You will be able to view published feedback once it is shared internally.</p>
+            </div>
+          </div>
+        </div>
+      ),
+      side: (
+        <>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Review Snapshot</h3>
+            <div className="space-y-5">
+              <InfoRow label="Last Published Review" value="Not available" />
+              <InfoRow label="Goals" value="Not linked yet" />
+              <InfoRow label="Appraisal Status" value="No pending action" />
+            </div>
+          </div>
+        </>
+      ),
+    };
+  }
+
+  function renderSkillsSection() {
+    return {
+      main: (
+        <div className="space-y-6">
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h2 className="text-lg font-bold font-headline mb-5 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-xl">workspace_premium</span>
+              Skills
+            </h2>
+            <div className="text-sm text-on-surface-variant">
+              Skills are not linked yet.
+            </div>
+          </div>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h2 className="text-lg font-bold font-headline mb-5 flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-xl">military_tech</span>
+              Certifications
+            </h2>
+            <div className="text-sm text-on-surface-variant">
+              Certifications will appear here after they are uploaded from HR.
+            </div>
+          </div>
+        </div>
+      ),
+      side: (
+        <>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Development Summary</h3>
+            <div className="space-y-5">
+              <InfoRow label="Skill Records" value="0 linked" />
+              <InfoRow label="Certifications" value="0 uploaded" />
+              <InfoRow label="Learning Status" value="Managed by HR" />
+            </div>
+          </div>
+          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
+            <h3 className="text-base font-bold font-headline mb-5">Team Members</h3>
+            <div className="space-y-3 text-sm text-on-surface-variant">
+              <p>Team details will appear here once reporting structure is configured.</p>
+            </div>
+            <button className="w-full mt-6 py-2 border border-outline-variant/20 text-[10px] font-bold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">
+              View Org Chart
+            </button>
+          </div>
+        </>
+      ),
+    };
+  }
+
+  let sectionContent = renderPersonalSection();
+  if (activeSection === 'job') sectionContent = renderJobSection();
+  if (activeSection === 'documents') sectionContent = renderDocumentsSection();
+  if (activeSection === 'performance') sectionContent = renderPerformanceSection();
+  if (activeSection === 'skills') sectionContent = renderSkillsSection();
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6 pb-8">
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+        <div className="lg:col-span-8 bg-surface-container-lowest p-6 rounded-3xl flex flex-col md:flex-row gap-6 items-center md:items-start relative overflow-hidden editorial-shadow">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+
+          <div className="relative z-10">
+            <Image
+              className="w-32 h-32 rounded-2xl object-cover shadow-xl shadow-on-surface/5 border-4 border-surface-container-lowest"
+              alt={`${name} profile avatar`}
+              src={avatar}
+              width={128}
+              height={128}
+              unoptimized={!employee?.profile_picture_url}
+            />
+            <div className="absolute -bottom-2 -right-2 bg-primary text-on-primary p-2 rounded-lg shadow-lg">
+              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>
+                verified
+              </span>
+            </div>
+          </div>
+
           <div className="flex-1 space-y-3 text-center md:text-left z-10">
             <div>
-              <h1 className="text-3xl font-extrabold font-headline text-on-surface tracking-tight">Alex Rivers</h1>
-              <p className="text-primary font-semibold text-sm mt-1">Product Designer <span className="text-on-surface-variant font-medium mx-1">•</span> <span className="text-on-surface-variant font-medium">Design Department</span></p>
+              <h1 className="text-3xl font-extrabold font-headline text-on-surface tracking-tight">{name}</h1>
+              <p className="text-primary font-semibold text-sm mt-1">
+                {designation} <span className="text-on-surface-variant font-medium mx-1">|</span>
+                <span className="text-on-surface-variant font-medium">{department}</span>
+              </p>
             </div>
-            
+
             <div className="flex flex-wrap gap-3 items-center justify-center md:justify-start">
               <div className="flex items-center gap-1.5 px-3 py-1 bg-surface-container-low rounded-full">
                 <span className="material-symbols-outlined text-sm text-on-surface-variant">id_card</span>
-                <span className="text-[10px] font-medium text-on-surface-variant">EMP-2024-089</span>
+                <span className="text-[10px] font-medium text-on-surface-variant">{loginId}</span>
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1 bg-secondary-container rounded-full">
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
                 <span className="text-[10px] font-bold text-on-secondary-container uppercase tracking-wider">Active Now</span>
               </div>
             </div>
-            
+
             <div className="flex flex-wrap gap-2 pt-3 justify-center md:justify-start">
-              <button className="flex items-center gap-1.5 px-5 py-2.5 bg-primary text-on-primary rounded-lg font-bold text-xs shadow-lg shadow-primary/10 active:scale-95 transition-transform">
-                <span className="material-symbols-outlined text-sm">edit</span>
-                Edit Profile
-              </button>
-              <button className="flex items-center gap-1.5 px-5 py-2.5 bg-surface-container-low text-on-surface rounded-lg font-bold text-xs hover:bg-surface-container transition-colors">
+              <a
+                href={employee?.email ? `mailto:${employee.email}` : '#'}
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-surface-container-low text-on-surface rounded-lg font-bold text-xs hover:bg-surface-container transition-colors"
+              >
                 <span className="material-symbols-outlined text-sm">mail</span>
                 Email
-              </button>
+              </a>
               <button className="flex items-center justify-center w-9 h-9 bg-surface-container-low text-on-surface rounded-lg hover:bg-surface-container transition-colors">
                 <span className="material-symbols-outlined text-sm">chat</span>
               </button>
@@ -53,215 +456,51 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Stats Sidebar Bento Item */}
         <div className="lg:col-span-4 grid grid-cols-2 gap-4">
           <div className="bg-surface-container-lowest p-5 rounded-3xl flex flex-col justify-center items-center text-center editorial-shadow">
-            <span className="text-2xl font-extrabold font-headline text-on-surface">4.8</span>
-            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">Perf Score</span>
+            <span className="text-2xl font-extrabold font-headline text-on-surface">{status}</span>
+            <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">Status</span>
           </div>
           <div className="bg-tertiary-container p-5 rounded-3xl flex flex-col justify-center items-center text-center editorial-shadow">
-            <span className="text-2xl font-extrabold font-headline text-on-tertiary-container">24</span>
-            <span className="text-[10px] font-bold text-on-tertiary-container uppercase tracking-widest mt-1">Projects</span>
+            <span className="text-2xl font-extrabold font-headline text-on-tertiary-container">{department}</span>
+            <span className="text-[10px] font-bold text-on-tertiary-container uppercase tracking-widest mt-1">Department</span>
           </div>
           <div className="col-span-2 bg-surface-container-lowest p-5 rounded-3xl flex items-center gap-3 editorial-shadow">
             <div className="w-10 h-10 rounded-full bg-primary-container/10 flex items-center justify-center text-primary">
               <span className="material-symbols-outlined text-xl">work_history</span>
             </div>
             <div>
-              <p className="text-sm font-bold text-on-surface">2 Years, 4 Months</p>
-              <p className="text-[10px] text-on-surface-variant mt-0.5">Tenure at Lumina HR</p>
+              <p className="text-sm font-bold text-on-surface">{employee?.current_company_experience || 'Not available'}</p>
+              <p className="text-[10px] text-on-surface-variant mt-0.5">Experience</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Tabbed Navigation */}
       <nav className="flex items-center gap-8 border-b border-outline-variant/15 overflow-x-auto no-scrollbar pt-4">
-        <button className="pb-4 text-sm font-bold text-primary border-b-2 border-primary whitespace-nowrap">Personal Info</button>
-        <button className="pb-4 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">Job Details</button>
-        <button className="pb-4 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">Documents</button>
-        <button className="pb-4 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">Performance</button>
-        <button className="pb-4 text-sm font-medium text-on-surface-variant hover:text-on-surface transition-colors whitespace-nowrap">Skills & Certs</button>
+        {sections.map((section) => (
+          <button
+            key={section.id}
+            type="button"
+            onClick={() => setActiveSection(section.id)}
+            className={`pb-4 whitespace-nowrap transition-colors ${
+              activeSection === section.id
+                ? 'text-sm font-bold text-primary border-b-2 border-primary'
+                : 'text-sm font-medium text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            {section.label}
+          </button>
+        ))}
       </nav>
 
-      {/* Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Main Info Section */}
         <div className="lg:col-span-8 space-y-6">
-          {/* Personal Info Card */}
-          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
-            <h2 className="text-lg font-bold font-headline mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-xl">badge</span>
-              Personal Information
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-6 gap-x-8">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Full Name</p>
-                <p className="text-xs font-semibold text-on-surface">Alex Rivers</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Date of Birth</p>
-                <p className="text-xs font-semibold text-on-surface">May 14, 1994 (29 Years)</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Gender</p>
-                <p className="text-xs font-semibold text-on-surface">Male</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Nationality</p>
-                <p className="text-xs font-semibold text-on-surface">British</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Marital Status</p>
-                <p className="text-xs font-semibold text-on-surface">Single</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Languages</p>
-                <div className="flex gap-2">
-                  <span className="text-xs font-semibold text-on-surface">English, German</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="mt-8 pt-6 border-t border-outline-variant/10">
-              <h3 className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-4">Contact Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-y-5 gap-x-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center">
-                    <span className="material-symbols-outlined text-on-surface-variant text-base">alternate_email</span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-on-surface-variant">Personal Email</p>
-                    <p className="text-xs font-semibold text-on-surface mt-0.5">alex.rivers@design.co</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center">
-                    <span className="material-symbols-outlined text-on-surface-variant text-base">call</span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-on-surface-variant">Phone Number</p>
-                    <p className="text-xs font-semibold text-on-surface mt-0.5">+44 (0) 7700 900 123</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 md:col-span-2">
-                  <div className="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center">
-                    <span className="material-symbols-outlined text-on-surface-variant text-base">location_on</span>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-on-surface-variant">Current Address</p>
-                    <p className="text-xs font-semibold text-on-surface mt-0.5">24 Kensington High St, London, W8 4PT, United Kingdom</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Job Details Grid */}
-          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
-            <h2 className="text-lg font-bold font-headline mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-xl">business_center</span>
-              Employment Details
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Manager</p>
-                <div className="flex items-center gap-1.5">
-                  <img 
-                    className="w-5 h-5 rounded-full object-cover" 
-                    alt="Manager Avatar" 
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvK3kHht2WRz2_uSfrttEQI7J0Vzy8r0bBmg4UPCHvWTTyEmyeu_3o81RduAL4N7j8vnHnY2TFkO9bgMo5Ms_78LOGhlzhSwCe5t9aUFQq33E5YXYjeFZCTY5QgJ4hrQAv21lgx-ZNSBXgSRKnRn6mywWW4PaTjGe-3bEuNa_NPqnpD6AOT0M5BWQE9WeKOVt1Rje4bQIYLxWApYFgN-OOX13JYJtg95ZP6baO5_oAkcbVd_8t2DOlb_G3YqmW_MXRspofIQJnWho"
-                  />
-                  <p className="text-xs font-semibold text-on-surface">Sarah Jenkins</p>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Join Date</p>
-                <p className="text-xs font-semibold text-on-surface">Jan 12, 2022</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Contract</p>
-                <p className="text-xs font-semibold text-on-surface">Full-time</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Location</p>
-                <p className="text-xs font-semibold text-on-surface">Remote (UK)</p>
-              </div>
-            </div>
-          </div>
+          {sectionContent.main}
         </div>
 
-        {/* Sidebar Content */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Skills Section */}
-          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
-            <h3 className="text-base font-bold font-headline mb-5 flex items-center justify-between">
-              Skills
-              <button className="material-symbols-outlined text-on-surface-variant text-sm hover:text-primary transition-colors">add</button>
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              <span className="px-3 py-1 bg-primary-container/10 text-primary text-[10px] font-bold rounded-full">UI/UX Design</span>
-              <span className="px-3 py-1 bg-primary-container/10 text-primary text-[10px] font-bold rounded-full">Figma</span>
-              <span className="px-3 py-1 bg-primary-container/10 text-primary text-[10px] font-bold rounded-full">React</span>
-              <span className="px-3 py-1 bg-primary-container/10 text-primary text-[10px] font-bold rounded-full">User Research</span>
-              <span className="px-3 py-1 bg-primary-container/10 text-primary text-[10px] font-bold rounded-full">Storytelling</span>
-              <span className="px-3 py-1 bg-surface-container-low text-on-surface-variant text-[10px] font-medium rounded-full">Adobe Creative Cloud</span>
-              <span className="px-3 py-1 bg-surface-container-low text-on-surface-variant text-[10px] font-medium rounded-full">Prototyping</span>
-            </div>
-            
-            <h3 className="text-base font-bold font-headline mt-8 mb-4">Certifications</h3>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-tertiary-container/30 flex items-center justify-center text-tertiary shrink-0">
-                  <span className="material-symbols-outlined text-base">workspace_premium</span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-on-surface">Google UX Professional</p>
-                  <p className="text-[10px] text-on-surface-variant mt-0.5">Issued: March 2023</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-secondary-container flex items-center justify-center text-on-secondary-container shrink-0">
-                  <span className="material-symbols-outlined text-base">architecture</span>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-on-surface">Advanced Figma Systems</p>
-                  <p className="text-[10px] text-on-surface-variant mt-0.5">Issued: Nov 2022</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Direct Reports / Team */}
-          <div className="bg-surface-container-lowest p-6 rounded-3xl editorial-shadow">
-            <h3 className="text-base font-bold font-headline mb-5">Team Members</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img className="w-6 h-6 rounded-full object-cover" alt="Team Member" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKQfvUQguNxSAeyIcAsFfAc3WWN7k8u62fq0J32A2pqXyrbT2n54Q2tDI4ilTTCRhLHTEycWdBEAcivwT3r02czNwnUKYmQf4DChd4VHgtfge9rJET1TjSQl-booakAzQ9rBUclFrbKUnuwBtM7BmMCXFVCcNAhRXdRAe2KhP39ELJ-mnL_IVa_Bw8wAo1h2DHYVLx2aNJ4jMHaIJGPlwLLu90NeIR6CQd9DnsmRLQMc9pqVLY2z4MFY4b-EdafxEqG16Q-3qSnP4" />
-                  <p className="text-xs font-medium text-on-surface">Marcus Chen</p>
-                </div>
-                <span className="text-[10px] font-medium text-on-surface-variant">Lead Eng</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img className="w-6 h-6 rounded-full object-cover" alt="Team Member" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7xBbJCKKqIafC03Dk6DlInTiYxPqOT4wtDQ7Li67OCzbLyWTH76HE-cm0FR8ZRw9uSklxsjg9MRfIUtXK0fhJpwVsUBNakWPK8Brk0DuR8bvehngN6d-18TeJT6xKfRyBV-qp5rnhBd2es5vHuTLlyL3s8pfbv3UVcJ95DvMqjT8svARvqQYxOaF5ob1tvNoPsbgRX-rZV13wG0SXE3ld5F4J_SzmYnp__FKvb1xByZ7bknI23FZFuOE8Ga0s9y1yj-5CJIyAaGc" />
-                  <p className="text-xs font-medium text-on-surface">Sofia Ross</p>
-                </div>
-                <span className="text-[10px] font-medium text-on-surface-variant">UX Researcher</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <img className="w-6 h-6 rounded-full object-cover" alt="Team Member" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBJ4USUjmKbo4KpW-ZtFt0NZBpXIuTdihXULSKOFik7QkJHjFmNTg3ckkNbsyJGVOikd1a1zioEgPexsTlxvKKOGMn9LYm37orY8Wy-XjAVHCS6R2mFUigN6IZPqXJDwNaHCq4XJsbV_8yKJ4mfWbwHN7zkn1lfBSYpTgKYlAVEJjvuIYluyq934W-SP3CDuC70qUG7hLSR34CYzyzFvjk3UuMS0rbvYX8ebvHqhTswCCHOJWGUAv_9blFLOtfBmUvgAQjNKI5jwFM" />
-                  <p className="text-xs font-medium text-on-surface">David Kim</p>
-                </div>
-                <span className="text-[10px] font-medium text-on-surface-variant">Visual Design</span>
-              </div>
-            </div>
-            <button className="w-full mt-6 py-2 border border-outline-variant/20 text-[10px] font-bold text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">
-              View Org Chart
-            </button>
-          </div>
+          {sectionContent.side}
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { Hero } from '@/app/components-homepage/Hero';
 import { LogoTicker } from '@/app/components-homepage/LogoTicker';
 import { FeatureSteps } from '@/app/components-homepage/FeatureSteps';
 import { Footer } from '@/app/components-homepage/Footer';
+import { useWorkspaceRouting } from '@/app/components-homepage/useWorkspaceRouting';
 
 const otherModules = [
   {
@@ -124,6 +125,9 @@ export default function HomeShell() {
   const router = useRouter();
   const [selectedModule, setSelectedModule] = useState(null);
   const [isOthersOpen, setIsOthersOpen] = useState(false);
+  const { isAuthenticated, taskManagerHref } = useWorkspaceRouting();
+
+  const workspaceLabel = isAuthenticated ? 'Workspace' : 'Login';
 
   const handleToggleOthers = () => {
     setIsOthersOpen((prev) => !prev);
@@ -144,18 +148,28 @@ export default function HomeShell() {
       return;
     }
 
+    if (moduleId === 'task-management') {
+      router.push(taskManagerHref);
+      return;
+    }
+
     setIsOthersOpen(true);
     setSelectedModule(moduleId);
   };
 
   return (
     <>
-      <Navbar isOthersOpen={isOthersOpen} onToggleOthers={handleToggleOthers} />
-      <Hero />
+      <Navbar
+        isOthersOpen={isOthersOpen}
+        onToggleOthers={handleToggleOthers}
+        workspaceHref={taskManagerHref}
+        workspaceLabel={workspaceLabel}
+      />
+      <Hero taskManagerHref={taskManagerHref} />
       <LogoTicker />
       <FeatureSteps />
       {isOthersOpen ? <OthersSection selectedModule={selectedModule} onSelect={handleSelectModule} /> : null}
-      <Footer />
+      <Footer taskManagerHref={taskManagerHref} />
     </>
   );
 }
