@@ -291,6 +291,13 @@ async function removeProfilePicture(profilePictureUrl) {
   await adminClient.storage.from('employee-avatars').remove([filePath]);
 }
 
+async function removeEmployeeFiles(filePaths = []) {
+  const normalizedPaths = [...new Set((filePaths || []).map((path) => cleanText(path)).filter(Boolean))];
+  if (!normalizedPaths.length) return;
+
+  await adminClient.storage.from(EMPLOYEE_FILES_BUCKET).remove(normalizedPaths);
+}
+
 async function ensureEmployeeFilesBucket() {
   const { data: buckets, error } = await adminClient.storage.listBuckets();
   if (error) {
@@ -612,6 +619,51 @@ async function replaceEmployeeDocuments(employeeId, documents) {
   if (error) {
     throw new Error(error.message || 'Failed to save employee documents');
   }
+}
+
+async function replaceEmployeeDocumentTypes(employeeId, employeeCode, documentEntries) {
+  const validEntries = (documentEntries || []).filter(
+    (entry) => entry?.document_type && DOCUMENT_TYPES.includes(entry.document_type) && entry?.file
+  );
+
+  if (!validEntries.length) return 0;
+
+  const documentTypesToReplace = [...new Set(validEntries.map((entry) => entry.document_type))];
+
+  const { error: deleteError } = await adminClient
+    .from('hrm_employee_documents')
+    .delete()
+    .eq('employee_id', employeeId)
+    .in('document_type', documentTypesToReplace);
+
+  if (deleteError) {
+    throw new Error(deleteError.message || 'Failed to replace employee documents');
+  }
+
+  const uploadedRows = [];
+  for (const entry of validEntries) {
+    const uploaded = await uploadEmployeeFile(entry.file, employeeCode, `documents/${entry.document_type}`);
+    if (!uploaded) continue;
+
+    uploadedRows.push({
+      employee_id: employeeId,
+      document_type: entry.document_type,
+      ...uploaded,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  if (!uploadedRows.length) return 0;
+
+  const { error: insertError } = await adminClient
+    .from('hrm_employee_documents')
+    .insert(uploadedRows);
+
+  if (insertError) {
+    throw new Error(insertError.message || 'Failed to upload employee documents');
+  }
+
+  return uploadedRows.length;
 }
 
 async function upsertModuleAccess(employeeId, payload) {
@@ -998,16 +1050,18 @@ export async function POST(request) {
       religion: cleanText(formData.get('religion')),
       is_international: parseBoolean(formData.get('isInternational')),
       is_physically_challenged: parseBoolean(formData.get('isPhysicallyChallenged')),
-      height_cm: parseNumeric(formData.get('heightCm')),
-      weight_kg: parseNumeric(formData.get('weightKg')),
-      hobby: cleanText(formData.get('hobby')),
-      caste: cleanText(formData.get('caste')),
       address: cleanText(formData.get('address')),
       city: cleanText(formData.get('city')),
       district: cleanText(formData.get('district')),
       state: cleanText(formData.get('state')),
       country: cleanText(formData.get('country')),
       pincode: cleanText(formData.get('pincode')),
+      permanent_address: cleanText(formData.get('permanentAddress')),
+      permanent_city: cleanText(formData.get('permanentCity')),
+      permanent_district: cleanText(formData.get('permanentDistrict')),
+      permanent_state: cleanText(formData.get('permanentState')),
+      permanent_country: cleanText(formData.get('permanentCountry')),
+      permanent_pincode: cleanText(formData.get('permanentPincode')),
       alternate_phone: cleanText(formData.get('phone2')),
       mobile_phone: cleanText(formData.get('mobile')),
       date_of_joining: parseDate(formData.get('joinedOn')),
@@ -1024,6 +1078,7 @@ export async function POST(request) {
       designation_id: designationId,
       reporting_manager_id: reportingTarget.reportingManagerId,
       company: cleanText(formData.get('company')),
+      salary: parseNumeric(formData.get('salary')),
       shift_id: null,
       working_schedule_label: cleanText(formData.get('workingScheduleLabel')),
       working_days: workingDays,
@@ -1204,8 +1259,11 @@ export async function PATCH(request) {
     }
 
     const { authContext } = auth;
-    const body = await request.json();
-    const id = cleanText(body?.id);
+    const contentType = request.headers.get('content-type') || '';
+    const isMultipart = contentType.includes('multipart/form-data');
+    const body = isMultipart ? null : await request.json();
+    const formData = isMultipart ? await request.formData() : null;
+    const id = cleanText(isMultipart ? formData?.get('id') : body?.id);
 
     if (!id) {
       return NextResponse.json({ error: 'Employee id is required' }, { status: 400 });
@@ -1219,6 +1277,57 @@ export async function PATCH(request) {
 
     if (existingEmployeeError || !existingEmployee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    if (isMultipart) {
+      const documentEntries = DOCUMENT_TYPES.map((documentType) => ({
+        document_type: documentType,
+        file: formData?.get(`document_${documentType}`),
+      })).filter((entry) => entry.file && typeof entry.file !== 'string' && entry.file.size > 0);
+
+      if (!documentEntries.length) {
+        return NextResponse.json({ error: 'No documents were selected for upload' }, { status: 400 });
+      }
+
+      const uploadedCount = await replaceEmployeeDocumentTypes(
+        existingEmployee.id,
+        existingEmployee.employee_id || existingEmployee.id,
+        documentEntries
+      );
+
+      const { data: refreshedEmployee, error: refreshedEmployeeError } = await adminClient
+        .from('hrm_employees')
+        .select(`
+          *,
+          department:hrm_departments (
+            id,
+            name
+          ),
+          designation:hrm_designations (
+            id,
+            title
+          ),
+          module_access:hrm_module_access!module_access_employee_id_fkey (*),
+          education:hrm_employee_education (*),
+          certifications:hrm_employee_certifications (*),
+          documents:hrm_employee_documents (*)
+        `)
+        .eq('id', existingEmployee.id)
+        .single();
+
+      if (refreshedEmployeeError) {
+        return NextResponse.json({ error: refreshedEmployeeError.message }, { status: 500 });
+      }
+
+      const [enrichedEmployee] = await attachCreatorNames([refreshedEmployee]);
+
+      return NextResponse.json(
+        {
+          message: uploadedCount === 1 ? 'Document uploaded successfully' : 'Documents uploaded successfully',
+          employee: enrichedEmployee,
+        },
+        { status: 200 }
+      );
     }
 
     const { data: currentModuleAccess } = await adminClient
@@ -1292,16 +1401,18 @@ export async function PATCH(request) {
       ['religion', 'religion', cleanText],
       ['isInternational', 'is_international', parseBoolean],
       ['isPhysicallyChallenged', 'is_physically_challenged', parseBoolean],
-      ['heightCm', 'height_cm', parseNumeric],
-      ['weightKg', 'weight_kg', parseNumeric],
-      ['hobby', 'hobby', cleanText],
-      ['caste', 'caste', cleanText],
       ['address', 'address', cleanText],
       ['city', 'city', cleanText],
       ['district', 'district', cleanText],
       ['state', 'state', cleanText],
       ['country', 'country', cleanText],
       ['pincode', 'pincode', cleanText],
+      ['permanentAddress', 'permanent_address', cleanText],
+      ['permanentCity', 'permanent_city', cleanText],
+      ['permanentDistrict', 'permanent_district', cleanText],
+      ['permanentState', 'permanent_state', cleanText],
+      ['permanentCountry', 'permanent_country', cleanText],
+      ['permanentPincode', 'permanent_pincode', cleanText],
       ['phone2', 'alternate_phone', cleanText],
       ['mobile', 'mobile_phone', cleanText],
       ['joinedOn', 'date_of_joining', parseDate],
@@ -1314,6 +1425,7 @@ export async function PATCH(request) {
       ['totalExperience', 'total_experience', cleanText],
       ['division', 'division', cleanText],
       ['company', 'company', cleanText],
+      ['salary', 'salary', parseNumeric],
       ['workingScheduleLabel', 'working_schedule_label', cleanText],
       ['secondSaturdayOff', 'second_saturday_off', parseBoolean],
       ['aadhaarNumber', 'aadhaar_number', cleanText],
@@ -1474,9 +1586,84 @@ export async function DELETE(request) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const documentType = cleanText(searchParams.get('documentType'));
+    const documentId = cleanText(searchParams.get('documentId'));
 
     if (!id) {
       return NextResponse.json({ error: 'Employee id is required' }, { status: 400 });
+    }
+
+    if (documentType || documentId) {
+      let query = adminClient
+        .from('hrm_employee_documents')
+        .select('id, employee_id, file_path, document_type')
+        .eq('employee_id', id);
+
+      if (documentId) {
+        query = query.eq('id', documentId);
+      }
+
+      if (documentType) {
+        query = query.eq('document_type', documentType);
+      }
+
+      const { data: documents, error: documentsError } = await query;
+
+      if (documentsError) {
+        return NextResponse.json({ error: documentsError.message }, { status: 500 });
+      }
+
+      if (!documents?.length) {
+        return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+      }
+
+      const documentIds = documents.map((item) => item.id).filter(Boolean);
+      const filePaths = documents.map((item) => item.file_path).filter(Boolean);
+
+      const { error: deleteDocumentError } = await adminClient
+        .from('hrm_employee_documents')
+        .delete()
+        .in('id', documentIds);
+
+      if (deleteDocumentError) {
+        return NextResponse.json({ error: deleteDocumentError.message }, { status: 500 });
+      }
+
+      await removeEmployeeFiles(filePaths);
+
+      const { data: refreshedEmployee, error: refreshedEmployeeError } = await adminClient
+        .from('hrm_employees')
+        .select(`
+          *,
+          department:hrm_departments (
+            id,
+            name
+          ),
+          designation:hrm_designations (
+            id,
+            title
+          ),
+          module_access:hrm_module_access!module_access_employee_id_fkey (*),
+          education:hrm_employee_education (*),
+          certifications:hrm_employee_certifications (*),
+          documents:hrm_employee_documents (*)
+        `)
+        .eq('id', id)
+        .single();
+
+      if (refreshedEmployeeError) {
+        return NextResponse.json({ error: refreshedEmployeeError.message }, { status: 500 });
+      }
+
+      const [enrichedEmployee] = await attachCreatorNames([refreshedEmployee]);
+
+      return NextResponse.json(
+        {
+          message: 'Document deleted successfully',
+          employee: enrichedEmployee,
+        },
+        { status: 200 }
+      );
     }
 
     const { data: employee, error: fetchError } = await adminClient

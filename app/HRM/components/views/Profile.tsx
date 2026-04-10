@@ -19,6 +19,17 @@ function InfoRow({
   );
 }
 
+function formatSalary(value?: string | number | null) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 'Not available';
+
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2,
+  }).format(numeric);
+}
+
 function formatDate(value?: string | null) {
   if (!value) return 'Not available';
   const date = new Date(value);
@@ -219,6 +230,7 @@ export default function Profile({ employee }: { employee?: any }) {
             <InfoRow label="Current Stage" value={currentStage} />
             <InfoRow label="Date of Joining" value={formatDate(employee?.date_of_joining)} />
             <InfoRow label="Confirmation Date" value={formatDate(employee?.confirmation_date)} />
+            <InfoRow label="Salary" value={formatSalary(employee?.salary)} />
             <InfoRow label="Current Company Experience" value={employee?.current_company_experience} />
             <InfoRow label="Total Experience" value={employee?.total_experience} />
             <InfoRow label="Previous Experience" value={employee?.previous_experience} />
@@ -236,6 +248,7 @@ export default function Profile({ employee }: { employee?: any }) {
               <InfoRow label="Employee ID" value={employeeId} />
               <InfoRow label="Join Date" value={formatDate(employee?.date_of_joining)} />
               <InfoRow label="Company" value={employee?.company} />
+              <InfoRow label="Salary" value={formatSalary(employee?.salary)} />
               <InfoRow label="Division" value={employee?.division} />
             </div>
           </div>

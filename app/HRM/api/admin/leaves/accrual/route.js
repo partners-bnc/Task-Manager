@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { adminClient } from '@/utils/supabase/admin';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
-import { getEmployeeLeaveContext, syncEmployeeLeaveBalances } from '@/utils/leave';
+import { getEmployeeLeaveContext, listActiveEmployeesForLeave, syncEmployeeLeaveBalances } from '@/utils/leave';
 
 async function requireHrAdminAccess() {
   const supabase = await createClient();
@@ -30,14 +29,7 @@ export async function POST() {
       return auth.error;
     }
 
-    const { data: employees, error } = await adminClient
-      .from('hrm_employees')
-      .select('id')
-      .eq('employment_lifecycle_status', 'active');
-
-    if (error) {
-      return NextResponse.json({ error: error.message || 'Failed to load employees for leave accrual' }, { status: 500 });
-    }
+    const employees = await listActiveEmployeesForLeave();
 
     for (const employeeRow of employees || []) {
       const employee = await getEmployeeLeaveContext(employeeRow.id);

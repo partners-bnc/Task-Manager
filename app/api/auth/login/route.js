@@ -14,10 +14,13 @@ import {
   syncEmployeePasswordToAuth,
 } from '@/utils/employee-auth';
 
+const EMPLOYEE_AUTH_SELECT_BASE =
+  'id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id, employee_status';
+
 async function findEmployeeBy(column, value) {
   return adminClient
     .from('hrm_employees')
-    .select('id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id, employee_status, employment_lifecycle_status, current_stage')
+    .select(EMPLOYEE_AUTH_SELECT_BASE)
     .eq(column, value)
     .limit(1)
     .maybeSingle();
@@ -82,12 +85,14 @@ async function tryEmployeeLogin(identifier, password, loginAs) {
   let { data: employee, error: employeeError } = await findEmployeeBy('email', normalizedIdentifier);
 
   if (!employee || employeeError) {
-    const { data: byEmployeeId, error: byEmployeeIdError } = await adminClient
+    const employeeByIdResult = await adminClient
       .from('hrm_employees')
-      .select('id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id, employee_status, employment_lifecycle_status, current_stage')
+      .select(EMPLOYEE_AUTH_SELECT_BASE)
       .ilike('employee_id', rawIdentifier)
       .limit(1)
       .maybeSingle();
+
+    const { data: byEmployeeId, error: byEmployeeIdError } = employeeByIdResult;
     employee = byEmployeeId;
     employeeError = byEmployeeIdError;
   }

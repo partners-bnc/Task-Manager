@@ -37,27 +37,27 @@ function getBirthdayCopy(employee) {
   if (!employee) {
     return {
       heading: 'No birthdays lined up yet',
-      body: 'Add employee birth dates in the HR master record to start celebrating milestones here.',
+      body: 'Add employee birth dates in the HR master record to show upcoming birthdays here.',
     };
   }
 
   if (employee.daysUntilBirthday === 0) {
     return {
       heading: `Today is ${employee.name}'s birthday`,
-      body: 'Share your wishes and make the day feel special for the team.',
+      body: 'Birthday information is available in the employee record.',
     };
   }
 
   if (employee.daysUntilBirthday === 1) {
     return {
       heading: `${employee.name}'s birthday is tomorrow`,
-      body: 'A perfect time to prepare the celebration and the birthday note.',
+      body: 'Birthday information is available in the employee record.',
     };
   }
 
   return {
-    heading: `${employee.name}'s celebration is coming up`,
-    body: `Only ${employee.daysUntilBirthday} day${employee.daysUntilBirthday === 1 ? '' : 's'} left, so the HR team can plan ahead.`,
+    heading: `${employee.name}'s birthday is coming up`,
+    body: `Only ${employee.daysUntilBirthday} day${employee.daysUntilBirthday === 1 ? '' : 's'} left.`,
   };
 }
 

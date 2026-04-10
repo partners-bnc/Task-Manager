@@ -60,16 +60,18 @@ type FormState = {
   religion: string;
   isInternational: string;
   isPhysicallyChallenged: string;
-  heightCm: string;
-  weightKg: string;
-  hobby: string;
-  caste: string;
   address: string;
   city: string;
   district: string;
   state: string;
   country: string;
   pincode: string;
+  permanentAddress: string;
+  permanentCity: string;
+  permanentDistrict: string;
+  permanentState: string;
+  permanentCountry: string;
+  permanentPincode: string;
   phone2: string;
   mobile: string;
   joinedOn: string;
@@ -81,6 +83,7 @@ type FormState = {
   noticePeriodDays: string;
   referredBy: string;
   currentCompanyExperience: string;
+  salary: string;
   previousExperience: string;
   totalExperience: string;
   department: string;
@@ -110,12 +113,14 @@ const WEEK_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satu
 const BLOOD_GROUP_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const RESIDENTIAL_STATUS_OPTIONS = ['Resident', 'Non-Resident', 'Resident but Not Ordinarily Resident'];
 const RELIGION_OPTIONS = ['Hindu', 'Muslim', 'Sikh', 'Christian', 'Buddhist', 'Jain', 'Parsi', 'Other'];
+const PROBATION_PERIOD_OPTIONS = ['90', '180'];
+const NOTICE_PERIOD_OPTIONS = ['30', '90', '180'];
 
 const DOCUMENT_TYPES = [
   { key: 'aadhaar_card', label: 'Aadhaar Card' },
   { key: 'pan_card', label: 'PAN Card' },
   { key: 'passport', label: 'Passport' },
-  { key: 'appointment_letter', label: 'Appointment Letter' },
+  { key: 'appointment_letter', label: 'Appointment Letter (Previous Organisation)' },
   { key: 'experience_letter', label: 'Experience Letter' },
   { key: 'salary_slip', label: 'Salary Slip' },
 ];
@@ -149,16 +154,18 @@ const defaultFormState: FormState = {
   religion: '',
   isInternational: 'No',
   isPhysicallyChallenged: 'No',
-  heightCm: '',
-  weightKg: '',
-  hobby: '',
-  caste: '',
   address: '',
   city: '',
   district: '',
   state: '',
   country: 'India',
   pincode: '',
+  permanentAddress: '',
+  permanentCity: '',
+  permanentDistrict: '',
+  permanentState: '',
+  permanentCountry: 'India',
+  permanentPincode: '',
   phone2: '',
   mobile: '',
   joinedOn: '',
@@ -170,6 +177,7 @@ const defaultFormState: FormState = {
   noticePeriodDays: '',
   referredBy: '',
   currentCompanyExperience: '',
+  salary: '',
   previousExperience: '',
   totalExperience: '',
   department: '',
@@ -235,8 +243,29 @@ function fileButtonClassName() {
   return 'inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:border-slate-500 hover:bg-slate-100';
 }
 
+const CURRENT_TO_PERMANENT_FIELD_MAP: Record<string, keyof FormState> = {
+  address: 'permanentAddress',
+  city: 'permanentCity',
+  district: 'permanentDistrict',
+  state: 'permanentState',
+  country: 'permanentCountry',
+  pincode: 'permanentPincode',
+};
+
+function buildPermanentAddressPatch(form: FormState) {
+  return {
+    permanentAddress: form.address,
+    permanentCity: form.city,
+    permanentDistrict: form.district,
+    permanentState: form.state,
+    permanentCountry: form.country,
+    permanentPincode: form.pincode,
+  };
+}
+
 export default function AddEmployee({ setCurrentTab }: { setCurrentTab?: (tab: string) => void }) {
   const [form, setForm] = useState<FormState>(defaultFormState);
+  const [sameAsCurrentAddress, setSameAsCurrentAddress] = useState(false);
   const [workingDays, setWorkingDays] = useState<string[]>(WORKING_DAY_PRESETS[0].days);
   const [educationEntries, setEducationEntries] = useState<EducationEntry[]>(defaultEducation);
   const [certificationEntries, setCertificationEntries] = useState<CertificationEntry[]>([]);
@@ -316,12 +345,20 @@ export default function AddEmployee({ setCurrentTab }: { setCurrentTab?: (tab: s
       return;
     }
 
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => {
+      const permanentField = CURRENT_TO_PERMANENT_FIELD_MAP[name];
+      const nextForm = {
+        ...current,
+        [name]: value,
+        ...(sameAsCurrentAddress && permanentField ? { [permanentField]: value } : {}),
+      };
 
-    if (name === 'lifecycleStatus' && value === 'terminated') {
-      setForm((current) => ({ ...current, lifecycleStatus: value, currentStage: 'none' }));
-      return;
-    }
+      if (name === 'lifecycleStatus' && value === 'terminated') {
+        nextForm.currentStage = 'none';
+      }
+
+      return nextForm;
+    });
 
     if (name === 'workingScheduleLabel') {
       const preset = WORKING_DAY_PRESETS.find((item) => item.label === value);
@@ -392,8 +429,22 @@ export default function AddEmployee({ setCurrentTab }: { setCurrentTab?: (tab: s
     }));
   };
 
+  const handleSameAsCurrentAddressChange = (checked: boolean) => {
+    setSameAsCurrentAddress(checked);
+
+    if (!checked) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      ...buildPermanentAddressPatch(current),
+    }));
+  };
+
   const resetForm = () => {
     setForm(defaultFormState);
+    setSameAsCurrentAddress(false);
     setWorkingDays(WORKING_DAY_PRESETS[0].days);
     setEducationEntries(defaultEducation());
     setCertificationEntries([]);
@@ -646,22 +697,10 @@ export default function AddEmployee({ setCurrentTab }: { setCurrentTab?: (tab: s
                   <option>Yes</option>
                 </select>
               </Field>
-              <Field label="Height (cm)">
-                <input className={inputClassName()} name="heightCm" value={form.heightCm} onChange={handleInputChange} />
-              </Field>
-              <Field label="Weight (kg)">
-                <input className={inputClassName()} name="weightKg" value={form.weightKg} onChange={handleInputChange} />
-              </Field>
-              <Field label="Hobby">
-                <input className={inputClassName()} name="hobby" value={form.hobby} onChange={handleInputChange} />
-              </Field>
-              <Field label="Caste">
-                <input className={inputClassName()} name="caste" value={form.caste} onChange={handleInputChange} />
-              </Field>
             </div>
           </Section>
 
-          <Section title="Present Address" subtitle="Save the communication address and contact numbers for the employee.">
+          <Section title="Current Address" subtitle="Save the communication address and contact numbers for the employee.">
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Address">
                 <textarea className={inputClassName(true)} name="address" value={form.address} onChange={handleInputChange} />
@@ -686,6 +725,51 @@ export default function AddEmployee({ setCurrentTab }: { setCurrentTab?: (tab: s
               </Field>
               <Field label="Mobile">
                 <input className={inputClassName()} name="mobile" value={form.mobile} onChange={handleInputChange} />
+              </Field>
+            </div>
+          </Section>
+
+          <Section title="Permanent Address" subtitle="Store the employee's permanent residential address for records and compliance.">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">Same as current address</p>
+                <p className="text-xs text-slate-500">Copy the current address into the permanent address fields.</p>
+              </div>
+              <label className="inline-flex items-center gap-3 rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={sameAsCurrentAddress}
+                  onChange={(event) => handleSameAsCurrentAddressChange(event.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                />
+                Same as current address
+              </label>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <Field label="Address">
+                <textarea
+                  className={inputClassName(true)}
+                  name="permanentAddress"
+                  value={form.permanentAddress}
+                  onChange={handleInputChange}
+                  disabled={sameAsCurrentAddress}
+                />
+              </Field>
+              <Field label="City">
+                <input className={inputClassName()} name="permanentCity" value={form.permanentCity} onChange={handleInputChange} disabled={sameAsCurrentAddress} />
+              </Field>
+              <Field label="District">
+                <input className={inputClassName()} name="permanentDistrict" value={form.permanentDistrict} onChange={handleInputChange} disabled={sameAsCurrentAddress} />
+              </Field>
+              <Field label="State">
+                <input className={inputClassName()} name="permanentState" value={form.permanentState} onChange={handleInputChange} disabled={sameAsCurrentAddress} />
+              </Field>
+              <Field label="Country">
+                <input className={inputClassName()} name="permanentCountry" value={form.permanentCountry} onChange={handleInputChange} disabled={sameAsCurrentAddress} />
+              </Field>
+              <Field label="Pincode">
+                <input className={inputClassName()} name="permanentPincode" value={form.permanentPincode} onChange={handleInputChange} disabled={sameAsCurrentAddress} />
               </Field>
             </div>
           </Section>
@@ -720,10 +804,24 @@ export default function AddEmployee({ setCurrentTab }: { setCurrentTab?: (tab: s
                 <input className={inputClassName()} name="confirmationDate" type="date" value={form.confirmationDate} onChange={handleInputChange} />
               </Field>
               <Field label="Probation Period (days)">
-                <input className={inputClassName()} name="probationPeriodDays" value={form.probationPeriodDays} onChange={handleInputChange} />
+                <select className={selectClassName()} name="probationPeriodDays" value={form.probationPeriodDays} onChange={handleInputChange}>
+                  <option value="">Select probation period</option>
+                  {PROBATION_PERIOD_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option} days
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Notice Period (days)">
-                <input className={inputClassName()} name="noticePeriodDays" value={form.noticePeriodDays} onChange={handleInputChange} />
+                <select className={selectClassName()} name="noticePeriodDays" value={form.noticePeriodDays} onChange={handleInputChange}>
+                  <option value="">Select notice period</option>
+                  {NOTICE_PERIOD_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option} days
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="Referred By">
                 <input className={inputClassName()} name="referredBy" value={form.referredBy} onChange={handleInputChange} />
@@ -765,6 +863,18 @@ export default function AddEmployee({ setCurrentTab }: { setCurrentTab?: (tab: s
               </Field>
               <Field label="Company">
                 <input className={inputClassName()} name="company" value={form.company} onChange={handleInputChange} />
+              </Field>
+              <Field label="Salary">
+                <input
+                  className={inputClassName()}
+                  name="salary"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 35000"
+                  value={form.salary}
+                  onChange={handleInputChange}
+                />
               </Field>
               <Field label="Working Day Pattern">
                 <select className={selectClassName()} name="workingScheduleLabel" value={form.workingScheduleLabel} onChange={handleInputChange}>

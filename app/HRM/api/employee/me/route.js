@@ -2,6 +2,65 @@ import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
 import { createClient } from '@/utils/supabase/server';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
+import { deriveEmploymentFields } from '@/utils/hrm-employment';
+
+const EMPLOYEE_PROFILE_SELECT_BASE = `
+  id,
+  employee_id,
+  name,
+  email,
+  role,
+  profile_picture_url,
+  phone,
+  personal_email,
+  date_of_joining,
+  employee_status,
+  current_company_experience,
+  working_schedule_label,
+  working_days,
+  second_saturday_off,
+  address,
+  nationality,
+  marital_status,
+  location,
+  module_access:hrm_module_access!module_access_employee_id_fkey (
+    task_manager
+  ),
+  department:hrm_departments (id, name),
+  designation:hrm_designations (id, title),
+  shift:hrm_shifts (id, name, start_time, end_time)
+`;
+
+const EMPLOYEE_PROFILE_SELECT_WITH_SALARY = `
+  ${EMPLOYEE_PROFILE_SELECT_BASE},
+  salary
+`;
+
+const EMPLOYEE_PROFILE_SELECT_WITH_EMPLOYMENT_FIELDS = `
+  ${EMPLOYEE_PROFILE_SELECT_WITH_SALARY},
+  employee_type,
+  employment_lifecycle_status,
+  current_stage
+`;
+
+function isMissingEmploymentColumnError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('employee_type') ||
+    message.includes('employment_lifecycle_status') ||
+    message.includes('current_stage') ||
+    message.includes('could not find the column') ||
+    (message.includes('column') && message.includes('does not exist'))
+  );
+}
+
+function isMissingSalaryColumnError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('salary') &&
+    (message.includes('could not find the column') || (message.includes('column') && message.includes('does not exist')))
+  );
+}
 
 export async function GET(request) {
   try {
@@ -30,45 +89,51 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Employee identity is not linked yet' }, { status: 404 });
     }
 
-    const { data: employee, error } = await adminClient
+    let employeeResult = await adminClient
       .from('hrm_employees')
-      .select(`
-        id,
-        employee_id,
-        name,
-        email,
-        role,
-        profile_picture_url,
-        phone,
-        personal_email,
-        date_of_joining,
-        employee_type,
-        employee_status,
-        employment_lifecycle_status,
-        current_stage,
-        current_company_experience,
-        working_schedule_label,
-        working_days,
-        second_saturday_off,
-        address,
-        nationality,
-        marital_status,
-        location,
-        module_access:hrm_module_access!module_access_employee_id_fkey (
-          task_manager
-        ),
-        department:hrm_departments (id, name),
-        designation:hrm_designations (id, title),
-        shift:hrm_shifts (id, name, start_time, end_time)
-      `)
+      .select(EMPLOYEE_PROFILE_SELECT_WITH_EMPLOYMENT_FIELDS)
       .eq('id', employeeId)
       .single();
+
+    if (employeeResult.error && isMissingEmploymentColumnError(employeeResult.error)) {
+      employeeResult = await adminClient
+        .from('hrm_employees')
+        .select(EMPLOYEE_PROFILE_SELECT_WITH_SALARY)
+        .eq('id', employeeId)
+        .single();
+    }
+
+    if (employeeResult.error && isMissingSalaryColumnError(employeeResult.error)) {
+      employeeResult = await adminClient
+        .from('hrm_employees')
+        .select(EMPLOYEE_PROFILE_SELECT_BASE)
+        .eq('id', employeeId)
+        .single();
+    }
+
+    const { data: employee, error } = employeeResult;
 
     if (error || !employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ employee }, { status: 200 });
+    const employment = deriveEmploymentFields(employee);
+
+    return NextResponse.json(
+      {
+        employee: {
+          ...employee,
+          employee_type: employee.employee_type ?? employment.employeeType,
+          employment_lifecycle_status:
+            employee.employment_lifecycle_status ?? employment.employmentLifecycleStatus,
+          current_stage: employee.current_stage ?? employment.currentStage,
+          resolved_employee_type: employment.employeeType,
+          resolved_employment_lifecycle_status: employment.employmentLifecycleStatus,
+          resolved_current_stage: employment.currentStage,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('Error fetching employee profile:', error);
     return NextResponse.json({ error: error.message || 'Failed to fetch employee profile' }, { status: 500 });

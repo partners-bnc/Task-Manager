@@ -14,6 +14,16 @@ const BLOOD_GROUP_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const RESIDENTIAL_STATUS_OPTIONS = ['Resident', 'Non-Resident', 'Resident but Not Ordinarily Resident'];
 const RELIGION_OPTIONS = ['Hindu', 'Muslim', 'Sikh', 'Christian', 'Buddhist', 'Jain', 'Parsi', 'Other'];
 const YES_NO_OPTIONS = ['Yes', 'No'];
+const PROBATION_PERIOD_OPTIONS = ['90', '180'];
+const NOTICE_PERIOD_OPTIONS = ['30', '90', '180'];
+const DOCUMENT_TYPES = [
+  { key: 'aadhaar_card', label: 'Aadhaar Card' },
+  { key: 'pan_card', label: 'PAN Card' },
+  { key: 'passport', label: 'Passport' },
+  { key: 'appointment_letter', label: 'Appointment Letter (Previous Organisation)' },
+  { key: 'experience_letter', label: 'Experience Letter' },
+  { key: 'salary_slip', label: 'Salary Slip' },
+];
 
 const defaultForm = {
   employeeId: '',
@@ -34,16 +44,18 @@ const defaultForm = {
   religion: '',
   isInternational: 'No',
   isPhysicallyChallenged: 'No',
-  heightCm: '',
-  weightKg: '',
-  hobby: '',
-  caste: '',
   address: '',
   city: '',
   district: '',
   state: '',
   country: '',
   pincode: '',
+  permanentAddress: '',
+  permanentCity: '',
+  permanentDistrict: '',
+  permanentState: '',
+  permanentCountry: '',
+  permanentPincode: '',
   phone2: '',
   mobile: '',
   joinedOn: '',
@@ -55,6 +67,7 @@ const defaultForm = {
   noticePeriodDays: '',
   referredBy: '',
   currentCompanyExperience: '',
+  salary: '',
   previousExperience: '',
   totalExperience: '',
   department: '',
@@ -73,6 +86,37 @@ const defaultForm = {
   bankIfscCode: '',
   bankName: '',
 };
+
+const CURRENT_TO_PERMANENT_FIELD_MAP: Record<string, keyof typeof defaultForm> = {
+  address: 'permanentAddress',
+  city: 'permanentCity',
+  district: 'permanentDistrict',
+  state: 'permanentState',
+  country: 'permanentCountry',
+  pincode: 'permanentPincode',
+};
+
+function buildPermanentAddressPatch(form: typeof defaultForm) {
+  return {
+    permanentAddress: form.address,
+    permanentCity: form.city,
+    permanentDistrict: form.district,
+    permanentState: form.state,
+    permanentCountry: form.country,
+    permanentPincode: form.pincode,
+  };
+}
+
+function isPermanentAddressSameAsCurrent(form: typeof defaultForm) {
+  return (
+    form.address === form.permanentAddress &&
+    form.city === form.permanentCity &&
+    form.district === form.permanentDistrict &&
+    form.state === form.permanentState &&
+    form.country === form.permanentCountry &&
+    form.pincode === form.permanentPincode
+  );
+}
 
 function toInputDate(value?: string | null) {
   if (!value) return '';
@@ -136,6 +180,7 @@ function pickFirstText(...values: Array<string | number | null | undefined>) {
 function formatDocumentLabel(value?: string | null) {
   const normalized = String(value || '').trim();
   if (!normalized) return 'Employee Document';
+  if (normalized === 'appointment_letter') return 'Appointment Letter (Previous Organisation)';
 
   return normalized
     .split('_')
@@ -211,16 +256,18 @@ function normalizeEmployeeToForm(employee: any) {
     religion: employee?.religion || '',
     isInternational: toYesNo(employee?.is_international),
     isPhysicallyChallenged: toYesNo(employee?.is_physically_challenged),
-    heightCm: employee?.height_cm ? String(employee.height_cm) : '',
-    weightKg: employee?.weight_kg ? String(employee.weight_kg) : '',
-    hobby: employee?.hobby || '',
-    caste: employee?.caste || '',
     address: employee?.address || '',
     city: employee?.city || '',
     district: employee?.district || '',
     state: employee?.state || '',
     country: employee?.country || '',
     pincode: employee?.pincode || '',
+    permanentAddress: employee?.permanent_address || '',
+    permanentCity: employee?.permanent_city || '',
+    permanentDistrict: employee?.permanent_district || '',
+    permanentState: employee?.permanent_state || '',
+    permanentCountry: employee?.permanent_country || '',
+    permanentPincode: employee?.permanent_pincode || '',
     phone2: employee?.alternate_phone || '',
     mobile: employee?.mobile_phone || '',
     joinedOn: toInputDate(employee?.date_of_joining),
@@ -232,6 +279,7 @@ function normalizeEmployeeToForm(employee: any) {
     noticePeriodDays: employee?.notice_period_days ? String(employee.notice_period_days) : '',
     referredBy: employee?.referred_by || '',
     currentCompanyExperience: employee?.current_company_experience || '',
+    salary: employee?.salary !== undefined && employee?.salary !== null ? String(employee.salary) : '',
     previousExperience: employee?.previous_experience || '',
     totalExperience: employee?.total_experience || '',
     department: employee?.department?.name || employee?.resolved_department_name || '',
@@ -303,7 +351,10 @@ export default function DetailedEmployeeProfile({
   const [meta, setMeta] = useState<any>({ employees: [], departments: [], designations: [] });
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [sameAsCurrentAddress, setSameAsCurrentAddress] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [documentFiles, setDocumentFiles] = useState<Record<string, File | null>>({});
+  const [activeDocumentType, setActiveDocumentType] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [activeSection, setActiveSection] = useState('personal');
@@ -335,8 +386,10 @@ export default function DetailedEmployeeProfile({
 
         if (!active) return;
 
+        const nextForm = normalizeEmployeeToForm(result.employee || {});
         setEmployee(result.employee || null);
-        setForm(normalizeEmployeeToForm(result.employee || {}));
+        setForm(nextForm);
+        setSameAsCurrentAddress(isPermanentAddressSameAsCurrent(nextForm));
         setMeta({
           employees: result.employeeOptions || result.employees || [],
           superAdmins: result.superAdminOptions || [],
@@ -399,6 +452,21 @@ export default function DetailedEmployeeProfile({
     };
   }, [documentList]);
 
+  const documentSlots = useMemo(() => {
+    const byType = new Map<string, any>();
+    for (const item of documentList) {
+      if (!byType.has(item.document_type)) {
+        byType.set(item.document_type, item);
+      }
+    }
+
+    return DOCUMENT_TYPES.map((documentType) => ({
+      ...documentType,
+      document: byType.get(documentType.key) || null,
+      selectedFile: documentFiles[documentType.key] || null,
+    }));
+  }, [documentFiles, documentList]);
+
   const summaryItems = useMemo(
     () => [
       { label: 'Employee Type', value: getEmployeeTypeLabel(employee?.resolved_employee_type || employee?.employee_type) },
@@ -409,6 +477,7 @@ export default function DetailedEmployeeProfile({
       { label: 'Reporting To', value: formatReportingTarget(employee) },
       { label: 'Created By', value: employee?.created_by_name || 'HR Admin' },
       { label: 'Date Of Joining', value: toDisplayDate(employee?.date_of_joining) },
+      { label: 'Salary', value: employee?.salary !== null && employee?.salary !== undefined ? `INR ${employee.salary}` : '--' },
       { label: 'Task Manager', value: form.taskManagerAccess === 'Yes' ? 'Enabled' : 'Disabled' },
     ],
     [employee, form.taskManagerAccess]
@@ -421,10 +490,23 @@ export default function DetailedEmployeeProfile({
     setForm((current) => ({
       ...current,
       [name]: value,
+      ...(sameAsCurrentAddress && CURRENT_TO_PERMANENT_FIELD_MAP[name]
+        ? { [CURRENT_TO_PERMANENT_FIELD_MAP[name]]: value }
+        : {}),
       ...(name === 'lifecycleStatus' && value === 'terminated' ? { currentStage: 'none' } : {}),
     }));
     setMessage('');
     setError('');
+  }
+
+  function handleSameAsCurrentAddressChange(checked: boolean) {
+    setSameAsCurrentAddress(checked);
+    if (!checked) return;
+
+    setForm((current) => ({
+      ...current,
+      ...buildPermanentAddressPatch(current),
+    }));
   }
 
   async function handleSave() {
@@ -450,8 +532,10 @@ export default function DetailedEmployeeProfile({
       }
 
       const nextEmployee = result.employee || employee;
+      const nextForm = normalizeEmployeeToForm(nextEmployee);
       setEmployee(nextEmployee);
-      setForm(normalizeEmployeeToForm(nextEmployee));
+      setForm(nextForm);
+      setSameAsCurrentAddress(isPermanentAddressSameAsCurrent(nextForm));
       setIsEditing(false);
       setMessage('Employee details updated successfully.');
     } catch (requestError: any) {
@@ -523,6 +607,91 @@ export default function DetailedEmployeeProfile({
       setError(requestError?.message || 'Failed to delete employee');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function handleDocumentFileChange(documentType: string, file: File | null) {
+    setDocumentFiles((current) => ({
+      ...current,
+      [documentType]: file,
+    }));
+    setMessage('');
+    setError('');
+  }
+
+  async function handleDocumentUpload(documentType: string) {
+    if (!employee?.id) return;
+
+    const file = documentFiles[documentType];
+    if (!file) {
+      setError('Select a file before uploading.');
+      return;
+    }
+
+    try {
+      setActiveDocumentType(documentType);
+      setError('');
+      setMessage('');
+
+      const payload = new FormData();
+      payload.append('id', employee.id);
+      payload.append(`document_${documentType}`, file);
+
+      const response = await fetch('/HRM/api/employees', {
+        method: 'PATCH',
+        body: payload,
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to upload document');
+      }
+
+      const nextEmployee = result.employee || employee;
+      setEmployee(nextEmployee);
+      setDocumentFiles((current) => ({
+        ...current,
+        [documentType]: null,
+      }));
+      setMessage(result.message || 'Document uploaded successfully.');
+    } catch (requestError: any) {
+      setError(requestError?.message || 'Failed to upload document');
+    } finally {
+      setActiveDocumentType(null);
+    }
+  }
+
+  async function handleDocumentDelete(documentType: string) {
+    if (!employee?.id) return;
+
+    const confirmed = window.confirm('Delete this document? This will remove it from storage and the database.');
+    if (!confirmed) return;
+
+    try {
+      setActiveDocumentType(documentType);
+      setError('');
+      setMessage('');
+
+      const response = await fetch(
+        `/HRM/api/employees?id=${employee.id}&documentType=${encodeURIComponent(documentType)}`,
+        { method: 'DELETE' }
+      );
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete document');
+      }
+
+      setEmployee(result.employee || employee);
+      setDocumentFiles((current) => ({
+        ...current,
+        [documentType]: null,
+      }));
+      setMessage(result.message || 'Document deleted successfully.');
+    } catch (requestError: any) {
+      setError(requestError?.message || 'Failed to delete document');
+    } finally {
+      setActiveDocumentType(null);
     }
   }
 
@@ -607,44 +776,87 @@ export default function DetailedEmployeeProfile({
               ))}
             </select>
           </Field>
-          <Field label="Height (cm)">
-            <input name="heightCm" value={form.heightCm} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="Weight (kg)">
-            <input name="weightKg" value={form.weightKg} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="Hobby">
-            <input name="hobby" value={form.hobby} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="Caste">
-            <input name="caste" value={form.caste} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
           <Field label="Alternate Phone">
             <input name="phone2" value={form.phone2} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
           </Field>
           <Field label="Mobile">
             <input name="mobile" value={form.mobile} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
           </Field>
-          <div className="md:col-span-2 xl:col-span-3">
-            <Field label="Address">
-              <textarea name="address" value={form.address} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing, true)} />
-            </Field>
+          <div className="md:col-span-2 xl:col-span-3 mt-2">
+            <div className="rounded-[1.5rem] border border-outline-variant/10 bg-surface-container-low px-5 py-5">
+              <p className="text-sm font-bold text-on-surface">Current Address</p>
+              <p className="mt-1 text-xs text-on-surface-variant">Primary address used for present communication.</p>
+              <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                <div className="md:col-span-2 xl:col-span-3">
+                  <Field label="Address">
+                    <textarea name="address" value={form.address} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing, true)} />
+                  </Field>
+                </div>
+                <Field label="City">
+                  <input name="city" value={form.city} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+                </Field>
+                <Field label="District">
+                  <input name="district" value={form.district} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+                </Field>
+                <Field label="State">
+                  <input name="state" value={form.state} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+                </Field>
+                <Field label="Country">
+                  <input name="country" value={form.country} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+                </Field>
+                <Field label="Pincode">
+                  <input name="pincode" value={form.pincode} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+                </Field>
+              </div>
+            </div>
           </div>
-          <Field label="City">
-            <input name="city" value={form.city} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="District">
-            <input name="district" value={form.district} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="State">
-            <input name="state" value={form.state} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="Country">
-            <input name="country" value={form.country} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="Pincode">
-            <input name="pincode" value={form.pincode} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
+          <div className="md:col-span-2 xl:col-span-3">
+            <div className="rounded-[1.5rem] border border-outline-variant/10 bg-surface-container-low px-5 py-5">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-on-surface">Permanent Address</p>
+                  <p className="mt-1 text-xs text-on-surface-variant">Permanent residential address kept on the employee record.</p>
+                </div>
+                <label className={`inline-flex items-center gap-3 rounded-full border border-outline-variant/15 bg-white px-4 py-2 text-sm font-semibold text-on-surface ${!isEditing ? 'opacity-60' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={sameAsCurrentAddress}
+                    onChange={(event) => handleSameAsCurrentAddressChange(event.target.checked)}
+                    disabled={!isEditing}
+                  />
+                  Same as current address
+                </label>
+              </div>
+              <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                <div className="md:col-span-2 xl:col-span-3">
+                  <Field label="Address">
+                    <textarea
+                      name="permanentAddress"
+                      value={form.permanentAddress}
+                      onChange={handleChange}
+                      disabled={!isEditing || sameAsCurrentAddress}
+                      className={inputClassName(!isEditing || sameAsCurrentAddress, true)}
+                    />
+                  </Field>
+                </div>
+                <Field label="City">
+                  <input name="permanentCity" value={form.permanentCity} onChange={handleChange} disabled={!isEditing || sameAsCurrentAddress} className={inputClassName(!isEditing || sameAsCurrentAddress)} />
+                </Field>
+                <Field label="District">
+                  <input name="permanentDistrict" value={form.permanentDistrict} onChange={handleChange} disabled={!isEditing || sameAsCurrentAddress} className={inputClassName(!isEditing || sameAsCurrentAddress)} />
+                </Field>
+                <Field label="State">
+                  <input name="permanentState" value={form.permanentState} onChange={handleChange} disabled={!isEditing || sameAsCurrentAddress} className={inputClassName(!isEditing || sameAsCurrentAddress)} />
+                </Field>
+                <Field label="Country">
+                  <input name="permanentCountry" value={form.permanentCountry} onChange={handleChange} disabled={!isEditing || sameAsCurrentAddress} className={inputClassName(!isEditing || sameAsCurrentAddress)} />
+                </Field>
+                <Field label="Pincode">
+                  <input name="permanentPincode" value={form.permanentPincode} onChange={handleChange} disabled={!isEditing || sameAsCurrentAddress} className={inputClassName(!isEditing || sameAsCurrentAddress)} />
+                </Field>
+              </div>
+            </div>
+          </div>
         </div>
       </SectionShell>
     );
@@ -688,10 +900,20 @@ export default function DetailedEmployeeProfile({
             <input type="date" name="confirmationDate" value={form.confirmationDate} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
           </Field>
           <Field label="Probation Period (days)">
-            <input name="probationPeriodDays" value={form.probationPeriodDays} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+            <select name="probationPeriodDays" value={form.probationPeriodDays} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              <option value="">Select probation period</option>
+              {PROBATION_PERIOD_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option} days</option>
+              ))}
+            </select>
           </Field>
           <Field label="Notice Period (days)">
-            <input name="noticePeriodDays" value={form.noticePeriodDays} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+            <select name="noticePeriodDays" value={form.noticePeriodDays} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
+              <option value="">Select notice period</option>
+              {NOTICE_PERIOD_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option} days</option>
+              ))}
+            </select>
           </Field>
           <Field label="Department">
             <select name="department" value={form.department} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
@@ -735,6 +957,9 @@ export default function DetailedEmployeeProfile({
           </Field>
           <Field label="Company">
             <input name="company" value={form.company} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          </Field>
+          <Field label="Salary">
+            <input name="salary" type="number" min="0" step="0.01" value={form.salary} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
           </Field>
           <Field label="Referred By">
             <input name="referredBy" value={form.referredBy} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
@@ -807,16 +1032,16 @@ export default function DetailedEmployeeProfile({
     return (
       <SectionShell
         title="Documents & Record Snapshot"
-        subtitle="Current employee files and record metadata available in the system."
+        subtitle="See all required document slots and upload, replace, or delete files from one simple panel."
       >
         <div className="space-y-5">
           <div className="rounded-[1.75rem] border border-outline-variant/10 bg-white/85 p-6 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-2xl">
                 <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary/75">Employee Documents</p>
-                <h3 className="mt-2 text-2xl font-bold text-on-surface">Clean, organized employee records</h3>
+                <h3 className="mt-2 text-2xl font-bold text-on-surface">All required employee documents</h3>
                 <p className="mt-2 text-sm text-on-surface-variant">
-                  Every uploaded file is grouped into a polished card with quick metadata and a direct open action.
+                  Every required document stays visible here, including missing ones, so HR can upload or replace them anytime.
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-3 lg:min-w-[360px] lg:grid-cols-3">
@@ -836,65 +1061,105 @@ export default function DetailedEmployeeProfile({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            {documentList.length === 0 ? (
-              <div className="rounded-[1.75rem] border border-dashed border-outline-variant/20 bg-surface-container-lowest px-6 py-10 text-sm text-on-surface-variant md:col-span-2">
-                No uploaded documents are available for this employee yet.
-              </div>
-            ) : (
-              documentList.map((item: any) => (
-                <a
-                  key={item.id}
-                  href={item.file_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="group relative overflow-hidden rounded-[1.75rem] border border-outline-variant/10 bg-white p-5 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.45)] transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_24px_60px_-32px_rgba(139,92,246,0.28)]"
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {documentSlots.map((slot) => {
+              const item = slot.document;
+              const isBusy = activeDocumentType === slot.key;
+              const hasDocument = Boolean(item);
+
+              return (
+                <div
+                  key={slot.key}
+                  className="rounded-[1.5rem] border border-outline-variant/10 bg-white p-5 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.18)]"
                 >
-                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-violet-400 via-primary to-fuchsia-300 opacity-90" />
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-lg shadow-slate-900/15">
-                        <span className="material-symbols-outlined text-[26px]">
-                          {getDocumentIcon(item.document_type, item.file_name)}
+                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${hasDocument ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                        <span className="material-symbols-outlined text-[24px]">
+                          {getDocumentIcon(slot.key, item?.file_name)}
                         </span>
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="inline-flex rounded-full bg-primary/8 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-primary">
-                            {formatDocumentLabel(item.document_type)}
+                            {slot.label}
                           </span>
-                          <span className="inline-flex rounded-full border border-outline-variant/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
-                            {pickFirstText(item.file_name?.split('.').pop()?.toUpperCase(), 'FILE')}
+                          <span className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${hasDocument ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
+                            {hasDocument ? 'Uploaded' : 'Missing'}
                           </span>
                         </div>
                         <h4 className="mt-3 break-words text-lg font-bold text-on-surface">
-                          {pickFirstText(item.file_name, 'Open file')}
+                          {item?.file_name || 'No file uploaded yet'}
                         </h4>
                         <p className="mt-1 text-sm text-on-surface-variant">
-                          Secure employee file ready for review, download, or verification.
+                          {hasDocument
+                            ? `Updated ${toDisplayDate(item.updated_at || item.created_at)}`
+                            : 'Upload this required document for the employee record.'}
                         </p>
                       </div>
                     </div>
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-lowest text-on-surface-variant transition group-hover:border-primary/20 group-hover:text-primary">
-                      <span className="material-symbols-outlined">open_in_new</span>
-                    </div>
+                    {hasDocument ? (
+                      <a
+                        href={item.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-outline-variant/10 bg-surface-container-lowest text-on-surface-variant transition hover:border-primary/20 hover:text-primary"
+                      >
+                        <span className="material-symbols-outlined">open_in_new</span>
+                      </a>
+                    ) : null}
                   </div>
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-2xl bg-surface-container-lowest px-4 py-3">
                       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">File Size</p>
-                      <p className="mt-1 text-sm font-semibold text-on-surface">{formatFileSize(item.file_size)}</p>
+                      <p className="mt-1 text-sm font-semibold text-on-surface">{hasDocument ? formatFileSize(item.file_size) : '--'}</p>
                     </div>
                     <div className="rounded-2xl bg-surface-container-lowest px-4 py-3">
                       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">Updated</p>
                       <p className="mt-1 text-sm font-semibold text-on-surface">
-                        {toDisplayDate(item.updated_at || item.created_at)}
+                        {hasDocument ? toDisplayDate(item.updated_at || item.created_at) : '--'}
                       </p>
                     </div>
                   </div>
-                </a>
-              ))
-            )}
+
+                  <div className="mt-5 rounded-2xl border border-outline-variant/10 bg-surface-container-lowest px-4 py-4">
+                    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-dashed border-outline-variant/20 bg-white px-4 py-3 text-sm font-semibold text-on-surface">
+                      <span className="truncate">
+                        {slot.selectedFile?.name || (hasDocument ? 'Choose new file to replace' : 'Choose file to upload')}
+                      </span>
+                      <span className="material-symbols-outlined text-base">upload_file</span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(event) => handleDocumentFileChange(slot.key, event.target.files?.[0] || null)}
+                      />
+                    </label>
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleDocumentUpload(slot.key)}
+                        disabled={isBusy || !slot.selectedFile}
+                        className="rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-on-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isBusy ? 'Saving...' : hasDocument ? 'Replace' : 'Upload'}
+                      </button>
+                      {hasDocument ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDocumentDelete(slot.key)}
+                          disabled={isBusy}
+                          className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Delete
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="rounded-[1.75rem] border border-outline-variant/10 bg-white/85 p-6 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.3)] backdrop-blur">
@@ -1018,7 +1283,14 @@ export default function DetailedEmployeeProfile({
           <div className="flex flex-wrap gap-3">
             {isEditing ? (
               <>
-                <button type="button" onClick={() => { setForm(normalizeEmployeeToForm(employee)); setIsEditing(false); setError(''); setMessage(''); }} className="rounded-2xl border border-outline-variant/15 bg-white px-5 py-3 text-sm font-bold text-on-surface">
+                <button type="button" onClick={() => {
+                  const nextForm = normalizeEmployeeToForm(employee);
+                  setForm(nextForm);
+                  setSameAsCurrentAddress(isPermanentAddressSameAsCurrent(nextForm));
+                  setIsEditing(false);
+                  setError('');
+                  setMessage('');
+                }} className="rounded-2xl border border-outline-variant/15 bg-white px-5 py-3 text-sm font-bold text-on-surface">
                   Cancel
                 </button>
                 <button type="button" onClick={handleSave} disabled={saving} className="rounded-2xl bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-lg shadow-primary/20 disabled:cursor-not-allowed disabled:opacity-60">

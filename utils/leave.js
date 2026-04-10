@@ -5,6 +5,7 @@ import {
   isEmployeeScheduledOff,
   listDatesInRange,
 } from '@/utils/attendance';
+import { deriveEmploymentFields } from '@/utils/hrm-employment';
 
 const MONTHLY_DEFAULTS = {
   'Casual Leave': 0.5,
@@ -81,24 +82,90 @@ export function isMissingLeaveLedgerError(error) {
   );
 }
 
+function isMissingEmploymentColumnsError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('employment_lifecycle_status') ||
+    message.includes('current_stage') ||
+    message.includes('could not find the column') ||
+    (message.includes('column') && message.includes('does not exist'))
+  );
+}
+
+const EMPLOYEE_LEAVE_CONTEXT_SELECT_BASE =
+  'id, employee_id, name, employee_status, date_of_joining, working_days, second_saturday_off';
+const EMPLOYEE_LEAVE_CONTEXT_SELECT_WITH_EMPLOYMENT_FIELDS =
+  `${EMPLOYEE_LEAVE_CONTEXT_SELECT_BASE}, employment_lifecycle_status, current_stage`;
+
 export async function getEmployeeLeaveContext(employeeId) {
-  const { data: employee, error } = await adminClient
+  let employeeResult = await adminClient
     .from('hrm_employees')
-    .select('id, employee_id, name, employee_status, employment_lifecycle_status, current_stage, date_of_joining, working_days, second_saturday_off')
+    .select(EMPLOYEE_LEAVE_CONTEXT_SELECT_WITH_EMPLOYMENT_FIELDS)
     .eq('id', employeeId)
     .maybeSingle();
+
+  if (employeeResult.error && isMissingEmploymentColumnsError(employeeResult.error)) {
+    employeeResult = await adminClient
+      .from('hrm_employees')
+      .select(EMPLOYEE_LEAVE_CONTEXT_SELECT_BASE)
+      .eq('id', employeeId)
+      .maybeSingle();
+  }
+
+  const { data: employee, error } = employeeResult;
 
   if (error || !employee?.id) {
     throw new Error(error?.message || 'Employee context could not be loaded');
   }
 
+  const employment = deriveEmploymentFields(employee);
+
   return {
     ...employee,
+    employment_lifecycle_status:
+      employee.employment_lifecycle_status ?? employment.employmentLifecycleStatus,
+    current_stage: employee.current_stage ?? employment.currentStage,
+    resolved_employment_lifecycle_status: employment.employmentLifecycleStatus,
+    resolved_current_stage: employment.currentStage,
     workingSchedule: {
       workingDays: employee.working_days || [],
       secondSaturdayOff: Boolean(employee.second_saturday_off),
     },
   };
+}
+
+export async function listActiveEmployeesForLeave() {
+  let employeeResult = await adminClient
+    .from('hrm_employees')
+    .select(EMPLOYEE_LEAVE_CONTEXT_SELECT_WITH_EMPLOYMENT_FIELDS)
+    .eq('employment_lifecycle_status', 'active')
+    .order('name', { ascending: true });
+
+  if (employeeResult.error && isMissingEmploymentColumnsError(employeeResult.error)) {
+    employeeResult = await adminClient
+      .from('hrm_employees')
+      .select(EMPLOYEE_LEAVE_CONTEXT_SELECT_BASE)
+      .eq('employee_status', 'active')
+      .order('name', { ascending: true });
+  }
+
+  const { data: employees, error } = employeeResult;
+
+  if (error) {
+    throw new Error(error.message || 'Failed to load active employees');
+  }
+
+  return (employees || []).map((employee) => {
+    const employment = deriveEmploymentFields(employee);
+    return {
+      ...employee,
+      employment_lifecycle_status:
+        employee.employment_lifecycle_status ?? employment.employmentLifecycleStatus,
+      current_stage: employee.current_stage ?? employment.currentStage,
+      resolved_employment_lifecycle_status: employment.employmentLifecycleStatus,
+      resolved_current_stage: employment.currentStage,
+    };
+  });
 }
 
 export async function listActiveLeaveTypes() {

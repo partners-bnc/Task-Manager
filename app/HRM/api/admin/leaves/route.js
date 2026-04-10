@@ -6,6 +6,7 @@ import {
   buildLeaveSummary,
   getEmployeeLeaveContext,
   isMissingLeaveSchemaError,
+  listActiveEmployeesForLeave,
   listActiveLeaveTypes,
   syncEmployeeLeaveBalances,
 } from '@/utils/leave';
@@ -36,18 +37,10 @@ export async function GET() {
       return auth.error;
     }
 
-    const [{ data: employees, error: employeesError }, leaveTypes] = await Promise.all([
-      adminClient
-        .from('hrm_employees')
-        .select('id, employee_id, name, employee_status, employment_lifecycle_status, current_stage, date_of_joining, working_days, second_saturday_off')
-        .eq('employment_lifecycle_status', 'active')
-        .order('name', { ascending: true }),
+    const [employees, leaveTypes] = await Promise.all([
+      listActiveEmployeesForLeave(),
       listActiveLeaveTypes(),
     ]);
-
-    if (employeesError) {
-      return NextResponse.json({ error: employeesError.message || 'Failed to load employees' }, { status: 500 });
-    }
 
     const leaveTypeMap = new Map(leaveTypes.map((type) => [type.id, type]));
 
