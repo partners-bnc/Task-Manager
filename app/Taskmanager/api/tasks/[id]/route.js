@@ -480,6 +480,93 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: 'Subtask created', subtaskId: newSubtask.id });
     }
 
+    // Handle status-only update (allowed for employees with task access and admins)
+    // This is used by the status buttons in the UI
+    if (typeof body?.status === 'string' && Object.keys(body).length === 1) {
+      const normalizedStatus = ['pending', 'in_progress', 'completed'].includes(body.status) ? body.status : 'pending';
+
+      const { error: updateError } = await adminClient
+        .from('tasks')
+        .update({
+          status: normalizedStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', taskId);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Task status updated' });
+    }
+
+    // Handle task main fields update (taskName, description, label, priority, dueDate, frequency, status)
+    // These fields require admin privileges
+    const hasMainFields =
+      typeof body?.taskName === 'string' ||
+      typeof body?.description === 'string' ||
+      typeof body?.label === 'string' ||
+      typeof body?.priority === 'string' ||
+      Object.prototype.hasOwnProperty.call(body, 'dueDate') ||
+      Object.prototype.hasOwnProperty.call(body, 'frequency') ||
+      typeof body?.status === 'string';
+
+    if (hasMainFields) {
+      // Require admin for main task fields update
+      if (actor.type !== 'admin') {
+        return NextResponse.json({ error: 'Only admins can update task details' }, { status: 403 });
+      }
+
+      const updatePayload = {};
+      if (typeof body?.taskName === 'string') {
+        const taskName = body.taskName.trim();
+        if (!taskName) {
+          return NextResponse.json({ error: 'Task name cannot be empty' }, { status: 400 });
+        }
+        updatePayload.task_name = taskName;
+      }
+      if (typeof body?.description === 'string') {
+        updatePayload.description = body.description;
+      }
+      if (typeof body?.label === 'string') {
+        updatePayload.label = body.label || null;
+        await ensureTaskLabelExists(updatePayload.label);
+      }
+      if (typeof body?.priority === 'string') {
+        const priority = ['low', 'medium', 'high'].includes(body.priority) ? body.priority : 'medium';
+        updatePayload.priority = priority;
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'dueDate')) {
+        updatePayload.due_date = normalizeDueDate(body.dueDate);
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'frequency')) {
+        const frequency = ['weekly', 'monthly', 'yearly'].includes(body.frequency) ? body.frequency : null;
+        updatePayload.frequency = frequency;
+      }
+      if (typeof body?.status === 'string') {
+        const normalizedStatus = ['pending', 'in_progress', 'completed'].includes(body.status) ? body.status : 'pending';
+        updatePayload.status = normalizedStatus;
+      }
+
+      if (Object.keys(updatePayload).length === 0) {
+        return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+      }
+
+      updatePayload.updated_at = new Date().toISOString();
+
+      const { error: updateError } = await adminClient
+        .from('tasks')
+        .update(updatePayload)
+        .eq('id', taskId);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Task updated' });
+    }
+
+    // Handle progress percentage update (allowed for admins and employees with task access)
     if (typeof body?.progressPercentage === 'number') {
       const progress = Math.min(100, Math.max(0, Math.round(body.progressPercentage)));
 
@@ -498,71 +585,8 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: 'Task progress updated' });
     }
 
-    if (typeof body?.status === 'string') {
-      const normalizedStatus = ['pending', 'in_progress', 'completed'].includes(body.status) ? body.status : 'pending';
-
-      const { error: updateError } = await adminClient
-        .from('tasks')
-        .update({
-          status: normalizedStatus,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', taskId);
-
-      if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 500 });
-      }
-
-      return NextResponse.json({ success: true, message: 'Task status updated' });
-    }
-
-    if (actor.type !== 'admin') {
-      return NextResponse.json({ error: 'Only admins can update task details' }, { status: 403 });
-    }
-
-    const updatePayload = {};
-    if (typeof body?.taskName === 'string') {
-      const taskName = body.taskName.trim();
-      if (!taskName) {
-        return NextResponse.json({ error: 'Task name cannot be empty' }, { status: 400 });
-      }
-      updatePayload.task_name = taskName;
-    }
-    if (typeof body?.description === 'string') {
-      updatePayload.description = body.description;
-    }
-    if (typeof body?.label === 'string') {
-      updatePayload.label = body.label || null;
-      await ensureTaskLabelExists(updatePayload.label);
-    }
-    if (typeof body?.priority === 'string') {
-      const priority = ['low', 'medium', 'high'].includes(body.priority) ? body.priority : 'medium';
-      updatePayload.priority = priority;
-    }
-    if (Object.prototype.hasOwnProperty.call(body, 'dueDate')) {
-      updatePayload.due_date = normalizeDueDate(body.dueDate);
-    }
-    if (Object.prototype.hasOwnProperty.call(body, 'frequency')) {
-      const frequency = ['weekly', 'monthly', 'yearly'].includes(body.frequency) ? body.frequency : null;
-      updatePayload.frequency = frequency;
-    }
-
-    if (Object.keys(updatePayload).length === 0) {
-      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
-    }
-
-    updatePayload.updated_at = new Date().toISOString();
-
-    const { error: updateError } = await adminClient
-      .from('tasks')
-      .update(updatePayload)
-      .eq('id', taskId);
-
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, message: 'Task updated' });
+    // If nothing matched, return error
+    return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
   } catch (error) {
     console.error('Error updating task:', error);
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
