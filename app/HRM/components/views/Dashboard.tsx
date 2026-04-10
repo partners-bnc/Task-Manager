@@ -93,9 +93,13 @@ function formatHolidayTypeLabel(type) {
 export default function Dashboard({
   employee,
   setCurrentTab,
+  onLogout,
+  isLoggingOut,
 }: {
   employee?: { name?: string; employee_id?: string; working_days?: string[]; second_saturday_off?: boolean } | null;
   setCurrentTab?: (tab: string) => void;
+  onLogout?: () => Promise<void>;
+  isLoggingOut?: boolean;
 }) {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isSwipesModalOpen, setIsSwipesModalOpen] = useState(false);
