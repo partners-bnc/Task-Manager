@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { adminClient } from '@/utils/supabase/admin';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import { getHrAdminDashboardSnapshot } from '@/utils/hr-admins';
 import { deriveEmploymentFields } from '@/utils/hrm-employment';
+import { getCurrentDateInTimeZone } from '@/utils/attendance';
+import { isTicketClosedStatus } from '@/utils/tickets';
 
 function getUpcomingBirthdays(employees = []) {
   const today = new Date();
@@ -72,6 +75,67 @@ function buildLifecycleReminders(employees = []) {
     .sort((left, right) => String(left.dueDate || '').localeCompare(String(right.dueDate || '')));
 }
 
+async function getPendingTaskMetrics(authContext) {
+  const today = getCurrentDateInTimeZone();
+
+  const [leaveResult, regularizationResult, expensesResult, ticketsResult, lateAttendanceResult] = await Promise.all([
+    adminClient
+      .from('hrm_leave_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
+    adminClient
+      .from('hrm_regularization_request_recipients')
+      .select('id, request:hrm_regularization_requests!inner(id, status)', { count: 'exact' })
+      .eq('recipient_type', 'approver')
+      .eq('recipient_role', 'hr_admin')
+      .eq('recipient_auth_user_id', authContext.userId)
+      .eq('decision_status', 'pending')
+      .eq('request.status', 'pending'),
+    adminClient
+      .from('hrm_expense_claims')
+      .select('id', { count: 'exact', head: true })
+      .eq('reviewer_auth_user_id', authContext.userId)
+      .eq('status', 'submitted'),
+    adminClient
+      .from('hrm_tickets')
+      .select('id, status')
+      .eq('owner_auth_user_id', authContext.userId),
+    adminClient
+      .from('hrm_attendance')
+      .select('id', { count: 'exact', head: true })
+      .eq('date', today)
+      .eq('status', 'late'),
+  ]);
+
+  if (leaveResult.error) {
+    throw new Error(leaveResult.error.message || 'Failed to load leave task count');
+  }
+  if (regularizationResult.error) {
+    throw new Error(regularizationResult.error.message || 'Failed to load regularization task count');
+  }
+  if (expensesResult.error) {
+    throw new Error(expensesResult.error.message || 'Failed to load expense task count');
+  }
+  if (ticketsResult.error) {
+    throw new Error(ticketsResult.error.message || 'Failed to load ticket task count');
+  }
+  if (lateAttendanceResult.error) {
+    throw new Error(lateAttendanceResult.error.message || 'Failed to load late attendance count');
+  }
+
+  const openTickets = (ticketsResult.data || []).filter((ticket) => !isTicketClosedStatus(ticket.status)).length;
+  const pendingTaskCount =
+    (leaveResult.count || 0) +
+    (regularizationResult.count || 0) +
+    (expensesResult.count || 0) +
+    openTickets;
+
+  return {
+    pendingTaskCount,
+    todayLateAttendanceCount: lateAttendanceResult.count || 0,
+  };
+}
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -89,7 +153,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { hrAdmins, employees, recentEmployees, departmentCount, designationCount } = await getHrAdminDashboardSnapshot();
+    const [{ hrAdmins, employees, recentEmployees, departmentCount, designationCount }, taskMetrics] = await Promise.all([
+      getHrAdminDashboardSnapshot(),
+      getPendingTaskMetrics(authContext),
+    ]);
 
     return NextResponse.json({
       success: true,
@@ -106,6 +173,8 @@ export async function GET() {
         onLeaveEmployeeCount: employees.filter((employee) => deriveEmploymentFields(employee).currentStage === 'on_leave').length,
         departmentCount,
         designationCount,
+        pendingTaskCount: taskMetrics.pendingTaskCount,
+        todayLateAttendanceCount: taskMetrics.todayLateAttendanceCount,
       },
       recentEmployees,
       recentHrAdmins: hrAdmins.slice(0, 5),

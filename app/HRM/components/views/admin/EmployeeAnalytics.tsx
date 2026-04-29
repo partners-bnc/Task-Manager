@@ -1,317 +1,378 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import HrmEmptyState from '../../ui/HrmEmptyState';
+import { LoadingPanel } from '../../ui/Skeleton';
+
+type AnalyticsResponse = {
+  success: boolean;
+  filters: {
+    month: string;
+    start: string;
+    end: string;
+  };
+  snapshot: {
+    totalEmployees: number;
+    activeEmployees: number;
+    employeesOnLeave: number;
+    todayLateAttendance: number;
+  };
+  attendance: {
+    presentCount: number;
+    lateCount: number;
+    absentCount: number;
+    halfDayCount: number;
+    totalRows: number;
+    distribution: Array<{
+      key: string;
+      label: string;
+      count: number;
+      statusLabel: string;
+    }>;
+  };
+  leave: {
+    pendingCount: number;
+    approvedCount: number;
+    rejectedCount: number;
+    lopDaysTotal: number;
+  };
+  queue: {
+    pendingRegularizationCount: number;
+    pendingExpenseReviewCount: number;
+    openTicketCount: number;
+    pendingTaskCount: number;
+  };
+  highlights: {
+    topLateEmployees: Array<{
+      id: string;
+      employeeId: string;
+      name: string;
+      department: string;
+      designation: string;
+      lateCount: number;
+    }>;
+  };
+};
+
+function formatMonthLabel(value: string) {
+  if (!value) return 'Current Month';
+  const [year, month] = value.split('-').map(Number);
+  if (!year || !month) return value;
+  return new Date(year, month - 1, 1).toLocaleDateString('en-IN', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function MetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  tone,
+}: {
+  title: string;
+  value: number | string;
+  subtitle: string;
+  icon: string;
+  tone: string;
+}) {
+  return (
+    <div className={`rounded-[1.5rem] border border-white/70 p-4 shadow-[0_16px_32px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.92)] ${tone}`}>
+      <div className="flex items-center gap-3">
+        <span className="material-symbols-outlined block text-[24px] leading-none text-on-surface">{icon}</span>
+        <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-on-surface-variant/70">{title}</p>
+      </div>
+      <div className="mt-6">
+        <p className="text-3xl font-headline font-extrabold text-on-surface">{value}</p>
+        <p className="mt-3 text-sm text-on-surface-variant">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
 
 export default function EmployeeAnalytics() {
+  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadAnalytics() {
+      setLoading(true);
+      setError('');
+
+      try {
+        const response = await fetch(`/HRM/api/admin/analytics?month=${selectedMonth}`, { method: 'GET' });
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to load analytics');
+        }
+
+        if (active) {
+          setAnalytics(result);
+        }
+      } catch (requestError: any) {
+        if (active) {
+          setAnalytics(null);
+          setError(requestError?.message || 'Failed to load analytics');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadAnalytics();
+    return () => {
+      active = false;
+    };
+  }, [selectedMonth]);
+
+  const maxDistributionCount = useMemo(() => {
+    return Math.max(...(analytics?.attendance.distribution || []).map((item) => item.count), 1);
+  }, [analytics?.attendance.distribution]);
+
   return (
-    <div className="p-10 bg-surface w-full">
-      {/* Header Section: Editorial Sanctuary Style */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 mb-12">
-        <div className="max-w-2xl">
-          <h2 className="font-headline text-5xl font-extrabold text-on-surface tracking-tight mb-4">Workforce Intelligence</h2>
-          <p className="text-on-surface-variant text-lg leading-relaxed">
-            A sanctuary for decision-making. Monitor the health, pulse, and movement of your organization through high-fidelity behavioral data.
+    <div className="mx-auto max-w-7xl space-y-6 px-6 py-6">
+      <section className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100/90 text-violet-700 shadow-sm">
+              <span className="material-symbols-outlined text-[22px]">insights</span>
+            </div>
+            <h1 className="text-3xl font-headline font-bold text-on-background">HR Analytics</h1>
+          </div>
+          <p className="pl-14 text-sm leading-6 text-on-surface-variant">
+            Minimal monthly analytics for workforce movement, attendance, leave, and the live HR admin queue.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3">
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-lowest text-on-surface font-semibold rounded-xl hover:bg-surface-container transition-colors shadow-sm border border-outline-variant/10">
-            <span className="material-symbols-outlined text-xl">calendar_today</span>
-            Last 12 Months
-          </button>
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-on-primary font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-primary/20">
-            <span className="material-symbols-outlined text-xl">download</span>
-            Export PDF
-          </button>
-        </div>
-      </div>
 
-      {/* AI Insights Banner (Bento Style) */}
-      <div className="grid grid-cols-12 gap-8 mb-12">
-        <div className="col-span-12 lg:col-span-8 bg-tertiary-container rounded-[2rem] p-8 flex items-center gap-10 overflow-hidden relative shadow-sm">
-          <div className="relative z-10 space-y-4 max-w-lg">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/40 rounded-full text-xs font-bold text-on-tertiary-container backdrop-blur-sm">
-              <span className="material-symbols-outlined text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>auto_awesome</span>
-              AI ANALYTICS INSIGHT
-            </div>
-            <h3 className="font-headline text-3xl font-bold text-on-tertiary-container leading-tight">
-              Turnover is 12% higher in Engineering compared to Sales.
-            </h3>
-            <p className="text-on-tertiary-fixed-variant text-base">
-              Current data suggests high workload and lack of growth opportunities as primary drivers. Recommending career path review for Senior II roles.
-            </p>
-            <button className="text-sm font-bold text-primary flex items-center gap-2 pt-2 group bg-white/50 w-fit px-4 py-2 rounded-lg hover:bg-white/70 transition-colors">
-              Explore Strategy
-              <span className="material-symbols-outlined group-hover:translate-x-1 transition-transform">arrow_forward</span>
-            </button>
-          </div>
-          <div className="absolute right-[-5%] top-[-10%] opacity-10 pointer-events-none">
-            <span className="material-symbols-outlined text-[300px]" style={{ fontVariationSettings: "'wght' 100" }}>insights</span>
-          </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(event) => setSelectedMonth(event.target.value)}
+            className="rounded-2xl border border-outline-variant/15 bg-white px-4 py-3 text-sm text-on-surface outline-none"
+          />
         </div>
+      </section>
 
-        {/* Quick Stats Chips */}
-        <div className="col-span-12 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="bg-surface-container-lowest p-6 rounded-[1.5rem] flex flex-col justify-between hover:shadow-xl transition-shadow group border border-outline-variant/10">
-            <span className="material-symbols-outlined text-primary mb-4 p-2 bg-primary/10 w-fit rounded-lg group-hover:scale-110 transition-transform">person_add</span>
-            <div>
-              <p className="text-[11px] text-on-surface-variant font-bold tracking-widest uppercase mb-1">Retention</p>
-              <h4 className="text-2xl font-bold font-headline">94.2%</h4>
-              <p className="text-xs text-green-600 font-bold flex items-center gap-1 mt-1">
-                <span className="material-symbols-outlined text-xs">trending_up</span>
-                +2.4%
-              </p>
-            </div>
-          </div>
-          <div className="bg-surface-container-lowest p-6 rounded-[1.5rem] flex flex-col justify-between hover:shadow-xl transition-shadow group border border-outline-variant/10">
-            <span className="material-symbols-outlined text-error mb-4 p-2 bg-error/10 w-fit rounded-lg group-hover:scale-110 transition-transform">group_off</span>
-            <div>
-              <p className="text-[11px] text-on-surface-variant font-bold tracking-widest uppercase mb-1">Turnover</p>
-              <h4 className="text-2xl font-bold font-headline">5.8%</h4>
-              <p className="text-xs text-red-600 font-bold flex items-center gap-1 mt-1">
-                <span className="material-symbols-outlined text-xs">trending_down</span>
-                -0.8%
-              </p>
-            </div>
-          </div>
-          <div className="bg-surface-container-lowest p-6 rounded-[1.5rem] flex flex-col justify-between hover:shadow-xl transition-shadow group border border-outline-variant/10">
-            <span className="material-symbols-outlined text-secondary mb-4 p-2 bg-secondary/10 w-fit rounded-lg group-hover:scale-110 transition-transform">diversity_3</span>
-            <div>
-              <p className="text-[11px] text-on-surface-variant font-bold tracking-widest uppercase mb-1">Diversity</p>
-              <h4 className="text-2xl font-bold font-headline">68%</h4>
-              <p className="text-xs text-on-surface-variant font-bold mt-1">Target: 75%</p>
-            </div>
-          </div>
-          <div className="bg-surface-container-lowest p-6 rounded-[1.5rem] flex flex-col justify-between hover:shadow-xl transition-shadow group border border-outline-variant/10">
-            <span className="material-symbols-outlined text-primary mb-4 p-2 bg-primary/10 w-fit rounded-lg group-hover:scale-110 transition-transform">groups</span>
-            <div>
-              <p className="text-[11px] text-on-surface-variant font-bold tracking-widest uppercase mb-1">Headcount</p>
-              <h4 className="text-2xl font-bold font-headline">1,284</h4>
-              <p className="text-xs text-green-600 font-bold flex items-center gap-1 mt-1">
-                <span className="material-symbols-outlined text-xs">trending_up</span>
-                +42
-              </p>
-            </div>
-          </div>
+      {loading ? (
+        <LoadingPanel
+          title="Loading HR analytics"
+          message="Pulling workforce, attendance, leave, and queue insights for the selected month."
+        />
+      ) : error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">
+          {error}
         </div>
-      </div>
+      ) : analytics ? (
+        <div className="space-y-6">
+          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              title="Total Employees"
+              value={analytics.snapshot.totalEmployees}
+              subtitle={`${analytics.snapshot.activeEmployees} active right now`}
+              icon="groups"
+              tone="bg-gradient-to-br from-violet-50 via-white to-fuchsia-100/70"
+            />
+            <MetricCard
+              title="Active Employees"
+              value={analytics.snapshot.activeEmployees}
+              subtitle="Current active workforce"
+              icon="badge"
+              tone="bg-gradient-to-br from-sky-50 via-white to-blue-100/70"
+            />
+            <MetricCard
+              title="Employees On Leave"
+              value={analytics.snapshot.employeesOnLeave}
+              subtitle="Current live leave status"
+              icon="event_busy"
+              tone="bg-gradient-to-br from-amber-50 via-white to-orange-100/60"
+            />
+            <MetricCard
+              title="Today Late Attendance"
+              value={analytics.snapshot.todayLateAttendance}
+              subtitle="Late-marked employees today"
+              icon="alarm_on"
+              tone="bg-gradient-to-br from-emerald-50 via-white to-teal-100/70"
+            />
+          </section>
 
-      {/* Charts Grid (Asymmetric) */}
-      <div className="grid grid-cols-12 gap-8 mb-12">
-        {/* Headcount Growth Trend */}
-        <div className="col-span-12 lg:col-span-7 bg-surface-container-lowest rounded-[2rem] p-8 border border-outline-variant/10 shadow-sm">
-          <div className="flex justify-between items-start mb-10">
-            <div>
-              <h4 className="font-headline text-xl font-bold">Headcount Growth</h4>
-              <p className="text-sm text-on-surface-variant">Net change in workforce size over time</p>
-            </div>
-            <div className="flex gap-2">
-              <div className="flex items-center gap-2 px-3 py-1 bg-surface-container-low border border-outline-variant/10 rounded-lg">
-                <span className="w-2 h-2 rounded-full bg-primary"></span>
-                <span className="text-xs font-bold">Total</span>
-              </div>
-              <div className="flex items-center gap-2 px-3 py-1 bg-surface-container-low border border-outline-variant/10 rounded-lg">
-                <span className="w-2 h-2 rounded-full bg-primary-container"></span>
-                <span className="text-xs font-bold">Net New</span>
-              </div>
-            </div>
-          </div>
-          <div className="h-64 flex items-end justify-between gap-4 group">
-            <div className="w-full flex flex-col items-center gap-3">
-              <div className="w-full bg-primary-container/20 border border-primary-container/30 rounded-t-xl relative group-hover:bg-primary-container/30 transition-all h-[40%] cursor-pointer hover:!bg-primary-container/50">
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity bg-surface shadow-sm px-2 py-1 rounded">840</div>
-              </div>
-              <span className="text-[10px] font-bold text-on-surface-variant">JAN</span>
-            </div>
-            <div className="w-full flex flex-col items-center gap-3">
-              <div className="w-full bg-primary-container/20 border border-primary-container/30 rounded-t-xl relative group-hover:bg-primary-container/30 transition-all h-[45%] cursor-pointer hover:!bg-primary-container/50"></div>
-              <span className="text-[10px] font-bold text-on-surface-variant">FEB</span>
-            </div>
-            <div className="w-full flex flex-col items-center gap-3">
-              <div className="w-full bg-primary-container/20 border border-primary-container/30 rounded-t-xl relative group-hover:bg-primary-container/30 transition-all h-[52%] cursor-pointer hover:!bg-primary-container/50"></div>
-              <span className="text-[10px] font-bold text-on-surface-variant">MAR</span>
-            </div>
-            <div className="w-full flex flex-col items-center gap-3">
-              <div className="w-full bg-primary-container/20 border border-primary-container/30 rounded-t-xl relative group-hover:bg-primary-container/30 transition-all h-[60%] cursor-pointer hover:!bg-primary-container/50"></div>
-              <span className="text-[10px] font-bold text-on-surface-variant">APR</span>
-            </div>
-            <div className="w-full flex flex-col items-center gap-3">
-              <div className="w-full bg-primary-container/20 border border-primary-container/30 rounded-t-xl relative group-hover:bg-primary-container/30 transition-all h-[68%] cursor-pointer hover:!bg-primary-container/50"></div>
-              <span className="text-[10px] font-bold text-on-surface-variant">MAY</span>
-            </div>
-            <div className="w-full flex flex-col items-center gap-3">
-              <div className="w-full bg-primary-container/20 border border-primary-container/30 rounded-t-xl relative group-hover:bg-primary-container/30 transition-all h-[75%] cursor-pointer hover:!bg-primary-container/50"></div>
-              <span className="text-[10px] font-bold text-on-surface-variant">JUN</span>
-            </div>
-            <div className="w-full flex flex-col items-center gap-3">
-              <div className="w-full bg-primary border-t border-white/20 rounded-t-xl relative h-[88%] shadow-lg shadow-primary/20 cursor-pointer">
-                <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-surface text-primary shadow-md px-2 py-1 rounded">1,284</div>
-              </div>
-              <span className="text-[10px] font-bold text-primary">JUL</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Performance Heatmap */}
-        <div className="col-span-12 lg:col-span-5 bg-surface-container-lowest rounded-[2rem] p-8 flex flex-col border border-outline-variant/10 shadow-sm">
-          <div className="mb-8">
-            <h4 className="font-headline text-xl font-bold">Performance Matrix</h4>
-            <p className="text-sm text-on-surface-variant">Cross-departmental output scores</p>
-          </div>
-          <div className="flex-1 space-y-4">
-            <div className="flex items-center gap-4 group">
-              <span className="w-24 text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter group-hover:text-on-surface transition-colors">Engineering</span>
-              <div className="flex-1 flex gap-1">
-                <div className="flex-1 h-8 bg-primary/20 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/40 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/60 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/80 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary rounded-sm shadow-sm group-hover:scale-[1.02] transition-transform"></div>
-              </div>
-              <span className="text-xs font-bold text-primary group-hover:scale-110 transition-transform">4.8</span>
-            </div>
-            <div className="flex items-center gap-4 group">
-              <span className="w-24 text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter group-hover:text-on-surface transition-colors">Design</span>
-              <div className="flex-1 flex gap-1">
-                <div className="flex-1 h-8 bg-primary/20 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/40 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/60 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/80 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/90 rounded-sm shadow-sm group-hover:scale-[1.02] transition-transform"></div>
-              </div>
-              <span className="text-xs font-bold group-hover:scale-110 transition-transform">4.6</span>
-            </div>
-            <div className="flex items-center gap-4 group">
-              <span className="w-24 text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter group-hover:text-on-surface transition-colors">Marketing</span>
-              <div className="flex-1 flex gap-1">
-                <div className="flex-1 h-8 bg-primary/10 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/20 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/30 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/40 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/50 rounded-sm group-hover:scale-[1.02] transition-transform"></div>
-              </div>
-              <span className="text-xs font-bold group-hover:scale-110 transition-transform">3.2</span>
-            </div>
-            <div className="flex items-center gap-4 group">
-              <span className="w-24 text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter group-hover:text-on-surface transition-colors">Operations</span>
-              <div className="flex-1 flex gap-1">
-                <div className="flex-1 h-8 bg-primary/10 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/20 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/30 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/40 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/50 rounded-sm group-hover:scale-[1.02] transition-transform"></div>
-              </div>
-              <span className="text-xs font-bold group-hover:scale-110 transition-transform">3.5</span>
-            </div>
-            <div className="flex items-center gap-4 group">
-              <span className="w-24 text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter group-hover:text-on-surface transition-colors">Sales</span>
-              <div className="flex-1 flex gap-1">
-                <div className="flex-1 h-8 bg-primary/20 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/40 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/60 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary/80 rounded-sm"></div>
-                <div className="flex-1 h-8 bg-primary rounded-sm shadow-sm group-hover:scale-[1.02] transition-transform"></div>
-              </div>
-              <span className="text-xs font-bold text-primary group-hover:scale-110 transition-transform">4.9</span>
-            </div>
-          </div>
-          <div className="mt-8 flex justify-between items-center px-2">
-            <span className="text-[10px] font-bold text-on-surface-variant">Low Output</span>
-            <div className="flex-1 h-1.5 mx-4 rounded-full bg-gradient-to-r from-primary/10 to-primary"></div>
-            <span className="text-[10px] font-bold text-on-surface-variant">High Output</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Diversity & Inclusion (Editorial Layout) */}
-      <div className="grid grid-cols-12 gap-8">
-        <div className="col-span-12 lg:col-span-4 bg-surface-container-lowest rounded-[2rem] p-8 border border-outline-variant/10 shadow-sm">
-          <h4 className="font-headline text-xl font-bold mb-8">Gender Balance</h4>
-          <div className="relative flex items-center justify-center py-10 group">
-            <svg className="w-48 h-48 -rotate-90 group-hover:scale-105 transition-transform duration-500">
-              <circle className="text-secondary-container" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" strokeWidth="20"></circle>
-              <circle className="text-primary hover:stroke-primary-dim transition-colors" cx="96" cy="96" fill="transparent" r="80" stroke="currentColor" strokeDasharray="502" strokeDashoffset="230" strokeWidth="20"></circle>
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl font-extrabold font-headline">54%</span>
-              <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">Female</span>
-            </div>
-          </div>
-          <div className="mt-8 space-y-4">
-            <div className="flex justify-between items-center px-3 py-2 bg-primary/5 rounded-lg border border-primary/10">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-primary shadow-[0_0_8px_rgba(139,92,246,0.35)]"></span>
-                <span className="text-sm font-semibold text-primary">Female</span>
-              </div>
-              <span className="text-sm font-extrabold text-primary">54%</span>
-            </div>
-            <div className="flex justify-between items-center px-3 py-2 hover:bg-surface-container-low transition-colors rounded-lg cursor-default border border-transparent">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-secondary-container"></span>
-                <span className="text-sm font-medium">Male</span>
-              </div>
-              <span className="text-sm font-bold">42%</span>
-            </div>
-            <div className="flex justify-between items-center px-3 py-2 hover:bg-surface-container-low transition-colors rounded-lg cursor-default border border-transparent">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-surface-variant"></span>
-                <span className="text-sm font-medium">Non-binary</span>
-              </div>
-              <span className="text-sm font-bold">4%</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest rounded-[2rem] p-8 overflow-hidden relative border border-outline-variant/10 shadow-sm">
-          <div className="relative z-10">
-            <h4 className="font-headline text-xl font-bold mb-2">Age Distribution</h4>
-            <p className="text-sm text-on-surface-variant mb-10">Generational demographic breakdown</p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              <div className="space-y-4">
-                <div className="h-48 bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl relative flex items-end overflow-hidden group cursor-pointer">
-                  <div className="w-full bg-secondary-dim/20 h-[25%] group-hover:h-[30%] group-hover:bg-secondary-dim/30 transition-all duration-500 flex justify-center items-start pt-2">
-                     <span className="text-[10px] font-bold text-secondary-dim opacity-0 group-hover:opacity-100 transition-opacity">18%</span>
-                  </div>
-                </div>
+          <section className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.95fr)]">
+            <div className="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
+              <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
-                  <h5 className="font-bold text-lg font-headline">18%</h5>
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest leading-tight mt-1">Gen Z<br/>(18-24)</p>
+                  <h2 className="text-xl font-headline font-bold text-on-background">Attendance Insight</h2>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    {formatMonthLabel(analytics.filters.month)} attendance distribution from live records.
+                  </p>
                 </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                  {analytics.attendance.totalRows} rows
+                </span>
               </div>
-              <div className="space-y-4">
-                <div className="h-48 bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl relative flex items-end overflow-hidden group cursor-pointer">
-                  <div className="w-full bg-primary/80 h-[48%] group-hover:h-[55%] group-hover:bg-primary transition-all duration-500 shadow-[0_-4px_12px_rgba(139,92,246,0.18)] flex justify-center items-start pt-2">
-                     <span className="text-[10px] font-bold text-white opacity-0 group-hover:opacity-100 transition-opacity">48%</span>
+
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                {[
+                  { label: 'Present', value: analytics.attendance.presentCount },
+                  { label: 'Late', value: analytics.attendance.lateCount },
+                  { label: 'Absent', value: analytics.attendance.absentCount },
+                  { label: 'Half Day', value: analytics.attendance.halfDayCount },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-outline-variant/10 bg-surface-container-low px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">{item.label}</p>
+                    <p className="mt-3 text-2xl font-headline font-extrabold text-on-surface">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {analytics.attendance.distribution.map((item) => (
+                  <div key={item.key} className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <span className="font-medium text-on-surface">{item.statusLabel}</span>
+                      <span className="font-bold text-on-surface">{item.count}</span>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-surface-container-low">
+                      <div
+                        className={`h-full rounded-full ${
+                          item.key === 'late'
+                            ? 'bg-amber-500'
+                            : item.key === 'absent'
+                              ? 'bg-rose-500'
+                              : item.key === 'halfday'
+                                ? 'bg-sky-500'
+                                : item.key === 'on_leave'
+                                  ? 'bg-violet-500'
+                                  : 'bg-emerald-500'
+                        }`}
+                        style={{ width: `${Math.max((item.count / maxDistributionCount) * 100, item.count > 0 ? 8 : 0)}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
+                <div className="mb-5 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-headline font-bold text-on-background">Leave Insight</h2>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      Review outcomes and LOP impact for {formatMonthLabel(analytics.filters.month)}.
+                    </p>
                   </div>
                 </div>
-                <div className="bg-primary/5 p-2 rounded-lg border border-primary/10 inline-block w-full">
-                  <h5 className="font-bold text-lg text-primary font-headline">48%</h5>
-                  <p className="text-[10px] font-bold text-primary uppercase tracking-widest leading-tight mt-1">Millennial<br/>(25-40)</p>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div className="h-48 bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl relative flex items-end overflow-hidden group cursor-pointer">
-                  <div className="w-full bg-secondary-dim/20 h-[24%] group-hover:h-[28%] group-hover:bg-secondary-dim/30 transition-all duration-500 flex justify-center items-start pt-2">
-                    <span className="text-[10px] font-bold text-secondary-dim opacity-0 group-hover:opacity-100 transition-opacity">24%</span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-low px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Pending Leave</p>
+                    <p className="mt-3 text-2xl font-headline font-extrabold text-on-surface">{analytics.leave.pendingCount}</p>
+                  </div>
+                  <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-low px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Approved</p>
+                    <p className="mt-3 text-2xl font-headline font-extrabold text-on-surface">{analytics.leave.approvedCount}</p>
+                  </div>
+                  <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-low px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Rejected</p>
+                    <p className="mt-3 text-2xl font-headline font-extrabold text-on-surface">{analytics.leave.rejectedCount}</p>
+                  </div>
+                  <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-low px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP Days</p>
+                    <p className="mt-3 text-2xl font-headline font-extrabold text-on-surface">{analytics.leave.lopDaysTotal}</p>
                   </div>
                 </div>
-                <div>
-                  <h5 className="font-bold text-lg font-headline">24%</h5>
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest leading-tight mt-1">Gen X<br/>(41-56)</p>
-                </div>
               </div>
-              <div className="space-y-4">
-                <div className="h-48 bg-surface-container-low/50 border border-outline-variant/10 rounded-2xl relative flex items-end overflow-hidden group cursor-pointer">
-                  <div className="w-full bg-secondary-dim/15 h-[10%] group-hover:h-[15%] group-hover:bg-secondary-dim/25 transition-all duration-500 flex justify-center items-start pt-1">
-                    <span className="text-[10px] font-bold text-secondary-dim opacity-0 group-hover:opacity-100 transition-opacity">10%</span>
+
+              <div className="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
+                <div className="mb-5 flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-headline font-bold text-on-background">HR Admin Queue</h2>
+                    <p className="mt-1 text-sm text-on-surface-variant">
+                      Live operational workload for the current HR admin.
+                    </p>
                   </div>
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                    {analytics.queue.pendingTaskCount} open
+                  </span>
                 </div>
-                <div>
-                  <h5 className="font-bold text-lg font-headline">10%</h5>
-                  <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest leading-tight mt-1">Boomer<br/>(57+)</p>
+
+                <div className="space-y-3">
+                  {[
+                    { label: 'Pending Regularization', value: analytics.queue.pendingRegularizationCount, icon: 'fact_check' },
+                    { label: 'Pending Expense Reviews', value: analytics.queue.pendingExpenseReviewCount, icon: 'receipt_long' },
+                    { label: 'Open Tickets', value: analytics.queue.openTicketCount, icon: 'support_agent' },
+                    { label: 'Pending Tasks for HR Admin', value: analytics.queue.pendingTaskCount, icon: 'assignment_late' },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-outline-variant/10 bg-surface-container-low px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-primary">{item.icon}</span>
+                        <span className="text-sm font-medium text-on-surface">{item.label}</span>
+                      </div>
+                      <span className="text-lg font-headline font-extrabold text-on-surface">{item.value}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
+          </section>
+
+          <section className="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-headline font-bold text-on-background">Top Late Employees</h2>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  Employees with the highest late attendance count in {formatMonthLabel(analytics.filters.month)}.
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                {analytics.highlights.topLateEmployees.length} employees
+              </span>
+            </div>
+
+            {analytics.highlights.topLateEmployees.length === 0 ? (
+              <HrmEmptyState
+                compact
+                icon="celebration"
+                title="No late attendance recorded"
+                message="This month currently has no late-marked employees in the attendance records."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-[820px] w-full text-left">
+                  <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
+                    <tr>
+                      {['Employee', 'Employee ID', 'Department', 'Designation', 'Late Count'].map((column) => (
+                        <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-outline-variant/10">
+                    {analytics.highlights.topLateEmployees.map((employee) => (
+                      <tr key={employee.id}>
+                        <td className="px-4 py-4 text-sm font-semibold text-on-surface">{employee.name}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">{employee.employeeId}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">{employee.department}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">{employee.designation}</td>
+                        <td className="px-4 py-4 text-sm font-bold text-on-surface">{employee.lateCount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

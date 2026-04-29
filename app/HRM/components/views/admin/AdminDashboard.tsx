@@ -195,12 +195,11 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
   }, [admin?.department, admin?.designation, dashboard?.admin?.department, dashboard?.admin?.designation]);
 
   const metrics = dashboard?.metrics || {
-    hrAdminCount: 0,
     employeeCount: 0,
     activeEmployeeCount: 0,
     onLeaveEmployeeCount: 0,
-    departmentCount: 0,
-    designationCount: 0,
+    pendingTaskCount: 0,
+    todayLateAttendanceCount: 0,
   };
   const featuredBirthdayGroup = useMemo(() => {
     const upcomingBirthdays = dashboard?.upcomingBirthdays || [];
@@ -314,8 +313,8 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard title="Total Employees" value={metrics.employeeCount} subtitle={`${metrics.activeEmployeeCount} active right now`} icon="groups" tone="bg-gradient-to-br from-violet-50 via-white to-fuchsia-100/70" />
             <MetricCard title="Employees On Leave" value={metrics.onLeaveEmployeeCount} subtitle="Pulled from live employee status" icon="event_busy" tone="bg-gradient-to-br from-amber-50 via-white to-orange-100/60" />
-            <MetricCard title="HR Admins" value={metrics.hrAdminCount} subtitle={`${metrics.departmentCount} departments supported`} icon="admin_panel_settings" tone="bg-gradient-to-br from-purple-50 via-white to-violet-100/70" />
-            <MetricCard title="Designations" value={metrics.designationCount} subtitle="Current organization structure" icon="badge" tone="bg-gradient-to-br from-emerald-50 via-white to-teal-100/70" />
+            <MetricCard title="Pending Tasks For HR Admin" value={metrics.pendingTaskCount} subtitle="Leave, regularization, expense review, and tickets" icon="assignment_late" tone="bg-gradient-to-br from-purple-50 via-white to-violet-100/70" />
+            <MetricCard title="Today Late Attendance" value={metrics.todayLateAttendanceCount} subtitle="Employees marked late today" icon="alarm_on" tone="bg-gradient-to-br from-emerald-50 via-white to-teal-100/70" />
           </section>
 
           <section className="grid grid-cols-1 items-start gap-7 xl:grid-cols-[minmax(0,1.7fr)_300px]">

@@ -31,6 +31,7 @@ export default function AdminSidebar({
     { id: 'admin-employee-list', label: 'Employee Directory', icon: 'groups' },
     { id: 'admin-module-access', label: 'Module Access', icon: 'verified_user' },
     { id: 'admin-organization-chart', label: 'Organization Chart', icon: 'account_tree' },
+    { id: 'admin-attendance', label: 'Attendance', icon: 'calendar_clock' },
     { id: 'admin-holidays', label: 'Holiday', icon: 'calendar_month' },
     { id: 'admin-leaves', label: 'Leave', icon: 'event_busy' },
     { id: 'admin-regularization', label: 'Regularization', icon: 'fact_check' },

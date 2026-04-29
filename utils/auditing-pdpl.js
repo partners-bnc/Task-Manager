@@ -479,7 +479,6 @@ export async function loadPdplProject(projectId, actor) {
   return {
     id: project.id,
     projectName: project.project_name,
-    companyName: project.company_name,
     clientName: project.client_name,
     projectLeader: project.project_leader,
     projectStartDate: project.project_start_date,
@@ -562,7 +561,6 @@ export async function buildPdplProjectCardData(projects) {
     return {
       id: project.id,
       projectName: project.project_name,
-      companyName: project.company_name,
       clientName: project.client_name,
       projectLeader: project.project_leader,
       projectStartDate: project.project_start_date,
@@ -583,7 +581,6 @@ export async function buildPdplProjectCardData(projects) {
 
 export function normalizePdplProjectPayload(payload = {}) {
   const projectName = String(payload.projectName || payload.project_name || '').trim();
-  const companyName = String(payload.companyName || payload.company_name || '').trim();
   const clientName = String(payload.clientName || payload.client_name || '').trim();
   const projectLeader = String(payload.projectLeader || payload.project_leader || '').trim();
   const projectStartDate = normalizeDate(payload.projectStartDate || payload.project_start_date);
@@ -595,7 +592,6 @@ export function normalizePdplProjectPayload(payload = {}) {
   const memberIds = normalizeMultiValue(payload.memberIds || payload.member_ids);
 
   if (!projectName) throw new Error('Project name is required.');
-  if (!companyName) throw new Error('Company name is required.');
   if (!clientName) throw new Error('Client name is required.');
   if (!projectLeader) throw new Error('Project leader is required.');
   if (projectStartDate && projectEndDate && projectEndDate < projectStartDate) {
@@ -604,7 +600,6 @@ export function normalizePdplProjectPayload(payload = {}) {
 
   return {
     projectName,
-    companyName,
     clientName,
     projectLeader,
     projectStartDate,
@@ -622,7 +617,6 @@ export async function createPdplProject(payload, actor) {
   const insertPayload = {
     id: projectId,
     project_name: normalized.projectName,
-    company_name: normalized.companyName,
     client_name: normalized.clientName,
     project_leader: normalized.projectLeader,
     project_start_date: normalized.projectStartDate,
@@ -665,7 +659,6 @@ export async function updatePdplProject(projectId, payload, actor) {
 
   const updatePayload = {
     project_name: normalized.projectName,
-    company_name: normalized.companyName,
     client_name: normalized.clientName,
     project_leader: normalized.projectLeader,
     project_start_date: normalized.projectStartDate,

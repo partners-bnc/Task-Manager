@@ -142,6 +142,14 @@ const tableInputStyle = {
   background: "#fff",
 };
 
+const PDPL_DB_SECTIONS = ["gantt", "controls", "policies", "documents"];
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isPersistedProjectId(value) {
+  return typeof value === "string" && UUID_PATTERN.test(value);
+}
+
 function normalizeKey(value) {
   return String(value || "")
     .toLowerCase()
@@ -200,6 +208,196 @@ function ensurePdplProject(project) {
       ...(project.pdplData || {}),
     },
   };
+}
+
+function mapPdplProjectCardToLocalProject(project) {
+  return ensurePdplProject({
+    id: project.id,
+    templateId: "pdpl-template",
+    type: "pdpl",
+    icon: "PDPL",
+    status: project.status || "active",
+    name: project.projectName || "",
+    projectLeader: project.projectLeader || "",
+    clientName: project.clientName || "",
+    unit: project.clientName || "",
+    start: project.projectStartDate || "",
+    end: project.projectEndDate || "",
+    projectLength: project.projectLength ?? "",
+    teamMemberIds: Array.isArray(project.members) ? project.members.map((member) => member.id).filter(Boolean) : [],
+    progressPercent: project.progressPercent ?? 0,
+    ganttCount: project.ganttCount ?? 0,
+    controlsCount: project.controlsCount ?? 0,
+    policiesCount: project.policiesCount ?? 0,
+    documentsCount: project.documentsCount ?? 0,
+    members: Array.isArray(project.members) ? project.members : [],
+    pdplData: createEmptyPdplData(),
+    pdplLoadedFromDb: false,
+  });
+}
+
+function mapPdplProjectDetailToLocalProject(project) {
+  return ensurePdplProject({
+    id: project.id,
+    templateId: "pdpl-template",
+    type: "pdpl",
+    icon: "PDPL",
+    status: project.status || "active",
+    name: project.projectName || "",
+    projectLeader: project.projectLeader || "",
+    clientName: project.clientName || "",
+    unit: project.clientName || "",
+    start: project.projectStartDate || "",
+    end: project.projectEndDate || "",
+    projectLength: project.projectLength ?? "",
+    teamMemberIds: Array.isArray(project.members) ? project.members.map((member) => member.employeeId || member.member?.id || member.id).filter(Boolean) : [],
+    members: Array.isArray(project.members) ? project.members : [],
+    pdplData: {
+      ...createEmptyPdplData(),
+      ganttRows: project.sections?.gantt || [],
+      controlRows: project.sections?.controls || [],
+      policyRows: project.sections?.policies || [],
+      documentRows: project.sections?.documents || [],
+    },
+    pdplLoadedFromDb: true,
+  });
+}
+
+function normalizePdplComparableValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizePdplComparableValue(item));
+  }
+  if (value && typeof value === "object") {
+    if ("storagePath" in value || "fileName" in value || "name" in value) {
+      return {
+        storagePath: value.storagePath || "",
+        fileName: value.fileName || value.name || "",
+      };
+    }
+    return Object.keys(value)
+      .sort()
+      .reduce((result, key) => {
+        result[key] = normalizePdplComparableValue(value[key]);
+        return result;
+      }, {});
+  }
+  return value ?? "";
+}
+
+function buildPdplProjectMetaSignature(project) {
+  return JSON.stringify(
+    normalizePdplComparableValue({
+      name: project?.name || "",
+      projectLeader: project?.projectLeader || "",
+      clientName: project?.clientName || "",
+      start: project?.start || "",
+      end: project?.end || "",
+      projectLength: project?.projectLength ?? "",
+      status: project?.status || "active",
+      teamMemberIds: Array.isArray(project?.teamMemberIds) ? [...project.teamMemberIds].map(String).sort() : [],
+    })
+  );
+}
+
+function buildPdplSectionSignature(project, sectionKey) {
+  const pdplData = project?.pdplData || createEmptyPdplData();
+  const rows =
+    sectionKey === "gantt"
+      ? pdplData.ganttRows || []
+      : sectionKey === "controls"
+      ? pdplData.controlRows || []
+      : sectionKey === "policies"
+      ? pdplData.policyRows || []
+      : pdplData.documentRows || [];
+
+  const normalizedRows = rows.map((row, index) => {
+    if (sectionKey === "gantt") {
+      return {
+        sortOrder: index,
+        label: row.label || "",
+        taskName: row.taskName || "",
+        indiaTeam: row.indiaTeam || "",
+        ksaTeam: row.ksaTeam || "",
+        memberAssign: normalizeMemberAssign(row.memberAssign).sort(),
+        startDate: row.startDate || "",
+        endDate: row.endDate || "",
+        isDone: Boolean(row.isDone),
+        doneMarkedOn: row.doneMarkedOn || "",
+        percentDone: row.percentDone || 0,
+        workDays: row.workDays || 0,
+        remaining: row.remaining || 0,
+        remark: row.remark || "",
+      };
+    }
+
+    if (sectionKey === "controls") {
+      return {
+        sortOrder: index,
+        serialNo: row.serialNo || "",
+        category: row.category || "",
+        title: row.title || "",
+        status: row.status || "Not Started",
+      };
+    }
+
+    if (sectionKey === "policies") {
+      return {
+        sortOrder: index,
+        serialNo: row.serialNo || "",
+        policyName: row.policyName || "",
+        status: row.status || "Pending",
+        documentStatus: row.documentStatus || "Not Received",
+      };
+    }
+
+    return {
+      sortOrder: index,
+      serialNo: row.serialNo || "",
+      documentName: row.documentName || "",
+      status: row.status || "Incomplete",
+      documentStatus: row.documentStatus || "Not Received",
+      attachments: Array.isArray(row.attachments) ? row.attachments.map((item) => normalizePdplComparableValue(item)) : [],
+    };
+  });
+
+  return JSON.stringify(normalizePdplComparableValue(normalizedRows));
+}
+
+function createPdplSaveBaseline(project) {
+  return {
+    projectMeta: buildPdplProjectMetaSignature(project),
+    sections: {
+      gantt: buildPdplSectionSignature(project, "gantt"),
+      controls: buildPdplSectionSignature(project, "controls"),
+      policies: buildPdplSectionSignature(project, "policies"),
+      documents: buildPdplSectionSignature(project, "documents"),
+    },
+  };
+}
+
+function buildPdplDrawerSignature(sectionKey, values) {
+  if (!sectionKey) return "";
+  if (sectionKey === "dashboard") {
+    return JSON.stringify(normalizePdplComparableValue(values));
+  }
+  if (sectionKey === "gantt") {
+    return JSON.stringify(
+      normalizePdplComparableValue({
+        ...values,
+        memberAssign: normalizeMemberAssign(values.memberAssign).sort(),
+        isDone: Boolean(values.isDone),
+      })
+    );
+  }
+  if (sectionKey === "documents") {
+    return JSON.stringify(
+      normalizePdplComparableValue({
+        ...values,
+        attachments: Array.isArray(values.attachments) ? values.attachments.map((item) => normalizePdplComparableValue(item)) : [],
+      })
+    );
+  }
+  return JSON.stringify(normalizePdplComparableValue(values));
 }
 
 function generateNextGanttLabel(rows) {
@@ -566,7 +764,7 @@ function DrawerField({ label, children }) {
   );
 }
 
-function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClose, onSave, onDelete }) {
+function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClose, onSave, onDelete, saveDisabled = false, saveLabel = "Save" }) {
   const [drawerWidth, setDrawerWidth] = useState(520);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -831,8 +1029,8 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
           </button>
           <div style={{ display: "flex", gap: 10 }}>
             <button onClick={onClose} style={{ ...tableInputStyle, width: 110, cursor: "pointer" }}>Cancel</button>
-            <button onClick={onSave} style={{ border: "none", borderRadius: 12, padding: "10px 18px", background: COLORS.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-              Save
+            <button onClick={onSave} disabled={saveDisabled} style={{ border: "none", borderRadius: 12, padding: "10px 18px", background: saveDisabled ? COLORS.borderStrong : COLORS.teal, color: "#fff", fontSize: 13, fontWeight: 700, cursor: saveDisabled ? "not-allowed" : "pointer", opacity: saveDisabled ? 0.85 : 1 }}>
+              {saveLabel}
             </button>
           </div>
         </div>
@@ -859,8 +1057,9 @@ function EmptySection({ title, note }) {
 }
 
 function ProjectCard({ project, members, onOpen }) {
-  const progress = getProjectProgress(project);
+  const progress = project.progressPercent ?? getProjectProgress(project);
   const assignedMembers = project.teamMemberIds?.slice(0, 4) || [];
+  const stepCount = project.pdplData?.ganttRows?.length || project.ganttCount || 0;
   return (
     <button
       type="button"
@@ -920,7 +1119,7 @@ function ProjectCard({ project, members, onOpen }) {
 
       <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.text, lineHeight: 1.3 }}>{project.name}</div>
       <div style={{ fontSize: 14, color: COLORS.textSoft, lineHeight: 1.75 }}>
-        {project.desc || `Comprehensive audit for ${project.companyName || project.clientName || "this company"} across PDPL controls, policies, and documentation.`}
+        {project.desc || `Comprehensive audit for ${project.clientName || "this client"} across PDPL controls, policies, and documentation.`}
       </div>
 
       <div style={{ height: 1, width: "100%", background: COLORS.border, marginTop: 4 }} />
@@ -964,7 +1163,7 @@ function ProjectCard({ project, members, onOpen }) {
           })}
           </div>
           <div style={{ fontSize: 12, color: COLORS.textMuted, fontFamily: MONO }}>
-            {(project.pdplData?.ganttRows?.length || 0)}/{Math.max(project.pdplData?.ganttRows?.length || 0, 1)} steps
+            {stepCount}/{Math.max(stepCount, 1)} steps
           </div>
         </div>
       </div>
@@ -1359,7 +1558,7 @@ function ImportWorkbookModal({ open, onClose, onApply, showToast }) {
   );
 }
 
-function PdplProjectModal({ open, members, onClose, onCreate }) {
+function PdplProjectModal({ open, members, mode = "create", initialValues, onClose, onSubmit }) {
   const emptyForm = {
     projectName: "",
     projectLeader: "",
@@ -1367,13 +1566,22 @@ function PdplProjectModal({ open, members, onClose, onCreate }) {
     start: "",
     end: "",
     projectLength: "",
-    companyName: "",
     teamMemberIds: [],
   };
   const [form, setForm] = useState({
     ...emptyForm,
   });
   const [memberPickerOpen, setMemberPickerOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setForm({
+      ...emptyForm,
+      ...(initialValues || {}),
+      teamMemberIds: Array.isArray(initialValues?.teamMemberIds) ? initialValues.teamMemberIds : [],
+    });
+    setMemberPickerOpen(false);
+  }, [open, initialValues]);
 
   if (!open) return null;
 
@@ -1413,9 +1621,11 @@ function PdplProjectModal({ open, members, onClose, onCreate }) {
         }}
       >
         <div style={{ padding: "18px 22px", borderBottom: `1px solid ${COLORS.border}` }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.teal }}>Create PDPL Company Project</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.teal }}>{mode === "edit" ? "Edit PDPL Project Details" : "Create PDPL Project"}</div>
           <div style={{ fontSize: 12.5, color: COLORS.textSoft, marginTop: 6 }}>
-            Fill the project heading details first. After creation you can upload workbook sections or enter rows manually.
+            {mode === "edit"
+              ? "Update the project heading details here. Your PDPL sections and workbook data will stay as they are."
+              : "Fill the project heading details first. After creation you can upload workbook sections or enter rows manually."}
           </div>
         </div>
 
@@ -1424,7 +1634,6 @@ function PdplProjectModal({ open, members, onClose, onCreate }) {
             ["projectName", "Project Name"],
             ["projectLeader", "Project Leader"],
             ["clientName", "Client Name"],
-            ["companyName", "Company Name"],
             ["start", "Project Start Date", "date"],
             ["end", "Project End Date", "date"],
             ["projectLength", "Project Length"],
@@ -1846,9 +2055,7 @@ function PdplProjectModal({ open, members, onClose, onCreate }) {
           <button onClick={handleClose} style={{ ...tableInputStyle, width: 110, cursor: "pointer" }}>Cancel</button>
           <button
             onClick={() => {
-              onCreate(form);
-              setForm({ ...emptyForm });
-              setMemberPickerOpen(false);
+              onSubmit(form);
             }}
             style={{
               border: "none",
@@ -1861,7 +2068,82 @@ function PdplProjectModal({ open, members, onClose, onCreate }) {
               cursor: "pointer",
             }}
           >
-            Create Project
+            {mode === "edit" ? "Save Changes" : "Create Project"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function SaveConfirmationModal({ open, title, note, verified, saving, onToggleVerified, onClose, onConfirm }) {
+  if (!open) return null;
+
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1100 }} onClick={saving ? undefined : onClose} />
+      <div
+        style={{
+          position: "fixed",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: "min(520px, 92vw)",
+          background: "#fff",
+          borderRadius: 22,
+          border: `1px solid ${COLORS.border}`,
+          zIndex: 1101,
+          boxShadow: "0 28px 80px rgba(15,23,42,0.18)",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "20px 22px 14px", borderBottom: `1px solid ${COLORS.border}` }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.teal }}>{title}</div>
+          <div style={{ fontSize: 12.5, color: COLORS.textSoft, marginTop: 8, lineHeight: 1.7 }}>{note}</div>
+        </div>
+
+        <div style={{ padding: "18px 22px" }}>
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 12,
+              border: `1px solid ${verified ? COLORS.tealBorder : COLORS.border}`,
+              background: verified ? COLORS.tealBg : "#fff",
+              borderRadius: 16,
+              padding: "14px 16px",
+              cursor: saving ? "not-allowed" : "pointer",
+            }}
+          >
+            <input type="checkbox" checked={verified} disabled={saving} onChange={(event) => onToggleVerified(event.target.checked)} style={{ marginTop: 2 }} />
+            <div>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>I have verified that the data is correct.</div>
+              <div style={{ fontSize: 12.5, color: COLORS.textSoft, marginTop: 6, lineHeight: 1.6 }}>
+                After you click save, the selected PDPL data will be stored in the database.
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div style={{ padding: "0 22px 22px", display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <button onClick={onClose} disabled={saving} style={{ ...tableInputStyle, width: 110, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!verified || saving}
+            style={{
+              border: "none",
+              borderRadius: 12,
+              padding: "11px 18px",
+              background: !verified || saving ? COLORS.borderStrong : COLORS.teal,
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: !verified || saving ? "not-allowed" : "pointer",
+            }}
+          >
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>
@@ -1890,14 +2172,40 @@ export default function PdplWorkspace({
   setSearch,
   showToast,
 }) {
+  const emptyProjectForm = {
+    projectName: "",
+    projectLeader: "",
+    clientName: "",
+    start: "",
+    end: "",
+    projectLength: "",
+    teamMemberIds: [],
+  };
+  const buildPdplDescription = (clientName) => `PDPL audit workspace for ${clientName}`;
+  const toProjectFormValues = (project) => ({
+    projectName: project?.name || "",
+    projectLeader: project?.projectLeader || "",
+    clientName: project?.clientName || "",
+    start: project?.start || "",
+    end: project?.end || "",
+    projectLength: project?.projectLength ?? "",
+    teamMemberIds: Array.isArray(project?.teamMemberIds) ? project.teamMemberIds : [],
+  });
   const [nav, setNav] = useState("dashboard");
   const [projectId, setProjectId] = useState(null);
   const [section, setSection] = useState("overview");
   const [projectModalOpen, setProjectModalOpen] = useState(false);
+  const [projectModalMode, setProjectModalMode] = useState("create");
+  const [projectModalInitialValues, setProjectModalInitialValues] = useState(emptyProjectForm);
+  const [projectModalProjectId, setProjectModalProjectId] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
   const [showControlPivot, setShowControlPivot] = useState(false);
   const [drawerState, setDrawerState] = useState({ open: false, sectionKey: "", key: null });
   const [drawerValues, setDrawerValues] = useState({});
+  const [drawerInitialValues, setDrawerInitialValues] = useState({});
+  const [saveConfirmState, setSaveConfirmState] = useState({ open: false, scope: "all", verified: false });
+  const [savingScope, setSavingScope] = useState(null);
+  const [projectSaveBaseline, setProjectSaveBaseline] = useState({});
 
   const pdplProjects = useMemo(
     () =>
@@ -1906,7 +2214,7 @@ export default function PdplWorkspace({
         .map((project) => ensurePdplProject(project))
         .filter((project) => {
           const query = search.toLowerCase();
-          return !query || project.name.toLowerCase().includes(query) || (project.companyName || "").toLowerCase().includes(query) || (project.clientName || "").toLowerCase().includes(query);
+          return !query || project.name.toLowerCase().includes(query) || (project.clientName || "").toLowerCase().includes(query);
         }),
     [projects, search]
   );
@@ -1920,6 +2228,91 @@ export default function PdplWorkspace({
     const found = projects.find((project) => project.id === activeProjectId && project.templateId === "pdpl-template");
     return found ? ensurePdplProject(found) : null;
   }, [projects, activeProjectId]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadPdplProjects = async () => {
+      try {
+        const response = await fetch("/Auditing/api/pdpl/projects", { cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to load PDPL projects.");
+        }
+        if (!active) return;
+
+        const remoteProjects = Array.isArray(result.projects) ? result.projects.map(mapPdplProjectCardToLocalProject) : [];
+        setProjectSaveBaseline((current) => {
+          const next = { ...current };
+          remoteProjects.forEach((project) => {
+            next[project.id] = createPdplSaveBaseline(project);
+          });
+          return next;
+        });
+        setProjects((current) => {
+          const nonPdplProjects = current.filter((project) => project.templateId !== "pdpl-template");
+          const unsavedPdplProjects = current.filter((project) => project.templateId === "pdpl-template" && !isPersistedProjectId(project.id));
+          return [...nonPdplProjects, ...remoteProjects, ...unsavedPdplProjects];
+        });
+      } catch (error) {
+        if (!active) return;
+        showToast("error", error.message || "Failed to load PDPL projects.");
+      }
+    };
+
+    loadPdplProjects();
+
+    return () => {
+      active = false;
+    };
+  }, [setProjects, showToast]);
+
+  useEffect(() => {
+    if (!currentProject || !isPersistedProjectId(currentProject.id) || currentProject.pdplLoadedFromDb) return;
+
+    let active = true;
+
+    const loadProjectDetails = async () => {
+      try {
+        const response = await fetch(`/Auditing/api/pdpl/projects/${currentProject.id}`, { cache: "no-store" });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to load PDPL project details.");
+        }
+        if (!active || !result.project) return;
+
+        const detailedProject = mapPdplProjectDetailToLocalProject(result.project);
+        setProjectSaveBaseline((current) => ({ ...current, [detailedProject.id]: createPdplSaveBaseline(detailedProject) }));
+        setProjects((existing) => existing.map((project) => (project.id === detailedProject.id ? { ...project, ...detailedProject } : project)));
+      } catch (error) {
+        if (!active) return;
+        showToast("error", error.message || "Failed to load PDPL project details.");
+      }
+    };
+
+    loadProjectDetails();
+
+    return () => {
+      active = false;
+    };
+  }, [currentProject, setProjects, showToast]);
+
+  const currentProjectBaseline = currentProject ? projectSaveBaseline[currentProject.id] || null : null;
+  const hasUnsavedProjectMetaChanges = currentProject ? !currentProjectBaseline || currentProjectBaseline.projectMeta !== buildPdplProjectMetaSignature(currentProject) : false;
+  const sectionDirtyState = currentProject
+    ? {
+        gantt: !currentProjectBaseline || currentProjectBaseline.sections.gantt !== buildPdplSectionSignature(currentProject, "gantt"),
+        controls: !currentProjectBaseline || currentProjectBaseline.sections.controls !== buildPdplSectionSignature(currentProject, "controls"),
+        policies: !currentProjectBaseline || currentProjectBaseline.sections.policies !== buildPdplSectionSignature(currentProject, "policies"),
+        documents: !currentProjectBaseline || currentProjectBaseline.sections.documents !== buildPdplSectionSignature(currentProject, "documents"),
+      }
+    : { gantt: false, controls: false, policies: false, documents: false };
+  const hasAnyUnsavedChanges =
+    Boolean(currentProject) &&
+    (hasUnsavedProjectMetaChanges || Object.values(sectionDirtyState).some(Boolean) || !isPersistedProjectId(currentProject?.id));
+  const isDrawerDirty = drawerState.open
+    ? buildPdplDrawerSignature(drawerState.sectionKey, drawerValues) !== buildPdplDrawerSignature(drawerState.sectionKey, drawerInitialValues)
+    : false;
 
   const sectionListKeyMap = {
     gantt: "ganttRows",
@@ -1995,9 +2388,169 @@ export default function PdplWorkspace({
     );
   };
 
+  const openCreateProjectModal = () => {
+    setProjectModalMode("create");
+    setProjectModalProjectId(null);
+    setProjectModalInitialValues({ ...emptyProjectForm });
+    setProjectModalOpen(true);
+  };
+
+  const openEditProjectModal = (project = currentProject) => {
+    if (!project) return;
+    setProjectModalMode("edit");
+    setProjectModalProjectId(project.id);
+    setProjectModalInitialValues(toProjectFormValues(project));
+    setProjectModalOpen(true);
+  };
+
+  const closeProjectModal = () => {
+    setProjectModalOpen(false);
+    setProjectModalMode("create");
+    setProjectModalProjectId(null);
+    setProjectModalInitialValues({ ...emptyProjectForm });
+  };
+
+  const buildProjectRequestPayload = (project) => ({
+    projectName: project?.name || "",
+    projectLeader: project?.projectLeader || "",
+    clientName: project?.clientName || "",
+    projectStartDate: project?.start || "",
+    projectEndDate: project?.end || "",
+    projectLength: project?.projectLength ?? "",
+    memberIds: Array.isArray(project?.teamMemberIds) ? project.teamMemberIds : [],
+    status: project?.status || "active",
+  });
+
+  const resolveProjectMemberIdsByName = (project, names = []) => {
+    const allowedIds = new Set((project?.teamMemberIds || []).map((memberId) => String(memberId)));
+    const directory = (auditMembers || []).filter((member) => allowedIds.has(String(member.id)));
+    const memberMap = directory.reduce((map, member) => {
+      const key = String(member.name || "").trim().toLowerCase();
+      if (key && !map.has(key)) map.set(key, member.id);
+      return map;
+    }, new Map());
+
+    return normalizeMemberAssign(names)
+      .map((name) => memberMap.get(String(name || "").trim().toLowerCase()))
+      .filter(Boolean);
+  };
+
+  const serializeSectionRowsForSave = (project, sectionKey) => {
+    const rows = project?.pdplData?.[sectionListKeyMap[sectionKey]] || [];
+
+    if (sectionKey === "gantt") {
+      return rows.map((row, index) => ({
+        sortOrder: index,
+        label: row.label || "",
+        taskName: row.taskName || "",
+        indiaTeam: row.indiaTeam || "",
+        ksaTeam: row.ksaTeam || "",
+        memberAssignEmployeeIds: resolveProjectMemberIdsByName(project, row.memberAssign),
+        startDate: row.startDate || "",
+        endDate: row.endDate || "",
+        isDone: Boolean(row.isDone),
+        doneMarkedOn: row.doneMarkedOn || "",
+        percentDone: row.percentDone || 0,
+        workDays: row.workDays || 0,
+        remaining: row.remaining || 0,
+        remark: row.remark || "",
+      }));
+    }
+
+    if (sectionKey === "controls") {
+      return rows.map((row, index) => ({
+        sortOrder: index,
+        serialNo: row.serialNo || "",
+        category: row.category || "",
+        title: row.title || "",
+        status: row.status || "Not Started",
+      }));
+    }
+
+    if (sectionKey === "policies") {
+      return rows.map((row, index) => ({
+        sortOrder: index,
+        serialNo: row.serialNo || "",
+        policyName: row.policyName || "",
+        status: row.status || "Pending",
+        documentStatus: row.documentStatus || "Not Received",
+      }));
+    }
+
+    return rows.map((row, index) => ({
+      sortOrder: index,
+      serialNo: row.serialNo || "",
+      documentName: row.documentName || "",
+      status: row.status || "Incomplete",
+      documentStatus: row.documentStatus || "Not Received",
+    }));
+  };
+
+  const requestSaveConfirmation = (scope) => {
+    setSaveConfirmState({ open: true, scope, verified: false });
+  };
+
+  const closeSaveConfirmation = () => {
+    if (savingScope) return;
+    setSaveConfirmState({ open: false, scope: "all", verified: false });
+  };
+
+  const saveProjectShellToDatabase = async (project) => {
+    const payload = buildProjectRequestPayload(project);
+
+    if (isPersistedProjectId(project.id)) {
+      const response = await fetch(`/Auditing/api/pdpl/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to update PDPL project.");
+      }
+      return project.id;
+    }
+
+    const response = await fetch("/Auditing/api/pdpl/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to create PDPL project in database.");
+    }
+
+    const persistedProjectId = result.projectId;
+    setProjects((current) => current.map((item) => (item.id === project.id ? { ...item, id: persistedProjectId } : item)));
+    setProjectId(persistedProjectId);
+    return persistedProjectId;
+  };
+
+  const savePdplSectionToDatabase = async (project, sectionKey, persistedProjectId) => {
+    if (
+      sectionKey === "documents" &&
+      (project?.pdplData?.documentRows || []).some((row) => Array.isArray(row.attachments) && row.attachments.length > 0)
+    ) {
+      throw new Error("Document attachments are not included in section save yet. Save the document rows first, then upload attachments separately.");
+    }
+
+    const rows = serializeSectionRowsForSave(project, sectionKey);
+    const response = await fetch(`/Auditing/api/pdpl/projects/${persistedProjectId}/sections/${sectionKey}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || `Failed to save ${SECTION_META[sectionKey]?.label || sectionKey}.`);
+    }
+    return result;
+  };
+
   const createProject = (form) => {
-    if (!form.projectName || !form.clientName || !form.companyName) {
-      showToast("error", "Project name, client name, and company name are required.");
+    if (!form.projectName || !form.clientName) {
+      showToast("error", "Project name and client name are required.");
       return;
     }
     const newProject = {
@@ -2009,22 +2562,95 @@ export default function PdplWorkspace({
       name: form.projectName,
       projectLeader: form.projectLeader,
       clientName: form.clientName,
-      companyName: form.companyName,
-      unit: form.companyName,
+      unit: form.clientName,
       start: form.start,
       end: form.end,
       projectLength: form.projectLength,
       teamMemberIds: form.teamMemberIds,
-      desc: `PDPL audit workspace for ${form.companyName}`,
+      desc: buildPdplDescription(form.clientName),
       procedures: [],
       pdplData: createEmptyPdplData(),
     };
     setProjects((current) => [newProject, ...current]);
-    setProjectModalOpen(false);
+    closeProjectModal();
     setProjectId(newProject.id);
     setNav("project");
     setSection("overview");
-    showToast("success", "PDPL company project created.");
+    showToast("success", "PDPL project created.");
+  };
+
+  const updateProjectDetails = (targetProjectId, form) => {
+    if (!targetProjectId) return;
+    if (!form.projectName || !form.clientName) {
+      showToast("error", "Project name and client name are required.");
+      return;
+    }
+
+    setProjects((current) =>
+      current.map((project) => {
+        if (project.id !== targetProjectId) return project;
+        return {
+          ...project,
+          name: form.projectName,
+          projectLeader: form.projectLeader,
+          clientName: form.clientName,
+          unit: form.clientName,
+          start: form.start,
+          end: form.end,
+          projectLength: form.projectLength,
+          teamMemberIds: form.teamMemberIds,
+          desc: !project.desc || project.desc.startsWith("PDPL audit workspace for ") ? buildPdplDescription(form.clientName) : project.desc,
+        };
+      })
+    );
+
+    closeProjectModal();
+    showToast("success", "PDPL project details updated.");
+  };
+
+  const submitProjectModal = (form) => {
+    if (projectModalMode === "edit") {
+      updateProjectDetails(projectModalProjectId, form);
+      return;
+    }
+    createProject(form);
+  };
+
+  const performConfirmedSave = async () => {
+    if (!currentProject) {
+      showToast("error", "Select a PDPL project first.");
+      return;
+    }
+
+    const scope = saveConfirmState.scope;
+    setSavingScope(scope);
+
+    try {
+      const projectSnapshot = ensurePdplProject(currentProject);
+      const persistedProjectId = await saveProjectShellToDatabase(projectSnapshot);
+
+      if (scope === "all") {
+        for (const sectionKey of PDPL_DB_SECTIONS) {
+          await savePdplSectionToDatabase(projectSnapshot, sectionKey, persistedProjectId);
+        }
+        showToast("success", "All PDPL section data has been saved to the database.");
+      } else {
+        await savePdplSectionToDatabase(projectSnapshot, scope, persistedProjectId);
+        showToast("success", `${SECTION_META[scope]?.label || scope} data has been saved to the database.`);
+      }
+
+      const savedProjectSnapshot = ensurePdplProject({ ...projectSnapshot, id: persistedProjectId, pdplLoadedFromDb: true });
+      setProjectSaveBaseline((current) => {
+        const next = { ...current, [persistedProjectId]: createPdplSaveBaseline(savedProjectSnapshot) };
+        if (projectSnapshot.id !== persistedProjectId) delete next[projectSnapshot.id];
+        return next;
+      });
+      setSaveConfirmState({ open: false, scope: "all", verified: false });
+    } catch (error) {
+      showToast("error", error.message || "Failed to save PDPL data.");
+    } finally {
+      setSavingScope(null);
+    }
   };
 
   const applyImportedData = (importedData) => {
@@ -2114,13 +2740,14 @@ export default function PdplWorkspace({
         mapped[`col_${index}`] = cleanCell(row[index]);
       });
       setDrawerValues(mapped);
+      setDrawerInitialValues(mapped);
       setDrawerState({ open: true, sectionKey, key: rowOrIndex });
       return;
     }
     const listKey = sectionListKeyMap[sectionKey];
     const row = (currentProject.pdplData[listKey] || []).find((item) => item.id === rowOrIndex);
     if (!row) return;
-    setDrawerValues(
+    const nextDrawerValues =
       sectionKey === "gantt"
         ? {
             ...row,
@@ -2128,14 +2755,16 @@ export default function PdplWorkspace({
             isDone: Boolean(row.isDone),
             doneMarkedOn: row.doneMarkedOn || "",
           }
-        : { ...row }
-    );
+        : { ...row };
+    setDrawerValues(nextDrawerValues);
+    setDrawerInitialValues(nextDrawerValues);
     setDrawerState({ open: true, sectionKey, key: rowOrIndex });
   };
 
   const closeDrawer = () => {
     setDrawerState({ open: false, sectionKey: "", key: null });
     setDrawerValues({});
+    setDrawerInitialValues({});
   };
 
   const saveDrawer = () => {
@@ -2149,7 +2778,8 @@ export default function PdplWorkspace({
         rows[drawerState.key] = header.map((_, index) => drawerValues[`col_${index}`] || "");
         return { ...project, pdplData: { ...project.pdplData, [listKey]: rows } };
       });
-      closeDrawer();
+      setDrawerInitialValues({ ...drawerValues });
+      showToast("success", "Row changes applied. Use the top save button to sync them to the database.");
       return;
     }
     if (sectionKey === "documents") {
@@ -2163,7 +2793,9 @@ export default function PdplWorkspace({
         const nextRows = (project.pdplData[listKey] || []).map((row) => (row.id === drawerState.key ? { ...row, ...nextValues } : row));
         return { ...project, pdplData: { ...project.pdplData, [listKey]: nextRows } };
       });
-      closeDrawer();
+      setDrawerValues(nextValues);
+      setDrawerInitialValues(nextValues);
+      showToast("success", "Row changes applied. Use the top save button to sync them to the database.");
       return;
     }
     updateCurrentProject((project) => {
@@ -2182,7 +2814,20 @@ export default function PdplWorkspace({
       });
       return { ...project, pdplData: { ...project.pdplData, [listKey]: nextRows } };
     });
-    closeDrawer();
+    const nextDrawerValues =
+      sectionKey === "gantt"
+        ? {
+            ...drawerValues,
+            memberAssign: normalizeMemberAssign(drawerValues.memberAssign),
+            isDone: Boolean(drawerValues.isDone),
+            doneMarkedOn: drawerValues.isDone ? drawerValues.doneMarkedOn || getTodayDateValue() : "",
+            workDays: calculateWorkDays(drawerValues.startDate, drawerValues.endDate),
+            remaining: calculateRemainingDays(calculateWorkDays(drawerValues.startDate, drawerValues.endDate), drawerValues.percentDone),
+          }
+        : { ...drawerValues };
+    setDrawerValues(nextDrawerValues);
+    setDrawerInitialValues(nextDrawerValues);
+    showToast("success", "Row changes applied. Use the top save button to sync them to the database.");
   };
 
   const deleteRow = (sectionKey, rowId) => {
@@ -2280,12 +2925,11 @@ export default function PdplWorkspace({
       const workbook = XLSX.utils.book_new();
       const overviewRows = [
         ["Project Name", currentProject.name],
-        ["Company Name", currentProject.companyName || ""],
         ["Project Leader", currentProject.projectLeader || ""],
         ["Client Name", currentProject.clientName || ""],
         ["Project Start Date", currentProject.start || ""],
         ["Project End Date", currentProject.end || ""],
-        ["Project Length", currentProject.projectLength || ""],
+        ["Project Length", currentProject.projectLength ?? ""],
       ];
       XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(overviewRows), "Overview");
 
@@ -2349,12 +2993,12 @@ export default function PdplWorkspace({
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search company projects..."
+              placeholder="Search PDPL projects..."
               style={{ border: "none", outline: "none", width: "100%", fontSize: 13, color: COLORS.text, background: "transparent" }}
             />
           </div>
           <button
-            onClick={() => setProjectModalOpen(true)}
+            onClick={openCreateProjectModal}
             style={{
               border: "none",
               borderRadius: 14,
@@ -2367,7 +3011,7 @@ export default function PdplWorkspace({
               whiteSpace: "nowrap",
             }}
           >
-            + Add Company Project
+            + Add PDPL Project
           </button>
         </div>
       </div>
@@ -2396,15 +3040,15 @@ export default function PdplWorkspace({
     <div style={{ padding: "24px 28px 32px", overflowY: "auto", flex: 1 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>Company Projects</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>PDPL Projects</div>
           <div style={{ fontSize: 13, color: COLORS.textSoft, marginTop: 6 }}>
-            Create a PDPL company project first, then upload the workbook or fill each section manually.
+            Create a PDPL project first, then upload the workbook or fill each section manually.
           </div>
         </div>
       </div>
 
       {!pdplProjects.length ? (
-        <EmptySection title="No PDPL company project yet" note="Use Add Company Project to start the first PDPL audit workspace." />
+        <EmptySection title="No PDPL project yet" note="Use Add PDPL Project to start the first PDPL audit workspace." />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(360px,1fr))", gap: 18 }}>
           {pdplProjects.map((project) => (
@@ -2426,22 +3070,29 @@ export default function PdplWorkspace({
 
   const renderOverview = () => {
     if (!currentProject) {
-      return <EmptySection title="Select a company project" note="Choose one company project from the dashboard to open PDPL sections." />;
+      return <EmptySection title="Select a PDPL project" note="Choose one PDPL project from the dashboard to open PDPL sections." />;
     }
     const overviewRows = [
       ["Project Name", currentProject.name],
-      ["Company Name", currentProject.companyName || "-"],
       ["Project Leader", currentProject.projectLeader || "-"],
       ["Client Name", currentProject.clientName || "-"],
       ["Project Start Date", currentProject.start || "-"],
       ["Project End Date", currentProject.end || "-"],
-      ["Project Length", currentProject.projectLength || "-"],
+      ["Project Length", currentProject.projectLength ?? "-"],
       ["Assigned Team", `${currentProject.teamMemberIds?.length || 0} member(s)`],
       ["Workbook Import", currentProject.pdplData?.importMeta?.fileName || "Manual / not imported yet"],
     ];
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: COLORS.text }}>Project Overview</div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: COLORS.text }}>Project Overview</div>
+          <button
+            onClick={() => openEditProjectModal(currentProject)}
+            style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 10, padding: "9px 13px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+          >
+            Edit Details
+          </button>
+        </div>
         <div style={{ border: `1px solid ${COLORS.border}`, borderRadius: 18, background: "#fff", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <tbody>
@@ -2805,7 +3456,7 @@ export default function PdplWorkspace({
 
   const renderProjectView = () => {
     if (!currentProject) {
-      return <EmptySection title="No PDPL project selected" note="Open a company project from the dashboard to manage its sections." />;
+      return <EmptySection title="No PDPL project selected" note="Open a PDPL project from the dashboard to manage its sections." />;
     }
     const tabs = [
       ["overview", "Overview"],
@@ -2841,7 +3492,6 @@ export default function PdplWorkspace({
                 <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.teal }}>Project: {currentProject.name}</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", fontSize: 12.5, color: COLORS.textSoft }}>
                   {[
-                    currentProject.companyName ? `Company: ${currentProject.companyName}` : "",
                     currentProject.projectLeader ? `Leader: ${currentProject.projectLeader}` : "",
                     currentProject.clientName ? `Client: ${currentProject.clientName}` : "",
                     currentProject.start ? `Start Date: ${currentProject.start}` : "",
@@ -2853,6 +3503,31 @@ export default function PdplWorkspace({
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={() => requestSaveConfirmation("all")}
+                disabled={Boolean(savingScope) || !hasAnyUnsavedChanges}
+                style={{
+                  border: hasAnyUnsavedChanges && !savingScope ? "none" : `1px solid ${COLORS.borderStrong}`,
+                  background: hasAnyUnsavedChanges && !savingScope ? COLORS.teal : "#fff",
+                  color: hasAnyUnsavedChanges && !savingScope ? "#fff" : COLORS.text,
+                  borderRadius: 12,
+                  padding: "9px 14px",
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: savingScope || !hasAnyUnsavedChanges ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  opacity: savingScope || !hasAnyUnsavedChanges ? 0.75 : 1,
+                  boxShadow: hasAnyUnsavedChanges && !savingScope ? "0 10px 24px rgba(13,148,136,0.18)" : "none",
+                }}
+              >
+                {savingScope === "all" ? "Saving Changes..." : hasAnyUnsavedChanges ? "Save Changes" : "Saved"}
+              </button>
+              <button onClick={() => openEditProjectModal(currentProject)} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span aria-hidden="true">Edit</span>
+                Details
+              </button>
               <button onClick={() => setImportOpen(true)} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <span aria-hidden="true">⬆</span>
                 Import Workbook
@@ -2917,7 +3592,7 @@ export default function PdplWorkspace({
         <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>Team Members</div>
       </div>
       <div style={{ fontSize: 13, color: COLORS.textSoft, marginBottom: 18 }}>
-        Employees with auditing access from HRM are shown automatically here and can be assigned inside each PDPL company project.
+        Employees with auditing access from HRM are shown automatically here and can be assigned inside each PDPL project.
       </div>
       {!auditMembers.length ? (
         <EmptySection title="No auditing members available" note="Once HRM module access is granted for auditing, members will appear here automatically." />
@@ -2975,8 +3650,8 @@ export default function PdplWorkspace({
   const drawerTitle = drawerState.sectionKey ? `${SECTION_META[drawerState.sectionKey]?.label || drawerState.sectionKey} Details` : "";
   const drawerSubtitle =
     drawerState.sectionKey === "dashboard"
-      ? "Review and update this imported workbook row."
-      : "Review, edit, update, or delete this row from the right panel.";
+      ? "Review this imported workbook row. Apply row changes here, then use the top save button to sync them to the database."
+      : "Review and edit this row here. Apply row changes first, then use the top save button to sync them to the database.";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
@@ -2985,7 +3660,28 @@ export default function PdplWorkspace({
       {nav === "project" && renderProjectView()}
       {nav === "team" && renderTeam()}
 
-      <PdplProjectModal open={projectModalOpen} members={auditMembers} onClose={() => setProjectModalOpen(false)} onCreate={createProject} />
+      <PdplProjectModal
+        open={projectModalOpen}
+        members={auditMembers}
+        mode={projectModalMode}
+        initialValues={projectModalInitialValues}
+        onClose={closeProjectModal}
+        onSubmit={submitProjectModal}
+      />
+      <SaveConfirmationModal
+        open={saveConfirmState.open}
+        title={saveConfirmState.scope === "all" ? "Save All PDPL Data" : `Save ${SECTION_META[saveConfirmState.scope]?.label || "Section"} Data`}
+        note={
+          saveConfirmState.scope === "all"
+            ? "Have you verified that the workbook data and all section details are correct? This will save Gantt Chart, Controls, Policies, and Documents data to the database."
+            : `Have you verified that the ${SECTION_META[saveConfirmState.scope]?.label || "selected"} data is correct? This will save that section to the database.`
+        }
+        verified={saveConfirmState.verified}
+        saving={Boolean(savingScope)}
+        onToggleVerified={(verified) => setSaveConfirmState((current) => ({ ...current, verified }))}
+        onClose={closeSaveConfirmation}
+        onConfirm={performConfirmedSave}
+      />
       <ImportWorkbookModal open={importOpen} onClose={() => setImportOpen(false)} onApply={applyImportedData} showToast={showToast} />
       <PdplRowDrawer
         open={drawerState.open}
@@ -3011,6 +3707,8 @@ export default function PdplWorkspace({
         onClose={closeDrawer}
         onSave={saveDrawer}
         onDelete={deleteDrawerRow}
+        saveDisabled={!isDrawerDirty}
+        saveLabel={isDrawerDirty ? "Apply Changes" : "Applied"}
       />
     </div>
   );
