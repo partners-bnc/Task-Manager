@@ -7,8 +7,8 @@ import { createClient } from '@/utils/supabase/client';
 
 // We will import the actual views here once they are created
 import AdminDashboard from './views/admin/AdminDashboard';
-import PayoutsPayroll from './views/admin/PayoutsPayroll';
 import EmployeeAnalytics from './views/admin/EmployeeAnalytics';
+import PayoutsPayroll from './views/admin/PayoutsPayroll';
 import RegularizationInbox from './views/admin/RegularizationInbox';
 import HolidayManager from './views/admin/HolidayManager';
 import LeaveManagement from './views/admin/LeaveManagement';
@@ -24,14 +24,15 @@ import { HrmFeedbackProvider } from './ui/HrmFeedback';
 export default function AdminApp() {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const [currentTab, setCurrentTab] = useState(requestedTab || 'admin-dashboard');
+  const normalizedRequestedTab = requestedTab || 'admin-dashboard';
+  const [currentTab, setCurrentTab] = useState(normalizedRequestedTab);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [admin, setAdmin] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({
-    [requestedTab || 'admin-dashboard']: true,
+    [normalizedRequestedTab]: true,
   });
 
   useEffect(() => {
@@ -92,6 +93,7 @@ export default function AdminApp() {
 
   const tabViews: Record<string, React.ReactNode> = {
     'admin-dashboard': <AdminDashboard admin={admin} setCurrentTab={setCurrentTab} setSelectedEmployeeId={setSelectedEmployeeId} />,
+    'admin-analytics': <EmployeeAnalytics />,
     'admin-employee-list': (
       <EmployeeDirectoryWorkspace
         currentTab={currentTab}
@@ -101,7 +103,6 @@ export default function AdminApp() {
       />
     ),
     'admin-payouts': <PayoutsPayroll />,
-    'admin-analytics': <EmployeeAnalytics />,
     'admin-organization-chart': <OrganizationChart />,
     'admin-module-access': <ModuleAccessManager />,
     'admin-attendance': <AdminAttendance />,

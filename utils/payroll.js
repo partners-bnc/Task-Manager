@@ -1,5 +1,5 @@
 import { adminClient } from '@/utils/supabase/admin';
-import { deriveEmploymentFields, formatEmploymentValue } from '@/utils/hrm-employment';
+import { deriveEmploymentFields } from '@/utils/hrm-employment';
 import { calculateLeaveDays, getEmployeeLeaveContext } from '@/utils/leave';
 
 const PAYROLL_PROFILE_SELECT = `
@@ -78,6 +78,20 @@ function padMonth(value) {
 
 export function buildMonthKey(year, month) {
   return `${year}-${padMonth(month)}`;
+}
+
+export function buildPayrollPreviewSignature(preview) {
+  if (!preview?.year || !preview?.month || !preview?.summary) {
+    return '';
+  }
+
+  return [
+    buildMonthKey(preview.year, preview.month),
+    preview.summary.totalEmployees ?? 0,
+    roundCurrency(preview.summary.totalGross ?? 0),
+    roundCurrency(preview.summary.totalDeductions ?? 0),
+    roundCurrency(preview.summary.totalNet ?? 0),
+  ].join(':');
 }
 
 function toDateOnly(value) {
@@ -393,6 +407,9 @@ function buildEmployeeSnapshot(employee) {
     company: employee.company || '',
     designation_title: employee.designation_title || '',
     department_name: employee.department_name || '',
+    city: employee.city || '',
+    state: employee.state || '',
+    location: employee.location || '',
     bank_name: employee.bank_name || '',
     bank_account_number: employee.bank_account_number || '',
     bank_account_holder_name: employee.bank_account_holder_name || '',
@@ -406,18 +423,146 @@ function buildEmployeeSnapshot(employee) {
 
 function formatCurrencyDisplay(value) {
   return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(toNumber(value, 0));
 }
 
+const PAYSLIP_OFFICIAL_COMPANY_NAME = 'Broccoli & Carrots Global Services Pvt. Ltd. (BNC Global Services Pvt. Ltd.)';
+const PAYSLIP_OFFICIAL_ADDRESS = 'OFFICE NO 208, DDA BUILDING NO 5, Janakpuri District Centre, New Delhi, South West Delhi, Delhi, 110058';
+const PAYSLIP_DEFAULT_LOCATION = 'NEW DELHI';
+
+function formatPayslipMonthTitle(month, year) {
+  return new Intl.DateTimeFormat('en-IN', {
+    month: 'long',
+    year: 'numeric',
+  }).format(dateFromParts(year, month, 1));
+}
+
+function buildPayslipLocation(employee) {
+  const directLocation = String(employee?.location || '').trim();
+  if (directLocation) {
+    return directLocation.toUpperCase();
+  }
+
+  const city = String(employee?.city || '').trim();
+  const state = String(employee?.state || '').trim();
+  const combined = [city, state].filter(Boolean).join(', ');
+  return (combined || PAYSLIP_DEFAULT_LOCATION).toUpperCase();
+}
+
+function titleCaseWords(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function numberToWordsUnderThousand(value) {
+  const units = [
+    '', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+    'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+    'seventeen', 'eighteen', 'nineteen',
+  ];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+  const numeric = Math.floor(toNumber(value, 0));
+  if (numeric === 0) return '';
+  if (numeric < 20) return units[numeric];
+  if (numeric < 100) {
+    const remainder = numeric % 10;
+    return `${tens[Math.floor(numeric / 10)]}${remainder ? ` ${units[remainder]}` : ''}`;
+  }
+
+  const remainder = numeric % 100;
+  return `${units[Math.floor(numeric / 100)]} hundred${remainder ? ` ${numberToWordsUnderThousand(remainder)}` : ''}`;
+}
+
+function numberToWordsIndian(value) {
+  const numeric = Math.max(0, Math.round(toNumber(value, 0)));
+  if (numeric === 0) return 'Rupees Zero Only';
+
+  const parts = [];
+  const crore = Math.floor(numeric / 10000000);
+  const lakh = Math.floor((numeric % 10000000) / 100000);
+  const thousand = Math.floor((numeric % 100000) / 1000);
+  const remainder = numeric % 1000;
+
+  if (crore) parts.push(`${numberToWordsUnderThousand(crore)} crore`);
+  if (lakh) parts.push(`${numberToWordsUnderThousand(lakh)} lakh`);
+  if (thousand) parts.push(`${numberToWordsUnderThousand(thousand)} thousand`);
+  if (remainder) parts.push(numberToWordsUnderThousand(remainder));
+
+  return `Rupees ${titleCaseWords(parts.join(' ').trim())} Only`;
+}
+
+function createPayslipAmountRow(label, amount) {
+  return {
+    label,
+    amount: roundCurrency(amount),
+    displayAmount: formatCurrencyDisplay(amount),
+  };
+}
+
+function buildPayslipEarningRows(totalEarnings) {
+  const total = roundCurrency(totalEarnings);
+  const basic = roundCurrency(total * 0.5);
+  const hra = roundCurrency(total * 0.25);
+  const specialAllowance = roundCurrency(total - basic - hra);
+
+  return [
+    createPayslipAmountRow('BASIC', basic),
+    createPayslipAmountRow('HRA', hra),
+    createPayslipAmountRow('SPECIAL ALLOWANCE', specialAllowance),
+  ];
+}
+
+function buildPayslipDeductionRows(payrollItem) {
+  const candidates = [
+    ['LOP', payrollItem.lop_deduction],
+    ['EMPLOYEE PF', payrollItem.pf_employee_deduction],
+    ['EMPLOYEE TDS', payrollItem.tds_employee_deduction ?? payrollItem.tds_deduction],
+    ['RETENTION', payrollItem.retention_deduction],
+  ];
+
+  return candidates
+    .map(([label, amount]) => ({ label, amount: roundCurrency(amount) }))
+    .filter((row) => row.amount > 0)
+    .map((row) => createPayslipAmountRow(row.label, row.amount));
+}
+
+function buildPayslipDetailColumns({ employee, payrollItem, monthLabel }) {
+  return {
+    left: [
+      { label: 'Name', value: employee.name || '--' },
+      { label: 'Designation', value: employee.designation_title || '--' },
+      { label: 'Department', value: employee.department_name || '--' },
+      { label: 'Location', value: buildPayslipLocation(employee) },
+      { label: 'Effective Work Days', value: String(payrollItem.active_days ?? payrollItem.calculation_snapshot?.meta?.activeDays ?? '--') },
+      { label: 'LOP', value: String(payrollItem.lop_days ?? payrollItem.calculation_snapshot?.meta?.lopDays ?? 0) },
+    ],
+    right: [
+      { label: 'Employee No', value: employee.employee_id || '--' },
+      { label: 'Bank Name', value: employee.bank_name || '--' },
+      { label: 'Bank Account No.', value: employee.bank_account_number || '--' },
+      { label: 'PAN No.', value: employee.pan_number || '--' },
+      { label: 'UAN No.', value: employee.uan_number || '--' },
+      { label: 'Pay Period', value: monthLabel },
+    ],
+  };
+}
+
 export function buildPayslipHtml(snapshot = {}) {
-  const employee = snapshot.employee || {};
-  const deductions = snapshot.deductions || {};
+  const header = snapshot.header || {};
   const meta = snapshot.meta || {};
-  const earnings = snapshot.earnings || {};
+  const detailColumns = snapshot.detailColumns || { left: [], right: [] };
+  const earningsRows = snapshot.earningsRows || [];
+  const deductionRows = snapshot.deductionRows || [];
   const totals = snapshot.totals || {};
+  const totalRows = Math.max(earningsRows.length, deductionRows.length, 3);
+  const tableRows = Array.from({ length: totalRows }, (_, index) => ({
+    earnings: earningsRows[index] || { label: '', displayAmount: '' },
+    deductions: deductionRows[index] || { label: '', displayAmount: '' },
+  }));
 
   return `
 <!DOCTYPE html>
@@ -427,76 +572,80 @@ export function buildPayslipHtml(snapshot = {}) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Payslip ${snapshot.payslipNumber || ''}</title>
     <style>
-      body { font-family: Arial, sans-serif; color: #0f172a; background: #f8fafc; margin: 0; padding: 24px; }
-      .sheet { max-width: 920px; margin: 0 auto; background: white; border: 1px solid #e2e8f0; border-radius: 24px; overflow: hidden; }
-      .header { padding: 28px 32px; background: linear-gradient(135deg, #0f172a, #1d4ed8); color: white; }
-      .header h1 { margin: 0 0 6px; font-size: 28px; }
-      .header p { margin: 0; opacity: 0.86; }
-      .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 24px 32px; }
-      .card { border: 1px solid #e2e8f0; border-radius: 18px; padding: 18px; background: #fff; }
-      .card h2 { margin: 0 0 14px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.12em; color: #64748b; }
-      .row { display: flex; justify-content: space-between; gap: 16px; margin-top: 10px; }
-      .row:first-of-type { margin-top: 0; }
-      .label { color: #475569; }
-      .value { font-weight: 700; text-align: right; }
-      .totals { padding: 0 32px 32px; }
-      .totals .card { background: #eff6ff; border-color: #bfdbfe; }
-      .footer { padding: 0 32px 32px; color: #64748b; font-size: 12px; }
+      body { font-family: "Times New Roman", serif; color: #111827; background: #f8fafc; margin: 0; padding: 24px; }
+      .sheet { max-width: 900px; margin: 0 auto; background: white; padding: 28px 26px 40px; }
+      .header { text-align: center; }
+      .header h1 { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.2; }
+      .header p { margin: 4px 0 0; font-size: 10px; line-height: 1.3; }
+      .title { margin: 14px 0 16px; text-align: center; font-size: 12px; font-weight: 700; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .info-table, .summary-table { border: 1px solid #9ca3af; }
+      .info-table td, .summary-table td, .summary-table th { border: 1px solid #9ca3af; padding: 4px 6px; vertical-align: top; font-size: 10px; }
+      .info-label, .summary-label { font-weight: 400; }
+      .summary-head { font-weight: 700; text-align: left; }
+      .amount-head, .amount-cell { text-align: right; }
+      .amount-cell { white-space: nowrap; }
+      .net-row { margin-top: 10px; font-size: 10px; }
+      .net-row strong { margin-left: 26px; }
+      .words { margin-top: 10px; font-size: 10px; font-style: italic; }
+      .footer { margin-top: 22px; text-align: center; font-size: 10px; color: #6b7280; }
       @media print {
         body { background: white; padding: 0; }
-        .sheet { border: none; border-radius: 0; }
+        .sheet { max-width: none; padding: 20px 18px 28px; }
       }
     </style>
   </head>
   <body>
     <div class="sheet">
       <div class="header">
-        <h1>${employee.company || 'Company'} Payslip</h1>
-        <p>${meta.monthLabel || ''} | Payslip No. ${snapshot.payslipNumber || ''}</p>
+        <h1>${header.companyName || PAYSLIP_OFFICIAL_COMPANY_NAME}</h1>
+        <p>${header.addressLine || PAYSLIP_OFFICIAL_ADDRESS}</p>
       </div>
-      <div class="grid">
-        <div class="card">
-          <h2>Employee</h2>
-          <div class="row"><span class="label">Employee ID</span><span class="value">${employee.employee_id || '--'}</span></div>
-          <div class="row"><span class="label">Employee Name</span><span class="value">${employee.name || '--'}</span></div>
-          <div class="row"><span class="label">Designation</span><span class="value">${employee.designation_title || '--'}</span></div>
-          <div class="row"><span class="label">Date of Joining</span><span class="value">${employee.date_of_joining || '--'}</span></div>
-          <div class="row"><span class="label">Bank</span><span class="value">${employee.bank_name || '--'}</span></div>
-        </div>
-        <div class="card">
-          <h2>Payroll Summary</h2>
-          <div class="row"><span class="label">Base Salary</span><span class="value">${formatCurrencyDisplay(earnings.salarySnapshot)}</span></div>
-          <div class="row"><span class="label">Prorated Salary</span><span class="value">${formatCurrencyDisplay(earnings.proratedSalary)}</span></div>
-          <div class="row"><span class="label">Active Days</span><span class="value">${meta.activeDays || 0}</span></div>
-          <div class="row"><span class="label">LOP Days</span><span class="value">${meta.lopDays || 0}</span></div>
-          <div class="row"><span class="label">Payment Status</span><span class="value">${formatEmploymentValue(meta.paymentStatus || '')}</span></div>
-        </div>
-        <div class="card">
-          <h2>Deductions</h2>
-          <div class="row"><span class="label">LOP</span><span class="value">${formatCurrencyDisplay(deductions.lopDeduction)}</span></div>
-          <div class="row"><span class="label">Employee PF</span><span class="value">${formatCurrencyDisplay(deductions.pfEmployeeDeduction)}</span></div>
-          <div class="row"><span class="label">Employer PF</span><span class="value">${formatCurrencyDisplay(deductions.pfEmployerDeduction)}</span></div>
-          <div class="row"><span class="label">Total PF</span><span class="value">${formatCurrencyDisplay(deductions.totalPfDeduction)}</span></div>
-          <div class="row"><span class="label">Employee TDS</span><span class="value">${formatCurrencyDisplay(deductions.tdsEmployeeDeduction)}</span></div>
-          <div class="row"><span class="label">Total TDS</span><span class="value">${formatCurrencyDisplay(deductions.totalTdsDeduction)}</span></div>
-          <div class="row"><span class="label">Retention</span><span class="value">${formatCurrencyDisplay(deductions.retentionDeduction)}</span></div>
-          <div class="row"><span class="label">Total Deductions</span><span class="value">${formatCurrencyDisplay(totals.totalDeductions)}</span></div>
-        </div>
-        <div class="card">
-          <h2>Release Details</h2>
-          <div class="row"><span class="label">Retention Release</span><span class="value">${formatCurrencyDisplay(deductions.retentionReleaseAmount)}</span></div>
-          <div class="row"><span class="label">Generated At</span><span class="value">${meta.generatedAt || '--'}</span></div>
-          <div class="row"><span class="label">Department</span><span class="value">${employee.department_name || '--'}</span></div>
-          <div class="row"><span class="label">PAN</span><span class="value">${employee.pan_number || '--'}</span></div>
-        </div>
-      </div>
-      <div class="totals">
-        <div class="card">
-          <div class="row"><span class="label">Net Salary</span><span class="value">${formatCurrencyDisplay(totals.netSalary)}</span></div>
-        </div>
-      </div>
+      <div class="title">Payslip for the month of ${meta.monthLabel || ''}</div>
+      <table class="info-table">
+        <tbody>
+          ${Array.from({ length: Math.max(detailColumns.left.length, detailColumns.right.length) }, (_, index) => {
+            const left = detailColumns.left[index] || { label: '', value: '' };
+            const right = detailColumns.right[index] || { label: '', value: '' };
+            return `<tr>
+              <td class="info-label">${left.label ? `${left.label}:` : ''}</td>
+              <td>${left.value || ''}</td>
+              <td class="info-label">${right.label ? `${right.label}:` : ''}</td>
+              <td>${right.value || ''}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+      <table class="summary-table" style="margin-top: 14px;">
+        <thead>
+          <tr>
+            <th class="summary-head">Earnings</th>
+            <th class="summary-head amount-head">Amount</th>
+            <th class="summary-head">Deductions</th>
+            <th class="summary-head amount-head">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows.map((row) => `
+            <tr>
+              <td class="summary-label">${row.earnings.label || ''}</td>
+              <td class="amount-cell">${row.earnings.displayAmount || ''}</td>
+              <td class="summary-label">${row.deductions.label || ''}</td>
+              <td class="amount-cell">${row.deductions.displayAmount || ''}</td>
+            </tr>
+          `).join('')}
+          <tr>
+            <td class="summary-head">Total Earnings:INR.</td>
+            <td class="amount-cell">${totals.totalEarningsDisplay || ''}</td>
+            <td class="summary-head">Total Deductions:INR.</td>
+            <td class="amount-cell">${totals.totalDeductionsDisplay || ''}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="net-row">Net Pay for the month : <strong>${totals.netSalaryDisplay || ''}</strong></div>
+      <div class="words">(${totals.netSalaryWords || ''})</div>
       <div class="footer">
-        This is a system-generated payslip based on the frozen payroll snapshot for ${meta.monthLabel || 'the selected month'}.
+        This is a system generated payslip and does not require signature.
       </div>
     </div>
   </body>
@@ -506,19 +655,39 @@ export function buildPayslipHtml(snapshot = {}) {
 
 export function buildPayslipSnapshot({ payrollItem, employee, run, payslipNumber, generatedAt }) {
   const snapshot = payrollItem?.calculation_snapshot || {};
+  const monthLabel = formatPayslipMonthTitle(run.month, run.year);
+  const employeeSnapshot = snapshot.employee || buildEmployeeSnapshot(employee);
+  const earningsRows = buildPayslipEarningRows(payrollItem.prorated_salary);
+  const deductionRows = buildPayslipDeductionRows(payrollItem);
+  const detailColumns = buildPayslipDetailColumns({
+    employee: employeeSnapshot,
+    payrollItem,
+    monthLabel,
+  });
+  const totalEarnings = roundCurrency(payrollItem.prorated_salary);
+  const totalDeductions = roundCurrency(payrollItem.total_deductions);
+  const netSalary = roundCurrency(payrollItem.net_salary);
 
   return {
     payslipNumber,
+    header: {
+      companyName: PAYSLIP_OFFICIAL_COMPANY_NAME,
+      addressLine: PAYSLIP_OFFICIAL_ADDRESS,
+    },
     meta: {
       month: run.month,
       year: run.year,
-      monthLabel: `${new Intl.DateTimeFormat('en-IN', { month: 'long' }).format(dateFromParts(run.year, run.month, 1))} ${run.year}`,
+      monthLabel,
       paymentStatus: payrollItem.payment_status,
       activeDays: payrollItem.active_days,
       lopDays: payrollItem.lop_days,
+      daysInMonth: snapshot?.meta?.daysInMonth || getMonthBounds(run.year, run.month).daysInMonth,
       generatedAt,
     },
-    employee: snapshot.employee || buildEmployeeSnapshot(employee),
+    employee: employeeSnapshot,
+    detailColumns,
+    earningsRows,
+    deductionRows,
     earnings: {
       salarySnapshot: payrollItem.salary_snapshot,
       proratedSalary: payrollItem.prorated_salary,
@@ -535,8 +704,13 @@ export function buildPayslipSnapshot({ payrollItem, employee, run, payslipNumber
       retentionReleaseAmount: payrollItem.retention_release_amount,
     },
     totals: {
-      totalDeductions: payrollItem.total_deductions,
-      netSalary: payrollItem.net_salary,
+      totalEarnings,
+      totalEarningsDisplay: formatCurrencyDisplay(totalEarnings),
+      totalDeductions,
+      totalDeductionsDisplay: formatCurrencyDisplay(totalDeductions),
+      netSalary,
+      netSalaryDisplay: formatCurrencyDisplay(netSalary),
+      netSalaryWords: numberToWordsIndian(netSalary),
     },
   };
 }
@@ -917,7 +1091,7 @@ export async function previewPayrollRun({ year, month, employeeId = null }) {
     );
   }
 
-  return {
+  const preview = {
     rows: rows.sort((left, right) => compareEmployeeCodeLike(left.employeeCode, right.employeeCode)),
     month: month,
     year,
@@ -928,6 +1102,11 @@ export async function previewPayrollRun({ year, month, employeeId = null }) {
       totalDeductions: roundCurrency(rows.reduce((sum, row) => sum + row.totalDeductions, 0)),
       totalNet: roundCurrency(rows.reduce((sum, row) => sum + row.netSalary, 0)),
     },
+  };
+
+  return {
+    ...preview,
+    signature: buildPayrollPreviewSignature(preview),
   };
 }
 
@@ -963,6 +1142,60 @@ async function ensurePayrollRun(year, month, actorUserId) {
   }
 
   return created;
+}
+
+async function getPayrollRunByMonth(year, month) {
+  const { data, error } = await adminClient
+    .from('hrm_payroll_runs')
+    .select('*')
+    .eq('year', year)
+    .eq('month', month)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || 'Failed to load payroll run');
+  }
+
+  return data || null;
+}
+
+function buildAdminPayslipState(item, payslip) {
+  const hasPayslip = Boolean(payslip);
+  const isPayslipReleased = Boolean(payslip?.released_to_employee);
+  const canGeneratePayslip = !hasPayslip;
+  const canMarkPaid = hasPayslip && item?.payment_status !== 'paid';
+  const canSendPayslip = hasPayslip && item?.payment_status === 'paid' && !isPayslipReleased;
+
+  return {
+    hasPayslip,
+    isPayslipReleased,
+    availableActions: [
+      'open',
+      ...(canGeneratePayslip ? ['generate_payslip'] : ['view_payslip', 'download_payslip']),
+      ...(canMarkPaid ? ['mark_paid'] : []),
+      ...(canSendPayslip ? ['send_payslip'] : []),
+    ],
+  };
+}
+
+function buildEmployeePayslipState(payslip) {
+  if (!payslip) {
+    return {
+      payslip: null,
+      payslipReleaseStatus: 'not_generated',
+      payslipReleased: false,
+      hasGeneratedPayslip: false,
+    };
+  }
+
+  const released = Boolean(payslip.released_to_employee);
+
+  return {
+    payslip: released ? payslip : null,
+    payslipReleaseStatus: released ? 'released' : 'pending_release',
+    payslipReleased: released,
+    hasGeneratedPayslip: true,
+  };
 }
 
 async function updatePayrollRunTotals(runId) {
@@ -1008,8 +1241,17 @@ async function updatePayrollRunTotals(runId) {
   return updated;
 }
 
-export async function generatePayrollRun({ year, month, actorUserId }) {
+export async function generatePayrollRun({ year, month, actorUserId, previewSignature = '' }) {
   const preview = await previewPayrollRun({ year, month });
+  if (!previewSignature || previewSignature !== preview.signature) {
+    throw new Error('Run preview is required before generating payroll for this month.');
+  }
+
+  const existingRun = await getPayrollRunByMonth(year, month);
+  if (existingRun) {
+    throw new Error(`Payroll for ${preview.monthKey} already exists in the ledger.`);
+  }
+
   const run = await ensurePayrollRun(year, month, actorUserId);
 
   const { data: existingItems, error: existingError } = await adminClient
@@ -1175,10 +1417,36 @@ export async function listPayrollRuns({ year = null, month = null }) {
     throw new Error(itemsError.message || 'Failed to load payroll run items');
   }
 
+  const itemIds = (items || []).map((item) => item.id);
+  const latestPayslipMap = new Map();
+
+  if (itemIds.length) {
+    const { data: payslips, error: payslipError } = await adminClient
+      .from('hrm_payslips')
+      .select('id, payroll_item_id, payslip_number, generated_at, released_to_employee, released_at, released_by, version')
+      .in('payroll_item_id', itemIds)
+      .order('generated_at', { ascending: false });
+
+    if (payslipError) {
+      throw new Error(payslipError.message || 'Failed to load payroll payslips');
+    }
+
+    for (const payslip of payslips || []) {
+      if (!latestPayslipMap.has(payslip.payroll_item_id)) {
+        latestPayslipMap.set(payslip.payroll_item_id, payslip);
+      }
+    }
+  }
+
   const groupedItems = new Map();
   for (const item of items || []) {
+    const payslip = latestPayslipMap.get(item.id) || null;
     const current = groupedItems.get(item.payroll_run_id) || [];
-    current.push(item);
+    current.push({
+      ...item,
+      payslip,
+      ...buildAdminPayslipState(item, payslip),
+    });
     groupedItems.set(item.payroll_run_id, current);
   }
 
@@ -1227,6 +1495,12 @@ export async function updatePayrollItemStatus({ itemId, paymentStatus }) {
   }
 
   const item = await getPayrollItemById(itemId);
+  const payslip = await getLatestPayslipForItem(itemId);
+
+  if (paymentStatus === 'paid' && !payslip) {
+    throw new Error('Generate the payslip before marking this payroll item as paid.');
+  }
+
   const { data: updated, error } = await adminClient
     .from('hrm_payroll_items')
     .update({
@@ -1249,20 +1523,13 @@ export async function updatePayrollItemStatus({ itemId, paymentStatus }) {
 export async function generatePayslipForItem({ itemId, actorUserId }) {
   const item = await getPayrollItemById(itemId);
 
-  const { data: existingPayslips, error: payslipError } = await adminClient
-    .from('hrm_payslips')
-    .select('id, version')
-    .eq('payroll_item_id', itemId)
-    .order('version', { ascending: false })
-    .limit(1);
-
-  if (payslipError) {
-    throw new Error(payslipError.message || 'Failed to load payslip versions');
+  const existingPayslip = await getLatestPayslipForItem(itemId);
+  if (existingPayslip) {
+    return existingPayslip;
   }
 
-  const version = (existingPayslips?.[0]?.version || 0) + 1;
   const generatedAt = new Date().toISOString();
-  const payslipNumber = `PS-${item.payroll_run.year}${padMonth(item.payroll_run.month)}-${item.employee.employee_id}-${version}`;
+  const payslipNumber = `PS-${item.payroll_run.year}${padMonth(item.payroll_run.month)}-${item.employee.employee_id}-1`;
   const snapshot = buildPayslipSnapshot({
     payrollItem: item,
     employee: item.employee,
@@ -1284,7 +1551,8 @@ export async function generatePayslipForItem({ itemId, actorUserId }) {
       snapshot_json: snapshot,
       generated_by: actorUserId,
       generated_at: generatedAt,
-      version,
+      version: 1,
+      released_to_employee: false,
     })
     .select('*')
     .single();
@@ -1316,6 +1584,126 @@ export async function getLatestPayslipForItem(itemId) {
   return data || null;
 }
 
+export async function listAdminPayrollHistory({ employeeId, year = null }) {
+  if (!employeeId) {
+    return [];
+  }
+
+  let query = adminClient
+    .from('hrm_payroll_items')
+    .select(`
+      *,
+      payroll_run:hrm_payroll_runs (*)
+    `)
+    .eq('employee_id', employeeId);
+
+  if (year) {
+    const runResult = await adminClient
+      .from('hrm_payroll_runs')
+      .select('id')
+      .eq('year', year);
+
+    if (runResult.error) {
+      throw new Error(runResult.error.message || 'Failed to load payroll history runs');
+    }
+
+    const runIds = (runResult.data || []).map((run) => run.id);
+    if (!runIds.length) {
+      return [];
+    }
+
+    query = query.in('payroll_run_id', runIds);
+  }
+
+  const { data: items, error } = await query;
+  if (error) {
+    throw new Error(error.message || 'Failed to load employee payroll history');
+  }
+
+  const itemIds = (items || []).map((item) => item.id);
+  const latestPayslipMap = new Map();
+
+  if (itemIds.length) {
+    const payslipResult = await adminClient
+      .from('hrm_payslips')
+      .select('id, payroll_item_id, payslip_number, generated_at, released_to_employee, released_at, released_by, version')
+      .in('payroll_item_id', itemIds)
+      .order('generated_at', { ascending: false });
+
+    if (payslipResult.error) {
+      throw new Error(payslipResult.error.message || 'Failed to load payroll history payslips');
+    }
+
+    for (const payslip of payslipResult.data || []) {
+      if (!latestPayslipMap.has(payslip.payroll_item_id)) {
+        latestPayslipMap.set(payslip.payroll_item_id, payslip);
+      }
+    }
+  }
+
+  return (items || [])
+    .map((item) => {
+      const payslip = latestPayslipMap.get(item.id) || null;
+      return {
+        ...item,
+        payslip,
+        ...buildAdminPayslipState(item, payslip),
+      };
+    })
+    .sort((left, right) => {
+      const leftYear = Number(left.payroll_run?.year || 0);
+      const rightYear = Number(right.payroll_run?.year || 0);
+      if (leftYear !== rightYear) {
+        return rightYear - leftYear;
+      }
+      return Number(right.payroll_run?.month || 0) - Number(left.payroll_run?.month || 0);
+    });
+}
+
+export async function getAdminPayrollHistoryItem(itemId) {
+  const item = await getPayrollItemById(itemId);
+  const payslip = await getLatestPayslipForItem(itemId);
+
+  return {
+    item,
+    payslip,
+    ...buildAdminPayslipState(item, payslip),
+  };
+}
+
+export async function releasePayslipToEmployee({ itemId, actorUserId }) {
+  const payslip = await getLatestPayslipForItem(itemId);
+  if (!payslip) {
+    throw new Error('Generate the payslip before sending it to the employee.');
+  }
+
+  const item = await getPayrollItemById(itemId);
+  if (item.payment_status !== 'paid') {
+    throw new Error('Mark this payroll item as paid before sending the payslip.');
+  }
+
+  if (payslip.released_to_employee) {
+    return payslip;
+  }
+
+  const { data: updated, error } = await adminClient
+    .from('hrm_payslips')
+    .update({
+      released_to_employee: true,
+      released_at: new Date().toISOString(),
+      released_by: actorUserId,
+    })
+    .eq('id', payslip.id)
+    .select('*')
+    .single();
+
+  if (error || !updated) {
+    throw new Error(error?.message || 'Failed to send payslip to employee.');
+  }
+
+  return updated;
+}
+
 export async function listEmployeePaidPayroll(employeeId) {
   const { data: items, error } = await adminClient
     .from('hrm_payroll_items')
@@ -1336,7 +1724,7 @@ export async function listEmployeePaidPayroll(employeeId) {
   if (itemIds.length) {
     const payslipResult = await adminClient
       .from('hrm_payslips')
-      .select('*')
+      .select('id, payroll_item_id, payslip_number, generated_at, released_to_employee, released_at, released_by, version')
       .in('payroll_item_id', itemIds)
       .order('version', { ascending: false });
 
@@ -1355,10 +1743,13 @@ export async function listEmployeePaidPayroll(employeeId) {
   }
 
   return (items || [])
-    .map((item) => ({
-      ...item,
-      payslip: latestPayslipMap.get(item.id) || null,
-    }))
+    .map((item) => {
+      const payslip = latestPayslipMap.get(item.id) || null;
+      return {
+        ...item,
+        ...buildEmployeePayslipState(payslip),
+      };
+    })
     .sort((left, right) => {
       const leftYear = Number(left.payroll_run?.year || 0);
       const rightYear = Number(right.payroll_run?.year || 0);
@@ -1397,6 +1788,6 @@ export async function getEmployeePaidPayrollMonth(employeeId, year, month) {
   return {
     ...item,
     payroll_run: run,
-    payslip,
+    ...buildEmployeePayslipState(payslip),
   };
 }

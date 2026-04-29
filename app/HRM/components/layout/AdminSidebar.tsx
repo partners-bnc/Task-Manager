@@ -29,16 +29,16 @@ export default function AdminSidebar({
   const navItems = [
     { id: 'admin-dashboard', label: 'Admin Dashboard', icon: 'admin_panel_settings' },
     { id: 'admin-employee-list', label: 'Employee Directory', icon: 'groups' },
-    { id: 'admin-module-access', label: 'Module Access', icon: 'verified_user' },
+    { id: 'admin-payouts', label: 'Payouts & Payroll', icon: 'account_balance_wallet' },
     { id: 'admin-organization-chart', label: 'Organization Chart', icon: 'account_tree' },
+    { id: 'admin-module-access', label: 'Module Access', icon: 'verified_user' },
     { id: 'admin-attendance', label: 'Attendance', icon: 'calendar_clock' },
     { id: 'admin-holidays', label: 'Holiday', icon: 'calendar_month' },
     { id: 'admin-leaves', label: 'Leave', icon: 'event_busy' },
     { id: 'admin-regularization', label: 'Regularization', icon: 'fact_check' },
     { id: 'admin-tickets', label: 'Tickets', icon: 'support_agent' },
     { id: 'admin-expenses', label: 'Expense Review', icon: 'receipt_long' },
-    { id: 'admin-payouts', label: 'Payouts & Payroll', icon: 'account_balance_wallet' },
-    { id: 'admin-analytics', label: 'Analytics', icon: 'insights' },
+    { id: 'admin-analytics', label: 'Analytics', icon: 'monitoring' },
   ];
 
   return (

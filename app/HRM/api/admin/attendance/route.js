@@ -47,6 +47,7 @@ async function loadEmployeeRows() {
       id,
       employee_id,
       name,
+      city,
       email,
       employee_status,
       employee_type,
@@ -74,6 +75,7 @@ async function loadEmployeeRows() {
       id,
       employee_id,
       name,
+      city,
       email,
       employee_status,
       working_days,
@@ -108,6 +110,50 @@ function formatAttendanceRow(baseRow, extras = {}) {
     source: extras.source || '',
     notes: baseRow.notes || extras.notes || '',
   };
+}
+
+function mapMonthlyStatusToCode(status = '') {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'present') return 'P';
+  if (normalized === 'late') return 'L';
+  if (normalized === 'absent') return 'A';
+  if (normalized === 'halfday') return 'HD';
+  if (normalized === 'on_leave') return 'LV';
+  if (normalized === 'holiday') return 'H';
+  if (normalized === 'weekend') return 'OFF';
+  return '--';
+}
+
+function buildMonthlySummary(dailyStatuses = []) {
+  return dailyStatuses.reduce(
+    (summary, day) => {
+      const code = String(day?.code || '--');
+      if (code === 'P') summary.present += 1;
+      else if (code === 'L') summary.late += 1;
+      else if (code === 'HD') summary.halfDay += 1;
+      else if (code === 'A') summary.absent += 1;
+      else if (code === 'OFF') summary.off += 1;
+      else if (code === 'H') summary.holiday += 1;
+      else if (code === 'LV') summary.leave += 1;
+      else summary.missing += 1;
+      return summary;
+    },
+    { present: 0, late: 0, halfDay: 0, absent: 0, off: 0, holiday: 0, leave: 0, missing: 0 }
+  );
+}
+
+function buildCalendarDays(monthString) {
+  const { start, end } = getDateRangeForMonth(monthString);
+  return listDatesInRange(start, end).map((date) => {
+    const parts = date.split('-');
+    const dayNumber = Number(parts[2]);
+    const weekdayShort = new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short' });
+    return {
+      date,
+      dayNumber,
+      weekdayShort,
+    };
+  });
 }
 
 function filterRows(rows = [], { search = '', status = '', department = '' } = {}) {
@@ -191,9 +237,123 @@ export async function GET(request) {
       name: employee.name || 'Employee',
       department: getRelationRecord(employee.department)?.name || '',
       designation: getRelationRecord(employee.designation)?.title || '',
+      city: employee.city || '',
     }));
 
     const departmentOptions = [...new Set(employeeOptions.map((employee) => employee.department).filter(Boolean))].sort();
+    const statusOptions = [
+      { value: 'present', label: 'Present' },
+      { value: 'late', label: 'Late' },
+      { value: 'absent', label: 'Absent' },
+      { value: 'halfday', label: 'Half Day' },
+      { value: 'on_leave', label: 'On Leave' },
+      { value: 'holiday', label: 'Holiday' },
+      { value: 'weekend', label: 'Weekend / Off' },
+      { value: 'missing', label: 'Missing / No Record' },
+    ];
+
+    if (mode === 'monthly') {
+      const range = getDateRangeForMonth(month);
+      const calendarDays = buildCalendarDays(month);
+      const selectedEmployees = employeeId
+        ? employeeRows.filter((employee) => employee.id === employeeId)
+        : employeeRows;
+
+      const [attendanceResult, holidaysResult] = await Promise.all([
+        adminClient
+          .from('hrm_attendance')
+          .select('*')
+          .in('employee_id', selectedEmployees.map((employee) => employee.id))
+          .gte('date', range.start)
+          .lte('date', range.end)
+          .order('date', { ascending: true }),
+        adminClient
+          .from('hrm_holidays')
+          .select('*')
+          .gte('date', range.start)
+          .lte('date', range.end),
+      ]);
+
+      if (attendanceResult.error) {
+        return NextResponse.json(
+          { error: attendanceResult.error.message || 'Failed to load monthly attendance' },
+          { status: 500 }
+        );
+      }
+      if (holidaysResult.error) {
+        return NextResponse.json(
+          { error: holidaysResult.error.message || 'Failed to load monthly holidays' },
+          { status: 500 }
+        );
+      }
+
+      const holidayMap = new Map((holidaysResult.data || []).map((holiday) => [holiday.date, holiday]));
+      const attendanceMap = new Map(
+        (attendanceResult.data || []).map((row) => [`${row.employee_id}:${row.date}`, row])
+      );
+
+      const rows = selectedEmployees
+        .map((employee) => {
+          const dailyStatuses = calendarDays.map((day) => {
+            const holiday = holidayMap.get(day.date);
+            const rawAttendance = attendanceMap.get(`${employee.id}:${day.date}`) || null;
+            const rendered = holiday
+              ? buildHolidayUiRecord(day.date, holiday)
+              : buildAttendanceUiRecord(day.date, rawAttendance, {
+                  workingDays: employee.working_days || [],
+                  secondSaturdayOff: Boolean(employee.second_saturday_off),
+                });
+            const normalizedStatus = String(rendered.status || '').toLowerCase() || 'missing';
+            const code = mapMonthlyStatusToCode(normalizedStatus);
+            return {
+              date: day.date,
+              code,
+              status: normalizedStatus === 'weekend' ? 'weekend' : normalizedStatus || 'missing',
+              label: formatStatusLabel(normalizedStatus),
+              notes: rendered.notes || '',
+            };
+          });
+
+          const summary = buildMonthlySummary(dailyStatuses);
+          const manager = managerMap.get(employee.reporting_manager_id);
+
+          return {
+            employee: {
+              id: employee.id,
+              employeeId: employee.employee_id || '--',
+              name: employee.name || 'Employee',
+              department: getRelationRecord(employee.department)?.name || 'Department not set',
+              designation: getRelationRecord(employee.designation)?.title || 'Designation not set',
+              city: employee.city || '',
+              reportingTo: manager?.name || '--',
+            },
+            dailyStatuses,
+            summary,
+          };
+        })
+        .filter((row) => {
+          if (!statusFilter) return true;
+          const normalizedStatus = String(statusFilter).toLowerCase();
+          if (normalizedStatus === 'missing') {
+            return row.summary.missing > 0;
+          }
+          return row.dailyStatuses.some((day) => day.status === normalizedStatus);
+        });
+
+      return NextResponse.json(
+        {
+          mode: 'monthly',
+          month,
+          calendarDays,
+          rows,
+          employeeOptions,
+          departmentOptions,
+          statusOptions,
+          selectedEmployeeId: employeeId,
+        },
+        { status: 200 }
+      );
+    }
 
     if (mode === 'individual') {
       if (!employeeId) {
@@ -202,6 +362,7 @@ export async function GET(request) {
             mode: 'individual',
             employeeOptions,
             departmentOptions,
+            statusOptions,
             selectedEmployeeId: '',
             month,
             rows: [],
@@ -265,6 +426,7 @@ export async function GET(request) {
           mode: 'individual',
           employeeOptions,
           departmentOptions,
+          statusOptions,
           selectedEmployeeId: employeeId,
           employee: {
             id: selectedEmployee.id,
@@ -332,6 +494,7 @@ export async function GET(request) {
         mode: 'daily',
         employeeOptions,
         departmentOptions,
+        statusOptions,
         date: selectedDate,
         rows,
       },

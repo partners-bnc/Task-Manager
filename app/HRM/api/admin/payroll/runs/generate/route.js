@@ -10,6 +10,7 @@ export async function POST(request) {
     const body = await request.json();
     const year = Number.parseInt(String(body.year || ''), 10);
     const month = Number.parseInt(String(body.month || ''), 10);
+    const previewSignature = String(body.previewSignature || '').trim();
 
     if (!Number.isFinite(year) || !Number.isFinite(month)) {
       return NextResponse.json({ error: 'Valid year and month are required.' }, { status: 400 });
@@ -19,6 +20,7 @@ export async function POST(request) {
       year,
       month,
       actorUserId: auth.authContext.userId,
+      previewSignature,
     });
 
     return NextResponse.json(result, { status: 200 });

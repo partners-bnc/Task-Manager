@@ -3,154 +3,263 @@ import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
   page: {
-    padding: 28,
-    fontSize: 10,
-    fontFamily: 'Helvetica',
-    color: '#0f172a',
+    paddingTop: 30,
+    paddingHorizontal: 34,
+    paddingBottom: 40,
     backgroundColor: '#ffffff',
+    color: '#111827',
+    fontFamily: 'Times-Roman',
+    fontSize: 10,
+    lineHeight: 1.25,
   },
   header: {
-    backgroundColor: '#0f172a',
-    color: '#ffffff',
-    borderRadius: 14,
-    padding: 18,
-    marginBottom: 18,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 700,
-    marginBottom: 4,
-  },
-  headerText: {
-    fontSize: 10,
-    opacity: 0.9,
-  },
-  grid: {
-    display: 'flex',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  card: {
-    width: '48%',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    padding: 12,
+    alignItems: 'center',
+    textAlign: 'center',
     marginBottom: 12,
   },
-  cardTitle: {
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    color: '#64748b',
-    marginBottom: 8,
+  companyName: {
+    fontSize: 15,
+    fontFamily: 'Times-Bold',
+    lineHeight: 1.15,
+    marginBottom: 3,
   },
-  row: {
-    display: 'flex',
+  address: {
+    fontSize: 8.5,
+    lineHeight: 1.25,
+    maxWidth: 470,
+  },
+  title: {
+    marginTop: 8,
+    marginBottom: 14,
+    textAlign: 'center',
+    fontSize: 10.5,
+    fontFamily: 'Times-Bold',
+  },
+  infoTable: {
+    borderWidth: 1,
+    borderColor: '#9ca3af',
+    marginBottom: 14,
+  },
+  infoRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 6,
   },
-  label: {
-    color: '#475569',
+  infoCell: {
+    borderRightWidth: 1,
+    borderRightColor: '#9ca3af',
+    paddingVertical: 4,
+    paddingHorizontal: 5,
+    minHeight: 24,
+    justifyContent: 'center',
   },
-  value: {
-    fontWeight: 700,
+  infoLabelCell: {
+    width: '15%',
+  },
+  infoValueCell: {
+    width: '35%',
+  },
+  infoRightLabelCell: {
+    width: '15%',
+  },
+  infoRightValueCell: {
+    width: '35%',
+    borderRightWidth: 0,
+  },
+  labelText: {
+    fontSize: 9.5,
+  },
+  valueText: {
+    fontSize: 9.5,
+  },
+  summaryTable: {
+    borderWidth: 1,
+    borderColor: '#9ca3af',
+  },
+  summaryHeaderRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#9ca3af',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+  },
+  summaryCell: {
+    paddingVertical: 3.5,
+    paddingHorizontal: 4,
+    borderRightWidth: 1,
+    borderRightColor: '#9ca3af',
+    minHeight: 22,
+    justifyContent: 'center',
+  },
+  earnLabelCell: {
+    width: '38%',
+  },
+  earnAmountCell: {
+    width: '12%',
+  },
+  deductLabelCell: {
+    width: '38%',
+  },
+  deductAmountCell: {
+    width: '12%',
+    borderRightWidth: 0,
+  },
+  summaryHeadText: {
+    fontFamily: 'Times-Bold',
+    fontSize: 9.5,
+  },
+  amountText: {
     textAlign: 'right',
   },
-  totalCard: {
-    marginTop: 8,
-    borderRadius: 12,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#bfdbfe',
-    padding: 14,
+  totalRow: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#9ca3af',
+  },
+  totalText: {
+    fontFamily: 'Times-Bold',
+    fontSize: 9.5,
+  },
+  netPayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 6,
+  },
+  netPayLabel: {
+    fontSize: 10,
+  },
+  netPayValue: {
+    fontSize: 10,
+    fontFamily: 'Times-Bold',
+  },
+  words: {
+    marginTop: 10,
+    fontSize: 9.5,
+    fontStyle: 'italic',
   },
   footer: {
-    marginTop: 16,
-    fontSize: 9,
-    color: '#64748b',
+    marginTop: 24,
+    textAlign: 'center',
+    fontSize: 8.8,
+    color: '#6b7280',
   },
 });
 
-function money(value: any) {
-  const numeric = Number(value || 0);
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(numeric) ? numeric : 0);
+function ensureRows(rows: any[] = [], minRows = 3) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const count = Math.max(minRows, safeRows.length);
+
+  return Array.from({ length: count }, (_, index) => safeRows[index] || { label: '', displayAmount: '' });
 }
 
 export default function PayrollPdfDocument({ snapshot }: { snapshot: any }) {
-  const employee = snapshot?.employee || {};
+  const header = snapshot?.header || {};
   const meta = snapshot?.meta || {};
-  const earnings = snapshot?.earnings || {};
-  const deductions = snapshot?.deductions || {};
+  const detailColumns = snapshot?.detailColumns || { left: [], right: [] };
+  const earningsRows = snapshot?.earningsRows || [];
+  const deductionRows = snapshot?.deductionRows || [];
   const totals = snapshot?.totals || {};
+
+  const rowCount = Math.max(earningsRows.length, deductionRows.length, 3);
+  const safeEarningsRows = ensureRows(earningsRows, rowCount);
+  const safeDeductionRows = ensureRows(deductionRows, rowCount);
+  const detailRowCount = Math.max(detailColumns.left?.length || 0, detailColumns.right?.length || 0);
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>{employee.company || 'Company'} Payslip</Text>
-          <Text style={styles.headerText}>
-            {meta.monthLabel || ''} | Payslip No. {snapshot?.payslipNumber || '--'}
-          </Text>
+          <Text style={styles.companyName}>{header.companyName || ''}</Text>
+          <Text style={styles.address}>{header.addressLine || ''}</Text>
         </View>
 
-        <View style={styles.grid}>
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Employee</Text>
-            <View style={styles.row}><Text style={styles.label}>Employee ID</Text><Text style={styles.value}>{employee.employee_id || '--'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Employee Name</Text><Text style={styles.value}>{employee.name || '--'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Designation</Text><Text style={styles.value}>{employee.designation_title || '--'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Joining Date</Text><Text style={styles.value}>{employee.date_of_joining || '--'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Department</Text><Text style={styles.value}>{employee.department_name || '--'}</Text></View>
+        <Text style={styles.title}>Payslip for the month of {meta.monthLabel || ''}</Text>
+
+        <View style={styles.infoTable}>
+          {Array.from({ length: detailRowCount }, (_, index) => {
+            const left = detailColumns.left?.[index] || { label: '', value: '' };
+            const right = detailColumns.right?.[index] || { label: '', value: '' };
+
+            return (
+              <View key={`info-${index}`} style={styles.infoRow}>
+                <View style={[styles.infoCell, styles.infoLabelCell]}>
+                  <Text style={styles.labelText}>{left.label ? `${left.label}:` : ''}</Text>
+                </View>
+                <View style={[styles.infoCell, styles.infoValueCell]}>
+                  <Text style={styles.valueText}>{left.value || ''}</Text>
+                </View>
+                <View style={[styles.infoCell, styles.infoRightLabelCell]}>
+                  <Text style={styles.labelText}>{right.label ? `${right.label}:` : ''}</Text>
+                </View>
+                <View style={[styles.infoCell, styles.infoRightValueCell]}>
+                  <Text style={styles.valueText}>{right.value || ''}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.summaryTable}>
+          <View style={styles.summaryHeaderRow}>
+            <View style={[styles.summaryCell, styles.earnLabelCell]}>
+              <Text style={styles.summaryHeadText}>Earnings</Text>
+            </View>
+            <View style={[styles.summaryCell, styles.earnAmountCell]}>
+              <Text style={[styles.summaryHeadText, styles.amountText]}>Amount</Text>
+            </View>
+            <View style={[styles.summaryCell, styles.deductLabelCell]}>
+              <Text style={styles.summaryHeadText}>Deductions</Text>
+            </View>
+            <View style={[styles.summaryCell, styles.deductAmountCell]}>
+              <Text style={[styles.summaryHeadText, styles.amountText]}>Amount</Text>
+            </View>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Payroll</Text>
-            <View style={styles.row}><Text style={styles.label}>Base Salary</Text><Text style={styles.value}>{money(earnings.salarySnapshot)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Prorated Salary</Text><Text style={styles.value}>{money(earnings.proratedSalary)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Active Days</Text><Text style={styles.value}>{String(meta.activeDays ?? '--')}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>LOP Days</Text><Text style={styles.value}>{String(meta.lopDays ?? '--')}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Payment Status</Text><Text style={styles.value}>{String(meta.paymentStatus || '--')}</Text></View>
-          </View>
+          {safeEarningsRows.map((earningRow, index) => {
+            const deductionRow = safeDeductionRows[index] || { label: '', displayAmount: '' };
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Deductions</Text>
-            <View style={styles.row}><Text style={styles.label}>LOP</Text><Text style={styles.value}>{money(deductions.lopDeduction)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Employee PF</Text><Text style={styles.value}>{money(deductions.pfEmployeeDeduction)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Employer PF</Text><Text style={styles.value}>{money(deductions.pfEmployerDeduction)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Total PF</Text><Text style={styles.value}>{money(deductions.totalPfDeduction)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Employee TDS</Text><Text style={styles.value}>{money(deductions.tdsEmployeeDeduction)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Total TDS</Text><Text style={styles.value}>{money(deductions.totalTdsDeduction)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Retention</Text><Text style={styles.value}>{money(deductions.retentionDeduction)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Total Deductions</Text><Text style={styles.value}>{money(totals.totalDeductions)}</Text></View>
-          </View>
+            return (
+              <View key={`summary-${index}`} style={styles.summaryRow}>
+                <View style={[styles.summaryCell, styles.earnLabelCell]}>
+                  <Text>{earningRow.label || ''}</Text>
+                </View>
+                <View style={[styles.summaryCell, styles.earnAmountCell]}>
+                  <Text style={styles.amountText}>{earningRow.displayAmount || ''}</Text>
+                </View>
+                <View style={[styles.summaryCell, styles.deductLabelCell]}>
+                  <Text>{deductionRow.label || ''}</Text>
+                </View>
+                <View style={[styles.summaryCell, styles.deductAmountCell]}>
+                  <Text style={styles.amountText}>{deductionRow.displayAmount || ''}</Text>
+                </View>
+              </View>
+            );
+          })}
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Release Details</Text>
-            <View style={styles.row}><Text style={styles.label}>Retention Release</Text><Text style={styles.value}>{money(deductions.retentionReleaseAmount)}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Bank</Text><Text style={styles.value}>{employee.bank_name || '--'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>IFSC</Text><Text style={styles.value}>{employee.bank_ifsc || '--'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Generated</Text><Text style={styles.value}>{meta.generatedAt || '--'}</Text></View>
+          <View style={styles.totalRow}>
+            <View style={[styles.summaryCell, styles.earnLabelCell]}>
+              <Text style={styles.totalText}>Total Earnings:INR.</Text>
+            </View>
+            <View style={[styles.summaryCell, styles.earnAmountCell]}>
+              <Text style={[styles.totalText, styles.amountText]}>{totals.totalEarningsDisplay || ''}</Text>
+            </View>
+            <View style={[styles.summaryCell, styles.deductLabelCell]}>
+              <Text style={styles.totalText}>Total Deductions:INR.</Text>
+            </View>
+            <View style={[styles.summaryCell, styles.deductAmountCell]}>
+              <Text style={[styles.totalText, styles.amountText]}>{totals.totalDeductionsDisplay || ''}</Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.totalCard}>
-          <View style={styles.row}>
-            <Text style={styles.label}>Net Salary</Text>
-            <Text style={styles.value}>{money(totals.netSalary)}</Text>
-          </View>
+        <View style={styles.netPayRow}>
+          <Text style={styles.netPayLabel}>Net Pay for the month :</Text>
+          <Text style={styles.netPayValue}>{totals.netSalaryDisplay || ''}</Text>
         </View>
 
-        <Text style={styles.footer}>
-          This payslip is generated from the frozen payroll snapshot and should match the paid payroll record exactly.
-        </Text>
+        <Text style={styles.words}>({totals.netSalaryWords || ''})</Text>
+
+        <Text style={styles.footer}>This is a system generated payslip and does not require signature.</Text>
       </Page>
     </Document>
   );

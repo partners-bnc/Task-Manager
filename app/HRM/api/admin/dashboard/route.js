@@ -75,6 +75,47 @@ function buildLifecycleReminders(employees = []) {
     .sort((left, right) => String(left.dueDate || '').localeCompare(String(right.dueDate || '')));
 }
 
+async function getEmployeesOnLeaveToday(employees = []) {
+  const today = getCurrentDateInTimeZone();
+  const employeeMap = new Map((employees || []).map((employee) => [employee.id, employee]));
+
+  const { data, error } = await adminClient
+    .from('hrm_leave_requests')
+    .select('id, employee_id, start_date, end_date, status, total_days, approved_days, paid_days, lop_days, applied_session')
+    .eq('status', 'approved')
+    .lte('start_date', today)
+    .gte('end_date', today)
+    .order('start_date', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message || 'Failed to load employees on leave');
+  }
+
+  return (data || [])
+    .map((row) => {
+      const employee = employeeMap.get(row.employee_id);
+      if (!employee) {
+        return null;
+      }
+
+      return {
+        id: row.id,
+        employeeId: employee.id,
+        employeeCode: employee.employee_id || '',
+        name: employee.name || 'Employee',
+        profilePictureUrl: employee.profile_picture_url || '',
+        designation: employee.designation?.title || '',
+        department: employee.department?.name || '',
+        startDate: row.start_date,
+        endDate: row.end_date,
+        session: row.applied_session || 'full_day',
+        totalDays: Number(row.approved_days ?? row.total_days ?? 0),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 6);
+}
+
 async function getPendingTaskMetrics(authContext) {
   const today = getCurrentDateInTimeZone();
 
@@ -157,6 +198,7 @@ export async function GET() {
       getHrAdminDashboardSnapshot(),
       getPendingTaskMetrics(authContext),
     ]);
+    const employeesOnLeaveToday = await getEmployeesOnLeaveToday(employees);
 
     return NextResponse.json({
       success: true,
@@ -170,13 +212,14 @@ export async function GET() {
         hrAdminCount: hrAdmins.length,
         employeeCount: employees.length,
         activeEmployeeCount: employees.filter((employee) => deriveEmploymentFields(employee).employmentLifecycleStatus === 'active').length,
-        onLeaveEmployeeCount: employees.filter((employee) => deriveEmploymentFields(employee).currentStage === 'on_leave').length,
+        onLeaveEmployeeCount: employeesOnLeaveToday.length,
         departmentCount,
         designationCount,
         pendingTaskCount: taskMetrics.pendingTaskCount,
         todayLateAttendanceCount: taskMetrics.todayLateAttendanceCount,
       },
       recentEmployees,
+      employeesOnLeaveToday,
       recentHrAdmins: hrAdmins.slice(0, 5),
       upcomingBirthdays: getUpcomingBirthdays(employees),
       lifecycleReminders: buildLifecycleReminders(employees),

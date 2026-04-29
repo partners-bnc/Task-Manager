@@ -37,6 +37,19 @@ function formatBirthday(value) {
   });
 }
 
+function formatLeaveWindow(startDate, endDate) {
+  if (!startDate && !endDate) {
+    return 'Today';
+  }
+
+  const start = formatDate(startDate);
+  const end = formatDate(endDate);
+  if (start === end) {
+    return start;
+  }
+  return `${start} to ${end}`;
+}
+
 function formatBirthdayNames(employees = []) {
   const names = employees
     .map((employee) => String(employee?.name || '').trim())
@@ -396,6 +409,71 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[1.35rem] border border-outline-variant/10 bg-surface-container-low p-4 shadow-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="font-headline text-base font-bold text-on-surface">Employees On Leave Today</h3>
+                    <p className="mt-1 text-xs text-on-surface-variant">
+                      Today&apos;s approved leave employees with quick identity view.
+                    </p>
+                  </div>
+                  <span className="inline-flex w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-amber-700">
+                    {metrics.onLeaveEmployeeCount} on leave
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {(dashboard.employeesOnLeaveToday || []).length === 0 ? (
+                    <HrmEmptyState
+                      compact
+                      icon="event_available"
+                      title="No leave record for today"
+                      message="Employees who are approved for leave today will appear here."
+                    />
+                  ) : (
+                    (dashboard.employeesOnLeaveToday || []).map((employee) => (
+                      <button
+                        key={employee.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedEmployeeId?.(employee.employeeId);
+                          setCurrentTab?.('admin-employee-profile');
+                        }}
+                        className="flex w-full items-center justify-between gap-3 rounded-xl border border-outline-variant/10 bg-surface-container-lowest px-3 py-2.5 text-left transition hover:bg-white"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          {employee.profilePictureUrl ? (
+                            <Image
+                              src={employee.profilePictureUrl}
+                              alt={employee.name || 'Employee on leave'}
+                              width={36}
+                              height={36}
+                              className="h-9 w-9 rounded-full border border-outline-variant/10 object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
+                              {getInitials(employee.name)}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-on-surface">{employee.name || 'Employee'}</p>
+                            <p className="truncate text-xs text-on-surface-variant">
+                              {employee.employeeCode || 'No employee ID'} {employee.designation ? `· ${employee.designation}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-xs font-semibold text-on-surface">{formatLeaveWindow(employee.startDate, employee.endDate)}</p>
+                          <p className="mt-0.5 text-[11px] text-on-surface-variant">
+                            {String(employee.session || 'full_day').replace(/_/g, ' ')}
+                          </p>
+                        </div>
+                      </button>
+                    ))
                   )}
                 </div>
               </div>

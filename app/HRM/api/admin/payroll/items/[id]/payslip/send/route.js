@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getLatestPayslipForItem, getPayrollItemById, updatePayrollItemStatus } from '@/utils/payroll';
+import { getPayrollItemById, getLatestPayslipForItem, releasePayslipToEmployee } from '@/utils/payroll';
 import { jsonErrorResponse, requireHrPayrollAccess } from '@/utils/payroll-api';
 
 async function readParams(params) {
   return typeof params?.then === 'function' ? params : Promise.resolve(params);
 }
 
-export async function PATCH(request, context) {
+export async function POST(request, context) {
   try {
     const auth = await requireHrPayrollAccess();
     if (auth.error) return auth.error;
@@ -16,17 +16,16 @@ export async function PATCH(request, context) {
       return NextResponse.json({ error: 'Payroll item id is required.' }, { status: 400 });
     }
 
-    const body = await request.json();
-    const paymentStatus = String(body.paymentStatus || '').trim();
-    await updatePayrollItemStatus({ itemId: id, paymentStatus });
-    const payslip = await getLatestPayslipForItem(id);
+    const payslip = await releasePayslipToEmployee({
+      itemId: id,
+      actorUserId: auth.authContext.userId,
+    });
 
     const item = await getPayrollItemById(id);
-
-    return NextResponse.json({ item, payslip }, { status: 200 });
+    return NextResponse.json({ payslip, item }, { status: 200 });
   } catch (error) {
-    console.error('Error updating payroll item:', error);
-    return jsonErrorResponse(error, 'Failed to update payroll item');
+    console.error('Error sending payslip to employee:', error);
+    return jsonErrorResponse(error, 'Failed to send payslip to employee');
   }
 }
 
@@ -40,11 +39,11 @@ export async function GET(request, context) {
       return NextResponse.json({ error: 'Payroll item id is required.' }, { status: 400 });
     }
 
-    const item = await getPayrollItemById(id);
     const payslip = await getLatestPayslipForItem(id);
-    return NextResponse.json({ item, payslip }, { status: 200 });
+    const item = await getPayrollItemById(id);
+    return NextResponse.json({ payslip, item }, { status: 200 });
   } catch (error) {
-    console.error('Error loading payroll item:', error);
-    return jsonErrorResponse(error, 'Failed to load payroll item');
+    console.error('Error loading payslip release state:', error);
+    return jsonErrorResponse(error, 'Failed to load payslip release state');
   }
 }
