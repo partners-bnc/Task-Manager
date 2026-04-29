@@ -67,6 +67,9 @@ async function tryPrivilegedLogin(identifier, password, loginAs) {
       success: true,
       role: authContext.accountType,
       destination: authContext.destination,
+      workspaceHref: authContext.destination,
+      taskManagerHref: authContext.moduleAccess?.taskManager?.href || '/login',
+      modules: authContext.moduleAccess,
       user: {
         id: authContext.user.id,
         email: authContext.user.email,
@@ -170,6 +173,14 @@ async function tryEmployeeLogin(identifier, password, loginAs) {
         success: true,
         role: 'employee',
         destination: authContext.destination,
+        workspaceHref: authContext.destination,
+        taskManagerHref: authContext.moduleAccess?.taskManager?.href || '/login',
+        modules: authContext.moduleAccess,
+        user: {
+          id: authContext.user.id,
+          email: authContext.user.email,
+          name: authContext.user.name,
+        },
         employee: {
           id: employee.id,
           name: employee.name,
@@ -222,6 +233,14 @@ async function tryEmployeeLogin(identifier, password, loginAs) {
       success: true,
       role: 'employee',
       destination: authContext.destination,
+      workspaceHref: authContext.destination,
+      taskManagerHref: authContext.moduleAccess?.taskManager?.href || '/login',
+      modules: authContext.moduleAccess,
+      user: {
+        id: authContext.user.id,
+        email: authContext.user.email,
+        name: authContext.user.name,
+      },
       employee: {
         id: employee.id,
         name: employee.name,

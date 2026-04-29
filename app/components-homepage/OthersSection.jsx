@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { BriefcaseBusiness, ClipboardList, Files, ShieldCheck } from 'lucide-react';
+import { ModuleCardsSkeleton } from './ExperienceLoaders';
 
 const otherModules = [
   {
@@ -33,7 +34,7 @@ const otherModules = [
   },
 ];
 
-export function OthersSection({ modules: moduleAccessMap = {}, className = '' }) {
+export function OthersSection({ modules: moduleAccessMap = {}, loading = false, className = '' }) {
   const [activeDialog, setActiveDialog] = useState(null);
   const modules = useMemo(
     () =>
@@ -64,8 +65,11 @@ export function OthersSection({ modules: moduleAccessMap = {}, className = '' })
           </div>
         </div>
 
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-          {modules.map((module) => {
+        {loading ? (
+          <ModuleCardsSkeleton />
+        ) : (
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {modules.map((module) => {
             const Icon = module.icon;
 
             const isEnabled = module.enabled;
@@ -93,35 +97,36 @@ export function OthersSection({ modules: moduleAccessMap = {}, className = '' })
               });
             };
 
-            return (
-              <div key={module.id} className="group relative [perspective:1400px]">
-                <Link
-                  href={module.href || '#'}
-                  onClick={handleModuleClick}
-                  className={cardClassName}
-                >
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.98),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(237,233,254,0.65),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.72),transparent_56%)] opacity-95" />
-                  <div className="absolute inset-x-[10px] inset-y-[10px] rounded-[22px] border border-white/60 opacity-90" />
-                  <div className="relative mb-10 flex items-start justify-between gap-4 [transform:translateZ(18px)]">
-                    <div
-                      className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#a78bfa_0%,#7c3aed_100%)] text-white shadow-[0_14px_28px_rgba(124,58,237,0.24)] ring-1 ring-white/50 transition-transform duration-400 group-hover:scale-[1.03]"
-                    >
-                      <Icon size={24} />
+              return (
+                <div key={module.id} className="group relative [perspective:1400px]">
+                  <Link
+                    href={module.href || '#'}
+                    onClick={handleModuleClick}
+                    className={cardClassName}
+                  >
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.98),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(237,233,254,0.65),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.72),transparent_56%)] opacity-95" />
+                    <div className="absolute inset-x-[10px] inset-y-[10px] rounded-[22px] border border-white/60 opacity-90" />
+                    <div className="relative mb-10 flex items-start justify-between gap-4 [transform:translateZ(18px)]">
+                      <div
+                        className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#a78bfa_0%,#7c3aed_100%)] text-white shadow-[0_14px_28px_rgba(124,58,237,0.24)] ring-1 ring-white/50 transition-transform duration-400 group-hover:scale-[1.03]"
+                      >
+                        <Icon size={24} />
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-sm ring-1 ${statusClassName}`}>
+                        {isEnabled ? 'Access On' : 'Access Off'}
+                      </span>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-sm ring-1 ${statusClassName}`}>
-                      {isEnabled ? 'Access On' : 'Access Off'}
-                    </span>
-                  </div>
 
-                  <div className="relative [transform:translateZ(14px)]">
-                    <h3 className="text-2xl font-bold tracking-tight">{module.title}</h3>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">{module.description}</p>
-                  </div>
-                </Link>
-              </div>
-            );
-          })}
-        </div>
+                    <div className="relative [transform:translateZ(14px)]">
+                      <h3 className="text-2xl font-bold tracking-tight">{module.title}</h3>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">{module.description}</p>
+                    </div>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {activeDialog ? (

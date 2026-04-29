@@ -2,38 +2,36 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { BrandedFullPageLoader } from './ExperienceLoaders';
+import { buildDefaultWorkspaceState, fetchWorkspaceState } from './workspaceAuthClient';
 
 export function ModuleAccessGate({
   moduleKey,
   moduleLabel,
   children,
 }) {
-  const [state, setState] = useState({
-    loading: true,
+  const [state, setState] = useState(() => ({
+    ...buildDefaultWorkspaceState(),
     authenticated: false,
     enabled: false,
     href: null,
     error: '',
-  });
+  }));
 
   useEffect(() => {
     let active = true;
 
     async function loadAccess() {
       try {
-        const response = await fetch('/api/auth/context', {
-          method: 'GET',
-          credentials: 'include',
-        });
-        const result = await response.json();
+        const result = await fetchWorkspaceState();
 
         if (!active) return;
 
-        const moduleState = result?.modules?.[moduleKey];
+        const moduleState = result.modules?.[moduleKey];
 
         setState({
           loading: false,
-          authenticated: Boolean(result?.authenticated),
+          authenticated: Boolean(result.isAuthenticated),
           enabled: Boolean(moduleState?.enabled),
           href: moduleState?.href || null,
           error: '',
@@ -59,9 +57,11 @@ export function ModuleAccessGate({
 
   if (state.loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-500">
-        Loading module...
-      </div>
+      <BrandedFullPageLoader
+        eyebrow={`${moduleLabel} Access`}
+        title={`Opening ${moduleLabel}`}
+        message="Checking your access and preparing the latest module data so everything appears together."
+      />
     );
   }
 

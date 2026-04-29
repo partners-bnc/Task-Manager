@@ -6,8 +6,8 @@ import { OthersSection } from '@/app/components-homepage/OthersSection';
 import { useWorkspaceRouting } from '@/app/components-homepage/useWorkspaceRouting';
 
 export default function OtherModulesPage() {
-  const { isAuthenticated, workspaceHref, modules, user } = useWorkspaceRouting();
-  const workspaceLabel = isAuthenticated ? 'Workspace' : 'Login';
+  const { loading, isAuthenticated, workspaceHref, modules, user } = useWorkspaceRouting();
+  const workspaceLabel = loading ? 'Loading' : isAuthenticated ? 'Workspace' : 'Login';
 
   return (
     <>
@@ -20,7 +20,7 @@ export default function OtherModulesPage() {
         user={user}
       />
       <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)] pt-20 md:pt-[5.5rem]">
-        <OthersSection modules={modules} className="pt-10 pb-24 md:pt-12 md:pb-24" />
+        <OthersSection modules={modules} loading={loading} className="pt-10 pb-24 md:pt-12 md:pb-24" />
       </main>
       <Footer taskManagerHref={workspaceHref} />
     </>

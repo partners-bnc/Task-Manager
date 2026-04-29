@@ -1056,6 +1056,90 @@ function EmptySection({ title, note }) {
   );
 }
 
+function SkeletonBlock({ height, width = "100%", radius = 14, style = {} }) {
+  return <div style={{ height, width, borderRadius: radius, background: "#e8eef6", ...style }} />;
+}
+
+function ProjectCardsSkeleton() {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(360px,1fr))", gap: 18 }}>
+      {Array.from({ length: 4 }, (_, index) => (
+        <div
+          key={index}
+          style={{
+            background: "linear-gradient(135deg,#ffffff 0%, #f8fbff 100%)",
+            border: `1px solid ${COLORS.border}`,
+            borderRadius: 24,
+            padding: 28,
+            minHeight: 390,
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+            boxShadow: "0 14px 34px rgba(15,23,42,0.05)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+            <SkeletonBlock height={66} width={66} radius={18} />
+            <SkeletonBlock height={32} width={112} radius={999} />
+          </div>
+          <SkeletonBlock height={14} width={132} radius={999} />
+          <SkeletonBlock height={30} width="72%" radius={12} />
+          <SkeletonBlock height={14} width="100%" radius={999} />
+          <SkeletonBlock height={14} width="86%" radius={999} />
+          <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <SkeletonBlock height={12} width={92} radius={999} />
+              <SkeletonBlock height={12} width={44} radius={999} />
+            </div>
+            <SkeletonBlock height={8} width="100%" radius={999} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <SkeletonBlock height={28} width={28} radius={999} />
+                <SkeletonBlock height={28} width={28} radius={999} />
+                <SkeletonBlock height={28} width={28} radius={999} />
+              </div>
+              <SkeletonBlock height={12} width={76} radius={999} />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PdplSectionLoadingPanel({ title = "Loading section data" }) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${COLORS.border}`,
+        borderRadius: 22,
+        background: "#fff",
+        padding: "26px 24px",
+        boxShadow: "0 14px 34px rgba(15,23,42,0.05)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 18, marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>{title}</div>
+          <div style={{ fontSize: 13, color: COLORS.textSoft, marginTop: 8 }}>Fetching the latest records from the database. The page will appear once everything is ready.</div>
+        </div>
+        <div style={{ width: 54, height: 54, borderRadius: "50%", border: `3px solid ${COLORS.tealBorder}`, borderTopColor: COLORS.teal, animation: "spin 1s linear infinite" }} />
+      </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <div style={{ display: "grid", gap: 12 }}>
+        {Array.from({ length: 6 }, (_, index) => (
+          <div key={index} style={{ display: "grid", gridTemplateColumns: "1fr 2.1fr 1.2fr 1.2fr", gap: 12 }}>
+            <SkeletonBlock height={48} />
+            <SkeletonBlock height={48} />
+            <SkeletonBlock height={48} />
+            <SkeletonBlock height={48} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProjectCard({ project, members, onOpen }) {
   const progress = project.progressPercent ?? getProjectProgress(project);
   const assignedMembers = project.teamMemberIds?.slice(0, 4) || [];
@@ -1114,7 +1198,7 @@ function ProjectCard({ project, members, onOpen }) {
       </div>
 
       <div style={{ fontSize: 12.5, color: COLORS.teal, textTransform: "uppercase", letterSpacing: "2px", fontFamily: MONO }}>
-        Company Project
+        PDPL Project
       </div>
 
       <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.text, lineHeight: 1.3 }}>{project.name}</div>
@@ -1568,20 +1652,12 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
     projectLength: "",
     teamMemberIds: [],
   };
-  const [form, setForm] = useState({
+  const [form, setForm] = useState(() => ({
     ...emptyForm,
-  });
+    ...(initialValues || {}),
+    teamMemberIds: Array.isArray(initialValues?.teamMemberIds) ? initialValues.teamMemberIds : [],
+  }));
   const [memberPickerOpen, setMemberPickerOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open) return;
-    setForm({
-      ...emptyForm,
-      ...(initialValues || {}),
-      teamMemberIds: Array.isArray(initialValues?.teamMemberIds) ? initialValues.teamMemberIds : [],
-    });
-    setMemberPickerOpen(false);
-  }, [open, initialValues]);
 
   if (!open) return null;
 
@@ -2206,6 +2282,8 @@ export default function PdplWorkspace({
   const [saveConfirmState, setSaveConfirmState] = useState({ open: false, scope: "all", verified: false });
   const [savingScope, setSavingScope] = useState(null);
   const [projectSaveBaseline, setProjectSaveBaseline] = useState({});
+  const [pdplProjectsLoading, setPdplProjectsLoading] = useState(true);
+  const [projectDetailsLoading, setProjectDetailsLoading] = useState(false);
 
   const pdplProjects = useMemo(
     () =>
@@ -2233,6 +2311,7 @@ export default function PdplWorkspace({
     let active = true;
 
     const loadPdplProjects = async () => {
+      setPdplProjectsLoading(true);
       try {
         const response = await fetch("/Auditing/api/pdpl/projects", { cache: "no-store" });
         const result = await response.json();
@@ -2257,6 +2336,8 @@ export default function PdplWorkspace({
       } catch (error) {
         if (!active) return;
         showToast("error", error.message || "Failed to load PDPL projects.");
+      } finally {
+        if (active) setPdplProjectsLoading(false);
       }
     };
 
@@ -2273,6 +2354,7 @@ export default function PdplWorkspace({
     let active = true;
 
     const loadProjectDetails = async () => {
+      setProjectDetailsLoading(true);
       try {
         const response = await fetch(`/Auditing/api/pdpl/projects/${currentProject.id}`, { cache: "no-store" });
         const result = await response.json();
@@ -2287,6 +2369,8 @@ export default function PdplWorkspace({
       } catch (error) {
         if (!active) return;
         showToast("error", error.message || "Failed to load PDPL project details.");
+      } finally {
+        if (active) setProjectDetailsLoading(false);
       }
     };
 
@@ -2296,6 +2380,12 @@ export default function PdplWorkspace({
       active = false;
     };
   }, [currentProject, setProjects, showToast]);
+
+  useEffect(() => {
+    if (!currentProject || !isPersistedProjectId(currentProject.id) || currentProject.pdplLoadedFromDb) {
+      setProjectDetailsLoading(false);
+    }
+  }, [currentProject]);
 
   const currentProjectBaseline = currentProject ? projectSaveBaseline[currentProject.id] || null : null;
   const hasUnsavedProjectMetaChanges = currentProject ? !currentProjectBaseline || currentProjectBaseline.projectMeta !== buildPdplProjectMetaSignature(currentProject) : false;
@@ -2313,6 +2403,12 @@ export default function PdplWorkspace({
   const isDrawerDirty = drawerState.open
     ? buildPdplDrawerSignature(drawerState.sectionKey, drawerValues) !== buildPdplDrawerSignature(drawerState.sectionKey, drawerInitialValues)
     : false;
+  const showPdplSectionLoader =
+    Boolean(currentProject) &&
+    Boolean(projectDetailsLoading) &&
+    isPersistedProjectId(currentProject?.id) &&
+    !currentProject?.pdplLoadedFromDb &&
+    section !== "overview";
 
   const sectionListKeyMap = {
     gantt: "ganttRows",
@@ -3047,7 +3143,9 @@ export default function PdplWorkspace({
         </div>
       </div>
 
-      {!pdplProjects.length ? (
+      {pdplProjectsLoading ? (
+        <ProjectCardsSkeleton />
+      ) : !pdplProjects.length ? (
         <EmptySection title="No PDPL project yet" note="Use Add PDPL Project to start the first PDPL audit workspace." />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(360px,1fr))", gap: 18 }}>
@@ -3572,12 +3670,18 @@ export default function PdplWorkspace({
         </div>
 
         <div style={{ padding: "18px 22px 28px", overflowY: "auto", flex: 1 }}>
-          {section === "overview" && renderOverview()}
-          {section === "gantt" && renderGantt()}
-          {section === "controls" && renderControls()}
-          {section === "policies" && renderPolicies()}
-          {section === "documents" && renderDocuments()}
-          {section === "dashboard" && renderLiveDashboard()}
+          {showPdplSectionLoader ? (
+            <PdplSectionLoadingPanel title={`Loading ${SECTION_META[section]?.label || "project"} data`} />
+          ) : (
+            <>
+              {section === "overview" && renderOverview()}
+              {section === "gantt" && renderGantt()}
+              {section === "controls" && renderControls()}
+              {section === "policies" && renderPolicies()}
+              {section === "documents" && renderDocuments()}
+              {section === "dashboard" && renderLiveDashboard()}
+            </>
+          )}
         </div>
       </div>
     );
@@ -3661,6 +3765,7 @@ export default function PdplWorkspace({
       {nav === "team" && renderTeam()}
 
       <PdplProjectModal
+        key={`${projectModalMode}-${projectModalProjectId || "new"}-${projectModalOpen ? "open" : "closed"}`}
         open={projectModalOpen}
         members={auditMembers}
         mode={projectModalMode}

@@ -14,6 +14,7 @@ import AdminSettings from './AdminSettings';
 import EmployeeSettings from './EmployeeSettings';
 import ChatPanel from './ChatPanel';
 import { USERS } from './data';
+import { WorkspaceShellLoader } from '@/app/components-homepage/ExperienceLoaders';
 
 function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const { user, loading, isAdminMode } = useData();
@@ -23,9 +24,10 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
 
   if (loading) {
     return (
-      <div className='min-h-screen flex items-center justify-center text-slate-500'>
-        Loading workspace...
-      </div>
+      <WorkspaceShellLoader
+        title="Loading Task Manager"
+        message="Bringing in your workspace, team access, tasks, and latest updates."
+      />
     );
   }
 

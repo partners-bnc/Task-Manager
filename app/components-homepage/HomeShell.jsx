@@ -8,9 +8,9 @@ import { Footer } from '@/app/components-homepage/Footer';
 import { useWorkspaceRouting } from '@/app/components-homepage/useWorkspaceRouting';
 
 export default function HomeShell() {
-  const { isAuthenticated, workspaceHref, user } = useWorkspaceRouting();
+  const { loading, isAuthenticated, workspaceHref, user } = useWorkspaceRouting();
 
-  const workspaceLabel = isAuthenticated ? 'Workspace' : 'Login';
+  const workspaceLabel = loading ? 'Loading' : isAuthenticated ? 'Workspace' : 'Login';
 
   return (
     <>

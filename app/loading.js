@@ -1,7 +1,5 @@
+import { BrandedFullPageLoader } from '@/app/components-homepage/ExperienceLoaders';
+
 export default function Loading() {
-  return (
-    <div className='min-h-screen flex items-center justify-center text-sm text-(--text-dim)'>
-      Loading...
-    </div>
-  );
+  return <BrandedFullPageLoader title="Loading page" message="Please wait while we prepare the next workspace view." />;
 }

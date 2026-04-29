@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
+import { clearCachedWorkspaceState, writeCachedWorkspaceState } from '@/app/components-homepage/workspaceAuthClient';
 
 const DataContext = createContext(undefined);
 
@@ -292,6 +293,16 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
 
     const destination = result.destination || '/HRM/hrm';
 
+    writeCachedWorkspaceState({
+      loading: false,
+      isAuthenticated: true,
+      accountType: result.role || null,
+      workspaceHref: result.workspaceHref || destination,
+      taskManagerHref: result.taskManagerHref || '/login',
+      user: result.user || result.employee || null,
+      modules: result.modules || null,
+    });
+
     if (typeof window !== 'undefined') {
       window.location.href = destination;
     }
@@ -305,6 +316,7 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
         method: 'POST',
       });
     } finally {
+      clearCachedWorkspaceState();
       setUser(null);
       setTasks([]);
       if (typeof window !== 'undefined') {

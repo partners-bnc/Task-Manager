@@ -14,6 +14,12 @@ const LOGIN_OPTIONS = [
   { id: 'employee', label: 'Employee' },
 ];
 
+function ButtonSpinner() {
+  return (
+    <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+  );
+}
+
 export default function Login({ onSuccess }) {
   const { login } = useData();
   const [showPassword, setShowPassword] = useState(false);
@@ -371,13 +377,16 @@ export default function Login({ onSuccess }) {
           <button
             type="submit"
             disabled={loading || (isRecoveryMode && !recoveryReady)}
-            className="w-full cursor-pointer bg-[#7F40EE] hover:bg-[#671aec] text-white font-bold py-3 rounded-lg transition-colors shadow-lg shadow-blue-200 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none"
+            className="flex w-full items-center justify-center gap-3 rounded-lg bg-[#7F40EE] py-3 font-bold text-white transition-all duration-200 hover:bg-[#671aec] hover:shadow-[0_18px_36px_rgba(127,64,238,0.28)] disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none"
           >
-            {isRecoveryMode
-              ? (loading ? 'UPDATING PASSWORD...' : 'SET NEW PASSWORD')
-              : isForgotPasswordMode
-                ? (loading ? 'SENDING RESET LINK...' : 'SEND RESET LINK')
-                : (loading ? 'LOGGING IN...' : 'LOGIN')}
+            {loading ? <ButtonSpinner /> : null}
+            <span>
+              {isRecoveryMode
+                ? (loading ? 'Updating password...' : 'Set New Password')
+                : isForgotPasswordMode
+                  ? (loading ? 'Sending reset link...' : 'Send Reset Link')
+                  : (loading ? 'Logging in...' : 'Login')}
+            </span>
           </button>
         </form>
 
