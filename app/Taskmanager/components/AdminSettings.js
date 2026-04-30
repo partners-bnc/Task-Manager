@@ -6,15 +6,18 @@ import { useData } from './DataContext';
 export default function AdminSettings() {
   const { user, refreshData } = useData();
   const [name, setName] = useState('');
+  const [designation, setDesignation] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const isSuperAdmin = user?.accountRole === 'Super Admin';
 
   useEffect(() => {
     setName(user?.name || '');
-  }, [user?.name]);
+    setDesignation(user?.designation || '');
+  }, [user?.name, user?.designation]);
 
   const handleSave = async (event) => {
     event.preventDefault();
@@ -33,6 +36,7 @@ export default function AdminSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name,
+          designation: isSuperAdmin ? designation : undefined,
           password: password || undefined,
         }),
       });
@@ -90,6 +94,19 @@ export default function AdminSettings() {
             className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-slate-500"
           />
         </label>
+
+        {isSuperAdmin ? (
+          <label className="block text-sm">
+            <span className="block text-slate-700 mb-1">Executive Level</span>
+            <input
+              type="text"
+              value={designation}
+              onChange={(e) => setDesignation(e.target.value)}
+              placeholder="Founder / Co-Founder"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+            />
+          </label>
+        ) : null}
 
         <label className="block text-sm">
           <span className="block text-slate-700 mb-1">New Password</span>

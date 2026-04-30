@@ -13,6 +13,12 @@ import {
   ensureEmployeeAuthUser,
   syncEmployeePasswordToAuth,
 } from '@/utils/employee-auth';
+import {
+  ensureSuperAdminAuthUser,
+  findSuperAdminByEmail,
+  syncSuperAdminPasswordToAuth,
+  verifySuperAdminPassword,
+} from '@/utils/super-admin-auth';
 
 const EMPLOYEE_AUTH_SELECT_BASE =
   'id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id, employee_status';
@@ -59,6 +65,81 @@ async function tryPrivilegedLogin(identifier, password, loginAs) {
       },
       status: 403,
     };
+  }
+
+  return {
+    ok: true,
+    payload: {
+      success: true,
+      role: authContext.accountType,
+      destination: authContext.destination,
+      workspaceHref: authContext.destination,
+      taskManagerHref: authContext.moduleAccess?.taskManager?.href || '/login',
+      modules: authContext.moduleAccess,
+      user: {
+        id: authContext.user.id,
+        email: authContext.user.email,
+        name: authContext.user.name,
+      },
+    },
+  };
+}
+
+async function tryLegacySuperAdminLogin(identifier, password, loginAs) {
+  if (normalizeLoginPortal(loginAs) !== 'super_admin') {
+    return { ok: false };
+  }
+
+  const superAdmin = await findSuperAdminByEmail(identifier);
+
+  if (!superAdmin) {
+    return { ok: false };
+  }
+
+  if (String(superAdmin.status || '').toLowerCase() !== 'active') {
+    return {
+      ok: false,
+      payload: {
+        error: 'This super admin account is inactive.',
+      },
+      status: 403,
+    };
+  }
+
+  const passwordValid = await verifySuperAdminPassword(superAdmin, password);
+  if (!passwordValid) {
+    return { ok: false };
+  }
+
+  const authUserId = await ensureSuperAdminAuthUser(superAdmin, password);
+  const nextSuperAdmin = {
+    ...superAdmin,
+    auth_user_id: authUserId,
+  };
+
+  await syncSuperAdminPasswordToAuth(nextSuperAdmin, password);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: nextSuperAdmin.email,
+    password,
+  });
+
+  if (error || !data?.user) {
+    return {
+      ok: false,
+      payload: {
+        error: 'Super admin account was prepared, but sign-in could not be completed. Please try again.',
+      },
+      status: 500,
+    };
+  }
+
+  const authContext = await resolveAuthenticatedUserContext(supabase, data.user);
+
+  if (!authContext || authContext.accountType !== 'super_admin') {
+    await supabase.auth.signOut();
+    return { ok: false };
   }
 
   return {
@@ -267,6 +348,15 @@ export async function POST(request) {
 
     if (privilegedResult.payload?.error) {
       return NextResponse.json(privilegedResult.payload, { status: privilegedResult.status || 403 });
+    }
+
+    const legacySuperAdminResult = await tryLegacySuperAdminLogin(email, password, selectedPortal);
+    if (legacySuperAdminResult.ok) {
+      return NextResponse.json(legacySuperAdminResult.payload);
+    }
+
+    if (legacySuperAdminResult.payload?.error) {
+      return NextResponse.json(legacySuperAdminResult.payload, { status: legacySuperAdminResult.status || 403 });
     }
 
     const employeeResult = await tryEmployeeLogin(email, password, selectedPortal);

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import bcrypt from 'bcryptjs';
 import { createClient } from '@/utils/supabase/server';
 import { getAccountTypeLabel } from '@/utils/auth/roles';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
@@ -30,10 +31,11 @@ export async function GET() {
           email: authContext.superAdmin.email,
           phone: '',
           department: 'Executive',
-          designation: 'Super Admin',
+          designation: authContext.superAdmin.designation || 'Super Admin',
           status: authContext.superAdmin.status || 'Active',
-          role: 'Super Admin',
-          avatar: user.user_metadata?.avatar_url || '',
+          role: authContext.superAdmin.designation || 'Super Admin',
+          accountRole: 'Super Admin',
+          avatar: authContext.superAdmin.profile_picture_url || user.user_metadata?.avatar_url || '',
         },
       });
     }
@@ -82,28 +84,48 @@ export async function PATCH(request) {
 
     const body = await request.json();
     const fullName = body?.name !== undefined ? String(body.name).trim() : undefined;
+    const designation = body?.designation !== undefined ? String(body.designation).trim() : undefined;
     const password = body?.password !== undefined ? String(body.password) : undefined;
 
-    if (fullName === undefined && password === undefined) {
+    if (fullName === undefined && designation === undefined && password === undefined) {
       return NextResponse.json({ error: 'No fields provided for update' }, { status: 400 });
     }
 
-    if (fullName !== undefined) {
-      const updates = [
-        supabase
-          .from('hrm_profiles')
-          .update({ full_name: fullName || null })
-          .eq('id', user.id),
-      ];
+    if (fullName !== undefined || designation !== undefined) {
+      const updates = [];
 
-      if (authContext.isSuperAdmin && authContext.superAdmin) {
+      if (fullName !== undefined) {
+        updates.push(
+          supabase
+            .from('hrm_profiles')
+            .update({ full_name: fullName || null })
+            .eq('id', user.id)
+        );
+      }
+
+      if (fullName !== undefined) {
+        updates.push(
+          supabase.auth.updateUser({
+            data: {
+              ...user.user_metadata,
+              full_name: fullName || '',
+            },
+          })
+        );
+      }
+
+      if (authContext.isSuperAdmin && authContext.superAdmin && (fullName !== undefined || designation !== undefined)) {
         updates.push(
           supabase
             .from('super_admins')
-            .update({ name: fullName || null, updated_at: new Date().toISOString() })
+            .update({
+              ...(fullName !== undefined ? { name: fullName || null } : {}),
+              ...(designation !== undefined ? { designation: designation || null } : {}),
+              updated_at: new Date().toISOString(),
+            })
             .eq('auth_user_id', user.id)
         );
-      } else if (authContext.hrAdmin) {
+      } else if (authContext.hrAdmin && fullName !== undefined) {
         updates.push(
           supabase
             .from('hr_admins')
@@ -112,14 +134,12 @@ export async function PATCH(request) {
         );
       }
 
-      const [updateProfileResult, secondaryUpdateResult] = await Promise.all(updates);
+      const results = await Promise.all(updates);
 
-      if (updateProfileResult.error) {
-        return NextResponse.json({ error: updateProfileResult.error.message }, { status: 500 });
-      }
-
-      if (secondaryUpdateResult?.error) {
-        return NextResponse.json({ error: secondaryUpdateResult.error.message }, { status: 500 });
+      for (const result of results) {
+        if (result?.error) {
+          return NextResponse.json({ error: result.error.message }, { status: 500 });
+        }
       }
     }
 
@@ -132,6 +152,21 @@ export async function PATCH(request) {
         const { error: passwordError } = await supabase.auth.updateUser({ password });
         if (passwordError) {
           return NextResponse.json({ error: passwordError.message }, { status: 500 });
+        }
+
+        if (authContext.isSuperAdmin && authContext.superAdmin) {
+          const passwordHash = await bcrypt.hash(password, 10);
+          const { error: superAdminPasswordError } = await supabase
+            .from('super_admins')
+            .update({
+              password_hash: passwordHash,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('auth_user_id', user.id);
+
+          if (superAdminPasswordError) {
+            return NextResponse.json({ error: superAdminPasswordError.message }, { status: 500 });
+          }
         }
       }
     }

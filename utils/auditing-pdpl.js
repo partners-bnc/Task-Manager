@@ -132,6 +132,36 @@ function normalizeNumeric(input, fallback = 0) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function normalizePercentDoneValue(input, fallback = 0) {
+  if (input === null || input === undefined || input === '') {
+    return fallback;
+  }
+
+  if (typeof input === 'number') {
+    if (!Number.isFinite(input)) return fallback;
+    const normalized = input > 0 && input <= 1 ? input * 100 : input;
+    return normalized;
+  }
+
+  const text = String(input || '').trim();
+  if (!text) return fallback;
+
+  const hasPercentSymbol = text.includes('%');
+  const numeric = Number(text.replace(/[^0-9.-]/g, ''));
+  if (!Number.isFinite(numeric)) return fallback;
+
+  if (!hasPercentSymbol && text.includes('.') && numeric > 0 && numeric <= 1) {
+    return numeric * 100;
+  }
+
+  return numeric;
+}
+
+function calculateRemainingPercentValue(percentDone) {
+  const normalizedDone = Math.max(0, Math.min(100, normalizePercentDoneValue(percentDone, 0)));
+  return Number.parseFloat((100 - normalizedDone).toFixed(2));
+}
+
 function normalizeStatus(input, allowed, fallback) {
   const value = String(input || '').trim();
   return allowed.includes(value) ? value : fallback;
@@ -377,12 +407,12 @@ export async function loadPdplSectionRows(projectId, section) {
       memberAssign: (membersByTaskId[row.id] || []).map((member) => member.name).join(', '),
       startDate: row.start_date || '',
       endDate: row.end_date || '',
-      percentDone: Number(row.percent_done || 0),
+      percentDone: normalizePercentDoneValue(row.percent_done, 0),
       isDone: Boolean(row.is_done),
       doneMarkedOn: row.done_marked_on || '',
       doneMarkedBy: row.done_marked_by || null,
       workDays: row.work_days ?? 0,
-      remaining: row.remaining ?? 0,
+      remaining: calculateRemainingPercentValue(row.percent_done),
       remark: row.remark || '',
     }));
   }
@@ -548,7 +578,7 @@ export async function buildPdplProjectCardData(projects) {
   const ganttByProject = (ganttRows.data || []).reduce((map, row) => {
     if (!map[row.project_id]) map[row.project_id] = { total: 0, percent: 0 };
     map[row.project_id].total += 1;
-    map[row.project_id].percent += Number(row.percent_done || 0);
+    map[row.project_id].percent += normalizePercentDoneValue(row.percent_done, 0);
     return map;
   }, {});
 
@@ -727,6 +757,8 @@ function normalizeGanttRowPayload(payload = {}, index = 0) {
     isDoneRaw === '1';
   const doneMarkedOn = isDone ? normalizeDate(payload.doneMarkedOn || payload.done_marked_on) || new Date().toISOString().slice(0, 10) : null;
 
+  const normalizedPercentDone = Math.max(0, Math.min(100, normalizePercentDoneValue(payload.percentDone ?? payload.percent_done, 0)));
+
   return {
     sort_order: payload.sortOrder ?? payload.sort_order ?? index,
     label_code: String(payload.label || payload.label_code || '').trim() || null,
@@ -735,10 +767,10 @@ function normalizeGanttRowPayload(payload = {}, index = 0) {
     ksa_team: String(payload.ksaTeam || payload.ksa_team || '').trim() || null,
     start_date: normalizeDate(payload.startDate || payload.start_date),
     end_date: normalizeDate(payload.endDate || payload.end_date),
-    percent_done: Math.max(0, Math.min(100, normalizeNumeric(payload.percentDone ?? payload.percent_done, 0))),
+    percent_done: normalizedPercentDone,
     is_done: isDone,
     done_marked_on: doneMarkedOn,
-    remaining: Math.max(0, Math.round(normalizeNumeric(payload.remaining, 0))),
+    remaining: calculateRemainingPercentValue(normalizedPercentDone),
     remark: String(payload.remark || '').trim() || null,
     memberAssignEmployeeIds,
   };

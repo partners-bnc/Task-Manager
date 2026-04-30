@@ -219,7 +219,7 @@ export async function listTicketPeople() {
       .select('id, auth_user_id, name, email, status')
       .eq('status', 'Active')
       .order('name', { ascending: true }),
-    adminClient.from('super_admins').select('id, auth_user_id, name, email, status').order('name', { ascending: true }),
+    adminClient.from('super_admins').select('id, auth_user_id, name, email, status, profile_picture_url').order('name', { ascending: true }),
     adminClient
       .from('hrm_employees')
       .select('id, auth_user_id, employee_id, name, email, role, profile_picture_url')
@@ -246,7 +246,7 @@ export async function listTicketPeople() {
         name: row.name || 'Super Admin',
         email: row.email || '',
         employeeCode: '',
-        avatarUrl: '',
+        avatarUrl: row.profile_picture_url || '',
         label: row.name || row.email || 'Super Admin',
       })),
     ...hrAdmins

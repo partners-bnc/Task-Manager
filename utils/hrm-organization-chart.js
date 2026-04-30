@@ -66,6 +66,23 @@ function compareByName(a, b) {
   return cleanText(a?.name).localeCompare(cleanText(b?.name), 'en', { sensitivity: 'base' });
 }
 
+function getSuperAdminDisplayPriority(superAdmin) {
+  const designation = cleanText(superAdmin?.designation).toLowerCase();
+
+  if (designation === 'founder') return 0;
+  if (designation === 'co-founder' || designation === 'cofounder') return 1;
+  return 2;
+}
+
+function compareSuperAdmins(left, right) {
+  const priorityDifference = getSuperAdminDisplayPriority(left) - getSuperAdminDisplayPriority(right);
+  if (priorityDifference !== 0) {
+    return priorityDifference;
+  }
+
+  return compareByName(left, right);
+}
+
 function getNodeTitle(employee) {
   return (
     cleanText(employee?.designation?.title) ||
@@ -86,8 +103,8 @@ function createNodeMap(superAdmins, employees) {
       kind: 'super_admin',
       name: cleanText(superAdmin.name) || cleanText(superAdmin.email) || 'Super Admin',
       employeeId: null,
-      title: 'Executive Level',
-      avatarUrl: null,
+      title: cleanText(superAdmin.designation) || 'Executive Level',
+      avatarUrl: cleanText(superAdmin.profile_picture_url) || null,
       parentId: null,
       childIds: [],
       directReportCount: 0,
@@ -217,7 +234,7 @@ function buildOrganizationTree(superAdmins, employees) {
 
   const roots = superAdmins
     .slice()
-    .sort(compareByName)
+    .sort(compareSuperAdmins)
     .map((superAdmin) => buildSuperAdminNodeId(superAdmin.id));
 
   if (hasUnassignedEmployees) {
@@ -266,7 +283,7 @@ export async function loadOrganizationChartData() {
   const [superAdminsResult, employeesResult] = await Promise.all([
     adminClient
       .from('super_admins')
-      .select('id, name, email, status')
+      .select('id, name, email, status, designation, profile_picture_url')
       .order('name', { ascending: true }),
     adminClient
       .from('hrm_employees')

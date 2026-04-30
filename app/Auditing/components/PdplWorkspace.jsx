@@ -188,6 +188,29 @@ function toNumberString(value) {
   return Number.isFinite(numeric) ? String(numeric) : String(value);
 }
 
+function normalizePercentDoneString(value) {
+  if (value === null || value === undefined || value === "") return "";
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return "";
+    const normalized = value > 0 && value <= 1 ? value * 100 : value;
+    return String(Number.parseFloat(normalized.toFixed(2)));
+  }
+
+  const text = String(value).trim();
+  if (!text) return "";
+
+  const hasPercentSymbol = text.includes("%");
+  const numeric = Number(text.replace(/[^0-9.-]/g, ""));
+  if (!Number.isFinite(numeric)) return text;
+
+  const normalized = !hasPercentSymbol && text.includes(".") && numeric > 0 && numeric <= 1
+    ? numeric * 100
+    : numeric;
+
+  return String(Number.parseFloat(normalized.toFixed(2)));
+}
+
 function createEmptyPdplData() {
   return {
     ganttRows: [],
@@ -419,6 +442,11 @@ function getProjectProgress(project) {
   return Math.round(total / ganttRows.length);
 }
 
+function calculateRemainingValue(percentDone) {
+  const done = Math.max(0, Math.min(100, Number(percentDone) || 0));
+  return String(Number.parseFloat((100 - done).toFixed(2)));
+}
+
 function calculateWorkDays(startDate, endDate) {
   if (!startDate || !endDate) return "0";
   const toLocalDate = (value) => {
@@ -437,13 +465,6 @@ function calculateWorkDays(startDate, endDate) {
   const millisecondsPerDay = 24 * 60 * 60 * 1000;
   const totalDays = Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay) + 1;
   return String(Math.max(totalDays, 0));
-}
-
-function calculateRemainingDays(workDays, percentDone) {
-  const totalDays = Number(workDays) || 0;
-  const done = Math.max(0, Math.min(100, Number(percentDone) || 0));
-  if (!totalDays) return "0";
-  return String(Math.max(0, Math.round(totalDays - (totalDays * done) / 100)));
 }
 
 function getTodayDateValue() {
@@ -547,9 +568,9 @@ function parseMappedRows(sectionKey, rows, headerIndex, fieldMapping) {
         endDate: normalizeDateValue(readValue(row, "endDate")),
         isDone: false,
         doneMarkedOn: "",
-        percentDone: toNumberString(readValue(row, "percentDone")) || "0",
+        percentDone: normalizePercentDoneString(readValue(row, "percentDone")) || "0",
         workDays: calculateWorkDays(normalizeDateValue(readValue(row, "startDate")), normalizeDateValue(readValue(row, "endDate"))),
-        remaining: toNumberString(readValue(row, "remaining")) || "0",
+        remaining: calculateRemainingValue(normalizePercentDoneString(readValue(row, "percentDone")) || "0"),
         remark: "",
       }))
       .filter((row) => row.taskName);
@@ -1642,7 +1663,7 @@ function ImportWorkbookModal({ open, onClose, onApply, showToast }) {
   );
 }
 
-function PdplProjectModal({ open, members, mode = "create", initialValues, onClose, onSubmit }) {
+function PdplProjectModal({ open, members, mode = "create", initialValues, onClose, onSubmit, submitting = false }) {
   const emptyForm = {
     projectName: "",
     projectLeader: "",
@@ -1680,7 +1701,7 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
 
   return (
     <>
-      <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1000 }} onClick={handleClose} />
+      <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 1000 }} onClick={submitting ? undefined : handleClose} />
       <div
         style={{
           position: "fixed",
@@ -2128,11 +2149,12 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
         )}
 
         <div style={{ padding: "18px 22px 28px", borderTop: `1px solid ${COLORS.border}`, display: "flex", justifyContent: "flex-end", gap: 10, background: "#fff" }}>
-          <button onClick={handleClose} style={{ ...tableInputStyle, width: 110, cursor: "pointer" }}>Cancel</button>
+          <button onClick={handleClose} disabled={submitting} style={{ ...tableInputStyle, width: 110, cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.7 : 1 }}>Cancel</button>
           <button
             onClick={() => {
               onSubmit(form);
             }}
+            disabled={submitting}
             style={{
               border: "none",
               borderRadius: 12,
@@ -2141,10 +2163,11 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
               color: "#fff",
               fontSize: 13,
               fontWeight: 700,
-              cursor: "pointer",
+              cursor: submitting ? "not-allowed" : "pointer",
+              opacity: submitting ? 0.75 : 1,
             }}
           >
-            {mode === "edit" ? "Save Changes" : "Create Project"}
+            {submitting ? "Saving..." : mode === "edit" ? "Save Changes" : "Create Project"}
           </button>
         </div>
       </div>
@@ -2274,6 +2297,7 @@ export default function PdplWorkspace({
   const [projectModalMode, setProjectModalMode] = useState("create");
   const [projectModalInitialValues, setProjectModalInitialValues] = useState(emptyProjectForm);
   const [projectModalProjectId, setProjectModalProjectId] = useState(null);
+  const [projectModalSaving, setProjectModalSaving] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [showControlPivot, setShowControlPivot] = useState(false);
   const [drawerState, setDrawerState] = useState({ open: false, sectionKey: "", key: null });
@@ -2499,7 +2523,8 @@ export default function PdplWorkspace({
     setProjectModalOpen(true);
   };
 
-  const closeProjectModal = () => {
+  const closeProjectModal = (force = false) => {
+    if (projectModalSaving && !force) return;
     setProjectModalOpen(false);
     setProjectModalMode("create");
     setProjectModalProjectId(null);
@@ -2675,38 +2700,125 @@ export default function PdplWorkspace({
     showToast("success", "PDPL project created.");
   };
 
-  const updateProjectDetails = (targetProjectId, form) => {
+  const updateProjectDetails = async (targetProjectId, form) => {
     if (!targetProjectId) return;
     if (!form.projectName || !form.clientName) {
       showToast("error", "Project name and client name are required.");
       return;
     }
 
-    setProjects((current) =>
-      current.map((project) => {
-        if (project.id !== targetProjectId) return project;
-        return {
-          ...project,
-          name: form.projectName,
-          projectLeader: form.projectLeader,
-          clientName: form.clientName,
-          unit: form.clientName,
-          start: form.start,
-          end: form.end,
-          projectLength: form.projectLength,
-          teamMemberIds: form.teamMemberIds,
-          desc: !project.desc || project.desc.startsWith("PDPL audit workspace for ") ? buildPdplDescription(form.clientName) : project.desc,
-        };
-      })
-    );
+    const targetProject = projects.find((project) => project.id === targetProjectId && project.templateId === "pdpl-template");
+    if (!targetProject) {
+      showToast("error", "PDPL project not found.");
+      return;
+    }
 
-    closeProjectModal();
-    showToast("success", "PDPL project details updated.");
+    const applyLocalProjectMeta = (project) => ({
+      ...project,
+      name: form.projectName,
+      projectLeader: form.projectLeader,
+      clientName: form.clientName,
+      unit: form.clientName,
+      start: form.start,
+      end: form.end,
+      projectLength: form.projectLength,
+      teamMemberIds: form.teamMemberIds,
+      desc: !project.desc || project.desc.startsWith("PDPL audit workspace for ") ? buildPdplDescription(form.clientName) : project.desc,
+    });
+
+    if (!isPersistedProjectId(targetProjectId)) {
+      setProjects((current) =>
+        current.map((project) => {
+          if (project.id !== targetProjectId) return project;
+          return applyLocalProjectMeta(project);
+        })
+      );
+
+      closeProjectModal(true);
+      showToast("success", "PDPL project details updated.");
+      return;
+    }
+
+    setProjectModalSaving(true);
+
+    try {
+      const response = await fetch(`/Auditing/api/pdpl/projects/${targetProjectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          buildProjectRequestPayload(
+            applyLocalProjectMeta(ensurePdplProject(targetProject))
+          )
+        ),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to update PDPL project.");
+      }
+
+      const savedProjectDetail = mapPdplProjectDetailToLocalProject(result.project);
+      const mergedProject = ensurePdplProject({
+        ...ensurePdplProject(targetProject),
+        status: savedProjectDetail.status,
+        name: savedProjectDetail.name,
+        projectLeader: savedProjectDetail.projectLeader,
+        clientName: savedProjectDetail.clientName,
+        unit: savedProjectDetail.unit,
+        start: savedProjectDetail.start,
+        end: savedProjectDetail.end,
+        projectLength: savedProjectDetail.projectLength,
+        teamMemberIds: savedProjectDetail.teamMemberIds,
+        members: savedProjectDetail.members,
+        pdplLoadedFromDb: true,
+      });
+
+      setProjects((current) =>
+        current.map((project) => {
+          if (project.id !== targetProjectId) return project;
+          const existingProject = ensurePdplProject(project);
+          return {
+            ...existingProject,
+            status: mergedProject.status,
+            name: mergedProject.name,
+            projectLeader: mergedProject.projectLeader,
+            clientName: mergedProject.clientName,
+            unit: mergedProject.unit,
+            start: mergedProject.start,
+            end: mergedProject.end,
+            projectLength: mergedProject.projectLength,
+            teamMemberIds: mergedProject.teamMemberIds,
+            members: mergedProject.members,
+            pdplLoadedFromDb: true,
+          };
+        })
+      );
+
+      setProjectSaveBaseline((current) => {
+        const existing = current[targetProjectId];
+        if (!existing) {
+          return { ...current, [targetProjectId]: createPdplSaveBaseline(mergedProject) };
+        }
+        return {
+          ...current,
+          [targetProjectId]: {
+            ...existing,
+            projectMeta: buildPdplProjectMetaSignature(mergedProject),
+          },
+        };
+      });
+
+      closeProjectModal(true);
+      showToast("success", "PDPL project details saved.");
+    } catch (error) {
+      showToast("error", error.message || "Failed to update PDPL project.");
+    } finally {
+      setProjectModalSaving(false);
+    }
   };
 
-  const submitProjectModal = (form) => {
+  const submitProjectModal = async (form) => {
     if (projectModalMode === "edit") {
-      updateProjectDetails(projectModalProjectId, form);
+      await updateProjectDetails(projectModalProjectId, form);
       return;
     }
     createProject(form);
@@ -2778,7 +2890,7 @@ export default function PdplWorkspace({
             doneMarkedOn: "",
             percentDone: "0",
             workDays: "0",
-            remaining: "0",
+            remaining: "100",
             remark: "",
           },
         ];
@@ -2918,7 +3030,7 @@ export default function PdplWorkspace({
             isDone: Boolean(drawerValues.isDone),
             doneMarkedOn: drawerValues.isDone ? drawerValues.doneMarkedOn || getTodayDateValue() : "",
             workDays: calculateWorkDays(drawerValues.startDate, drawerValues.endDate),
-            remaining: calculateRemainingDays(calculateWorkDays(drawerValues.startDate, drawerValues.endDate), drawerValues.percentDone),
+            remaining: calculateRemainingValue(drawerValues.percentDone),
           }
         : { ...drawerValues };
     setDrawerValues(nextDrawerValues);
@@ -3132,6 +3244,39 @@ export default function PdplWorkspace({
     </span>
   );
 
+  const formatPercentLabel = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return "0%";
+    return `${Number.parseFloat(numeric.toFixed(2))}%`;
+  };
+
+  const renderRemainingBadge = (value) => {
+    const numeric = Number(value);
+    const label = formatPercentLabel(value);
+
+    if (!Number.isFinite(numeric) || numeric <= 0) {
+      return <span style={{ color: COLORS.textSoft }}>{label}</span>;
+    }
+
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "5px 10px",
+          borderRadius: 999,
+          fontSize: 11.5,
+          fontWeight: 700,
+          color: COLORS.red,
+          background: COLORS.redBg,
+          border: `1px solid ${COLORS.redBorder}`,
+        }}
+      >
+        {label}
+      </span>
+    );
+  };
+
   const renderDashboard = () => (
     <div style={{ padding: "24px 28px 32px", overflowY: "auto", flex: 1 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -3242,7 +3387,7 @@ export default function PdplWorkspace({
     const completedTasks = rows.filter((row) => Boolean(row.isDone)).length;
     const avgProgress = Math.round(rows.reduce((sum, row) => sum + (Number(row.percentDone) || 0), 0) / rows.length);
     const totalWorkDays = rows.reduce((sum, row) => sum + (Number(row.workDays) || 0), 0);
-    const totalRemaining = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+    const avgRemaining = Math.round(rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0) / rows.length);
     const teamBreakdown = rows.reduce((accumulator, row) => {
       const teams = normalizeMemberAssign(row.memberAssign);
       if (!teams.length) {
@@ -3261,13 +3406,13 @@ export default function PdplWorkspace({
           <MetricCard label="Total Tasks" value={rows.length} note="Live total from Gantt tasks" accent={COLORS.teal} bg={COLORS.tealBg} border={COLORS.tealBorder} />
           <MetricCard label="Completed Tasks" value={completedTasks} note="Tasks marked done" accent={COLORS.green} bg={COLORS.greenBg} border={COLORS.greenBorder} />
           <MetricCard label="Avg % Done" value={`${avgProgress}%`} note="Average task completion" accent={COLORS.blue} bg={COLORS.blueBg} border={COLORS.blueBorder} />
-          <MetricCard label="Remaining Days" value={totalRemaining} note={`${totalWorkDays} total planned work days`} accent={COLORS.amber} bg={COLORS.amberBg} border={COLORS.amberBorder} />
+          <MetricCard label="Avg Remaining %" value={`${avgRemaining}%`} note={`${totalWorkDays} total planned work days`} accent={COLORS.amber} bg={COLORS.amberBg} border={COLORS.amberBorder} />
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 18 }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: COLORS.text, marginBottom: 10 }}>Task Percentage</div>
-            <SectionTable boxed={false} headers={["Task", "% Done", "Done", "Done Date", "Remaining Days"]}>
+            <SectionTable boxed={false} headers={["Task", "% Done", "Done", "Done Date", "Remaining %"]}>
               {rows.slice(0, 10).map((row) => (
                 <tr key={row.id}>
                   <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 13, color: COLORS.text }}>{row.taskName || "-"}</td>
@@ -3276,26 +3421,26 @@ export default function PdplWorkspace({
                     {renderStatusBadge(getDoneDisplayLabel(row), row.isDone ? COLORS.green : COLORS.amber)}
                   </td>
                   <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.textSoft }}>{row.doneMarkedOn || "-"}</td>
-                  <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.textSoft }}>{row.remaining || "0"}</td>
+                  <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.textSoft }}>{renderRemainingBadge(row.remaining)}</td>
                 </tr>
               ))}
             </SectionTable>
           </div>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: COLORS.text, marginBottom: 10 }}>% Done & Remaining Days</div>
-            <SectionTable boxed={false} headers={["Member", "Tasks", "Remaining Days"]}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: COLORS.text, marginBottom: 10 }}>% Done & Remaining %</div>
+            <SectionTable boxed={false} headers={["Member", "Tasks", "Remaining %"]}>
               {Object.entries(teamBreakdown).map(([team, total]) => {
-                const remaining = rows
+                const averageRemaining = rows
                   .filter((row) => {
                     const assigned = normalizeMemberAssign(row.memberAssign);
                     return team === "Unassigned" ? !assigned.length : assigned.includes(team);
                   })
-                  .reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+                  .reduce((sum, row, _, filteredRows) => sum + ((Number(row.remaining) || 0) / Math.max(filteredRows.length, 1)), 0);
                 return (
                   <tr key={team}>
                     <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 13, color: COLORS.text }}>{team}</td>
                     <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.textSoft }}>{total}</td>
-                    <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.textSoft }}>{remaining}</td>
+                    <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.textSoft }}>{renderRemainingBadge(Math.round(averageRemaining))}</td>
                   </tr>
                 );
               })}
@@ -3326,7 +3471,7 @@ export default function PdplWorkspace({
         {!rows.length ? (
           <EmptySection title="No Gantt rows yet" note="Upload the Gantt sheet from the workbook or add rows manually here." />
         ) : (
-          <SectionTable boxed={false} headers={["Label", "Task Name", "Assign To India Team", "KSA Team", "Member Assign", "Start Date", "End Date", "Done", "Done Date", "% Done", "Work Days", "Remaining", "Remark"]}>
+          <SectionTable boxed={false} headers={["Label", "Task Name", "Assign To India Team", "KSA Team", "Member Assign", "Start Date", "End Date", "Done", "Done Date", "% Done", "Work Days", "Remaining %", "Remark"]}>
             {rows.map((row) => (
               <tr key={row.id} onClick={() => openRowDrawer("gantt", row.id)} style={{ cursor: "pointer" }}>
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 13, fontWeight: 700, color: COLORS.text }}>{row.label || "-"}</td>
@@ -3340,7 +3485,7 @@ export default function PdplWorkspace({
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.textSoft }}>{row.doneMarkedOn || "-"}</td>
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}` }}>{renderStatusBadge(`${row.percentDone || 0}%`, COLORS.blue)}</td>
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.text }}>{row.workDays || "0"}</td>
-                <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.text }}>{row.remaining || "0"}</td>
+                <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, fontSize: 12.5, color: COLORS.text }}>{renderRemainingBadge(row.remaining)}</td>
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 150, maxWidth: 180, fontSize: 12.5, color: COLORS.textSoft }}>{row.remark || "-"}</td>
               </tr>
             ))}
@@ -3772,6 +3917,7 @@ export default function PdplWorkspace({
         initialValues={projectModalInitialValues}
         onClose={closeProjectModal}
         onSubmit={submitProjectModal}
+        submitting={projectModalSaving}
       />
       <SaveConfirmationModal
         open={saveConfirmState.open}

@@ -236,7 +236,7 @@ export async function resolveAuthenticatedUserContext(supabase, user) {
       employeeId: employee?.employee_id || profile?.employee_id || '',
       email: user.email || superAdmin?.email || hrAdmin?.email || employee?.email || profile?.email || '',
       name: displayName,
-      avatarUrl: user.user_metadata?.avatar_url || employee?.profile_picture_url || null,
+      avatarUrl: superAdmin?.profile_picture_url || user.user_metadata?.avatar_url || employee?.profile_picture_url || null,
     },
     superAdmin: superAdmin || null,
     hrAdmin: hrAdmin || null,

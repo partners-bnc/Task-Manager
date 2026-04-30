@@ -5,6 +5,8 @@ const SUPER_ADMIN_SELECT = `
   auth_user_id,
   email,
   name,
+  designation,
+  profile_picture_url,
   status,
   created_at,
   updated_at

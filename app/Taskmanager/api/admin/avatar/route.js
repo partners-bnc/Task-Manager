@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
-import { isHrAdminRole } from '@/utils/auth/roles';
+import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 
 const AVATAR_BUCKET = 'employee-avatars';
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -30,17 +30,13 @@ async function getAdminContext() {
     return { error: 'Unauthorized', status: 401 };
   }
 
-  const { data: profile, error: profileError } = await supabase
-    .from('hrm_profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
+  const authContext = await resolveAuthenticatedUserContext(supabase, user);
 
-  if (profileError || !isHrAdminRole(profile?.role)) {
+  if (!authContext?.isHrAdmin) {
     return { error: 'Forbidden', status: 403 };
   }
 
-  return { supabase, user };
+  return { supabase, user, authContext };
 }
 
 export async function POST(request) {
@@ -51,7 +47,7 @@ export async function POST(request) {
       return NextResponse.json({ error: adminContext.error }, { status: adminContext.status });
     }
 
-    const { supabase, user } = adminContext;
+    const { supabase, user, authContext } = adminContext;
     const formData = await request.formData();
     const avatar = formData.get('avatar');
 
@@ -102,6 +98,21 @@ export async function POST(request) {
     if (authUpdateError) {
       await adminClient.storage.from(AVATAR_BUCKET).remove([filePath]);
       return NextResponse.json({ error: 'Failed to save avatar' }, { status: 500 });
+    }
+
+    if (authContext.isSuperAdmin && authContext.superAdmin?.id) {
+      const { error: superAdminUpdateError } = await adminClient
+        .from('super_admins')
+        .update({
+          profile_picture_url: avatarUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', authContext.superAdmin.id);
+
+      if (superAdminUpdateError) {
+        await adminClient.storage.from(AVATAR_BUCKET).remove([filePath]);
+        return NextResponse.json({ error: 'Failed to save avatar' }, { status: 500 });
+      }
     }
 
     if (oldStoragePath && oldStoragePath !== filePath) {
