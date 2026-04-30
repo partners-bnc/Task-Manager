@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Trash2 } from 'lucide-react';
 import { useData } from './DataContext';
@@ -32,25 +32,30 @@ const normalizeTodo = (todo) => ({
 
 export default function Todos() {
   const { user } = useData();
+  const userId = user?.id ?? null;
   const [newTodo, setNewTodo] = useState('');
-  const [todos, setTodos] = useState([]);
+  const [todosByUser, setTodosByUser] = useState(() => readTodosByUser());
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    if (!user?.id) return;
-    const store = readTodosByUser();
-    const userTodos = Array.isArray(store[user.id]) ? store[user.id].map(normalizeTodo) : [];
-    setTodos(userTodos);
-    store[user.id] = userTodos;
-    writeTodosByUser(store);
-  }, [user?.id]);
+  const todos = useMemo(() => {
+    if (!userId) {
+      return [];
+    }
+
+    return Array.isArray(todosByUser[userId]) ? todosByUser[userId].map(normalizeTodo) : [];
+  }, [todosByUser, userId]);
 
   const persistTodos = (nextTodos) => {
-    if (!user?.id) return;
-    const store = readTodosByUser();
-    store[user.id] = nextTodos;
-    writeTodosByUser(store);
-    setTodos(nextTodos);
+    if (!userId) return;
+
+    setTodosByUser((currentStore) => {
+      const nextStore = {
+        ...currentStore,
+        [userId]: nextTodos.map(normalizeTodo),
+      };
+      writeTodosByUser(nextStore);
+      return nextStore;
+    });
   };
 
   const addTodo = () => {
@@ -97,8 +102,8 @@ export default function Todos() {
   }, [filter, todos]);
 
   return (
-    <div className='p-8'>
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-8'>
+    <div className='p-4 sm:p-6 lg:p-8'>
+      <div className='grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8'>
         <div className='bg-white rounded-xl shadow-sm p-6'>
           <h3 className='font-bold text-slate-800 mb-4'>Todo Progress</h3>
           <div className='h-64'>

@@ -6,7 +6,14 @@ import Link from 'next/link';
 import { LayoutDashboard, ListTodo, PlusSquare, Users, Settings, LogOut, Camera, ChevronLeft, ChevronRight, Home, MessageSquare } from 'lucide-react';
 import { useData } from './DataContext';
 
-export default function Sidebar({ currentView, onNavigate, isCollapsed = false, onToggleCollapse }) {
+export default function Sidebar({
+  currentView,
+  onNavigate,
+  isCollapsed = false,
+  onToggleCollapse,
+  isMobileOpen = false,
+  onMobileClose,
+}) {
   const { user, logout, isAdminMode, updateAvatar } = useData();
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
@@ -48,8 +55,31 @@ export default function Sidebar({ currentView, onNavigate, isCollapsed = false, 
   };
 
   return (
-    <aside className={`${isCollapsed ? 'w-20' : 'w-64'} bg-white h-screen fixed left-0 top-0 border-r border-gray-200 flex flex-col overflow-hidden z-20 transition-all duration-200`}>
+    <>
+      {isMobileOpen ? (
+        <button
+          type="button"
+          aria-label="Close Task Manager navigation"
+          onClick={onMobileClose}
+          className="fixed inset-0 z-30 bg-slate-950/35 backdrop-blur-sm md:hidden"
+        />
+      ) : null}
+    <aside className={`fixed left-0 top-0 z-40 flex h-screen w-72 max-w-[86vw] -translate-x-full flex-col overflow-hidden border-r border-gray-200 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.18)] transition-all duration-200 md:max-w-none md:translate-x-0 md:shadow-none ${isMobileOpen ? 'translate-x-0' : ''} ${isCollapsed ? 'md:w-20' : 'md:w-64'}`}>
       <div className={`${isCollapsed ? 'px-2 py-4' : 'px-5 py-4'} flex flex-col items-center border-b border-gray-100 shrink-0`}>
+        <div className="mb-3 flex w-full items-center justify-between px-2 md:hidden">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Task Manager</p>
+            <p className="text-lg font-bold text-slate-900">Navigation</p>
+          </div>
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm"
+            aria-label="Close Task Manager navigation"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
         {!isCollapsed && <h1 className="text-[1.35rem] font-bold leading-none text-black m-5">Task Manager</h1>}
         <div className={`${isCollapsed ? 'w-12 h-12 mb-2' : 'w-16 h-16 mb-2'} rounded-full border-4 border-[#7F40EE]/20 overflow-hidden relative group`}>
           {avatarSrc ? (
@@ -98,7 +128,10 @@ export default function Sidebar({ currentView, onNavigate, isCollapsed = false, 
           return (
             <button
               key={item.view}
-              onClick={() => onNavigate(item.view)}
+              onClick={() => {
+                onNavigate(item.view);
+                onMobileClose?.();
+              }}
               title={item.label}
               className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-colors ${
                 isActive
@@ -143,5 +176,6 @@ export default function Sidebar({ currentView, onNavigate, isCollapsed = false, 
         </button>
       </div>
     </aside>
+    </>
   );
 }

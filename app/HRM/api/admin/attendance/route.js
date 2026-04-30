@@ -470,6 +470,7 @@ export async function GET(request) {
             });
 
         return {
+          employeeRecordId: employee.id,
           employeeId: employee.employee_id || '--',
           employeeName: employee.name || 'Employee',
           department: getRelationRecord(employee.department)?.name || 'Department not set',

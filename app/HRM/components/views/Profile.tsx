@@ -485,7 +485,7 @@ export default function Profile({
   if (activeSection === 'skills') sectionContent = renderSkillsSection();
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-8">
+    <div className="mx-auto max-w-7xl space-y-6 pb-8">
       <EmployeePageHeader
         icon="person"
         title="Profile Overview"
@@ -493,7 +493,7 @@ export default function Profile({
       />
 
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-        <div className="lg:col-span-8 bg-surface-container-lowest p-6 rounded-3xl flex flex-col md:flex-row gap-6 items-center md:items-start relative overflow-hidden editorial-shadow">
+        <div className="lg:col-span-8 bg-surface-container-lowest p-5 rounded-3xl flex flex-col md:flex-row gap-6 items-center md:items-start relative overflow-hidden editorial-shadow sm:p-6">
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary-container/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
 
           <div className="relative z-10">
@@ -579,7 +579,7 @@ export default function Profile({
           </div>
         </div>
 
-        <div className="lg:col-span-4 grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:col-span-4">
           <div className="bg-surface-container-lowest p-5 rounded-3xl flex flex-col justify-center items-center text-center editorial-shadow">
             <span className="text-2xl font-extrabold font-headline text-on-surface">{lifecycleStatus}</span>
             <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mt-1">Status</span>
@@ -600,7 +600,7 @@ export default function Profile({
         </div>
       </section>
 
-      <nav className="flex items-center gap-8 border-b border-outline-variant/15 overflow-x-auto no-scrollbar pt-4">
+      <nav className="flex items-center gap-5 border-b border-outline-variant/15 overflow-x-auto no-scrollbar pt-4 sm:gap-8">
         {sections.map((section) => (
           <button
             key={section.id}

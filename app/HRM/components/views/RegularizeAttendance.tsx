@@ -351,7 +351,7 @@ export default function RegularizeAttendance() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-8">
+    <div className="mx-auto max-w-7xl space-y-6 pb-8">
       <EmployeePageHeader
         icon="edit_calendar"
         title="Attendance Regularization"
@@ -448,7 +448,8 @@ export default function RegularizeAttendance() {
         </div>
 
         <div className="col-span-12 space-y-6 xl:col-span-9">
-          <div className="flex justify-center xl:justify-start">
+          <div className="overflow-x-auto pb-1 xl:overflow-visible">
+            <div className="flex justify-center xl:justify-start">
             <div className="inline-flex rounded-full bg-[#F1F4F5] p-1">
               {(['apply', 'pending', 'history'] as RegularizationTab[]).map((tab) => (
                 <button
@@ -462,6 +463,7 @@ export default function RegularizeAttendance() {
                   {tab}
                 </button>
               ))}
+            </div>
             </div>
           </div>
 

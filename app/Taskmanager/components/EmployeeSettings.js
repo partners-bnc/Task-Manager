@@ -66,7 +66,7 @@ export default function EmployeeSettings() {
   };
 
   return (
-    <div className="p-8 max-w-3xl">
+    <div className="max-w-3xl p-4 sm:p-6 lg:p-8">
       <h2 className="text-2xl font-bold text-black mb-2">Settings</h2>
       <p className="text-slate-600 mb-6">Change your dashboard password.</p>
 

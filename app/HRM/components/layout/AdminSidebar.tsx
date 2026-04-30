@@ -10,6 +10,8 @@ interface AdminSidebarProps {
   isLoggingOut?: boolean;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
   admin?: {
     name?: string;
     designation?: string;
@@ -25,6 +27,8 @@ export default function AdminSidebar({
   isLoggingOut = false,
   isCollapsed = false,
   onToggleCollapse,
+  isMobileOpen = false,
+  onMobileClose,
 }: AdminSidebarProps) {
   const navItems = [
     { id: 'admin-dashboard', label: 'Admin Dashboard', icon: 'admin_panel_settings' },
@@ -42,12 +46,35 @@ export default function AdminSidebar({
   ];
 
   return (
+    <>
+      {isMobileOpen ? (
+        <button
+          type="button"
+          aria-label="Close admin navigation"
+          onClick={onMobileClose}
+          className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm md:hidden"
+        />
+      ) : null}
     <aside
-      className={`subtle-scrollbar fixed left-0 top-0 z-50 flex h-screen flex-col overflow-y-auto border-r border-outline-variant/15 bg-[#EEF2F5] py-5 transition-all duration-300 ${
-        isCollapsed ? 'w-24' : 'w-64'
-      }`}
+      className={`subtle-scrollbar fixed left-0 top-0 z-50 flex h-screen w-72 max-w-[86vw] -translate-x-full flex-col overflow-y-auto border-r border-outline-variant/15 bg-[#EEF2F5] py-5 shadow-[0_20px_60px_rgba(15,23,42,0.18)] transition-all duration-300 md:max-w-none md:translate-x-0 md:shadow-none ${
+        isMobileOpen ? 'translate-x-0' : ''
+      } ${isCollapsed ? 'md:w-24' : 'md:w-64'}`}
     >
       <div className={`mb-8 ${isCollapsed ? 'px-3' : 'px-5'}`}>
+        <div className="mb-4 flex items-center justify-between px-2 md:hidden">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">HR Admin</p>
+            <p className="text-lg font-bold text-on-surface">Navigation</p>
+          </div>
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#C9D5E1] bg-white text-[#5B6776] shadow-sm"
+            aria-label="Close admin navigation"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
         <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
           {!isCollapsed ? (
             <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pl-9">
@@ -85,7 +112,10 @@ export default function AdminSidebar({
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentTab(item.id)}
+              onClick={() => {
+                setCurrentTab(item.id);
+                onMobileClose?.();
+              }}
               className={`w-full flex items-center transition-colors ${
                 isActive
                   ? 'rounded-r-2xl border-y border-r border-outline-variant/10 bg-surface-container-lowest font-bold text-primary shadow-sm'
@@ -142,5 +172,6 @@ export default function AdminSidebar({
         </Link>
       </div>
     </aside>
+    </>
   );
 }

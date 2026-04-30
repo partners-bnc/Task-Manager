@@ -270,7 +270,7 @@ export default function Leave() {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-8">
+    <div className="mx-auto max-w-7xl space-y-6 pb-8 sm:space-y-8">
       <EmployeePageHeader
         icon="event_busy"
         title="Leave Management"
@@ -361,7 +361,7 @@ export default function Leave() {
       </section>
 
       <section className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-8 editorial-shadow">
+        <div className="lg:col-span-2 rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5 editorial-shadow sm:p-6 lg:p-8">
           <div className="mb-6 flex items-start gap-4">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
               <span className="material-symbols-outlined text-[24px]">edit_calendar</span>
@@ -496,7 +496,7 @@ export default function Leave() {
           )}
         </div>
 
-        <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-3xl bg-tertiary-container p-8 editorial-shadow">
+        <div className="relative flex h-full flex-col justify-between overflow-hidden rounded-3xl bg-tertiary-container p-5 editorial-shadow sm:p-6 lg:p-8">
           <div className="relative z-10">
             <h3 className="text-xl font-bold font-headline leading-tight text-on-tertiary-container">Leave Policy Snapshot</h3>
             <p className="mt-2 text-sm leading-6 text-on-tertiary-container/80">
@@ -527,7 +527,7 @@ export default function Leave() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-8 editorial-shadow">
+      <section className="overflow-hidden rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5 editorial-shadow sm:p-6 lg:p-8">
         <div className="mb-6">
           <h2 className="text-xl font-bold font-headline text-on-background">Leave History</h2>
           <p className="mt-2 text-sm text-on-surface-variant">

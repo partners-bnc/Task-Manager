@@ -21,6 +21,7 @@ export default function App() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({ home: true });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -107,6 +108,27 @@ export default function App() {
     return <ShellSkeleton />;
   }
 
+  const currentTabLabel =
+    currentTab === 'home'
+      ? 'Home'
+      : currentTab === 'attendance'
+      ? 'Attendance'
+      : currentTab === 'regularize-attendance'
+      ? 'Regularization'
+      : currentTab === 'tickets'
+      ? 'Tickets'
+      : currentTab === 'expenses'
+      ? 'Expenses'
+      : currentTab === 'organization-chart'
+      ? 'Organization Chart'
+      : currentTab === 'leave'
+      ? 'Leave'
+      : currentTab === 'salary'
+      ? 'Salary'
+      : currentTab === 'profile'
+      ? 'Profile'
+      : 'Workspace';
+
   return (
     <HrmFeedbackProvider>
       <div className="flex min-h-screen bg-surface">
@@ -116,14 +138,32 @@ export default function App() {
         employee={employee}
         onLogout={handleLogout}
         isLoggingOut={isLoggingOut}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
       
-      <div className="flex-1 flex min-w-0 flex-col ml-64">
+      <div className="flex-1 flex min-w-0 flex-col md:ml-60">
+        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-lowest/95 px-4 py-3 backdrop-blur md:hidden">
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-outline-variant/15 bg-white text-on-surface shadow-sm"
+            aria-label="Open navigation"
+          >
+            <span className="material-symbols-outlined text-[20px]">menu</span>
+          </button>
+          <div className="min-w-0 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">HRM Employee</p>
+            <p className="truncate text-sm font-bold text-on-surface">{currentTabLabel}</p>
+          </div>
+          <div className="w-11" />
+        </div>
+
         <main
           className={`flex-1 relative ${
             currentTab === 'organization-chart'
-              ? ''
-              : 'px-5 pt-6 pb-8 pr-8 lg:px-6 lg:pr-10 lg:pt-6'
+              ? 'px-0 py-0 sm:py-4'
+              : 'px-3 py-4 pb-8 sm:px-4 sm:pt-5 lg:px-6 lg:pb-8'
           }`}
         >
           {Object.entries(tabViews).map(([tabId, view]) => {

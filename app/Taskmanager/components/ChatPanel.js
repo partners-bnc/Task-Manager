@@ -616,13 +616,13 @@ export default function ChatPanel() {
   }, [messages]);
 
   if (loading) {
-    return <div className="p-8 text-slate-500">Loading chat...</div>;
+    return <div className="p-4 text-slate-500 sm:p-6 lg:p-8">Loading chat...</div>;
   }
 
   return (
-    <div className="h-[calc(100vh-0px)] bg-slate-50 p-6">
-      <div className="mx-auto grid h-full max-w-7xl gap-4 rounded-xl border border-slate-200 bg-white p-4 lg:grid-cols-[320px_1fr]">
-        <aside className="flex h-full min-h-0 flex-col border-r border-slate-100 pr-3">
+    <div className="h-[calc(100vh-0px)] bg-slate-50 p-3 sm:p-4 lg:p-6">
+      <div className="mx-auto grid h-full max-w-7xl gap-4 rounded-xl border border-slate-200 bg-white p-3 sm:p-4 lg:grid-cols-[320px_1fr]">
+        <aside className="flex h-full min-h-0 flex-col border-b border-slate-100 pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
           <h2 className="mb-3 text-lg font-semibold text-slate-900">Chat</h2>
 
           <div className="relative mb-3">

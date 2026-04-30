@@ -16,6 +16,7 @@ import {
   summarizeAttendanceFromSwipes,
   timeStringToMinutes,
 } from '@/utils/attendance';
+import { resolveAttendanceDoorAddress } from '@/utils/attendance-location-server';
 
 function isMissingAttendanceTableError(error) {
   const message = error?.message || '';
@@ -319,7 +320,7 @@ export async function GET(request) {
   }
 }
 
-export async function POST() {
+export async function POST(request) {
   try {
     const employeeContext = await requireEmployeeContext();
     if (employeeContext.error) {
@@ -353,6 +354,13 @@ export async function POST() {
         { error: `${getOffDayLabel(attendanceDate, employeeContext.employeeSchedule)}. Attendance cannot be marked for this day.` },
         { status: 400 }
       );
+    }
+
+    let locationPayload = {};
+    try {
+      locationPayload = await request.json();
+    } catch {
+      locationPayload = {};
     }
 
     const { data: todayAttendance, error: todayError } = await adminClient
@@ -393,6 +401,7 @@ export async function POST() {
 
     const lastSwipe = existingSwipes[existingSwipes.length - 1] || null;
     const nextSwipeType = !lastSwipe || lastSwipe.swipe_type === 'out' ? 'in' : 'out';
+    const resolvedLocation = await resolveAttendanceDoorAddress(locationPayload);
 
     let attendanceId = todayAttendance?.id || null;
 
@@ -428,7 +437,8 @@ export async function POST() {
         swipe_time: nowIso,
         swipe_type: nextSwipeType,
         source: 'manual',
-        notes: `Employee ${nextSwipeType === 'in' ? 'checked in' : 'checked out'} from employee panel.`,
+        door_address: resolvedLocation.doorAddress,
+        notes: `Employee ${nextSwipeType === 'in' ? 'checked in' : 'checked out'} from employee panel. ${resolvedLocation.locationNote}`.trim(),
       })
       .select('*')
       .single();
@@ -450,6 +460,8 @@ export async function POST() {
       {
         action: nextSwipeType === 'in' ? 'checked_in' : 'checked_out',
         attendance: buildAttendanceUiRecord(attendanceDate, attendance, employeeContext.employeeSchedule),
+        warning: resolvedLocation.warning || '',
+        resolvedDoorAddress: resolvedLocation.resolvedDoorAddress || resolvedLocation.doorAddress || '',
       },
       { status: 200 }
     );

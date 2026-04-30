@@ -9,6 +9,7 @@ type AttendanceMode = 'daily' | 'individual' | 'monthly';
 let xlsxLoaderPromise: Promise<any> | null = null;
 
 type DailyRow = {
+  employeeRecordId?: string;
   employeeId: string;
   employeeName: string;
   department: string;
@@ -25,6 +26,22 @@ type DailyRow = {
   shiftHours?: string;
   notes: string;
   source?: string;
+};
+
+type SwipeHistoryRow = {
+  id: string;
+  swipeTime: string;
+  swipeType: string;
+  doorAddress: string;
+  notes?: string;
+};
+
+type SwipeModalState = {
+  open: boolean;
+  employeeRecordId: string;
+  employeeName: string;
+  employeeCode: string;
+  date: string;
 };
 
 type EmployeeOption = {
@@ -181,6 +198,10 @@ export default function AdminAttendance() {
   const [response, setResponse] = useState<AttendanceResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [swipeModalState, setSwipeModalState] = useState<SwipeModalState | null>(null);
+  const [swipeRows, setSwipeRows] = useState<SwipeHistoryRow[]>([]);
+  const [swipeLoading, setSwipeLoading] = useState(false);
+  const [swipeError, setSwipeError] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -332,6 +353,49 @@ export default function AdminAttendance() {
       `monthly_attendance_${safeFilePart(selectedMonth)}_${safeFilePart(selectedEmployeeId ? employeeName : 'all')}.xlsx`,
       'Monthly Attendance'
     );
+  };
+
+  const closeSwipeModal = () => {
+    setSwipeModalState(null);
+    setSwipeRows([]);
+    setSwipeError('');
+    setSwipeLoading(false);
+  };
+
+  const openSwipeModal = async (row: DailyRow) => {
+    if (!row.employeeRecordId) {
+      return;
+    }
+
+    setSwipeModalState({
+      open: true,
+      employeeRecordId: row.employeeRecordId,
+      employeeName: row.employeeName,
+      employeeCode: row.employeeId,
+      date: row.date,
+    });
+    setSwipeRows([]);
+    setSwipeError('');
+    setSwipeLoading(true);
+
+    try {
+      const query = buildQuery({
+        employeeId: row.employeeRecordId,
+        date: row.date,
+      });
+      const request = await fetch(`/HRM/api/admin/attendance/swipes?${query}`, { method: 'GET' });
+      const result = await request.json();
+
+      if (!request.ok) {
+        throw new Error(result.error || 'Failed to load swipe history');
+      }
+
+      setSwipeRows(Array.isArray(result.swipes) ? result.swipes : []);
+    } catch (requestError: any) {
+      setSwipeError(requestError?.message || 'Failed to load swipe history');
+    } finally {
+      setSwipeLoading(false);
+    }
   };
 
   return (
@@ -537,10 +601,10 @@ export default function AdminAttendance() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-[1500px] w-full text-left">
+                <table className="min-w-[1600px] w-full text-left">
                   <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
                     <tr>
-                      {['Employee ID', 'Employee Name', 'Department', 'Designation', 'Reporting To', 'Date', 'Status', 'Check-in', 'Check-out', 'Late In', 'Early Out', 'Work Hours', 'Notes / Source'].map((column) => (
+                      {['Employee ID', 'Employee Name', 'Department', 'Designation', 'Reporting To', 'Date', 'Status', 'Check-in', 'Check-out', 'Late In', 'Early Out', 'Work Hours', 'Notes / Source', 'Swipes'].map((column) => (
                         <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">
                           {column}
                         </th>
@@ -564,6 +628,20 @@ export default function AdminAttendance() {
                         <td className="px-4 py-4 text-sm text-on-surface">{row.workHours}</td>
                         <td className="px-4 py-4 text-sm text-on-surface-variant">
                           {row.notes || row.source || '--'}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-on-surface">
+                          <button
+                            type="button"
+                            onClick={() => openSwipeModal(row)}
+                            disabled={!row.employeeRecordId}
+                            className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                              row.employeeRecordId
+                                ? 'border border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100'
+                                : 'cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400'
+                            }`}
+                          >
+                            View Swipes
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -756,6 +834,66 @@ export default function AdminAttendance() {
           </>
         )}
       </section>
+
+      {swipeModalState?.open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8 backdrop-blur-sm">
+          <div className="w-full max-w-5xl overflow-hidden rounded-[1.75rem] border border-outline-variant/10 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.22)]">
+            <div className="flex items-start justify-between gap-4 border-b border-outline-variant/10 px-6 py-5">
+              <div>
+                <h3 className="text-xl font-headline font-bold text-on-background">Attendance Swipes</h3>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {swipeModalState.employeeName} ({swipeModalState.employeeCode}) on {swipeModalState.date}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeSwipeModal}
+                className="rounded-full border border-outline-variant/15 px-3 py-1.5 text-xs font-semibold text-on-surface-variant transition hover:bg-surface-container-low"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-auto px-6 py-5">
+              {swipeLoading ? (
+                <LoadingPanel title="Loading swipe history" message="Pulling saved in and out address details for this employee." />
+              ) : swipeError ? (
+                <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700">{swipeError}</div>
+              ) : swipeRows.length === 0 ? (
+                <HrmEmptyState
+                  icon="pin_drop"
+                  title="No swipes found"
+                  message="No swipe entries were saved for this employee on the selected date."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-[980px] w-full text-left">
+                    <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
+                      <tr>
+                        {['Swipe Time', 'In / Out', 'Door / Address', 'Notes'].map((column) => (
+                          <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">
+                            {column}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/10">
+                      {swipeRows.map((swipe) => (
+                        <tr key={swipe.id}>
+                          <td className="px-4 py-4 text-sm font-semibold text-on-surface">{swipe.swipeTime}</td>
+                          <td className="px-4 py-4 text-sm text-on-surface">{swipe.swipeType}</td>
+                          <td className="px-4 py-4 text-sm text-on-surface">{swipe.doorAddress || '--'}</td>
+                          <td className="px-4 py-4 text-sm text-on-surface-variant">{swipe.notes || '--'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

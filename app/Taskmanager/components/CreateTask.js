@@ -280,12 +280,12 @@ export default function CreateTask({ onCancel }) {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-2xl font-bold text-black">Create Task</h2>
       </div>
 
-      <div className="bg-white p-8 rounded-xl shadow-sm space-y-8">
+      <div className="space-y-8 rounded-xl bg-white p-5 shadow-sm sm:p-6 lg:p-8">
         {error && (
           <div className='text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2'>
             {error}

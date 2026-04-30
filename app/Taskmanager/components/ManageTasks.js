@@ -50,7 +50,7 @@ export default function ManageTasks() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 sm:p-6 lg:p-8">
       <div className="flex flex-col gap-4 xl:flex-row xl:justify-between xl:items-center mb-8">
         <h2 className="text-2xl font-bold text-black">My Tasks</h2>
 

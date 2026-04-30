@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { AttendanceRecord, AttendanceResponse } from './attendanceShared';
 import EmployeePageHeader from '../ui/EmployeePageHeader';
 import { useHrmFeedback } from '../ui/HrmFeedback';
+import { captureAttendanceLocationPayload } from '@/utils/attendance-location';
 
 type HolidayItem = {
   id: string;
@@ -591,7 +592,12 @@ export default function Dashboard({
 
     try {
       setIsAttendanceUpdating(true);
-      const response = await fetch('/HRM/api/attendance', { method: 'POST' });
+      const locationPayload = await captureAttendanceLocationPayload();
+      const response = await fetch('/HRM/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(locationPayload),
+      });
       const result = await response.json();
 
       if (!response.ok) {
@@ -606,6 +612,14 @@ export default function Dashboard({
       setTodayAttendance(result.attendance || null);
       setTodayAction(result.action === 'checked_in' ? 'check_out' : 'check_in');
       window.dispatchEvent(new CustomEvent('hrm-attendance-updated'));
+
+      if (result.warning) {
+        showFeedback({
+          type: 'warning',
+          title: 'Attendance Saved with Fallback Location',
+          message: result.warning,
+        });
+      }
     } catch {
       showFeedback({
         type: 'error',
@@ -618,7 +632,7 @@ export default function Dashboard({
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-8">
+    <div className="mx-auto max-w-7xl space-y-6 pb-8 sm:space-y-8">
       {/* Welcome Hero Section */}
       <EmployeePageHeader
         icon="space_dashboard"
@@ -673,7 +687,7 @@ export default function Dashboard({
               )}
             </div>
             
-            <div className="flex-1 w-full border-l border-outline-variant/10 pl-5">
+            <div className="flex-1 w-full border-t border-outline-variant/10 pt-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
               <div className="flex h-36 items-end justify-between gap-3">
                 {weeklyBars.map((bar) => (
                   <div key={bar.dayName} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2">
@@ -815,7 +829,7 @@ export default function Dashboard({
             </div>
             
             {/* Action buttons */}
-            <div className="flex items-center gap-3 mt-6 relative z-10">
+            <div className="relative z-10 mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
               <button 
                 onClick={() => setIsSwipesModalOpen(true)}
                 className="group flex items-center gap-2 px-4 py-2.5 bg-white border border-violet-100 rounded-xl text-xs font-semibold text-violet-700 hover:border-violet-200 hover:bg-violet-50/70 hover:shadow-sm transition-all duration-200"

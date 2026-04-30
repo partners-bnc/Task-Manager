@@ -31,6 +31,7 @@ export default function AdminApp() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({
     [normalizedRequestedTab]: true,
   });
@@ -133,6 +134,33 @@ export default function AdminApp() {
     return <ShellSkeleton />;
   }
 
+  const currentTabLabel =
+    currentTab === 'admin-dashboard'
+      ? 'Admin Dashboard'
+      : currentTab === 'admin-analytics'
+      ? 'Analytics'
+      : currentTab === 'admin-employee-list'
+      ? 'Employee Directory'
+      : currentTab === 'admin-payouts'
+      ? 'Payouts & Payroll'
+      : currentTab === 'admin-organization-chart'
+      ? 'Organization Chart'
+      : currentTab === 'admin-module-access'
+      ? 'Module Access'
+      : currentTab === 'admin-attendance'
+      ? 'Attendance'
+      : currentTab === 'admin-regularization'
+      ? 'Regularization'
+      : currentTab === 'admin-tickets'
+      ? 'Tickets'
+      : currentTab === 'admin-expenses'
+      ? 'Expense Review'
+      : currentTab === 'admin-leaves'
+      ? 'Leave'
+      : currentTab === 'admin-holidays'
+      ? 'Holiday'
+      : 'HR Admin';
+
   return (
     <HrmFeedbackProvider>
       <div className="flex min-h-screen bg-surface">
@@ -144,9 +172,26 @@ export default function AdminApp() {
         isLoggingOut={isLoggingOut}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed((current) => !current)}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
       
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-24' : 'ml-64'}`}>
+      <div className={`flex-1 flex min-w-0 flex-col transition-all duration-300 ${isSidebarCollapsed ? 'md:ml-24' : 'md:ml-64'}`}>
+        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-lowest/95 px-4 py-3 backdrop-blur md:hidden">
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-outline-variant/15 bg-white text-on-surface shadow-sm"
+            aria-label="Open admin navigation"
+          >
+            <span className="material-symbols-outlined text-[20px]">menu</span>
+          </button>
+          <div className="min-w-0 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">HR Admin</p>
+            <p className="truncate text-sm font-bold text-on-surface">{currentTabLabel}</p>
+          </div>
+          <div className="w-11" />
+        </div>
         <main className="flex-1 relative">
           {Object.entries(tabViews).map(([tabId, view]) => {
             if (!visitedTabs[tabId]) {

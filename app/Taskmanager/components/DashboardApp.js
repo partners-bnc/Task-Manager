@@ -21,6 +21,7 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const safeInitialView = initialView;
   const [currentView, setCurrentView] = useState(safeInitialView);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   if (loading) {
     return (
@@ -63,7 +64,38 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
         onNavigate={setCurrentView}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
+      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur md:hidden">
+        <button
+          type="button"
+          onClick={() => setIsMobileSidebarOpen(true)}
+          className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm"
+          aria-label="Open Task Manager navigation"
+        >
+          <span className="material-symbols-outlined text-[20px]">menu</span>
+        </button>
+        <div className="min-w-0 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Task Manager</p>
+          <p className="truncate text-sm font-bold text-slate-900">
+            {currentView === 'dashboard'
+              ? 'Dashboard'
+              : currentView === 'tasks'
+              ? 'Manage Tasks'
+              : currentView === 'todos'
+              ? 'Todos'
+              : currentView === 'create-task'
+              ? 'Create Task'
+              : currentView === 'team'
+              ? 'Team Members'
+              : currentView === 'chat'
+              ? 'Chat'
+              : 'Settings'}
+          </p>
+        </div>
+        <div className="w-11" />
+      </div>
       <main className={`ml-0 min-h-screen ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
         {renderView()}
       </main>

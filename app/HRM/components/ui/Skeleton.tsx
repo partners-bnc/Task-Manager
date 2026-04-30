@@ -117,7 +117,7 @@ export function ShellSkeleton({
 }) {
   return (
     <div className="flex min-h-screen bg-surface">
-      <aside className={`${sidebarWidthClass} fixed left-0 top-0 h-screen bg-surface-container-low px-6 py-5`}>
+      <aside className={`${sidebarWidthClass} fixed left-0 top-0 hidden h-screen bg-surface-container-low px-6 py-5 md:block`}>
         <div className="flex flex-col items-center">
           <div className="relative">
             <div className="absolute inset-0 rounded-full bg-violet-100/80 blur-2xl" />
@@ -133,7 +133,7 @@ export function ShellSkeleton({
         </div>
       </aside>
 
-      <div className="ml-64 flex-1 px-6 py-6">
+      <div className="flex-1 px-4 py-4 md:ml-64 md:px-6 md:py-6">
         <div className="mx-auto max-w-7xl space-y-6">
           <div className="rounded-[2rem] border border-white/70 bg-surface-container-lowest px-6 py-6 shadow-[0_18px_38px_rgba(15,23,42,0.06)]">
             <div className="flex items-center justify-between gap-4">

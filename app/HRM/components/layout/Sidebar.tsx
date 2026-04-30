@@ -4,12 +4,15 @@ import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { useHrmFeedback } from '../ui/HrmFeedback';
+import { captureAttendanceLocationPayload } from '@/utils/attendance-location';
 
 interface SidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   onLogout: () => Promise<void> | void;
   isLoggingOut?: boolean;
+  isMobileOpen?: boolean;
+  onMobileClose?: () => void;
   employee?: {
     name?: string;
     employee_id?: string;
@@ -21,7 +24,15 @@ interface SidebarProps {
   } | null;
 }
 
-export default function Sidebar({ currentTab, setCurrentTab, employee, onLogout, isLoggingOut = false }: SidebarProps) {
+export default function Sidebar({
+  currentTab,
+  setCurrentTab,
+  employee,
+  onLogout,
+  isLoggingOut = false,
+  isMobileOpen = false,
+  onMobileClose,
+}: SidebarProps) {
   const { showFeedback } = useHrmFeedback();
   const [isTogglingAttendance, setIsTogglingAttendance] = useState(false);
   const [attendanceActionLabel, setAttendanceActionLabel] = useState<'Check In' | 'Check Out'>('Check In');
@@ -101,7 +112,12 @@ export default function Sidebar({ currentTab, setCurrentTab, employee, onLogout,
 
     try {
       setIsTogglingAttendance(true);
-      const response = await fetch('/HRM/api/attendance', { method: 'POST' });
+      const locationPayload = await captureAttendanceLocationPayload();
+      const response = await fetch('/HRM/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(locationPayload),
+      });
       const result = await response.json();
 
       if (!response.ok) {
@@ -115,6 +131,14 @@ export default function Sidebar({ currentTab, setCurrentTab, employee, onLogout,
 
       setAttendanceActionLabel(result.action === 'checked_in' ? 'Check Out' : 'Check In');
       window.dispatchEvent(new CustomEvent('hrm-attendance-updated'));
+
+      if (result.warning) {
+        showFeedback({
+          type: 'warning',
+          title: 'Attendance Saved with Fallback Location',
+          message: result.warning,
+        });
+      }
     } catch {
       showFeedback({
         type: 'error',
@@ -127,8 +151,33 @@ export default function Sidebar({ currentTab, setCurrentTab, employee, onLogout,
   };
 
   return (
-    <aside className="subtle-scrollbar fixed left-0 top-0 z-50 flex h-screen w-60 flex-col overflow-y-auto bg-surface-container-low py-5 pr-4">
-      <div className="px-6 mb-6">
+    <>
+      {isMobileOpen ? (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={onMobileClose}
+          className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-sm md:hidden"
+        />
+      ) : null}
+
+    <aside className={`subtle-scrollbar fixed left-0 top-0 z-50 flex h-screen w-72 max-w-[86vw] flex-col overflow-y-auto bg-surface-container-low px-0 py-5 shadow-[0_20px_60px_rgba(15,23,42,0.18)] transition-transform duration-300 md:w-60 md:max-w-none md:translate-x-0 md:shadow-none ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className="mb-6 px-5 md:px-6">
+        <div className="mb-4 flex items-center justify-between md:hidden">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">HRM Employee</p>
+            <p className="text-lg font-bold text-on-surface">Navigation</p>
+          </div>
+          <button
+            type="button"
+            onClick={onMobileClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-outline-variant/15 bg-white text-on-surface shadow-sm"
+            aria-label="Close navigation"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+
         <div className="flex flex-col items-center text-center">
           <Image
             alt="User Profile Avatar"
@@ -158,7 +207,10 @@ export default function Sidebar({ currentTab, setCurrentTab, employee, onLogout,
           return (
             <button
               key={item.id}
-              onClick={() => setCurrentTab(item.id)}
+              onClick={() => {
+                setCurrentTab(item.id);
+                onMobileClose?.();
+              }}
               className={`w-full flex items-center gap-3 px-5 py-2.5 transition-colors group ${
                 isActive 
                   ? 'text-primary bg-surface-container-lowest rounded-r-full font-bold shadow-sm' 
@@ -184,7 +236,7 @@ export default function Sidebar({ currentTab, setCurrentTab, employee, onLogout,
         })}
       </nav>
 
-      <div className="px-6 mt-3">
+      <div className="mt-3 px-5 md:px-6">
         <button
           onClick={handleQuickCheckIn}
           disabled={isTogglingAttendance}
@@ -225,5 +277,6 @@ export default function Sidebar({ currentTab, setCurrentTab, employee, onLogout,
         </Link>
       </div>
     </aside>
+    </>
   );
 }

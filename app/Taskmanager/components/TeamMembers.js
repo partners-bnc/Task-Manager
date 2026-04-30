@@ -205,8 +205,8 @@ export default function TeamMembers() {
   };
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
+    <div className="p-4 sm:p-6 lg:p-8">
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold text-black">Team Members</h2>
         <div className="flex items-center gap-3">
           <button

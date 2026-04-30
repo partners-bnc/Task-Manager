@@ -149,7 +149,7 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-8">
+    <div className="mx-auto max-w-7xl space-y-5 pb-8 sm:space-y-6">
       <EmployeePageHeader
         icon="calendar_today"
         title="Attendance Overview"
@@ -281,7 +281,7 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
                   <Skeleton className="h-4 w-28" />
                   <Skeleton className="h-8 w-40" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {Array.from({ length: 6 }, (_, index) => (
                     <Skeleton key={index} className="h-[84px] rounded-xl" />
                   ))}
@@ -348,7 +348,7 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
                     <span>Shift: <strong className="text-on-surface">10:00 AM - 07:00 PM</strong></span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-5">
+                  <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                     {[
                       { label: 'Check-in', value: selectedRecord.checkIn, icon: 'login' },
                       { label: 'Check-out', value: selectedRecord.checkOut, icon: 'logout' },
