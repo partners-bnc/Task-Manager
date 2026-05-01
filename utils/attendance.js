@@ -278,6 +278,10 @@ export function calculateAttendanceMetrics({ checkInAt, checkOutAt }) {
 }
 
 export function mapDbStatusToUiStatus(status, isWeekend = false) {
+  if (status === 'weekend' || status === 'off') {
+    return 'weekend';
+  }
+
   if (status === 'holiday') {
     return 'holiday';
   }

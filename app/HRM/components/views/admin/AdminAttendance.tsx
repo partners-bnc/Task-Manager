@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import HrmEmptyState from '../../ui/HrmEmptyState';
 import { LoadingPanel } from '../../ui/Skeleton';
+import { useHrmFeedback } from '../../ui/HrmFeedback';
 
 type AttendanceMode = 'daily' | 'individual' | 'monthly';
 
@@ -67,6 +68,17 @@ type MonthlyStatusCell = {
   status: string;
   label: string;
   notes: string;
+};
+
+type MonthlyEditorState = {
+  open: boolean;
+  employeeId: string;
+  employeeName: string;
+  date: string;
+  status: string;
+  x: number;
+  y: number;
+  saving: boolean;
 };
 
 type MonthlyAttendanceRow = {
@@ -188,6 +200,7 @@ function safeFilePart(value = '') {
 }
 
 export default function AdminAttendance() {
+  const { showFeedback } = useHrmFeedback();
   const [mode, setMode] = useState<AttendanceMode>('daily');
   const [selectedDate, setSelectedDate] = useState(getTodayDate());
   const [search, setSearch] = useState('');
@@ -202,6 +215,7 @@ export default function AdminAttendance() {
   const [swipeRows, setSwipeRows] = useState<SwipeHistoryRow[]>([]);
   const [swipeLoading, setSwipeLoading] = useState(false);
   const [swipeError, setSwipeError] = useState('');
+  const [monthlyEditor, setMonthlyEditor] = useState<MonthlyEditorState | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -262,6 +276,12 @@ export default function AdminAttendance() {
       active = false;
     };
   }, [departmentFilter, mode, search, selectedDate, selectedEmployeeId, selectedMonth, statusFilter]);
+
+  useEffect(() => {
+    if (mode !== 'monthly') {
+      setMonthlyEditor(null);
+    }
+  }, [mode]);
 
   const sectionCards = [
     { id: 'daily' as const, label: 'Daily Attendance', description: 'Check all employee attendance on one day.' },
@@ -407,6 +427,123 @@ export default function AdminAttendance() {
     setSwipeRows([]);
     setSwipeError('');
     setSwipeLoading(false);
+  };
+
+  const closeMonthlyEditor = () => {
+    setMonthlyEditor(null);
+  };
+
+  const handleOpenMonthlyEditor = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    row: MonthlyAttendanceRow,
+    day: MonthlyStatusCell
+  ) => {
+    if (day.date > getTodayDate()) {
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const popupWidth = 240;
+    const popupHeight = 360;
+    const viewportPadding = 12;
+    const left = Math.max(
+      viewportPadding,
+      Math.min(rect.left, window.innerWidth - popupWidth - viewportPadding)
+    );
+    const preferredBottom = rect.bottom + 8;
+    const preferredTop = rect.top - popupHeight - 8;
+    const top =
+      preferredBottom + popupHeight <= window.innerHeight - viewportPadding
+        ? preferredBottom
+        : Math.max(viewportPadding, preferredTop);
+
+    setMonthlyEditor({
+      open: true,
+      employeeId: row.employee.id,
+      employeeName: row.employee.name,
+      date: day.date,
+      status: day.status,
+      x: left,
+      y: top,
+      saving: false,
+    });
+  };
+
+  const handleMonthlyStatusChange = async (nextStatus: string) => {
+    if (!monthlyEditor?.employeeId || !monthlyEditor?.date) {
+      return;
+    }
+
+    try {
+      setMonthlyEditor((current) => (current ? { ...current, saving: true } : current));
+
+      const request = await fetch('/HRM/api/admin/attendance/override', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: monthlyEditor.employeeId,
+          date: monthlyEditor.date,
+          status: nextStatus,
+        }),
+      });
+      const result = await request.json();
+
+      if (!request.ok) {
+        throw new Error(result.error || 'Failed to update attendance');
+      }
+
+      setResponse((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const nextRows = ((current.rows as unknown as MonthlyAttendanceRow[]) || []).map((row) => {
+          if (row.employee.id !== monthlyEditor.employeeId) {
+            return row;
+          }
+
+          return {
+            ...row,
+            dailyStatuses: row.dailyStatuses.map((day) =>
+              day.date === monthlyEditor.date
+                ? {
+                    ...day,
+                    ...result.updatedCell,
+                  }
+                : day
+            ),
+            summary: {
+              present: Number(result.summary?.present || 0),
+              halfDay: Number(result.summary?.halfDay || 0),
+              absent: Number(result.summary?.absent || 0),
+              off: Number(result.summary?.off || 0),
+              holiday: Number(result.summary?.holiday || 0),
+              leave: Number(result.summary?.leave || 0),
+              missing: Number(result.summary?.missing || 0),
+            },
+          };
+        });
+
+        return {
+          ...current,
+          rows: nextRows as unknown as DailyRow[],
+        };
+      });
+
+      showFeedback({
+        type: 'success',
+        title: 'Attendance Updated',
+        message: `${monthlyEditor.employeeName} attendance was updated for ${monthlyEditor.date}.`,
+      });
+      closeMonthlyEditor();
+    } catch (error: any) {
+      showFeedback({
+        type: 'error',
+        title: 'Attendance Not Updated',
+        message: error?.message || 'Failed to update attendance.',
+      });
+      setMonthlyEditor((current) => (current ? { ...current, saving: false } : current));
+    }
   };
 
   const openSwipeModal = async (row: DailyRow) => {
@@ -816,6 +953,9 @@ export default function AdminAttendance() {
                       ))}
                     </div>
                   </div>
+                  <div className="shrink-0 rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1 text-[11px] text-on-surface-variant whitespace-nowrap">
+                    Click past or today cells to edit
+                  </div>
                   <div className="flex shrink-0 items-center gap-3 whitespace-nowrap">
                     <button
                       type="button"
@@ -889,9 +1029,20 @@ export default function AdminAttendance() {
                           <td
                             key={`${row.employee.id || row.employee.employeeId}-${day.date}`}
                             title={`${day.label}${day.notes ? ` • ${day.notes}` : ''}`}
-                            className={`border-b border-r border-outline-variant/10 px-0.5 py-2 text-[10px] font-semibold ${getStatusCellTone(day.status)}`}
+                            className={`relative border-b border-r border-outline-variant/10 p-0 ${getStatusCellTone(day.status)}`}
                           >
-                            {day.code}
+                            <button
+                              type="button"
+                              onClick={(event) => handleOpenMonthlyEditor(event, row, day)}
+                              disabled={day.date > getTodayDate()}
+                              className={`absolute inset-0 flex min-h-[34px] w-full items-center justify-center px-0.5 py-2 text-[10px] font-semibold transition ${
+                                day.date > getTodayDate()
+                                  ? 'cursor-not-allowed opacity-65'
+                                  : 'cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] hover:-translate-y-[2px] hover:scale-[1.015] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_8px_18px_rgba(15,23,42,0.16),0_2px_6px_rgba(15,23,42,0.08)] active:translate-y-0 active:scale-[0.995] active:shadow-[inset_0_3px_10px_rgba(15,23,42,0.14),0_1px_2px_rgba(15,23,42,0.06)] focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-400/30'
+                              }`}
+                            >
+                              {day.code}
+                            </button>
                           </td>
                         ))}
                         <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.present}</td>
@@ -911,6 +1062,66 @@ export default function AdminAttendance() {
           </>
         )}
       </section>
+
+      {monthlyEditor?.open ? (
+        <>
+          <button
+            type="button"
+            aria-label="Close attendance editor"
+            onClick={closeMonthlyEditor}
+            className="fixed inset-0 z-40 cursor-default bg-transparent"
+          />
+          <div
+            className="fixed z-50 w-[240px] rounded-2xl border border-outline-variant/10 bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
+            style={{
+              left: monthlyEditor.x,
+              top: monthlyEditor.y,
+            }}
+          >
+            <div className="mb-3">
+              <p className="text-sm font-semibold text-on-surface">{monthlyEditor.employeeName}</p>
+              <p className="mt-1 text-xs text-on-surface-variant">{monthlyEditor.date}</p>
+            </div>
+            <div className="space-y-2">
+              {[
+                ['present', 'Present'],
+                ['absent', 'Absent'],
+                ['halfday', 'Half Day'],
+                ['on_leave', 'On Leave'],
+                ['holiday', 'Holiday'],
+                ['weekend', 'Off / Weekend'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => handleMonthlyStatusChange(value)}
+                  disabled={monthlyEditor.saving}
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
+                    monthlyEditor.status === value
+                      ? 'bg-surface-container-low font-semibold text-on-surface'
+                      : 'text-on-surface hover:bg-surface-container-low'
+                  } ${monthlyEditor.saving ? 'cursor-wait opacity-70' : ''}`}
+                >
+                  <span>{label}</span>
+                  {monthlyEditor.status === value ? (
+                    <span className="material-symbols-outlined text-base">check</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={closeMonthlyEditor}
+                disabled={monthlyEditor.saving}
+                className="rounded-full border border-outline-variant/15 px-3 py-1.5 text-xs font-semibold text-on-surface-variant transition hover:bg-surface-container-low disabled:opacity-70"
+              >
+                {monthlyEditor.saving ? 'Saving...' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </>
+      ) : null}
 
       {swipeModalState?.open ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4 py-8 backdrop-blur-sm">

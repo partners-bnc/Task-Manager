@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHrmFeedback } from '../../ui/HrmFeedback';
 import HrmEmptyState from '../../ui/HrmEmptyState';
 import { DetailPanelSkeleton, LoadingPanel, TableRowsSkeleton } from '../../ui/Skeleton';
@@ -264,6 +264,7 @@ function SoftTag({
 
 export default function PayoutsPayroll() {
   const { showFeedback: showHrmFeedback } = useHrmFeedback();
+  const sessionRedirectStartedRef = useRef(false);
   const currentYear = new Date().getFullYear();
   const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0');
   const currentMonthValue = `${currentYear}-${currentMonth}`;
@@ -331,14 +332,56 @@ export default function PayoutsPayroll() {
     });
   }, [showHrmFeedback]);
 
+  const buildSessionExpiredError = useCallback(() => {
+    const error = new Error('Session expired');
+    (error as Error & { sessionExpired?: boolean }).sessionExpired = true;
+    return error;
+  }, []);
+
+  const isSessionExpiredError = useCallback((error: unknown) => {
+    return Boolean((error as { sessionExpired?: boolean } | null)?.sessionExpired);
+  }, []);
+
+  const handleSessionExpired = useCallback(() => {
+    if (sessionRedirectStartedRef.current) {
+      return;
+    }
+
+    sessionRedirectStartedRef.current = true;
+    showHrmFeedback({
+      type: 'warning',
+      title: 'Session Expired',
+      message: 'Your login session expired after inactivity. Please log in again. Redirecting to the login page...',
+      confirmLabel: 'Log In Again',
+    });
+
+    window.setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      }
+    }, 1400);
+  }, [showHrmFeedback]);
+
+  const fetchPayrollJson = useCallback(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const response = await fetch(input, init);
+    const result = await response.json().catch(() => ({}));
+
+    if (response.status === 401 || response.status === 403) {
+      handleSessionExpired();
+      throw buildSessionExpiredError();
+    }
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Request failed');
+    }
+
+    return result;
+  }, [buildSessionExpiredError, handleSessionExpired]);
+
   const loadDirectory = useCallback(async (selectedId?: string | null) => {
     try {
       setDirectoryLoading(true);
-      const response = await fetch('/HRM/api/admin/payroll/profiles', { cache: 'no-store' });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load payroll directory');
-      }
+      const result = await fetchPayrollJson('/HRM/api/admin/payroll/profiles', { cache: 'no-store' });
 
       setDirectory(result.employees || []);
       const nextId = selectedId ?? result.employees?.[0]?.id ?? null;
@@ -348,20 +391,17 @@ export default function PayoutsPayroll() {
         setHistoryEmployeeId((current) => current || nextId);
       }
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to load payroll directory');
     } finally {
       setDirectoryLoading(false);
     }
-  }, [showFeedback]);
+  }, [fetchPayrollJson, isSessionExpiredError, showFeedback]);
 
   const loadDetail = useCallback(async (employeeId: string) => {
     try {
       setDetailLoading(true);
-      const response = await fetch(`/HRM/api/admin/payroll/profiles?employeeId=${employeeId}`, { cache: 'no-store' });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load payroll employee');
-      }
+      const result = await fetchPayrollJson(`/HRM/api/admin/payroll/profiles?employeeId=${employeeId}`, { cache: 'no-store' });
 
       setDetail(result);
       setProfileForm({
@@ -378,47 +418,42 @@ export default function PayoutsPayroll() {
         linkedScheduleId: result.retentionSchedules?.[0]?.id || '',
       }));
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to load payroll employee');
     } finally {
       setDetailLoading(false);
     }
-  }, [showFeedback]);
+  }, [fetchPayrollJson, isSessionExpiredError, showFeedback]);
 
   const loadRuns = useCallback(async () => {
     try {
       setRunsLoading(true);
-      const response = await fetch('/HRM/api/admin/payroll/runs', { cache: 'no-store' });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load payroll ledger');
-      }
+      const result = await fetchPayrollJson('/HRM/api/admin/payroll/runs', { cache: 'no-store' });
       setRuns(result.runs || []);
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to load payroll ledger');
     } finally {
       setRunsLoading(false);
     }
-  }, [showFeedback]);
+  }, [fetchPayrollJson, isSessionExpiredError, showFeedback]);
 
   const loadItem = useCallback(async (itemId: string) => {
     try {
       setItemLoading(true);
       setActiveLedgerAction({ itemId, type: 'view' });
-      const response = await fetch(`/HRM/api/admin/payroll/items/${itemId}`, { cache: 'no-store' });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load payroll item');
-      }
+      const result = await fetchPayrollJson(`/HRM/api/admin/payroll/items/${itemId}`, { cache: 'no-store' });
       setItemDetail(result);
       setSelectedItemId(itemId);
       setActiveSection('ledger');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to load payroll item');
     } finally {
       setActiveLedgerAction(null);
       setItemLoading(false);
     }
-  }, [showFeedback]);
+  }, [fetchPayrollJson, isSessionExpiredError, showFeedback]);
 
   const loadHistoryRows = useCallback(async (employeeId: string | null, yearValue: string) => {
     if (!employeeId) {
@@ -432,36 +467,30 @@ export default function PayoutsPayroll() {
         employeeId,
         year: String(yearValue || ''),
       });
-      const response = await fetch(`/HRM/api/admin/payroll/history?${params.toString()}`, { cache: 'no-store' });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load employee salary history');
-      }
+      const result = await fetchPayrollJson(`/HRM/api/admin/payroll/history?${params.toString()}`, { cache: 'no-store' });
       setHistoryRows(result.rows || []);
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to load employee salary history');
     } finally {
       setHistoryLoading(false);
     }
-  }, [showFeedback]);
+  }, [fetchPayrollJson, isSessionExpiredError, showFeedback]);
 
   const loadHistoryDetail = useCallback(async (itemId: string) => {
     try {
       setHistoryDetailLoading(true);
-      const response = await fetch(`/HRM/api/admin/payroll/history/${itemId}`, { cache: 'no-store' });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load employee salary history detail');
-      }
+      const result = await fetchPayrollJson(`/HRM/api/admin/payroll/history/${itemId}`, { cache: 'no-store' });
       setHistoryDetail(result);
       setSelectedHistoryItemId(itemId);
       setActiveSection('history');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to load employee salary history detail');
     } finally {
       setHistoryDetailLoading(false);
     }
-  }, [showFeedback]);
+  }, [fetchPayrollJson, isSessionExpiredError, showFeedback]);
 
   const exportExcelFile = useCallback(async (sheetName: string, rows: Array<Record<string, any>>, fileName: string) => {
     if (!rows.length) {
@@ -678,7 +707,7 @@ export default function PayoutsPayroll() {
 
     try {
       setSubmitting(true);
-      const response = await fetch('/HRM/api/admin/payroll/profiles', {
+      const result = await fetchPayrollJson('/HRM/api/admin/payroll/profiles', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -689,15 +718,12 @@ export default function PayoutsPayroll() {
           tdsValue: Number(profileForm.tdsValue || 0),
         }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to save payroll profile');
-      }
 
       setDetail(result);
       await loadDirectory(selectedEmployeeId);
       showFeedback('success', 'Payroll profile updated successfully.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to save payroll profile');
     } finally {
       setSubmitting(false);
@@ -710,7 +736,7 @@ export default function PayoutsPayroll() {
 
     try {
       setSubmitting(true);
-      const response = await fetch('/HRM/api/admin/payroll/revisions', {
+      const result = await fetchPayrollJson('/HRM/api/admin/payroll/revisions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -719,16 +745,13 @@ export default function PayoutsPayroll() {
           revisionValue: Number(revisionForm.revisionValue || 0),
         }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create revision');
-      }
 
       await loadDetail(selectedEmployeeId);
       await loadDirectory(selectedEmployeeId);
       setRevisionForm((current) => ({ ...current, revisionValue: '', reason: '' }));
       showFeedback('success', 'Salary revision saved successfully.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to create revision');
     } finally {
       setSubmitting(false);
@@ -741,7 +764,7 @@ export default function PayoutsPayroll() {
 
     try {
       setSubmitting(true);
-      const response = await fetch('/HRM/api/admin/payroll/retention', {
+      const result = await fetchPayrollJson('/HRM/api/admin/payroll/retention', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -750,16 +773,13 @@ export default function PayoutsPayroll() {
           monthlyAmount: Number(retentionForm.monthlyAmount || 0),
         }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to save retention schedule');
-      }
 
       await loadDetail(selectedEmployeeId);
       await loadDirectory(selectedEmployeeId);
       setRetentionForm((current) => ({ ...current, monthlyAmount: '', notes: '' }));
       showFeedback('success', 'Retention schedule created successfully.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to save retention schedule');
     } finally {
       setSubmitting(false);
@@ -772,7 +792,7 @@ export default function PayoutsPayroll() {
 
     try {
       setSubmitting(true);
-      const response = await fetch('/HRM/api/admin/payroll/retention/releases', {
+      const result = await fetchPayrollJson('/HRM/api/admin/payroll/retention/releases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -781,15 +801,12 @@ export default function PayoutsPayroll() {
           amount: Number(releaseForm.amount || 0),
         }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to save retention release');
-      }
 
       await loadDetail(selectedEmployeeId);
       setReleaseForm((current) => ({ ...current, amount: '', notes: '' }));
       showFeedback('success', 'Retention release created successfully.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to save retention release');
     } finally {
       setSubmitting(false);
@@ -799,7 +816,7 @@ export default function PayoutsPayroll() {
   async function handlePreview() {
     try {
       setPreviewLoading(true);
-      const response = await fetch('/HRM/api/admin/payroll/runs/preview', {
+      const result = await fetchPayrollJson('/HRM/api/admin/payroll/runs/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -807,14 +824,11 @@ export default function PayoutsPayroll() {
           month: Number(previewMonth),
         }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to preview payroll');
-      }
       setPreviewData(result);
       setSelectedCalculatorEmployeeId(null);
       showFeedback('success', 'Employee salary calculator has been refreshed.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to preview payroll');
     } finally {
       setPreviewLoading(false);
@@ -824,7 +838,7 @@ export default function PayoutsPayroll() {
   async function handleGenerate() {
     try {
       setSubmitting(true);
-      const response = await fetch('/HRM/api/admin/payroll/runs/generate', {
+      const result = await fetchPayrollJson('/HRM/api/admin/payroll/runs/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -833,10 +847,6 @@ export default function PayoutsPayroll() {
           previewSignature: previewData?.signature || '',
         }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to generate payroll');
-      }
 
       setPreviewData(result.preview);
       setSelectedCalculatorEmployeeId(null);
@@ -844,6 +854,7 @@ export default function PayoutsPayroll() {
       setActiveSection('ledger');
       showFeedback('success', 'Payroll generated successfully and saved in the ledger.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to generate payroll');
     } finally {
       setSubmitting(false);
@@ -854,19 +865,16 @@ export default function PayoutsPayroll() {
     try {
       setSubmitting(true);
       setActiveLedgerAction({ itemId, type: 'payslip' });
-      const response = await fetch(`/HRM/api/admin/payroll/items/${itemId}/payslip`, {
+      const result = await fetchPayrollJson(`/HRM/api/admin/payroll/items/${itemId}/payslip`, {
         method: 'POST',
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to generate payslip');
-      }
 
       setItemDetail(result);
       setSelectedItemId(itemId);
       await loadRuns();
       showFeedback('success', result.alreadyExists ? 'Payslip already exists for this payroll item.' : 'Payslip generated successfully.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to generate payslip');
     } finally {
       setActiveLedgerAction(null);
@@ -878,21 +886,18 @@ export default function PayoutsPayroll() {
     try {
       setSubmitting(true);
       setActiveLedgerAction({ itemId, type: 'paid' });
-      const response = await fetch(`/HRM/api/admin/payroll/items/${itemId}`, {
+      const result = await fetchPayrollJson(`/HRM/api/admin/payroll/items/${itemId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ paymentStatus: 'paid' }),
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to mark payroll paid');
-      }
 
       setItemDetail(result);
       setSelectedItemId(itemId);
       await loadRuns();
       showFeedback('success', 'Payroll item marked as paid. Salary is now visible in the employee panel.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to mark payroll paid');
     } finally {
       setActiveLedgerAction(null);
@@ -904,19 +909,16 @@ export default function PayoutsPayroll() {
     try {
       setSubmitting(true);
       setActiveLedgerAction({ itemId, type: 'send' });
-      const response = await fetch(`/HRM/api/admin/payroll/items/${itemId}/payslip/send`, {
+      const result = await fetchPayrollJson(`/HRM/api/admin/payroll/items/${itemId}/payslip/send`, {
         method: 'POST',
       });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to send payslip');
-      }
 
       setItemDetail(result);
       setSelectedItemId(itemId);
       await loadRuns();
       showFeedback('success', 'Payslip released to the employee salary panel.');
     } catch (error: any) {
+      if (isSessionExpiredError(error)) return;
       showFeedback('error', error.message || 'Failed to send payslip');
     } finally {
       setActiveLedgerAction(null);
