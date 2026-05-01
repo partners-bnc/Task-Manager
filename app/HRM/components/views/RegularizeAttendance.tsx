@@ -40,7 +40,6 @@ function getDetectedCurrentStatus(selectedDay?: RegularizationDay) {
   const label = String(selectedDay?.label || '').trim().toLowerCase();
   if (label === 'half day') return 'Half Day';
   if (label === 'absent') return 'Absent';
-  if (label === 'late') return 'Late';
   return '';
 }
 
@@ -65,7 +64,6 @@ function getMonthKey(date: Date) {
 
 function formatCalendarDayLabel(item: RegularizationDay | undefined) {
   if (!item) return null;
-  if (item.label === 'Late') return 'L';
   if (item.label === 'Half Day') return 'H';
   if (item.label === 'Absent') return 'A';
   return null;
@@ -484,7 +482,7 @@ export default function RegularizeAttendance() {
                         {selectedDate ? formatDateLong(selectedDate) : 'Select an attendance issue date'}
                       </p>
                       <p className="mt-2 text-sm text-on-surface-variant">
-                        {selectedDay ? `${selectedDay.label} is available for correction.` : 'Only late, half day, and absent dates can be regularized.'}
+                        {selectedDay ? `${selectedDay.label} is available for correction.` : 'Only half day and absent dates can be regularized.'}
                       </p>
                     </div>
 

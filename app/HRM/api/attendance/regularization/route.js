@@ -93,8 +93,6 @@ function normalizeAttendanceStatus(status) {
 function getCurrentAttendanceStatusLabel(attendanceRow) {
   const status = normalizeAttendanceStatus(attendanceRow?.status || attendanceRow?.attendance_status);
   switch (status) {
-    case 'late':
-      return 'Late';
     case 'halfday':
       return 'Half Day';
     case 'absent':
@@ -113,7 +111,7 @@ function getCurrentAttendanceStatusValue(attendanceRow) {
 }
 
 function isEligibleAttendanceStatus(attendanceRow) {
-  return ['late', 'halfday', 'absent'].includes(
+  return ['halfday', 'absent'].includes(
     normalizeAttendanceStatus(attendanceRow?.status || attendanceRow?.attendance_status)
   );
 }
@@ -128,9 +126,6 @@ function buildEligibleDay(date, attendanceRow) {
   }
 
   const status = normalizeAttendanceStatus(attendanceRow.status || attendanceRow.attendance_status);
-  if (status === 'late') {
-    return { date, kind: 'gap', label: 'Late' };
-  }
   if (status === 'halfday') {
     return { date, kind: 'gap', label: 'Half Day' };
   }
@@ -426,7 +421,7 @@ export async function POST(request) {
     }
 
     if (attendanceRow && !isEligibleAttendanceStatus(attendanceRow)) {
-      return NextResponse.json({ error: 'Only late, half day, or absent dates can be regularized' }, { status: 400 });
+      return NextResponse.json({ error: 'Only half day or absent dates can be regularized' }, { status: 400 });
     }
 
     if (!attendanceRow) {

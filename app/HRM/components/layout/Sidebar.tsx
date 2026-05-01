@@ -2,9 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import React, { useEffect, useState } from 'react';
-import { useHrmFeedback } from '../ui/HrmFeedback';
-import { captureAttendanceLocationPayload } from '@/utils/attendance-location';
+import React from 'react';
 
 interface SidebarProps {
   currentTab: string;
@@ -33,57 +31,12 @@ export default function Sidebar({
   isMobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
-  const { showFeedback } = useHrmFeedback();
-  const [isTogglingAttendance, setIsTogglingAttendance] = useState(false);
-  const [attendanceActionLabel, setAttendanceActionLabel] = useState<'Check In' | 'Check Out'>('Check In');
   const displayName = employee?.name || employee?.employee_id || 'Employee';
   const loginId = employee?.employee_id || employee?.email || 'LOGIN ID';
   const workEmail = employee?.email || 'Work email not set';
   const avatarSrc =
     employee?.profile_picture_url ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=DBEAFE&color=1E3A8A&size=160`;
-  const moduleAccess = Array.isArray(employee?.module_access)
-    ? employee?.module_access?.[0]
-    : employee?.module_access;
-  const attendanceButtonClassName =
-    'group relative w-full overflow-hidden rounded-2xl bg-gradient-to-b from-violet-400 via-violet-500 to-violet-600 px-4 py-3 text-sm font-bold text-white shadow-[0_10px_24px_rgba(139,92,246,0.28)] transition-all duration-200 before:absolute before:inset-x-3 before:top-1 before:h-[42%] before:rounded-full before:bg-white/20 before:blur-md hover:-translate-y-0.5 hover:shadow-[0_16px_30px_rgba(139,92,246,0.34)] active:translate-y-1 active:shadow-[0_6px_14px_rgba(139,92,246,0.22)] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0';
-
-  useEffect(() => {
-    let active = true;
-
-    const resolveTodayAttendanceAction = async () => {
-      const now = new Date();
-      const attendanceMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-      try {
-        const response = await fetch(`/HRM/api/attendance?month=${attendanceMonth}`, { method: 'GET' });
-        const result = await response.json();
-
-        if (!active || !response.ok) {
-          return;
-        }
-
-        const todayAction = result?.todayAction === 'check_out' ? 'Check Out' : 'Check In';
-        setAttendanceActionLabel(todayAction);
-      } catch {
-        if (active) {
-          setAttendanceActionLabel('Check In');
-        }
-      }
-    };
-
-    resolveTodayAttendanceAction();
-
-    const refreshAttendanceAction = () => {
-      resolveTodayAttendanceAction();
-    };
-
-    window.addEventListener('hrm-attendance-updated', refreshAttendanceAction);
-    return () => {
-      active = false;
-      window.removeEventListener('hrm-attendance-updated', refreshAttendanceAction);
-    };
-  }, []);
 
   const navItems = [
     { id: 'home', label: 'Home', icon: 'dashboard' },
@@ -103,51 +56,6 @@ export default function Sidebar({
     }
 
     window.location.href = '/other-modules';
-  };
-
-  const handleQuickCheckIn = async () => {
-    if (isTogglingAttendance) {
-      return;
-    }
-
-    try {
-      setIsTogglingAttendance(true);
-      const locationPayload = await captureAttendanceLocationPayload();
-      const response = await fetch('/HRM/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(locationPayload),
-      });
-      const result = await response.json();
-
-      if (!response.ok) {
-        showFeedback({
-          type: 'warning',
-          title: 'Attendance Not Marked',
-          message: result.error || 'Unable to update attendance right now.',
-        });
-        return;
-      }
-
-      setAttendanceActionLabel(result.action === 'checked_in' ? 'Check Out' : 'Check In');
-      window.dispatchEvent(new CustomEvent('hrm-attendance-updated'));
-
-      if (result.warning) {
-        showFeedback({
-          type: 'warning',
-          title: 'Attendance Saved with Fallback Location',
-          message: result.warning,
-        });
-      }
-    } catch {
-      showFeedback({
-        type: 'error',
-        title: 'Attendance Not Updated',
-        message: 'Unable to update attendance right now.',
-      });
-    } finally {
-      setIsTogglingAttendance(false);
-    }
   };
 
   return (
@@ -235,22 +143,6 @@ export default function Sidebar({
           );
         })}
       </nav>
-
-      <div className="mt-3 px-5 md:px-6">
-        <button
-          onClick={handleQuickCheckIn}
-          disabled={isTogglingAttendance}
-          className={attendanceButtonClassName}
-        >
-          <span className="relative z-10 flex items-center justify-center gap-2">
-            <span className="material-symbols-outlined text-base">
-              {attendanceActionLabel === 'Check Out' ? 'logout' : 'login'}
-            </span>
-            {isTogglingAttendance ? 'Updating...' : attendanceActionLabel}
-          </span>
-        </button>
-      </div>
-
       <div className="mt-auto border-t border-outline-variant/10 pt-4">
         <button
           onClick={onLogout}

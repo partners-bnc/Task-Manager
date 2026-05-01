@@ -17,6 +17,35 @@ const PAID_DEFAULTS = {
   'Sick Leave': true,
 };
 
+function slugifyLeaveTypeName(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+export function getLeaveTypeCode(leaveType) {
+  if (leaveType && typeof leaveType === 'object' && leaveType.code) {
+    return String(leaveType.code || '').trim().toLowerCase();
+  }
+
+  if (leaveType && typeof leaveType === 'object') {
+    return slugifyLeaveTypeName(leaveType.name || '');
+  }
+
+  return slugifyLeaveTypeName(leaveType || '');
+}
+
+export function isSpecialLeaveType(leaveType) {
+  return getLeaveTypeCode(leaveType) === 'special_leave';
+}
+
+export function isCompOffLeaveType(leaveType) {
+  const code = getLeaveTypeCode(leaveType);
+  return code === 'comp_off' || code === 'compensatory_off';
+}
+
 function toNumber(value, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
@@ -55,6 +84,7 @@ function normalizeLeaveTypePolicy(row = {}) {
   return {
     ...row,
     name,
+    code: row.code || slugifyLeaveTypeName(name),
     monthly_credit_days: roundLeaveDays(monthlyCreditDays),
     default_days_per_year: roundLeaveDays(row.default_days_per_year),
     is_paid: Boolean(isPaid),
@@ -323,6 +353,10 @@ async function insertLedgerEntry(payload) {
   }
 }
 
+function buildYearlyAllocationNote(leaveTypeName, year) {
+  return `${leaveTypeName} yearly allocation for ${year}.`;
+}
+
 export async function syncEmployeeLeaveBalances(employee, asOfDate = getCurrentDateInTimeZone()) {
   const leaveTypes = await listActiveLeaveTypes();
   const currentYear = Number(asOfDate.slice(0, 4));
@@ -344,6 +378,12 @@ export async function syncEmployeeLeaveBalances(employee, asOfDate = getCurrentD
         return `${entry.entry_type}:${entry.year}:${monthKey}`;
       })
     );
+    const hasYearlyAllocationEntry = ledgerEntries.some((entry) => {
+      return (
+        (entry.entry_type === 'yearly_allocation' || entry.entry_type === 'manual_adjustment') &&
+        String(entry.note || '').trim() === buildYearlyAllocationNote(leaveType.name, currentYear)
+      );
+    });
 
     if (carryForwardDays > 0 && !entryKeys.has(`carry_forward:${currentYear}:00`)) {
       await insertLedgerEntry({
@@ -355,6 +395,20 @@ export async function syncEmployeeLeaveBalances(employee, asOfDate = getCurrentD
         days: carryForwardDays,
         note: `Carry forward applied for ${currentYear}.`,
       });
+    }
+
+    if (leaveType.default_days_per_year > 0 && leaveType.monthly_credit_days <= 0) {
+      if (!hasYearlyAllocationEntry && currentYear >= joiningYear) {
+        await insertLedgerEntry({
+          employee_id: employee.id,
+          leave_type_id: leaveType.id,
+          year: currentYear,
+          month: null,
+          entry_type: 'manual_adjustment',
+          days: leaveType.default_days_per_year,
+          note: buildYearlyAllocationNote(leaveType.name, currentYear),
+        });
+      }
     }
 
     if (leaveType.monthly_credit_days > 0) {
@@ -380,7 +434,7 @@ export async function syncEmployeeLeaveBalances(employee, asOfDate = getCurrentD
     const refreshedLedger = await listLedgerEntries(employee.id, leaveType.id, currentYear);
     const creditedDays = roundLeaveDays(
       refreshedLedger
-        .filter((entry) => ['monthly_credit', 'manual_adjustment'].includes(entry.entry_type))
+        .filter((entry) => ['monthly_credit', 'manual_adjustment', 'yearly_allocation'].includes(entry.entry_type))
         .reduce((total, entry) => total + toNumber(entry.days), 0)
     );
     const carryDays = roundLeaveDays(
@@ -462,6 +516,113 @@ export async function calculateLeaveDays({ startDate, endDate, session = 'full_d
   };
 }
 
+export async function validateLeaveRequestPolicy({
+  leaveType,
+  employee,
+  startDate,
+  endDate,
+  session,
+  compOffWorkedDate,
+  totalDays,
+}) {
+  if (isSpecialLeaveType(leaveType)) {
+    if (session !== 'full_day') {
+      throw new Error('Special Leave can only be applied as a full-day leave.');
+    }
+
+    if (startDate !== endDate || totalDays !== 1) {
+      throw new Error('Special Leave is limited to exactly one full working day.');
+    }
+  }
+
+  if (!isCompOffLeaveType(leaveType)) {
+    return;
+  }
+
+  if (!compOffWorkedDate) {
+    throw new Error('Worked on date is required for Comp Off.');
+  }
+
+  if (startDate !== endDate) {
+    throw new Error('Comp Off can only be applied for a single day.');
+  }
+
+  if (compOffWorkedDate >= startDate) {
+    throw new Error('Worked on date must be earlier than the requested Comp Off date.');
+  }
+
+  const workedDayName = new Date(`${compOffWorkedDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+  if (!['Saturday', 'Sunday'].includes(workedDayName)) {
+    throw new Error('Comp Off is only allowed for worked Saturday or Sunday off days.');
+  }
+
+  if (!isEmployeeScheduledOff(compOffWorkedDate, employee.workingSchedule)) {
+    throw new Error('Worked on date must be a scheduled off day for the employee.');
+  }
+
+  if (totalDays <= 0 || totalDays > 1) {
+    throw new Error('Comp Off can only be applied for one full or half working day.');
+  }
+}
+
+export async function checkSpecialLeaveAvailability({ employeeId, leaveTypeId, year }) {
+  const [{ data: approvedRequest, error: approvedError }, { data: pendingRequest, error: pendingError }] = await Promise.all([
+    adminClient
+      .from('hrm_leave_requests')
+      .select('id')
+      .eq('employee_id', employeeId)
+      .eq('leave_type_id', leaveTypeId)
+      .eq('status', 'approved')
+      .gte('start_date', `${year}-01-01`)
+      .lte('start_date', `${year}-12-31`)
+      .limit(1)
+      .maybeSingle(),
+    adminClient
+      .from('hrm_leave_requests')
+      .select('id')
+      .eq('employee_id', employeeId)
+      .eq('leave_type_id', leaveTypeId)
+      .eq('status', 'pending')
+      .gte('start_date', `${year}-01-01`)
+      .lte('start_date', `${year}-12-31`)
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (approvedError) {
+    throw new Error(approvedError.message || 'Failed to validate Special Leave history');
+  }
+  if (pendingError) {
+    throw new Error(pendingError.message || 'Failed to validate pending Special Leave requests');
+  }
+
+  return {
+    hasApproved: Boolean(approvedRequest?.id),
+    hasPending: Boolean(pendingRequest?.id),
+  };
+}
+
+export function resolveApprovedLeaveOutcome({ leaveType, balance, requestedDays }) {
+  if (isCompOffLeaveType(leaveType)) {
+    return {
+      approvedDays: requestedDays,
+      paidDays: requestedDays,
+      lopDays: 0,
+      deductFromBalance: false,
+    };
+  }
+
+  const availableDays = Number(balance?.available_days || 0);
+
+  const { paidDays, lopDays } = buildPaidAndLopDays(requestedDays, availableDays);
+  return {
+    approvedDays: requestedDays,
+    paidDays,
+    lopDays,
+    deductFromBalance: true,
+  };
+}
+
 export function formatLeaveSession(session) {
   switch (session) {
     case 'first_half':
@@ -530,6 +691,7 @@ export function buildLeaveSummary(balances = []) {
     lopDays: 0,
     casualAvailable: 0,
     sickAvailable: 0,
+    specialAvailable: 0,
   };
 
   for (const balance of balances) {
@@ -546,6 +708,10 @@ export function buildLeaveSummary(balances = []) {
 
     if (leaveTypeName === 'Sick Leave') {
       summary.sickAvailable = available;
+    }
+
+    if (leaveTypeName === 'Special Leave') {
+      summary.specialAvailable = available;
     }
   }
 

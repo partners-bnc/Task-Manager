@@ -3,12 +3,22 @@ const TIME_ZONE_OFFSET = '+05:30';
 
 export const ATTENDANCE_POLICY = {
   shiftStart: '10:00',
-  lateThreshold: '10:30',
-  halfDayThreshold: '12:00',
   shiftEnd: '19:00',
   autoCheckout: '22:00',
   shiftMinutes: 9 * 60,
 };
+
+function classifyAttendanceStatus({ checkInMinutes, checkOutMinutes, workHoursMinutes, hasOpenSession = false }) {
+  if (checkInMinutes === null) {
+    return 'absent';
+  }
+
+  if (hasOpenSession || checkOutMinutes === null) {
+    return 'halfday';
+  }
+
+  return workHoursMinutes >= ATTENDANCE_POLICY.shiftMinutes ? 'present' : 'halfday';
+}
 
 function getFormatter(options) {
   return new Intl.DateTimeFormat('en-GB', {
@@ -158,8 +168,14 @@ export function isSecondSaturday(dateString) {
 }
 
 export function normalizeWorkingDays(workingDays = []) {
+  const normalizeDayName = (dayName) => {
+    const normalized = String(dayName || '').trim().toLowerCase();
+    if (!normalized) return '';
+    return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  };
+
   return Array.isArray(workingDays)
-    ? workingDays.map((item) => String(item || '').trim()).filter(Boolean)
+    ? workingDays.map((item) => normalizeDayName(item)).filter(Boolean)
     : [];
 }
 
@@ -168,16 +184,12 @@ export function isEmployeeScheduledOff(dateString, employeeSchedule = {}) {
   const workingDays = normalizeWorkingDays(employeeSchedule.workingDays);
   const secondSaturdayOff = Boolean(employeeSchedule.secondSaturdayOff);
 
-  if (dayName === 'Sunday') {
-    return true;
-  }
-
-  if (dayName === 'Saturday' && secondSaturdayOff && isSecondSaturday(dateString)) {
-    return true;
-  }
-
   if (workingDays.length === 0) {
     return isWeekendDate(dateString);
+  }
+
+  if (dayName === 'Saturday' && secondSaturdayOff && isSecondSaturday(dateString) && !workingDays.includes('Saturday')) {
+    return true;
   }
 
   return !workingDays.includes(dayName);
@@ -185,12 +197,19 @@ export function isEmployeeScheduledOff(dateString, employeeSchedule = {}) {
 
 export function getOffDayLabel(dateString, employeeSchedule = {}) {
   const dayName = getDayNameFromDate(dateString);
-  if (dayName === 'Sunday') {
-    return 'Sunday Off';
+  const workingDays = normalizeWorkingDays(employeeSchedule.workingDays);
+
+  if (
+    dayName === 'Saturday' &&
+    Boolean(employeeSchedule.secondSaturdayOff) &&
+    isSecondSaturday(dateString) &&
+    !workingDays.includes('Saturday')
+  ) {
+    return 'Second Saturday Off';
   }
 
-  if (dayName === 'Saturday' && Boolean(employeeSchedule.secondSaturdayOff) && isSecondSaturday(dateString)) {
-    return 'Second Saturday Off';
+  if (dayName === 'Sunday' && !workingDays.includes('Sunday')) {
+    return 'Sunday Off';
   }
 
   return 'Weekly Off';
@@ -244,16 +263,11 @@ export function calculateAttendanceMetrics({ checkInAt, checkOutAt }) {
     workHoursMinutes = Math.max(0, Math.floor(diffMilliseconds / 60000));
   }
 
-  let attendanceStatus = 'absent';
-  if (checkInMinutes !== null) {
-    if (checkInMinutes > timeStringToMinutes(ATTENDANCE_POLICY.halfDayThreshold)) {
-      attendanceStatus = 'halfday';
-    } else if (checkInMinutes > timeStringToMinutes(ATTENDANCE_POLICY.lateThreshold)) {
-      attendanceStatus = 'late';
-    } else {
-      attendanceStatus = 'present';
-    }
-  }
+  const attendanceStatus = classifyAttendanceStatus({
+    checkInMinutes,
+    checkOutMinutes,
+    workHoursMinutes,
+  });
 
   return {
     attendanceStatus,
@@ -276,7 +290,11 @@ export function mapDbStatusToUiStatus(status, isWeekend = false) {
     return 'halfday';
   }
 
-  if (status === 'present' || status === 'late' || status === 'absent') {
+  if (status === 'late') {
+    return 'halfday';
+  }
+
+  if (status === 'present' || status === 'absent') {
     return status;
   }
 
@@ -362,13 +380,12 @@ export function getAttendanceSummary(rows = []) {
     (summary, row) => {
       const status = row.attendance_status || row.status;
       if (status === 'present') summary.presentCount += 1;
-      if (status === 'late') summary.lateCount += 1;
       if (status === 'absent') summary.absentCount += 1;
       if (status === 'half_day' || status === 'halfday') summary.halfDayCount += 1;
       if (status === 'on_leave') summary.presentCount += 0;
       return summary;
     },
-    { presentCount: 0, lateCount: 0, absentCount: 0, halfDayCount: 0 }
+    { presentCount: 0, absentCount: 0, halfDayCount: 0 }
   );
 }
 
@@ -386,8 +403,6 @@ export function buildRegularizationEligibleDay(dateString, record) {
   }
 
   if (
-    record.attendance_status === 'late' ||
-    record.status === 'late' ||
     record.attendance_status === 'half_day' ||
     record.status === 'half_day' ||
     record.attendance_status === 'halfday' ||
@@ -457,16 +472,12 @@ export function summarizeAttendanceFromSwipes(swipes = []) {
     ? Math.max(0, timeStringToMinutes(ATTENDANCE_POLICY.shiftEnd) - getLocalMinutesFromTimestamp(lastCheckOut))
     : 0;
 
-  let attendanceStatus = 'absent';
-  if (checkInMinutes !== null) {
-    if (checkInMinutes > timeStringToMinutes(ATTENDANCE_POLICY.halfDayThreshold)) {
-      attendanceStatus = 'halfday';
-    } else if (checkInMinutes > timeStringToMinutes(ATTENDANCE_POLICY.lateThreshold)) {
-      attendanceStatus = 'late';
-    } else {
-      attendanceStatus = 'present';
-    }
-  }
+  const attendanceStatus = classifyAttendanceStatus({
+    checkInMinutes,
+    checkOutMinutes: lastCheckOut ? getLocalMinutesFromTimestamp(lastCheckOut) : null,
+    workHoursMinutes,
+    hasOpenSession: Boolean(openCheckIn),
+  });
 
   return {
     firstCheckIn,
@@ -485,6 +496,5 @@ export function mapSwipeForUi(swipe) {
     swipeTime: formatTimestampForDisplay(swipe.swipe_time),
     swipeType: swipe.swipe_type === 'in' ? 'IN' : 'OUT',
     doorAddress: swipe.door_address || '-',
-    notes: swipe.notes || '',
   };
 }

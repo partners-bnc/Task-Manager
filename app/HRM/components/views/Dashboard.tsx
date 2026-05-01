@@ -222,7 +222,6 @@ export default function Dashboard({
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [attendanceSummary, setAttendanceSummary] = useState({
     presentCount: 0,
-    lateCount: 0,
     absentCount: 0,
     halfDayCount: 0,
   });
@@ -277,7 +276,6 @@ export default function Dashboard({
         setAttendanceSummary(
           result.summary || {
             presentCount: 0,
-            lateCount: 0,
             absentCount: 0,
             halfDayCount: 0,
           }
@@ -292,7 +290,6 @@ export default function Dashboard({
           setAttendanceRecords([]);
           setAttendanceSummary({
             presentCount: 0,
-            lateCount: 0,
             absentCount: 0,
             halfDayCount: 0,
           });
@@ -539,7 +536,7 @@ export default function Dashboard({
   }, [attendanceRecords]);
 
   const onTimeArrivalLabel = useMemo(() => {
-    const totalTracked = attendanceSummary.presentCount + attendanceSummary.lateCount + attendanceSummary.halfDayCount;
+    const totalTracked = attendanceSummary.presentCount + attendanceSummary.halfDayCount;
     if (!totalTracked) {
       return '0%';
     }

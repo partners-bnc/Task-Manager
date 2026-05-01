@@ -9,6 +9,8 @@ import { MetricCardSkeleton, Skeleton, TableRowsSkeleton } from '../ui/Skeleton'
 type LeaveType = {
   id: string;
   name: string;
+  code: string;
+  defaultDaysPerYear: number;
   monthlyCreditDays: number;
   isPaid: boolean;
 };
@@ -23,14 +25,17 @@ type LeaveBalance = {
   usedDays: number;
   availableDays: number;
   lopDays: number;
+  leaveTypeCode: string;
 };
 
 type LeaveHistoryItem = {
   id: string;
   leaveTypeId: string;
   leaveTypeName: string;
+  leaveTypeCode: string;
   startDate: string;
   endDate: string;
+  compOffWorkedDate?: string;
   status: string;
   session: string;
   sessionLabel: string;
@@ -39,6 +44,9 @@ type LeaveHistoryItem = {
   approvedDays: number;
   paidDays: number;
   lopDays: number;
+  projectedPaidDays?: number;
+  projectedLopDays?: number;
+  isProjectedLop?: boolean;
   reviewNote: string;
   rejectionReason: string;
   reviewedByRole?: string;
@@ -63,6 +71,7 @@ type LeaveResponse = {
     lopDays: number;
     casualAvailable: number;
     sickAvailable: number;
+    specialAvailable: number;
   };
   history: LeaveHistoryItem[];
   teamInbox?: {
@@ -94,6 +103,21 @@ function formatLeaveDays(value: number) {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
+function getProjectedLopLabel(item: { projectedPaidDays?: number; projectedLopDays?: number }) {
+  const projectedPaidDays = Number(item.projectedPaidDays || 0);
+  const projectedLopDays = Number(item.projectedLopDays || 0);
+
+  if (projectedLopDays <= 0) {
+    return 'Paid Leave';
+  }
+
+  if (projectedPaidDays <= 0) {
+    return 'Will be LOP';
+  }
+
+  return 'Partially LOP';
+}
+
 function getStatusPill(status: string) {
   switch (String(status || '').toLowerCase()) {
     case 'approved':
@@ -118,6 +142,7 @@ export default function Leave() {
     session: 'full_day',
     startDate: '',
     endDate: '',
+    compOffWorkedDate: '',
     reason: '',
   });
 
@@ -134,6 +159,20 @@ export default function Leave() {
     (data?.teamInbox?.pending || []).length ||
     (data?.teamInbox?.history || []).length
   );
+
+  const selectedLeaveType = useMemo(
+    () => (data?.leaveTypes || []).find((item) => item.id === form.leaveTypeId) || null,
+    [data?.leaveTypes, form.leaveTypeId]
+  );
+
+  const selectedLeaveBalance = useMemo(
+    () => (data?.balances || []).find((item) => item.leaveTypeId === form.leaveTypeId) || null,
+    [data?.balances, form.leaveTypeId]
+  );
+
+  const isSpecialLeave = selectedLeaveType?.code === 'special_leave';
+  const isCompOffLeave = selectedLeaveType?.code === 'comp_off' || selectedLeaveType?.code === 'compensatory_off';
+  const sessionOptions = isSpecialLeave ? [SESSION_OPTIONS[0]] : SESSION_OPTIONS;
 
   const loadLeaveData = useCallback(async () => {
     try {
@@ -164,6 +203,14 @@ export default function Leave() {
     loadLeaveData();
   }, [loadLeaveData]);
 
+  useEffect(() => {
+    if (!isSpecialLeave) {
+      return;
+    }
+
+    setForm((current) => (current.session === 'full_day' ? current : { ...current, session: 'full_day' }));
+  }, [isSpecialLeave]);
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting) return;
@@ -188,6 +235,7 @@ export default function Leave() {
         ...current,
         startDate: '',
         endDate: '',
+        compOffWorkedDate: '',
         reason: '',
       }));
       await loadLeaveData();
@@ -261,6 +309,13 @@ export default function Leave() {
       helper: 'Reserved for health-related leave',
     },
     {
+      label: 'Special Leave',
+      icon: 'stars',
+      shell: 'bg-amber-50',
+      value: balancesByType.get('Special Leave')?.availableDays ?? data?.summary?.specialAvailable ?? 0,
+      helper: 'One paid day available each year',
+    },
+    {
       label: 'LOP',
       icon: 'money_off',
       shell: 'bg-rose-50',
@@ -313,7 +368,7 @@ export default function Leave() {
 
       {activeMode === 'my_leave_manage' ? (
         <>
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="rounded-3xl border border-white/70 bg-violet-50 px-5 py-5 shadow-[0_18px_38px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-[25px] text-black">event_available</span>
@@ -343,7 +398,7 @@ export default function Leave() {
         </div>
 
         {isLoading ? (
-          <MetricCardSkeleton count={3} />
+          <MetricCardSkeleton count={4} />
         ) : (
           kpiItems.map((item) => (
             <div key={item.label} className={`rounded-3xl border border-white/70 ${item.shell} px-5 py-5 shadow-[0_18px_38px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]`}>
@@ -413,6 +468,18 @@ export default function Leave() {
                         <option key={leaveType.id} value={leaveType.id}>{leaveType.name}</option>
                       ))}
                     </select>
+                    {isSpecialLeave ? (
+                      <p className="mt-2 text-xs text-on-surface-variant">Special Leave is full-day only. If no balance is left, approved leave will convert into LOP.</p>
+                    ) : null}
+                    {isCompOffLeave ? (
+                      <p className="mt-2 text-xs text-on-surface-variant">Comp Off is for working on your non-working Saturday or Sunday and using a compensatory leave later.</p>
+                    ) : null}
+                    {!isCompOffLeave && selectedLeaveBalance && Number(selectedLeaveBalance.availableDays || 0) <= 0 ? (
+                      <p className="mt-2 text-xs font-medium text-rose-700">No paid balance left. If approved, this leave will be marked fully as LOP.</p>
+                    ) : null}
+                    {!isCompOffLeave && selectedLeaveBalance && Number(selectedLeaveBalance.availableDays || 0) > 0 && Number(selectedLeaveBalance.availableDays || 0) < 1 ? (
+                      <p className="mt-2 text-xs font-medium text-amber-700">Remaining balance is low. Any shortage after approval will convert to LOP.</p>
+                    ) : null}
                   </div>
 
                   <div className="space-y-1">
@@ -420,9 +487,10 @@ export default function Leave() {
                     <select
                       value={form.session}
                       onChange={(event) => setForm((current) => ({ ...current, session: event.target.value }))}
+                      disabled={isSpecialLeave}
                       className="w-full appearance-none rounded-xl border border-outline-variant/10 bg-white py-3 px-4 text-sm font-medium text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
                     >
-                      {SESSION_OPTIONS.map((option) => (
+                      {sessionOptions.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
@@ -443,6 +511,21 @@ export default function Leave() {
                         <span className="text-on-surface-variant">LOP</span>
                         <span className="font-semibold text-on-surface">{formatLeaveDays(data?.summary?.lopDays ?? 0)}</span>
                       </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-on-surface-variant">Special Leave</span>
+                        <span className="font-semibold text-on-surface">{formatLeaveDays(data?.summary?.specialAvailable ?? 0)}</span>
+                      </div>
+                      {selectedLeaveType ? (
+                        <div className="flex items-center justify-between gap-3 border-t border-outline-variant/10 pt-3">
+                          <span className="text-on-surface-variant">Selected Type</span>
+                          <span className="font-semibold text-on-surface">
+                            {selectedLeaveType.name}
+                            {isCompOffLeave
+                              ? ' (approval based)'
+                              : ` (${formatLeaveDays(selectedLeaveBalance?.availableDays ?? 0)} left)`}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -468,6 +551,18 @@ export default function Leave() {
                       />
                     </div>
                   </div>
+
+                  {isCompOffLeave ? (
+                    <div className="space-y-1">
+                      <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Worked On (Off Day Date)</label>
+                      <input
+                        className="w-full rounded-xl border border-outline-variant/10 bg-surface-container-low py-3 px-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+                        type="date"
+                        value={form.compOffWorkedDate}
+                        onChange={(event) => setForm((current) => ({ ...current, compOffWorkedDate: event.target.value }))}
+                      />
+                    </div>
+                  ) : null}
 
                   <div className="space-y-1">
                     <label className="ml-1 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Reason for Leave</label>
@@ -500,7 +595,7 @@ export default function Leave() {
           <div className="relative z-10">
             <h3 className="text-xl font-bold font-headline leading-tight text-on-tertiary-container">Leave Policy Snapshot</h3>
             <p className="mt-2 text-sm leading-6 text-on-tertiary-container/80">
-              Casual Leave accrues by 0.5 day per month and Sick Leave accrues by 1 day per month. Approved excess days move into LOP for payroll.
+              Casual, Sick, and Special Leave use paid balance first, and any shortage converts into LOP after approval. Comp Off remains approval-based without any LOP impact.
             </p>
           </div>
 
@@ -514,7 +609,11 @@ export default function Leave() {
                 <div key={leaveType.id} className="rounded-2xl bg-on-tertiary-container/10 px-4 py-3">
                   <p className="text-sm font-semibold text-on-tertiary-container">{leaveType.name}</p>
                   <p className="text-xs text-on-tertiary-container/80">
-                    Monthly credit: {formatLeaveDays(leaveType.monthlyCreditDays)} day(s){leaveType.isPaid ? ' - Paid Leave' : ' - Unpaid'}
+                    {leaveType.code === 'special_leave'
+                      ? 'Yearly allocation: 1 day - balance shortage converts to LOP'
+                      : leaveType.code === 'comp_off' || leaveType.code === 'compensatory_off'
+                        ? 'Approval-based compensatory leave - No LOP impact'
+                        : `Monthly credit: ${formatLeaveDays(leaveType.monthlyCreditDays)} day(s)${leaveType.isPaid ? ' - Paid Leave' : ' - Unpaid'}`}
                   </p>
                 </div>
               ))
@@ -542,6 +641,7 @@ export default function Leave() {
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Type</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Duration</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Dates</th>
+                <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Worked On</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Status</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Paid / LOP</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Reason</th>
@@ -550,13 +650,13 @@ export default function Leave() {
             <tbody className="divide-y divide-surface-container/50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-0 py-0">
-                    <TableRowsSkeleton rows={5} columns={6} />
+                  <td colSpan={7} className="px-0 py-0">
+                    <TableRowsSkeleton rows={5} columns={7} />
                   </td>
                 </tr>
               ) : !isLoading && (data?.history || []).length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-on-surface-variant">
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-on-surface-variant">
                     No leave requests have been submitted yet.
                   </td>
                 </tr>
@@ -572,6 +672,7 @@ export default function Leave() {
                   </td>
                   <td className="px-5 py-4 text-sm text-on-surface">{formatLeaveDays(item.totalDays)} day(s) - {item.sessionLabel}</td>
                   <td className="px-5 py-4 text-sm text-on-surface-variant">{formatDateRange(item.startDate, item.endDate)}</td>
+                  <td className="px-5 py-4 text-sm text-on-surface-variant">{item.compOffWorkedDate || '--'}</td>
                   <td className="px-5 py-4">
                     <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusPill(item.status)}`}>{item.status}</span>
                   </td>
@@ -635,7 +736,9 @@ export default function Leave() {
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Employee</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Type</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Dates</th>
+                      <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Worked On</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Duration</th>
+                      <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">LOP Term</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Reason</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Review Note</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Action</th>
@@ -650,7 +753,14 @@ export default function Leave() {
                         </td>
                         <td className="px-5 py-4 text-sm text-on-surface">{item.leaveTypeName}</td>
                         <td className="px-5 py-4 text-sm text-on-surface-variant">{formatDateRange(item.startDate, item.endDate)}</td>
+                        <td className="px-5 py-4 text-sm text-on-surface-variant">{item.compOffWorkedDate || '--'}</td>
                         <td className="px-5 py-4 text-sm text-on-surface">{formatLeaveDays(item.totalDays)} day(s) - {item.sessionLabel}</td>
+                        <td className="px-5 py-4 text-sm text-on-surface">
+                          <p className="font-medium">{getProjectedLopLabel(item)}</p>
+                          <p className="text-xs text-on-surface-variant">
+                            {formatLeaveDays(item.projectedPaidDays || 0)} paid / {formatLeaveDays(item.projectedLopDays || 0)} LOP
+                          </p>
+                        </td>
                         <td className="max-w-[260px] px-5 py-4 text-sm text-on-surface-variant">{item.reason || '--'}</td>
                         <td className="px-5 py-4">
                           <textarea
@@ -713,6 +823,7 @@ export default function Leave() {
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Employee</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Type</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Dates</th>
+                    <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Worked On</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Status</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Paid / LOP</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Reviewed By</th>
@@ -728,6 +839,7 @@ export default function Leave() {
                       </td>
                       <td className="px-5 py-4 text-sm text-on-surface">{item.leaveTypeName}</td>
                       <td className="px-5 py-4 text-sm text-on-surface-variant">{formatDateRange(item.startDate, item.endDate)}</td>
+                      <td className="px-5 py-4 text-sm text-on-surface-variant">{item.compOffWorkedDate || '--'}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusPill(item.status)}`}>{item.status}</span>
                       </td>

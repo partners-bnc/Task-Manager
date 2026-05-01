@@ -7,10 +7,12 @@ import {
   calculateLeaveDays,
   formatLeaveSession,
   getEmployeeLeaveContext,
+  getLeaveTypeCode,
   isMissingLeaveSchemaError,
   listDirectReportEmployeesForLeave,
   listActiveLeaveTypes,
   syncEmployeeLeaveBalances,
+  validateLeaveRequestPolicy,
 } from '@/utils/leave';
 
 async function requireEmployeeContext() {
@@ -41,8 +43,10 @@ function mapLeaveRequest(row, leaveTypeMap) {
     id: row.id,
     leaveTypeId: row.leave_type_id,
     leaveTypeName: leaveType?.name || 'Leave',
+    leaveTypeCode: leaveType?.code || getLeaveTypeCode(leaveType?.name || ''),
     startDate: row.start_date,
     endDate: row.end_date,
+    compOffWorkedDate: row.comp_off_worked_date || '',
     status: row.status,
     session: row.applied_session || row.session || 'full_day',
     sessionLabel: formatLeaveSession(row.applied_session || row.session || 'full_day'),
@@ -75,6 +79,21 @@ export async function GET() {
 
     const directReports = await listDirectReportEmployeesForLeave(employee.id);
     const directReportIds = directReports.map((item) => item.id).filter(Boolean);
+    const teamBalances = [];
+    for (const reportEmployee of directReports) {
+      const reportContext = await getEmployeeLeaveContext(reportEmployee.id);
+      const { balances: reportBalances } = await syncEmployeeLeaveBalances(reportContext);
+      teamBalances.push(
+        ...reportBalances.map((balance) => ({
+          employeeId: reportEmployee.id,
+          leaveTypeId: balance.leave_type_id,
+          availableDays: Number(balance.available_days || 0),
+        }))
+      );
+    }
+    const teamBalanceAvailabilityMap = new Map(
+      teamBalances.map((balance) => [`${balance.employeeId}:${balance.leaveTypeId}`, balance.availableDays])
+    );
 
     const [requestResult, teamRequestResult] = await Promise.all([
       adminClient
@@ -118,11 +137,20 @@ export async function GET() {
     const teamEmployeeMap = new Map(directReports.map((item) => [item.id, item]));
     const mappedTeamRequests = (teamRequests || []).map((row) => {
       const employeeRow = teamEmployeeMap.get(row.employee_id);
+      const baseRequest = mapLeaveRequest(row, leaveTypeMap);
+      const availableDays = Number(teamBalanceAvailabilityMap.get(`${row.employee_id}:${row.leave_type_id}`) || 0);
+      const isCompOff = baseRequest.leaveTypeCode === 'comp_off' || baseRequest.leaveTypeCode === 'compensatory_off';
+      const projectedPaidDays = isCompOff ? baseRequest.totalDays : Math.min(baseRequest.totalDays, availableDays);
+      const projectedLopDays = isCompOff ? 0 : Math.max(0, baseRequest.totalDays - projectedPaidDays);
+
       return {
-        ...mapLeaveRequest(row, leaveTypeMap),
+        ...baseRequest,
         employeeId: row.employee_id,
         employeeCode: employeeRow?.employee_id || '',
         employeeName: employeeRow?.name || 'Employee',
+        projectedPaidDays,
+        projectedLopDays,
+        isProjectedLop: projectedLopDays > 0,
       };
     });
 
@@ -131,6 +159,8 @@ export async function GET() {
         leaveTypes: leaveTypes.map((type) => ({
           id: type.id,
           name: type.name,
+          code: type.code || getLeaveTypeCode(type),
+          defaultDaysPerYear: Number(type.default_days_per_year || 0),
           monthlyCreditDays: Number(type.monthly_credit_days || 0),
           isPaid: Boolean(type.is_paid),
         })),
@@ -144,6 +174,7 @@ export async function GET() {
           usedDays: Number(balance.used_days || 0),
           availableDays: Number(balance.available_days || 0),
           lopDays: Number(balance.lop_days || 0),
+          leaveTypeCode: balance.leave_type?.code || getLeaveTypeCode(balance.leave_type?.name || ''),
         })),
         summary: buildLeaveSummary(balances),
         history: (requests || []).map((row) => mapLeaveRequest(row, leaveTypeMap)),
@@ -188,6 +219,7 @@ export async function POST(request) {
     const endDate = String(body.endDate || '').trim();
     const session = String(body.session || 'full_day').trim();
     const reason = String(body.reason || '').trim();
+    const compOffWorkedDate = String(body.compOffWorkedDate || '').trim();
 
     if (!leaveTypeId || !startDate || !endDate || !reason) {
       return NextResponse.json({ error: 'Leave type, dates, and reason are required.' }, { status: 400 });
@@ -198,7 +230,7 @@ export async function POST(request) {
     }
 
     const employee = await getEmployeeLeaveContext(employeeAuth.employeeId);
-    const leaveTypes = await listActiveLeaveTypes();
+    const { leaveTypes } = await syncEmployeeLeaveBalances(employee);
     const leaveType = leaveTypes.find((item) => item.id === leaveTypeId);
 
     if (!leaveType) {
@@ -212,6 +244,16 @@ export async function POST(request) {
       employeeSchedule: employee.workingSchedule,
     });
 
+    await validateLeaveRequestPolicy({
+      leaveType,
+      employee,
+      startDate,
+      endDate,
+      session,
+      compOffWorkedDate,
+      totalDays: calculation.totalDays,
+    });
+
     if (calculation.totalDays <= 0) {
       return NextResponse.json(
         { error: 'No working leave days were found in the selected range. Holidays and off days are excluded.' },
@@ -223,7 +265,7 @@ export async function POST(request) {
       .from('hrm_leave_requests')
       .select('id')
       .eq('employee_id', employee.id)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'approved'])
       .lte('start_date', endDate)
       .gte('end_date', startDate)
       .limit(1)
@@ -234,7 +276,7 @@ export async function POST(request) {
     }
 
     if (existingPending?.id) {
-      return NextResponse.json({ error: 'A pending leave request already exists for these dates.' }, { status: 400 });
+      return NextResponse.json({ error: 'An existing pending or approved leave request already covers these dates.' }, { status: 400 });
     }
 
     const insertPayload = {
@@ -247,6 +289,7 @@ export async function POST(request) {
       applied_session: session,
       status: 'pending',
       reason,
+      comp_off_worked_date: compOffWorkedDate || null,
       reporting_manager_name_snapshot: null,
       duration_days: calculation.totalDays,
       total_days: calculation.totalDays,

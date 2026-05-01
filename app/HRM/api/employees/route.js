@@ -253,11 +253,6 @@ function addDaysToDateOnly(value, daysToAdd) {
   return date.toISOString().slice(0, 10);
 }
 
-function parseTime(value) {
-  const nextValue = cleanText(value);
-  return nextValue || null;
-}
-
 function parseFixedWorkTime(value) {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim();
@@ -672,41 +667,6 @@ async function ensureDesignationId(title, departmentId) {
 
   if (createError || !created?.id) {
     throw new Error(createError?.message || 'Failed to create designation');
-  }
-
-  return created.id;
-}
-
-async function ensureShiftId(name, startTime, endTime) {
-  const normalizedName = cleanText(name);
-  if (!normalizedName) return null;
-
-  const { data: existing, error: existingError } = await adminClient
-    .from('hrm_shifts')
-    .select('id')
-    .ilike('name', normalizedName)
-    .limit(1)
-    .maybeSingle();
-
-  if (existingError) {
-    throw new Error(existingError.message || 'Failed to load shift');
-  }
-
-  if (existing?.id) return existing.id;
-
-  const { data: created, error: createError } = await adminClient
-    .from('hrm_shifts')
-    .insert({
-      name: normalizedName,
-      start_time: parseTime(startTime),
-      end_time: parseTime(endTime),
-      is_active: true,
-    })
-    .select('id')
-    .single();
-
-  if (createError || !created?.id) {
-    throw new Error(createError?.message || 'Failed to create shift');
   }
 
   return created.id;
@@ -1538,7 +1498,6 @@ export async function POST(request) {
       reporting_manager_id: reportingTarget.reportingManagerId,
       company: cleanText(formData.get('company')),
       salary: parseNumeric(formData.get('salary')),
-      shift_id: null,
       working_schedule_label: cleanText(formData.get('workingScheduleLabel')),
       working_days: workingDays,
       second_saturday_off: parseBoolean(formData.get('secondSaturdayOff')),

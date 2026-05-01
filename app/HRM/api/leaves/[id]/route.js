@@ -5,11 +5,11 @@ import { hasLinkedEmployeeAccess, resolveAuthenticatedUserContext } from '@/util
 import {
   applyApprovedLeaveToAttendance,
   buildLeaveBalanceMap,
-  buildPaidAndLopDays,
   calculateLeaveDays,
   getEmployeeLeaveContext,
   isMissingLeaveSchemaError,
   listActiveLeaveTypes,
+  resolveApprovedLeaveOutcome,
   syncEmployeeLeaveBalances,
 } from '@/utils/leave';
 import { syncPayrollLopEntriesForLeaveApproval } from '@/utils/payroll';
@@ -152,12 +152,11 @@ export async function PATCH(request, context) {
       employeeSchedule: employee.workingSchedule,
     });
 
-    const { paidDays, lopDays } = buildPaidAndLopDays(
-      calculation.totalDays,
-      Number(balance.available_days || 0)
-    );
-
-    const approvedDays = calculation.totalDays;
+    const { approvedDays, paidDays, lopDays, deductFromBalance } = resolveApprovedLeaveOutcome({
+      leaveType,
+      balance,
+      requestedDays: calculation.totalDays,
+    });
     const reviewedAt = new Date().toISOString();
 
     const { error: approveError } = await adminClient
@@ -179,17 +178,19 @@ export async function PATCH(request, context) {
       return NextResponse.json({ error: approveError.message || 'Failed to approve leave request' }, { status: 500 });
     }
 
-    const { error: balanceError } = await adminClient
-      .from('hrm_leave_balances')
-      .update({
-        used_days: Number(balance.used_days || 0) + paidDays,
-        lop_days: Number(balance.lop_days || 0) + lopDays,
-        available_days: Math.max(0, Number(balance.available_days || 0) - paidDays),
-      })
-      .eq('id', balance.id);
+    if (deductFromBalance) {
+      const { error: balanceError } = await adminClient
+        .from('hrm_leave_balances')
+        .update({
+          used_days: Number(balance.used_days || 0) + paidDays,
+          lop_days: Number(balance.lop_days || 0) + lopDays,
+          available_days: Math.max(0, Number(balance.available_days || 0) - paidDays),
+        })
+        .eq('id', balance.id);
 
-    if (balanceError) {
-      return NextResponse.json({ error: balanceError.message || 'Failed to update leave balance' }, { status: 500 });
+      if (balanceError) {
+        return NextResponse.json({ error: balanceError.message || 'Failed to update leave balance' }, { status: 500 });
+      }
     }
 
     if (lopDays > 0) {

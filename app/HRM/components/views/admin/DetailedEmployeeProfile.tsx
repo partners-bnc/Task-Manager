@@ -283,6 +283,18 @@ function formatEducationLevelLabel(value?: string | null) {
     .join(' ');
 }
 
+function formatWorkingDays(workingDays: unknown) {
+  if (!Array.isArray(workingDays) || workingDays.length === 0) {
+    return '--';
+  }
+
+  return workingDays
+    .map((day) => String(day || '').trim())
+    .filter(Boolean)
+    .map((day) => day.charAt(0).toUpperCase() + day.slice(1).toLowerCase())
+    .join(', ');
+}
+
 function normalizeEmployeeToForm(employee: any) {
   const access = Array.isArray(employee?.module_access) ? employee.module_access[0] : employee?.module_access;
   const lifecycleStatus = employee?.resolved_employment_lifecycle_status || employee?.employment_lifecycle_status || 'active';
@@ -571,6 +583,7 @@ export default function DetailedEmployeeProfile({
       { label: 'Department', value: employee?.resolved_department_name || employee?.department?.name || '--' },
       { label: 'Designation', value: employee?.resolved_designation_title || employee?.designation?.title || '--' },
       { label: 'Reporting To', value: formatReportingTarget(employee) },
+      { label: 'Working Days', value: formatWorkingDays(employee?.working_days) },
       { label: 'Created By', value: employee?.created_by_name || 'HR Admin' },
       { label: 'Date Of Joining', value: toDisplayDate(employee?.date_of_joining) },
       { label: 'Salary', value: employee?.salary !== null && employee?.salary !== undefined ? `INR ${employee.salary}` : '--' },

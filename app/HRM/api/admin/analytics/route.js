@@ -209,12 +209,11 @@ function buildRecentJoiners(employees = [], selectedMonth) {
 function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
   const attendanceCounts = {
     present: 0,
-    late: 0,
     absent: 0,
     halfday: 0,
     on_leave: 0,
   };
-  const lateByEmployee = new Map();
+  const halfDayByEmployee = new Map();
   const absentByEmployee = new Map();
   const byDate = new Map();
   const byWeekday = new Map();
@@ -225,8 +224,8 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
       attendanceCounts[status] += 1;
     }
 
-    if (status === 'late' && row.employee_id) {
-      lateByEmployee.set(row.employee_id, (lateByEmployee.get(row.employee_id) || 0) + 1);
+    if (status === 'halfday' && row.employee_id) {
+      halfDayByEmployee.set(row.employee_id, (halfDayByEmployee.get(row.employee_id) || 0) + 1);
     }
 
     if (status === 'absent' && row.employee_id) {
@@ -237,7 +236,6 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
     const dateRecord = byDate.get(dateKey) || {
       date: dateKey,
       present: 0,
-      late: 0,
       absent: 0,
       halfday: 0,
       onLeave: 0,
@@ -245,7 +243,6 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
     };
 
     if (status === 'present') dateRecord.present += 1;
-    if (status === 'late') dateRecord.late += 1;
     if (status === 'absent') dateRecord.absent += 1;
     if (status === 'halfday') dateRecord.halfday += 1;
     if (status === 'on_leave') dateRecord.onLeave += 1;
@@ -257,15 +254,15 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
       key: weekdayKey,
       label: weekdayKey,
       present: 0,
-      late: 0,
       absent: 0,
+      halfday: 0,
       onLeave: 0,
       total: 0,
     };
 
     if (status === 'present') weekdayRecord.present += 1;
-    if (status === 'late') weekdayRecord.late += 1;
     if (status === 'absent') weekdayRecord.absent += 1;
+    if (status === 'halfday') weekdayRecord.halfday += 1;
     if (status === 'on_leave') weekdayRecord.onLeave += 1;
     weekdayRecord.total += 1;
     byWeekday.set(weekdayKey, weekdayRecord);
@@ -273,7 +270,7 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
 
   const totalRows = attendanceRows.length;
   const punctualityScore = totalRows ? Math.round(((attendanceCounts.present + attendanceCounts.halfday) / totalRows) * 100) : 0;
-  const attentionRate = totalRows ? Math.round(((attendanceCounts.late + attendanceCounts.absent) / totalRows) * 100) : 0;
+  const attentionRate = totalRows ? Math.round(((attendanceCounts.halfday + attendanceCounts.absent) / totalRows) * 100) : 0;
 
   const mapWatchlist = (sourceMap, keyName) =>
     Array.from(sourceMap.entries())
@@ -301,7 +298,6 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
 
   const distribution = [
     { key: 'present', label: 'Present', count: attendanceCounts.present },
-    { key: 'late', label: 'Late', count: attendanceCounts.late },
     { key: 'absent', label: 'Absent', count: attendanceCounts.absent },
     { key: 'halfday', label: 'Half Day', count: attendanceCounts.halfday },
     { key: 'on_leave', label: 'On Leave', count: attendanceCounts.on_leave },
@@ -331,7 +327,7 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
     distribution,
     dailyTrend,
     weekdayTrend,
-    topLateEmployees: mapWatchlist(lateByEmployee, 'lateCount'),
+    topHalfDayEmployees: mapWatchlist(halfDayByEmployee, 'halfDayCount'),
     topAbsentEmployees: mapWatchlist(absentByEmployee, 'absentCount'),
   };
 }
@@ -411,7 +407,7 @@ function buildNarratives({ attendance, workforce, queue }) {
     id: 'attendance-quality',
     eyebrow: 'Attendance Quality',
     title: `${attendance.punctualityScore}% of monthly attendance is on-time or workable`,
-    body: `${attendance.attentionRate}% of attendance rows need extra attention through late or absent marks.`,
+    body: `${attendance.attentionRate}% of attendance rows need extra attention through half day or absent marks.`,
   });
 
   const queueLabel =

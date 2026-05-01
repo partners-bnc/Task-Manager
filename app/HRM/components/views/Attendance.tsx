@@ -20,7 +20,6 @@ const ATTENDANCE_SYNC_EVENT = 'hrm-attendance-updated';
 const STATUS_CONFIG: Record<AttendanceStatus, { label: string; bg: string; text: string; dot: string; icon: string }> = {
   present: { label: 'Present', bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', icon: 'check_circle' },
   absent: { label: 'Absent', bg: 'bg-rose-50', text: 'text-rose-600', dot: 'bg-rose-500', icon: 'cancel' },
-  late: { label: 'Late', bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500', icon: 'schedule' },
   halfday: { label: 'Half Day', bg: 'bg-violet-50', text: 'text-violet-700', dot: 'bg-violet-500', icon: 'timelapse' },
   weekend: { label: 'Weekend', bg: 'bg-surface-container-low', text: 'text-on-surface-variant', dot: 'bg-on-surface/20', icon: 'weekend' },
   holiday: { label: 'Holiday', bg: 'bg-orange-50', text: 'text-orange-700', dot: 'bg-orange-500', icon: 'celebration' },
@@ -38,7 +37,7 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   });
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [summary, setSummary] = useState({ presentCount: 0, lateCount: 0, absentCount: 0, halfDayCount: 0 });
+  const [summary, setSummary] = useState({ presentCount: 0, absentCount: 0, halfDayCount: 0 });
   const [isLoading, setIsLoading] = useState(true);
   const selectedDateRef = useRef(selectedDate);
 
@@ -71,13 +70,13 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
         if (!active || !response.ok || !('records' in result)) {
           if (active) {
             setRecords([]);
-            setSummary({ presentCount: 0, lateCount: 0, absentCount: 0, halfDayCount: 0 });
+            setSummary({ presentCount: 0, absentCount: 0, halfDayCount: 0 });
           }
           return;
         }
 
         setRecords(result.records || []);
-        setSummary(result.summary || { presentCount: 0, lateCount: 0, absentCount: 0, halfDayCount: 0 });
+        setSummary(result.summary || { presentCount: 0, absentCount: 0, halfDayCount: 0 });
 
         const existingSelected = result.records.find((record) => record.date === selectedDateRef.current);
         if (!existingSelected) {
@@ -88,7 +87,7 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
       } catch {
         if (active) {
           setRecords([]);
-          setSummary({ presentCount: 0, lateCount: 0, absentCount: 0, halfDayCount: 0 });
+          setSummary({ presentCount: 0, absentCount: 0, halfDayCount: 0 });
         }
       } finally {
         if (active) {
@@ -133,11 +132,11 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
       shell: 'bg-emerald-50',
     },
     {
-      label: 'Late In',
-      value: String(summary.lateCount).padStart(2, '0'),
-      helper: 'Days with delayed check-in recorded this month',
-      icon: 'schedule',
-      shell: 'bg-amber-50',
+      label: 'Half Day',
+      value: String(summary.halfDayCount).padStart(2, '0'),
+      helper: 'Days where the required work hours were not completed',
+      icon: 'timelapse',
+      shell: 'bg-violet-50',
     },
     {
       label: 'Absent',
@@ -261,7 +260,7 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
             </div>
 
             <div className="flex flex-wrap gap-x-5 gap-y-2 mt-5 pt-4 border-t border-outline-variant/10">
-              {(['present', 'late', 'halfday', 'absent', 'weekend', 'holiday', 'on_leave'] as AttendanceStatus[]).map((status) => (
+              {(['present', 'halfday', 'absent', 'weekend', 'holiday', 'on_leave'] as AttendanceStatus[]).map((status) => (
                 <div key={status} className="flex items-center gap-2">
                   <span className={`w-2 h-2 rounded-full ${STATUS_CONFIG[status].dot}`} />
                   <span className="text-[11px] font-medium text-on-surface-variant">{STATUS_CONFIG[status].label}</span>
@@ -345,7 +344,7 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
 
                   <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-5 pb-4 border-b border-outline-variant/10">
                     <span className="material-symbols-outlined text-base">schedule</span>
-                    <span>Shift: <strong className="text-on-surface">10:00 AM - 07:00 PM</strong></span>
+                    <span>Shift target: <strong className="text-on-surface">9h 00m</strong></span>
                   </div>
 
                   <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -5,6 +5,7 @@ import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import {
   buildLeaveSummary,
   getEmployeeLeaveContext,
+  getLeaveTypeCode,
   isMissingLeaveSchemaError,
   listActiveEmployeesForLeave,
   listActiveLeaveTypes,
@@ -55,6 +56,7 @@ export async function GET() {
           employeeName: employee.name,
           leaveTypeId: balance.leave_type_id,
           leaveTypeName: balance.leave_type?.name || '',
+          leaveTypeCode: balance.leave_type?.code || getLeaveTypeCode(balance.leave_type?.name || ''),
           availableDays: Number(balance.available_days || 0),
           usedDays: Number(balance.used_days || 0),
           creditedDays: Number(balance.credited_days || 0),
@@ -62,6 +64,10 @@ export async function GET() {
         }))
       );
     }
+
+    const balanceAvailabilityMap = new Map(
+      allBalances.map((balance) => [`${balance.employeeId}:${balance.leaveTypeId}`, Number(balance.availableDays || 0)])
+    );
 
     const { data: requests, error: requestError } = await adminClient
       .from('hrm_leave_requests')
@@ -81,6 +87,13 @@ export async function GET() {
     const mappedRequests = (requests || []).map((row) => {
       const employee = employeeMap.get(row.employee_id);
       const leaveType = leaveTypeMap.get(row.leave_type_id);
+      const leaveTypeCode = leaveType?.code || getLeaveTypeCode(leaveType?.name || '');
+      const totalDays = Number(row.total_days ?? row.duration_days ?? 0);
+      const availableDays = Number(balanceAvailabilityMap.get(`${row.employee_id}:${row.leave_type_id}`) || 0);
+      const isCompOff = leaveTypeCode === 'comp_off' || leaveTypeCode === 'compensatory_off';
+      const projectedPaidDays = isCompOff ? totalDays : Math.min(totalDays, availableDays);
+      const projectedLopDays = isCompOff ? 0 : Math.max(0, totalDays - projectedPaidDays);
+
       return {
         id: row.id,
         employeeId: row.employee_id,
@@ -89,13 +102,18 @@ export async function GET() {
         reportingManagerId: row.reporting_manager_id || '',
         reportingManagerName: row.reporting_manager_name_snapshot || employee?.reporting_manager_name || '',
         leaveTypeName: leaveType?.name || 'Leave',
+        leaveTypeCode,
         startDate: row.start_date,
         endDate: row.end_date,
+        compOffWorkedDate: row.comp_off_worked_date || '',
         status: row.status,
-        totalDays: Number(row.total_days ?? row.duration_days ?? 0),
+        totalDays,
         approvedDays: Number(row.approved_days ?? 0),
         paidDays: Number(row.paid_days ?? 0),
         lopDays: Number(row.lop_days ?? 0),
+        projectedPaidDays,
+        projectedLopDays,
+        isProjectedLop: projectedLopDays > 0,
         session: row.applied_session || row.session || 'full_day',
         reason: row.reason || '',
         reviewNote: row.review_note || '',

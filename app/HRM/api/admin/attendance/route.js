@@ -96,6 +96,7 @@ function formatStatusLabel(status = '') {
   const normalized = String(status || '').trim().toLowerCase();
   if (!normalized) return '--';
   if (normalized === 'on_leave') return 'On Leave';
+  if (normalized === 'late') return 'Half Day';
   if (normalized === 'halfday' || normalized === 'half_day') return 'Half Day';
   return normalized
     .split('_')
@@ -115,10 +116,10 @@ function formatAttendanceRow(baseRow, extras = {}) {
 function mapMonthlyStatusToCode(status = '') {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'present') return 'P';
-  if (normalized === 'late') return 'L';
+  if (normalized === 'late') return 'HD';
   if (normalized === 'absent') return 'A';
   if (normalized === 'halfday') return 'HD';
-  if (normalized === 'on_leave') return 'LV';
+  if (normalized === 'on_leave') return 'L';
   if (normalized === 'holiday') return 'H';
   if (normalized === 'weekend') return 'OFF';
   return '--';
@@ -129,17 +130,61 @@ function buildMonthlySummary(dailyStatuses = []) {
     (summary, day) => {
       const code = String(day?.code || '--');
       if (code === 'P') summary.present += 1;
-      else if (code === 'L') summary.late += 1;
       else if (code === 'HD') summary.halfDay += 1;
       else if (code === 'A') summary.absent += 1;
       else if (code === 'OFF') summary.off += 1;
       else if (code === 'H') summary.holiday += 1;
-      else if (code === 'LV') summary.leave += 1;
+      else if (code === 'L') summary.leave += 1;
       else summary.missing += 1;
       return summary;
     },
-    { present: 0, late: 0, halfDay: 0, absent: 0, off: 0, holiday: 0, leave: 0, missing: 0 }
+    { present: 0, halfDay: 0, absent: 0, off: 0, holiday: 0, leave: 0, missing: 0 }
   );
+}
+
+function summarizeSwipePattern(swipes = []) {
+  if (!Array.isArray(swipes) || swipes.length === 0) {
+    return {
+      swipeCount: 0,
+      sessionCount: 0,
+      swipePattern: '--',
+    };
+  }
+
+  const sortedSwipes = [...swipes].sort(
+    (left, right) => new Date(left.swipe_time).getTime() - new Date(right.swipe_time).getTime()
+  );
+
+  let openCheckIn = false;
+  let sessionCount = 0;
+
+  for (const swipe of sortedSwipes) {
+    const swipeType = String(swipe?.swipe_type || '').toLowerCase();
+    if (swipeType === 'in') {
+      openCheckIn = true;
+      continue;
+    }
+
+    if (swipeType === 'out' && openCheckIn) {
+      sessionCount += 1;
+      openCheckIn = false;
+    }
+  }
+
+  const swipeCount = sortedSwipes.length;
+  let swipePattern = 'Single';
+
+  if (swipeCount === 1 || openCheckIn) {
+    swipePattern = 'Open';
+  } else if (sessionCount > 1 || swipeCount > 2) {
+    swipePattern = 'Multiple';
+  }
+
+  return {
+    swipeCount,
+    sessionCount,
+    swipePattern,
+  };
 }
 
 function buildCalendarDays(monthString) {
@@ -154,6 +199,17 @@ function buildCalendarDays(monthString) {
       weekdayShort,
     };
   });
+}
+
+function clampRangeToToday(range, today) {
+  if (range.start > today) {
+    return null;
+  }
+
+  return {
+    ...range,
+    end: range.end > today ? today : range.end,
+  };
 }
 
 function filterRows(rows = [], { search = '', status = '', department = '' } = {}) {
@@ -199,6 +255,7 @@ export async function GET(request) {
     const month = url.searchParams.get('month') || getCurrentDateInTimeZone().slice(0, 7);
     const rangeStart = url.searchParams.get('start') || '';
     const rangeEnd = url.searchParams.get('end') || '';
+    const today = getCurrentDateInTimeZone();
 
     const employeesResult = await loadEmployeeRows();
     if (employeesResult.error) {
@@ -243,7 +300,6 @@ export async function GET(request) {
     const departmentOptions = [...new Set(employeeOptions.map((employee) => employee.department).filter(Boolean))].sort();
     const statusOptions = [
       { value: 'present', label: 'Present' },
-      { value: 'late', label: 'Late' },
       { value: 'absent', label: 'Absent' },
       { value: 'halfday', label: 'Half Day' },
       { value: 'on_leave', label: 'On Leave' },
@@ -253,26 +309,29 @@ export async function GET(request) {
     ];
 
     if (mode === 'monthly') {
-      const range = getDateRangeForMonth(month);
-      const calendarDays = buildCalendarDays(month);
+      const monthRange = getDateRangeForMonth(month);
+      const range = clampRangeToToday(monthRange, today);
+      const calendarDays = range ? buildCalendarDays(month).filter((day) => day.date <= range.end) : [];
       const selectedEmployees = employeeId
         ? employeeRows.filter((employee) => employee.id === employeeId)
         : employeeRows;
 
-      const [attendanceResult, holidaysResult] = await Promise.all([
-        adminClient
-          .from('hrm_attendance')
-          .select('*')
-          .in('employee_id', selectedEmployees.map((employee) => employee.id))
-          .gte('date', range.start)
-          .lte('date', range.end)
-          .order('date', { ascending: true }),
-        adminClient
-          .from('hrm_holidays')
-          .select('*')
-          .gte('date', range.start)
-          .lte('date', range.end),
-      ]);
+      const [attendanceResult, holidaysResult] = range
+        ? await Promise.all([
+            adminClient
+              .from('hrm_attendance')
+              .select('*')
+              .in('employee_id', selectedEmployees.map((employee) => employee.id))
+              .gte('date', range.start)
+              .lte('date', range.end)
+              .order('date', { ascending: true }),
+            adminClient
+              .from('hrm_holidays')
+              .select('*')
+              .gte('date', range.start)
+              .lte('date', range.end),
+          ])
+        : [{ data: [], error: null }, { data: [], error: null }];
 
       if (attendanceResult.error) {
         return NextResponse.json(
@@ -376,22 +435,25 @@ export async function GET(request) {
         return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
       }
 
-      const range = rangeStart && rangeEnd ? { start: rangeStart, end: rangeEnd } : getDateRangeForMonth(month);
+      const requestedRange = rangeStart && rangeEnd ? { start: rangeStart, end: rangeEnd } : getDateRangeForMonth(month);
+      const range = clampRangeToToday(requestedRange, today);
 
-      const [attendanceResult, holidaysResult] = await Promise.all([
-        adminClient
-          .from('hrm_attendance')
-          .select('*')
-          .eq('employee_id', employeeId)
-          .gte('date', range.start)
-          .lte('date', range.end)
-          .order('date', { ascending: true }),
-        adminClient
-          .from('hrm_holidays')
-          .select('*')
-          .gte('date', range.start)
-          .lte('date', range.end),
-      ]);
+      const [attendanceResult, holidaysResult] = range
+        ? await Promise.all([
+            adminClient
+              .from('hrm_attendance')
+              .select('*')
+              .eq('employee_id', employeeId)
+              .gte('date', range.start)
+              .lte('date', range.end)
+              .order('date', { ascending: true }),
+            adminClient
+              .from('hrm_holidays')
+              .select('*')
+              .gte('date', range.start)
+              .lte('date', range.end),
+          ])
+        : [{ data: [], error: null }, { data: [], error: null }];
 
       if (attendanceResult.error) {
         return NextResponse.json(
@@ -403,7 +465,7 @@ export async function GET(request) {
       const holidayMap = new Map((holidaysResult.data || []).map((holiday) => [holiday.date, holiday]));
       const attendanceMap = new Map((attendanceResult.data || []).map((row) => [row.date, row]));
 
-      const rows = listDatesInRange(range.start, range.end)
+      const rows = (range ? listDatesInRange(range.start, range.end) : [])
         .map((date) => {
           const holiday = holidayMap.get(date);
           const rawAttendance = attendanceMap.get(date) || null;
@@ -437,16 +499,22 @@ export async function GET(request) {
             reportingTo: managerMap.get(selectedEmployee.reporting_manager_id)?.name || '--',
           },
           month,
-          range: { start: range.start, end: range.end },
+          range: range || { start: requestedRange.start, end: requestedRange.end },
           rows,
         },
         { status: 200 }
       );
     }
 
-    const [attendanceResult, holidayResult] = await Promise.all([
+    const [attendanceResult, holidayResult, swipeResult] = await Promise.all([
       adminClient.from('hrm_attendance').select('*').eq('date', selectedDate),
       adminClient.from('hrm_holidays').select('*').eq('date', selectedDate).maybeSingle(),
+      adminClient
+        .from('hrm_attendance_swipes')
+        .select('employee_id, swipe_type, swipe_time')
+        .in('employee_id', employeeRows.map((employee) => employee.id))
+        .eq('swipe_date', selectedDate)
+        .order('swipe_time', { ascending: true }),
     ]);
 
     if (attendanceResult.error) {
@@ -455,13 +523,27 @@ export async function GET(request) {
         { status: 500 }
       );
     }
+    if (swipeResult.error) {
+      return NextResponse.json(
+        { error: swipeResult.error.message || 'Failed to load swipe summary' },
+        { status: 500 }
+      );
+    }
 
     const attendanceMap = new Map((attendanceResult.data || []).map((row) => [row.employee_id, row]));
     const holiday = holidayResult.data || null;
+    const swipeMap = new Map();
+
+    for (const swipe of swipeResult.data || []) {
+      const employeeSwipes = swipeMap.get(swipe.employee_id) || [];
+      employeeSwipes.push(swipe);
+      swipeMap.set(swipe.employee_id, employeeSwipes);
+    }
 
     const rows = filterRows(
       employeeRows.map((employee) => {
         const rawAttendance = attendanceMap.get(employee.id) || null;
+        const swipeSummary = summarizeSwipePattern(swipeMap.get(employee.id) || []);
         const rendered = holiday
           ? buildHolidayUiRecord(selectedDate, holiday)
           : buildAttendanceUiRecord(selectedDate, rawAttendance, {
@@ -477,6 +559,9 @@ export async function GET(request) {
           designation: getRelationRecord(employee.designation)?.title || 'Designation not set',
           reportingTo: managerMap.get(employee.reporting_manager_id)?.name || '--',
           date: selectedDate,
+          swipeCount: swipeSummary.swipeCount,
+          sessionCount: swipeSummary.sessionCount,
+          swipePattern: swipeSummary.swipePattern,
           ...formatAttendanceRow(rendered, {
             source: holiday ? 'holiday' : rawAttendance?.source || '',
             notes: rendered.notes,

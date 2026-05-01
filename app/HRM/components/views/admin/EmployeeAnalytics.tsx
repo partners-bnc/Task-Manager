@@ -24,7 +24,6 @@ type TrendDay = {
   date: string;
   label: string;
   present: number;
-  late: number;
   absent: number;
   halfday: number;
   onLeave: number;
@@ -40,13 +39,13 @@ type DistributionItem = {
   percentage: number;
 };
 
-type PersonLate = {
+type PersonHalfDay = {
   id: string;
   employeeId: string;
   name: string;
   department: string;
   designation: string;
-  lateCount: number;
+  halfDayCount: number;
 };
 
 type PersonAbsent = {
@@ -99,12 +98,12 @@ type AnalyticsResponse = {
       key: string;
       label: string;
       present: number;
-      late: number;
       absent: number;
+      halfday: number;
       onLeave: number;
       total: number;
     }>;
-    topLateEmployees: PersonLate[];
+    topHalfDayEmployees: PersonHalfDay[];
     topAbsentEmployees: PersonAbsent[];
   };
   leave: {
@@ -153,7 +152,6 @@ const COLORS = {
   surface: '#FFFFFF',
   shell: '#F4F8FB',
   present: '#9BD3AE',
-  late: '#C6B8F2',
   absent: '#ABC3EE',
   halfday: '#E8D5AF',
   onLeave: '#A6D7DE',
@@ -206,8 +204,6 @@ function getStatusColor(key: string) {
   switch (key) {
     case 'present':
       return COLORS.present;
-    case 'late':
-      return COLORS.late;
     case 'absent':
       return COLORS.absent;
     case 'halfday':
@@ -288,7 +284,6 @@ function Avatar({ src, name }: { src?: string; name: string }) {
 function StatusLegend() {
   const items = [
     { key: 'present', label: 'Present' },
-    { key: 'late', label: 'Late' },
     { key: 'absent', label: 'Absent' },
     { key: 'halfday', label: 'Half Day' },
     { key: 'on_leave', label: 'On Leave' },
@@ -345,8 +340,8 @@ function WatchTable({
   emptyTitle,
 }: {
   title: string;
-  people: Array<PersonLate | PersonAbsent>;
-  countKey: 'lateCount' | 'absentCount';
+  people: Array<PersonHalfDay | PersonAbsent>;
+  countKey: 'halfDayCount' | 'absentCount';
   emptyTitle: string;
 }) {
   return (
@@ -430,7 +425,6 @@ export default function EmployeeAnalytics() {
       (analytics?.attendance.dailyTrend || []).map((item) => ({
         label: item.label,
         Present: item.present,
-        Late: item.late,
         Absent: item.absent,
         'Half Day': item.halfday,
         'On Leave': item.onLeave,
@@ -546,9 +540,9 @@ export default function EmployeeAnalytics() {
                             <stop offset="5%" stopColor={COLORS.present} stopOpacity={0.65} />
                             <stop offset="95%" stopColor={COLORS.present} stopOpacity={0.12} />
                           </linearGradient>
-                          <linearGradient id="lateFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.late} stopOpacity={0.55} />
-                            <stop offset="95%" stopColor={COLORS.late} stopOpacity={0.08} />
+                          <linearGradient id="halfDayFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={COLORS.halfday} stopOpacity={0.55} />
+                            <stop offset="95%" stopColor={COLORS.halfday} stopOpacity={0.08} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={COLORS.line} vertical={false} />
@@ -556,9 +550,8 @@ export default function EmployeeAnalytics() {
                         <YAxis tick={{ fill: COLORS.text, fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
                         <Tooltip content={<RechartTooltip />} />
                         <Area type="monotone" dataKey="Present" stackId="1" stroke={COLORS.present} fill="url(#presentFill)" strokeWidth={2} />
-                        <Area type="monotone" dataKey="Late" stackId="1" stroke={COLORS.late} fill="url(#lateFill)" strokeWidth={2} />
                         <Area type="monotone" dataKey="Absent" stackId="1" stroke={COLORS.absent} fill={COLORS.absent} fillOpacity={0.22} strokeWidth={2} />
-                        <Area type="monotone" dataKey="Half Day" stackId="1" stroke={COLORS.halfday} fill={COLORS.halfday} fillOpacity={0.18} strokeWidth={2} />
+                        <Area type="monotone" dataKey="Half Day" stackId="1" stroke={COLORS.halfday} fill="url(#halfDayFill)" strokeWidth={2} />
                         <Area type="monotone" dataKey="On Leave" stackId="1" stroke={COLORS.onLeave} fill={COLORS.onLeave} fillOpacity={0.18} strokeWidth={2} />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -796,14 +789,14 @@ export default function EmployeeAnalytics() {
             >
               <SectionCard
                 title="Attendance Watchlist"
-                subtitle="Simple follow-up lists for repeated late and absent patterns."
+                subtitle="Simple follow-up lists for repeated half day and absent patterns."
               >
                 <div className="grid gap-5 xl:grid-cols-2">
                   <WatchTable
-                    title="Late Pattern"
-                    people={analytics.attendance.topLateEmployees}
-                    countKey="lateCount"
-                    emptyTitle="No repeated late pattern is visible for this month."
+                    title="Half Day Pattern"
+                    people={analytics.attendance.topHalfDayEmployees}
+                    countKey="halfDayCount"
+                    emptyTitle="No repeated half day pattern is visible for this month."
                   />
                   <WatchTable
                     title="Absence Pattern"

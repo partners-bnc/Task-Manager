@@ -119,7 +119,7 @@ async function getEmployeesOnLeaveToday(employees = []) {
 async function getPendingTaskMetrics(authContext) {
   const today = getCurrentDateInTimeZone();
 
-  const [leaveResult, regularizationResult, expensesResult, ticketsResult, lateAttendanceResult] = await Promise.all([
+  const [leaveResult, regularizationResult, expensesResult, ticketsResult, halfDayAttendanceResult] = await Promise.all([
     adminClient
       .from('hrm_leave_requests')
       .select('id', { count: 'exact', head: true })
@@ -145,7 +145,7 @@ async function getPendingTaskMetrics(authContext) {
       .from('hrm_attendance')
       .select('id', { count: 'exact', head: true })
       .eq('date', today)
-      .eq('status', 'late'),
+      .in('status', ['halfday', 'half_day']),
   ]);
 
   if (leaveResult.error) {
@@ -160,8 +160,8 @@ async function getPendingTaskMetrics(authContext) {
   if (ticketsResult.error) {
     throw new Error(ticketsResult.error.message || 'Failed to load ticket task count');
   }
-  if (lateAttendanceResult.error) {
-    throw new Error(lateAttendanceResult.error.message || 'Failed to load late attendance count');
+  if (halfDayAttendanceResult.error) {
+    throw new Error(halfDayAttendanceResult.error.message || 'Failed to load half day attendance count');
   }
 
   const openTickets = (ticketsResult.data || []).filter((ticket) => !isTicketClosedStatus(ticket.status)).length;
@@ -173,7 +173,7 @@ async function getPendingTaskMetrics(authContext) {
 
   return {
     pendingTaskCount,
-    todayLateAttendanceCount: lateAttendanceResult.count || 0,
+    todayHalfDayAttendanceCount: halfDayAttendanceResult.count || 0,
   };
 }
 
@@ -216,7 +216,7 @@ export async function GET() {
         departmentCount,
         designationCount,
         pendingTaskCount: taskMetrics.pendingTaskCount,
-        todayLateAttendanceCount: taskMetrics.todayLateAttendanceCount,
+        todayHalfDayAttendanceCount: taskMetrics.todayHalfDayAttendanceCount,
       },
       recentEmployees,
       employeesOnLeaveToday,

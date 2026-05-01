@@ -1,4 +1,4 @@
-export type AttendanceStatus = 'present' | 'absent' | 'late' | 'halfday' | 'weekend' | 'holiday' | 'on_leave';
+export type AttendanceStatus = 'present' | 'absent' | 'halfday' | 'weekend' | 'holiday' | 'on_leave';
 
 export interface AttendanceRecord {
   date: string;
@@ -14,7 +14,6 @@ export interface AttendanceRecord {
 
 export interface AttendanceSummary {
   presentCount: number;
-  lateCount: number;
   absentCount: number;
   halfDayCount: number;
 }

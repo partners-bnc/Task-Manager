@@ -30,8 +30,7 @@ const EMPLOYEE_PROFILE_SELECT_BASE = `
     crm
   ),
   department:hrm_departments (id, name),
-  designation:hrm_designations (id, title),
-  shift:hrm_shifts (id, name, start_time, end_time)
+  designation:hrm_designations (id, title)
 `;
 
 const EMPLOYEE_PROFILE_SELECT_WITH_SALARY = `

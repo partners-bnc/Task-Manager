@@ -11,13 +11,18 @@ type LeaveAdminItem = {
   employeeCode: string;
   employeeName: string;
   leaveTypeName: string;
+  leaveTypeCode?: string;
   startDate: string;
   endDate: string;
+  compOffWorkedDate?: string;
   status: string;
   totalDays: number;
   approvedDays: number;
   paidDays: number;
   lopDays: number;
+  projectedPaidDays?: number;
+  projectedLopDays?: number;
+  isProjectedLop?: boolean;
   session: string;
   reason: string;
   reviewNote: string;
@@ -31,6 +36,7 @@ type LeaveAdminBalance = {
   employeeCode: string;
   employeeName: string;
   leaveTypeName: string;
+  leaveTypeCode?: string;
   availableDays: number;
   usedDays: number;
   creditedDays: number;
@@ -58,6 +64,21 @@ function formatLeaveDays(value: number) {
   return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }
 
+function getProjectedLopLabel(item: { projectedPaidDays?: number; projectedLopDays?: number }) {
+  const projectedPaidDays = Number(item.projectedPaidDays || 0);
+  const projectedLopDays = Number(item.projectedLopDays || 0);
+
+  if (projectedLopDays <= 0) {
+    return 'Paid Leave';
+  }
+
+  if (projectedPaidDays <= 0) {
+    return 'Will be LOP';
+  }
+
+  return 'Partially LOP';
+}
+
 function statusTone(status: string) {
   switch (String(status || '').toLowerCase()) {
     case 'approved':
@@ -75,6 +96,7 @@ type BalanceSummaryRow = {
   employeeName: string;
   casualLeave: number;
   sickLeave: number;
+  specialLeave: number;
   usedDays: number;
   lopDays: number;
 };
@@ -157,6 +179,7 @@ export default function LeaveManagement() {
         employeeName: balance.employeeName,
         casualLeave: 0,
         sickLeave: 0,
+        specialLeave: 0,
         usedDays: 0,
         lopDays: 0,
       };
@@ -167,6 +190,9 @@ export default function LeaveManagement() {
       }
       if (leaveType.includes('sick')) {
         current.sickLeave += Number(balance.availableDays) || 0;
+      }
+      if (leaveType.includes('special')) {
+        current.specialLeave += Number(balance.availableDays) || 0;
       }
 
       current.usedDays += Number(balance.usedDays) || 0;
@@ -297,13 +323,15 @@ export default function LeaveManagement() {
               />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1040px] text-left">
+                <table className="w-full min-w-[1180px] text-left">
                   <thead>
                     <tr className="border-b border-outline-variant/10">
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Leave Type</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date Range</th>
+                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Worked On</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Days</th>
+                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP Term</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reason</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Review Note</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Action</th>
@@ -318,7 +346,14 @@ export default function LeaveManagement() {
                         </td>
                         <td className="px-4 py-4 text-sm text-on-surface">{item.leaveTypeName}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatDateRange(item.startDate, item.endDate)}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">{item.compOffWorkedDate || '--'}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(item.totalDays)}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">
+                          <p className="font-medium">{getProjectedLopLabel(item)}</p>
+                          <p className="text-xs text-on-surface-variant">
+                            {formatLeaveDays(item.projectedPaidDays || 0)} paid / {formatLeaveDays(item.projectedLopDays || 0)} LOP
+                          </p>
+                        </td>
                         <td className="px-4 py-4 text-sm text-on-surface">{item.reason || '--'}</td>
                         <td className="px-4 py-4">
                           <textarea
@@ -386,6 +421,7 @@ export default function LeaveManagement() {
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Leave Type</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date Range</th>
+                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Worked On</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Status</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Paid</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
@@ -401,6 +437,7 @@ export default function LeaveManagement() {
                         </td>
                         <td className="px-4 py-4 text-sm text-on-surface">{item.leaveTypeName}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatDateRange(item.startDate, item.endDate)}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">{item.compOffWorkedDate || '--'}</td>
                         <td className="px-4 py-4">
                           <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${statusTone(item.status)}`}>{item.status}</span>
                         </td>
@@ -447,6 +484,7 @@ export default function LeaveManagement() {
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee Name</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Casual Leave</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Sick Leave</th>
+                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Special Leave</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Used</th>
                       <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
                     </tr>
@@ -461,6 +499,7 @@ export default function LeaveManagement() {
                         </td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.casualLeave)}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.sickLeave)}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.specialLeave)}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.usedDays)}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.lopDays)}</td>
                       </tr>

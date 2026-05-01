@@ -212,7 +212,7 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
     activeEmployeeCount: 0,
     onLeaveEmployeeCount: 0,
     pendingTaskCount: 0,
-    todayLateAttendanceCount: 0,
+    todayHalfDayAttendanceCount: 0,
   };
   const featuredBirthdayGroup = useMemo(() => {
     const upcomingBirthdays = dashboard?.upcomingBirthdays || [];
@@ -327,7 +327,7 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
             <MetricCard title="Total Employees" value={metrics.employeeCount} subtitle={`${metrics.activeEmployeeCount} active right now`} icon="groups" tone="bg-gradient-to-br from-violet-50 via-white to-fuchsia-100/70" />
             <MetricCard title="Employees On Leave" value={metrics.onLeaveEmployeeCount} subtitle="Pulled from live employee status" icon="event_busy" tone="bg-gradient-to-br from-amber-50 via-white to-orange-100/60" />
             <MetricCard title="Pending Tasks For HR Admin" value={metrics.pendingTaskCount} subtitle="Leave, regularization, expense review, and tickets" icon="assignment_late" tone="bg-gradient-to-br from-purple-50 via-white to-violet-100/70" />
-            <MetricCard title="Today Late Attendance" value={metrics.todayLateAttendanceCount} subtitle="Employees marked late today" icon="alarm_on" tone="bg-gradient-to-br from-emerald-50 via-white to-teal-100/70" />
+            <MetricCard title="Today Half Day" value={metrics.todayHalfDayAttendanceCount} subtitle="Employees below the required work hours today" icon="timelapse" tone="bg-gradient-to-br from-emerald-50 via-white to-teal-100/70" />
           </section>
 
           <section className="grid grid-cols-1 items-start gap-7 xl:grid-cols-[minmax(0,1.7fr)_300px]">

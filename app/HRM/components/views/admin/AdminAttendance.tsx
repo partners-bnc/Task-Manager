@@ -20,6 +20,9 @@ type DailyRow = {
   statusLabel: string;
   checkIn: string;
   checkOut: string;
+  swipeCount?: number;
+  sessionCount?: number;
+  swipePattern?: string;
   lateIn: string;
   earlyOut: string;
   workHours: string;
@@ -33,7 +36,6 @@ type SwipeHistoryRow = {
   swipeTime: string;
   swipeType: string;
   doorAddress: string;
-  notes?: string;
 };
 
 type SwipeModalState = {
@@ -80,7 +82,6 @@ type MonthlyAttendanceRow = {
   dailyStatuses: MonthlyStatusCell[];
   summary: {
     present: number;
-    late: number;
     halfDay: number;
     absent: number;
     off: number;
@@ -166,7 +167,6 @@ function formatMonthLabel(value = '') {
 function getStatusCellTone(status = '') {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'present') return 'bg-sky-100 text-sky-900';
-  if (normalized === 'late') return 'bg-amber-100 text-amber-900';
   if (normalized === 'absent') return 'bg-rose-100 text-rose-900';
   if (normalized === 'halfday') return 'bg-violet-100 text-violet-900';
   if (normalized === 'on_leave') return 'bg-emerald-100 text-emerald-900';
@@ -293,7 +293,6 @@ export default function AdminAttendance() {
         dailyStatuses: Array.isArray(row?.dailyStatuses) ? row.dailyStatuses : [],
         summary: {
           present: Number(row?.summary?.present || 0),
-          late: Number(row?.summary?.late || 0),
           halfDay: Number(row?.summary?.halfDay || 0),
           absent: Number(row?.summary?.absent || 0),
           off: Number(row?.summary?.off || 0),
@@ -321,6 +320,55 @@ export default function AdminAttendance() {
     XLSX.writeFile(workbook, fileName);
   }
 
+  const handleExportDailyExcel = async () => {
+    const rows = dailyRows.map((row) => ({
+      employee_id: row.employeeId || '--',
+      employee_name: row.employeeName || 'Employee',
+      department: row.department || 'Department not set',
+      designation: row.designation || 'Designation not set',
+      reporting_to: row.reportingTo || '--',
+      status: row.statusLabel || '--',
+      check_in: row.checkIn || '--',
+      check_out: row.checkOut || '--',
+      swipe_type: row.swipePattern || '--',
+      swipe_count: row.swipeCount ?? 0,
+      session_count: row.sessionCount ?? 0,
+      work_hours: row.workHours || '--',
+      notes_or_source: row.notes || row.source || '--',
+    }));
+
+    await exportExcelFile(
+      rows,
+      `daily_attendance_${safeFilePart(response?.date || selectedDate)}.xlsx`,
+      'Daily Attendance'
+    );
+  };
+
+  const handleExportIndividualExcel = async () => {
+    const rows = individualRows.map((row) => ({
+      date: row.date || '--',
+      status: row.statusLabel || '--',
+      check_in: row.checkIn || '--',
+      check_out: row.checkOut || '--',
+      work_hours: row.workHours || '--',
+      shift_hours: row.shiftHours || '9h 00m',
+      late_in: row.lateIn || '--',
+      early_out: row.earlyOut || '--',
+      notes: row.notes || '--',
+    }));
+
+    const employeeName =
+      filteredEmployeeOptions.find((employee) => employee.id === selectedEmployeeId)?.name ||
+      response?.employee?.name ||
+      'employee';
+
+    await exportExcelFile(
+      rows,
+      `individual_attendance_${safeFilePart(selectedMonth)}_${safeFilePart(employeeName)}.xlsx`,
+      'Individual Attendance'
+    );
+  };
+
   const handleExportMonthlyExcel = async () => {
     const rows = monthlyRows.map((row) => {
       const base: Record<string, any> = {
@@ -336,7 +384,6 @@ export default function AdminAttendance() {
       }
 
       base.present = row.summary.present;
-      base.late = row.summary.late;
       base.half_day = row.summary.halfDay;
       base.absent = row.summary.absent;
       base.off = row.summary.off;
@@ -461,7 +508,6 @@ export default function AdminAttendance() {
             >
               <option value="">All Status</option>
               <option value="present">Present</option>
-              <option value="late">Late</option>
               <option value="absent">Absent</option>
               <option value="halfday">Half Day</option>
               <option value="on_leave">On Leave</option>
@@ -508,7 +554,6 @@ export default function AdminAttendance() {
             >
               <option value="">All Status</option>
               <option value="present">Present</option>
-              <option value="late">Late</option>
               <option value="absent">Absent</option>
               <option value="halfday">Half Day</option>
               <option value="on_leave">On Leave</option>
@@ -553,18 +598,6 @@ export default function AdminAttendance() {
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              onClick={handleExportMonthlyExcel}
-              disabled={monthlyRows.length === 0}
-              className={`rounded-2xl px-4 py-3 text-sm font-semibold shadow-sm transition ${
-                monthlyRows.length === 0
-                  ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
-                  : 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-              }`}
-            >
-              Export Excel
-            </button>
           </>
         )}
       </section>
@@ -588,9 +621,23 @@ export default function AdminAttendance() {
                   Attendance view for {response?.date || selectedDate}.
                 </p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                {dailyRows.length} employees
-              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleExportDailyExcel}
+                  disabled={dailyRows.length === 0}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                    dailyRows.length === 0
+                      ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
+                      : 'border border-outline-variant/20 bg-white text-on-surface hover:bg-surface-container-low'
+                  }`}
+                >
+                  Export Excel
+                </button>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                  {dailyRows.length} employees
+                </span>
+              </div>
             </div>
 
             {dailyRows.length === 0 ? (
@@ -604,7 +651,7 @@ export default function AdminAttendance() {
                 <table className="min-w-[1600px] w-full text-left">
                   <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
                     <tr>
-                      {['Employee ID', 'Employee Name', 'Department', 'Designation', 'Reporting To', 'Date', 'Status', 'Check-in', 'Check-out', 'Late In', 'Early Out', 'Work Hours', 'Notes / Source', 'Swipes'].map((column) => (
+                      {['Employee ID', 'Employee Name', 'Department', 'Designation', 'Reporting To', 'Status', 'Check-in', 'Check-out', 'Swipe Type', 'Work Hours', 'Notes / Source', 'Swipes'].map((column) => (
                         <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">
                           {column}
                         </th>
@@ -619,12 +666,19 @@ export default function AdminAttendance() {
                         <td className="px-4 py-4 text-sm text-on-surface">{row.department}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{row.designation}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{row.reportingTo}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.date}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{row.statusLabel}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.checkIn}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.checkOut}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.lateIn}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.earlyOut}</td>
+                        <td className="px-4 py-4 text-sm whitespace-nowrap text-on-surface">{row.checkIn}</td>
+                        <td className="px-4 py-4 text-sm whitespace-nowrap text-on-surface">{row.checkOut}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">
+                          <span className="inline-flex rounded-full bg-surface-container px-3 py-1 text-xs font-semibold text-on-surface">
+                            {row.swipePattern || '--'}
+                          </span>
+                          {typeof row.swipeCount === 'number' && row.swipeCount > 0 ? (
+                            <div className="mt-1 text-xs text-on-surface-variant">
+                              {row.swipeCount} swipe{row.swipeCount === 1 ? '' : 's'}
+                            </div>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-4 text-sm text-on-surface">{row.workHours}</td>
                         <td className="px-4 py-4 text-sm text-on-surface-variant">
                           {row.notes || row.source || '--'}
@@ -661,9 +715,23 @@ export default function AdminAttendance() {
                     : 'Select an employee to track daily attendance across the chosen month.'}
                 </p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                {individualRows.length} days
-              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleExportIndividualExcel}
+                  disabled={individualRows.length === 0 || !selectedEmployeeId}
+                  className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                    individualRows.length === 0 || !selectedEmployeeId
+                      ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
+                      : 'border border-outline-variant/20 bg-white text-on-surface hover:bg-surface-container-low'
+                  }`}
+                >
+                  Export Excel
+                </button>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+                  {individualRows.length} days
+                </span>
+              </div>
             </div>
 
             {!selectedEmployeeId ? (
@@ -683,7 +751,7 @@ export default function AdminAttendance() {
                 <table className="min-w-[1100px] w-full text-left">
                   <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
                     <tr>
-                      {['Date', 'Status', 'Check-in', 'Check-out', 'Late In', 'Early Out', 'Work Hours', 'Shift Hours', 'Notes'].map((column) => (
+                      {['Date', 'Status', 'Check-in', 'Check-out', 'Work Hours', 'Shift Hours', 'Notes'].map((column) => (
                         <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">
                           {column}
                         </th>
@@ -695,10 +763,8 @@ export default function AdminAttendance() {
                       <tr key={row.date}>
                         <td className="px-4 py-4 text-sm font-semibold text-on-surface">{row.date}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{row.statusLabel}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.checkIn}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.checkOut}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.lateIn}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{row.earlyOut}</td>
+                        <td className="px-4 py-4 text-sm whitespace-nowrap text-on-surface">{row.checkIn}</td>
+                        <td className="px-4 py-4 text-sm whitespace-nowrap text-on-surface">{row.checkOut}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{row.workHours}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{row.shiftHours || '9h 00m'}</td>
                         <td className="px-4 py-4 text-sm text-on-surface-variant">{row.notes || '--'}</td>
@@ -733,10 +799,9 @@ export default function AdminAttendance() {
                     <div className="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1 text-[11px] text-on-surface-variant shadow-sm whitespace-nowrap">
                       {[
                         ['P', 'present'],
-                        ['L', 'late'],
                         ['A', 'absent'],
                         ['HD', 'halfday'],
-                        ['LV', 'on_leave'],
+                        ['L', 'on_leave'],
                         ['H', 'holiday'],
                         ['OFF', 'weekend'],
                       ].map(([code, status]) => (
@@ -751,15 +816,29 @@ export default function AdminAttendance() {
                       ))}
                     </div>
                   </div>
-                  <span className="shrink-0 rounded-xl border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm whitespace-nowrap">
-                    {monthlyRows.length} employees
-                  </span>
+                  <div className="flex shrink-0 items-center gap-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={handleExportMonthlyExcel}
+                      disabled={monthlyRows.length === 0}
+                      className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                        monthlyRows.length === 0
+                          ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
+                          : 'border border-outline-variant/20 bg-white text-on-surface hover:bg-surface-container-low'
+                      }`}
+                    >
+                      Export Excel
+                    </button>
+                    <span className="rounded-xl border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm whitespace-nowrap">
+                      {monthlyRows.length} employees
+                    </span>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                 <table className="min-w-[1320px] w-full border-separate border-spacing-0 text-center">
                   <thead>
                     <tr className="bg-surface-container-low/40">
-                      <th className="sticky left-0 z-20 min-w-[190px] border-b border-r border-outline-variant/10 bg-white px-3 py-2.5 text-left text-sm font-bold text-on-surface shadow-[8px_0_18px_rgba(255,255,255,0.95)]">
+                      <th className="sticky left-0 z-20 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-outline-variant/10 bg-white px-3 py-2.5 text-left text-sm font-bold text-on-surface shadow-[8px_0_18px_rgba(255,255,255,0.95)]">
                         Employee
                       </th>
                       {calendarDays.map((day) => (
@@ -773,12 +852,11 @@ export default function AdminAttendance() {
                       ))}
                       {[
                         ['P', 'present'],
-                        ['L', 'late'],
                         ['HD', 'halfDay'],
                         ['A', 'absent'],
                         ['OFF', 'off'],
                         ['H', 'holiday'],
-                        ['LV', 'leave'],
+                        ['L', 'leave'],
                         ['?', 'missing'],
                       ].map(([label]) => (
                         <th
@@ -796,12 +874,12 @@ export default function AdminAttendance() {
                         key={row.employee.id || `${row.employee.employeeId}-${row.employee.name}`}
                         className="odd:bg-white even:bg-surface-container-lowest/40"
                       >
-                        <td className="sticky left-0 z-10 border-b border-r border-outline-variant/10 bg-white px-3 py-2.5 text-left shadow-[8px_0_18px_rgba(255,255,255,0.95)]">
+                        <td className="sticky left-0 z-10 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-outline-variant/10 bg-white px-3 py-2.5 text-left shadow-[8px_0_18px_rgba(255,255,255,0.95)]">
                           <div className="truncate text-[13px] font-semibold text-on-surface">
                             {row.employee.name}{' '}
                             <span className="font-medium text-on-surface-variant">[{row.employee.employeeId}]</span>
                           </div>
-                          <div className="mt-1 truncate text-[11px] text-on-surface-variant">{getEmployeeMetaLine(row.employee)}</div>
+                          <div className="mt-1 truncate text-[10px] text-on-surface-variant">{getEmployeeMetaLine(row.employee)}</div>
                           <div className="hidden sr-only">
                             {row.employee.employeeId} · {row.employee.designation}
                           </div>
@@ -817,7 +895,6 @@ export default function AdminAttendance() {
                           </td>
                         ))}
                         <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.present}</td>
-                        <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.late}</td>
                         <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.halfDay}</td>
                         <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.absent}</td>
                         <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.off}</td>
@@ -870,7 +947,7 @@ export default function AdminAttendance() {
                   <table className="min-w-[980px] w-full text-left">
                     <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
                       <tr>
-                        {['Swipe Time', 'In / Out', 'Door / Address', 'Notes'].map((column) => (
+                        {['Swipe Time', 'In / Out', 'Door / Address'].map((column) => (
                           <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">
                             {column}
                           </th>
@@ -883,7 +960,6 @@ export default function AdminAttendance() {
                           <td className="px-4 py-4 text-sm font-semibold text-on-surface">{swipe.swipeTime}</td>
                           <td className="px-4 py-4 text-sm text-on-surface">{swipe.swipeType}</td>
                           <td className="px-4 py-4 text-sm text-on-surface">{swipe.doorAddress || '--'}</td>
-                          <td className="px-4 py-4 text-sm text-on-surface-variant">{swipe.notes || '--'}</td>
                         </tr>
                       ))}
                     </tbody>
