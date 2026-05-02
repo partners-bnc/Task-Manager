@@ -639,6 +639,11 @@ export default function PayoutsPayroll() {
     [previewMonth, previewYear]
   );
 
+  const isClosedPayrollMonthSelected = useMemo(
+    () => currentPreviewMonthKey < currentMonthValue,
+    [currentMonthValue, currentPreviewMonthKey]
+  );
+
   const existingGeneratedRun = useMemo(
     () => runs.find((run) => `${run.year}-${String(run.month).padStart(2, '0')}` === currentPreviewMonthKey) || null,
     [currentPreviewMonthKey, runs]
@@ -647,6 +652,7 @@ export default function PayoutsPayroll() {
   const canGeneratePayroll = Boolean(
     previewData?.signature &&
     previewData?.monthKey === currentPreviewMonthKey &&
+    isClosedPayrollMonthSelected &&
     !existingGeneratedRun
   );
 
@@ -814,6 +820,11 @@ export default function PayoutsPayroll() {
   }
 
   async function handlePreview() {
+    if (!isClosedPayrollMonthSelected) {
+      showFeedback('error', 'Payroll can be calculated only after the selected month is fully completed. Please choose a past completed month.');
+      return;
+    }
+
     try {
       setPreviewLoading(true);
       const result = await fetchPayrollJson('/HRM/api/admin/payroll/runs/preview', {
@@ -836,6 +847,11 @@ export default function PayoutsPayroll() {
   }
 
   async function handleGenerate() {
+    if (!isClosedPayrollMonthSelected) {
+      showFeedback('error', 'Payroll can be calculated only after the selected month is fully completed. Please choose a past completed month.');
+      return;
+    }
+
     try {
       setSubmitting(true);
       const result = await fetchPayrollJson('/HRM/api/admin/payroll/runs/generate', {
@@ -1849,76 +1865,84 @@ export default function PayoutsPayroll() {
       {activeSection === 'calculator' ? (
         <section className="space-y-6">
           <div className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest px-6 py-6 shadow-sm">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-on-surface">Employee Salary Calculator</h2>
-                <p className="mt-1 text-sm text-on-surface-variant">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+              <div className="max-w-xl pt-1">
+                <h2 className="text-[1.65rem] font-bold leading-tight text-on-surface">Employee Salary Calculator</h2>
+                <p className="mt-2 text-sm leading-6 text-on-surface-variant">
                   Preview full month salary math before creating the payroll run.
                 </p>
               </div>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Year</p>
-                  <TextInput
-                    type="number"
-                    value={previewYear}
-                    onChange={(event) => setPreviewYear(event.target.value)}
-                    className="w-[130px]"
-                  />
+              <div className="flex flex-col items-stretch gap-4 xl:min-w-[760px] xl:items-end">
+                <div className="flex flex-wrap items-end justify-end gap-3">
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Year</p>
+                    <TextInput
+                      type="number"
+                      value={previewYear}
+                      onChange={(event) => setPreviewYear(event.target.value)}
+                      className="w-[130px]"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Month</p>
+                    <TextInput
+                      type="month"
+                      value={`${previewYear}-${previewMonth}`}
+                      onChange={(event) => {
+                        const [nextYear, nextMonth] = event.target.value.split('-');
+                        setPreviewYear(nextYear);
+                        setPreviewMonth(nextMonth);
+                      }}
+                      className="w-[180px]"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePreview}
+                    disabled={previewLoading || !isClosedPayrollMonthSelected}
+                    className={`rounded-full border px-5 py-3 text-sm font-semibold transition ${
+                      previewLoading || !isClosedPayrollMonthSelected
+                        ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50'
+                    }`}
+                  >
+                    {previewLoading ? 'Calculating...' : 'Run Preview'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerate}
+                    disabled={submitting || !canGeneratePayroll}
+                    className={`rounded-full border px-5 py-3 text-sm font-semibold transition ${
+                      submitting || !canGeneratePayroll
+                        ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50'
+                    }`}
+                  >
+                    {submitting ? 'Generating...' : 'Generate Payroll'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportPreview}
+                    disabled={!previewData?.rows?.length}
+                    className={`rounded-full border px-5 py-3 text-sm font-semibold transition ${
+                      !previewData?.rows?.length
+                        ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50'
+                    }`}
+                  >
+                    Export Excel
+                  </button>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Month</p>
-                  <TextInput
-                    type="month"
-                    value={`${previewYear}-${previewMonth}`}
-                    onChange={(event) => {
-                      const [nextYear, nextMonth] = event.target.value.split('-');
-                      setPreviewYear(nextYear);
-                      setPreviewMonth(nextMonth);
-                    }}
-                    className="w-[180px]"
-                  />
+                <div className="text-right text-sm text-on-surface-variant">
+                  {!isClosedPayrollMonthSelected
+                    ? `Payroll for ${formatMonthLabel(Number(previewYear), Number(previewMonth))} can be calculated only after that month is fully completed.`
+                    : existingGeneratedRun
+                      ? `Payroll for ${formatMonthLabel(Number(previewYear), Number(previewMonth))} already exists in the payroll ledger. Manage payslips and payment status there.`
+                      : canGeneratePayroll
+                        ? 'Preview completed. You can now generate payroll for this completed month once.'
+                        : 'Run preview first, then generate payroll once for the selected completed month.'}
                 </div>
-                <button
-                  type="button"
-                  onClick={handlePreview}
-                  disabled={previewLoading}
-                  className="rounded-full bg-[linear-gradient(180deg,#faf5ff_0%,#efe7ff_100%)] px-5 py-3 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(167,139,250,0.14)]"
-                >
-                  {previewLoading ? 'Calculating...' : 'Run Preview'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGenerate}
-                  disabled={submitting || !canGeneratePayroll}
-                  className={`rounded-full px-5 py-3 text-sm font-bold shadow-[0_12px_24px_rgba(167,139,250,0.18)] ${
-                    submitting || !canGeneratePayroll
-                      ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
-                      : 'bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] text-violet-950'
-                  }`}
-                >
-                  {submitting ? 'Generating...' : 'Generate Payroll'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportPreview}
-                  disabled={!previewData?.rows?.length}
-                  className={`rounded-full px-5 py-3 text-sm font-bold shadow-sm transition ${
-                    !previewData?.rows?.length
-                      ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
-                      : 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                  }`}
-                >
-                  Export Excel
-                </button>
               </div>
-            </div>
-            <div className="mt-4 text-sm text-on-surface-variant">
-              {existingGeneratedRun
-                ? `Payroll for ${formatMonthLabel(Number(previewYear), Number(previewMonth))} already exists in the payroll ledger. Manage payslips and payment status there.`
-                : canGeneratePayroll
-                  ? 'Preview completed. You can now generate payroll for this month once.'
-                  : 'Run preview first, then generate payroll once for the selected month.'}
             </div>
           </div>
 

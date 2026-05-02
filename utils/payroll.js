@@ -1,6 +1,7 @@
 import { adminClient } from '@/utils/supabase/admin';
 import { deriveEmploymentFields } from '@/utils/hrm-employment';
 import { calculateLeaveDays, getEmployeeLeaveContext } from '@/utils/leave';
+import { getCurrentDateInTimeZone } from '@/utils/attendance';
 
 const PAYROLL_PROFILE_SELECT = `
   id,
@@ -78,6 +79,25 @@ function padMonth(value) {
 
 export function buildMonthKey(year, month) {
   return `${year}-${padMonth(month)}`;
+}
+
+export function isPayrollMonthClosed(year, month, referenceDate = getCurrentDateInTimeZone()) {
+  const selectedMonthKey = buildMonthKey(year, month);
+  const currentMonthKey = String(referenceDate || '').slice(0, 7);
+
+  if (!currentMonthKey) {
+    return true;
+  }
+
+  return selectedMonthKey < currentMonthKey;
+}
+
+function assertPayrollMonthClosed(year, month) {
+  if (isPayrollMonthClosed(year, month)) {
+    return;
+  }
+
+  throw new Error('Payroll can be calculated only after the selected month is fully completed. Please choose a past completed month.');
 }
 
 export function buildPayrollPreviewSignature(preview) {
@@ -900,7 +920,7 @@ async function loadPayrollReferenceData(year, month) {
     adminClient
       .from('hrm_retention_schedules')
       .select('*')
-      .lte('start_month', `${monthKey}-31`)
+      .lte('start_month', endDate)
       .order('start_month', { ascending: false }),
     adminClient
       .from('hrm_retention_releases')
@@ -1058,6 +1078,7 @@ export function calculateEmployeePayroll({
 }
 
 export async function previewPayrollRun({ year, month, employeeId = null }) {
+  assertPayrollMonthClosed(year, month);
   const reference = await loadPayrollReferenceData(year, month);
   const rows = [];
 
@@ -1242,6 +1263,7 @@ async function updatePayrollRunTotals(runId) {
 }
 
 export async function generatePayrollRun({ year, month, actorUserId, previewSignature = '' }) {
+  assertPayrollMonthClosed(year, month);
   const preview = await previewPayrollRun({ year, month });
   if (!previewSignature || previewSignature !== preview.signature) {
     throw new Error('Run preview is required before generating payroll for this month.');
