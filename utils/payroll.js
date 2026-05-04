@@ -816,6 +816,94 @@ export async function backfillHistoricalPayrollLopEntries() {
   }
 }
 
+export async function deleteAttendancePayrollLopEntry(employeeId, attendanceDate) {
+  const { error } = await adminClient
+    .from('hrm_payroll_lop_entries')
+    .delete()
+    .eq('employee_id', employeeId)
+    .eq('attendance_date', attendanceDate)
+    .eq('source', 'attendance');
+
+  if (error) {
+    throw new Error(error.message || 'Failed to clear attendance payroll LOP entry');
+  }
+}
+
+export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
+  const { startDate, endDate } = getMonthBounds(year, month);
+
+  const { error: clearError } = await adminClient
+    .from('hrm_payroll_lop_entries')
+    .delete()
+    .eq('source', 'attendance')
+    .gte('attendance_date', startDate)
+    .lte('attendance_date', endDate);
+
+  if (clearError) {
+    throw new Error(clearError.message || 'Failed to clear month-close attendance LOP entries');
+  }
+
+  const [{ data: attendanceRows, error: attendanceError }, { data: approvedLeaves, error: leaveError }] = await Promise.all([
+    adminClient
+      .from('hrm_attendance')
+      .select('employee_id, date, status, is_regularized')
+      .in('status', ['absent', 'halfday'])
+      .gte('date', startDate)
+      .lte('date', endDate),
+    adminClient
+      .from('hrm_leave_requests')
+      .select('employee_id, start_date, end_date, status')
+      .eq('status', 'approved')
+      .lte('start_date', endDate)
+      .gte('end_date', startDate),
+  ]);
+
+  if (attendanceError) {
+    throw new Error(attendanceError.message || 'Failed to load unresolved attendance rows for payroll LOP');
+  }
+  if (leaveError) {
+    throw new Error(leaveError.message || 'Failed to load approved leave requests for payroll LOP');
+  }
+
+  const approvedLeaveDateKeys = new Set();
+  for (const request of approvedLeaves || []) {
+    const requestStart = request.start_date < startDate ? startDate : request.start_date;
+    const requestEnd = request.end_date > endDate ? endDate : request.end_date;
+    for (const date of listDatesInRange(requestStart, requestEnd)) {
+      approvedLeaveDateKeys.add(`${request.employee_id}:${date}`);
+    }
+  }
+
+  const rows = (attendanceRows || [])
+    .filter((row) => !row.is_regularized)
+    .filter((row) => !approvedLeaveDateKeys.has(`${row.employee_id}:${row.date}`))
+    .map((row) => ({
+      employee_id: row.employee_id,
+      attendance_date: row.date,
+      day_fraction: row.status === 'halfday' ? 0.5 : 1.0,
+      source: 'attendance',
+      notes:
+        row.status === 'halfday'
+          ? 'Generated from unresolved month-close half-day attendance for payroll.'
+          : 'Generated from unresolved month-close absence for payroll.',
+    }));
+
+  if (!rows.length) {
+    return [];
+  }
+
+  const { data, error } = await adminClient
+    .from('hrm_payroll_lop_entries')
+    .insert(rows)
+    .select('*');
+
+  if (error) {
+    throw new Error(error.message || 'Failed to create month-close attendance LOP entries');
+  }
+
+  return data || [];
+}
+
 export function allocateLopDates({ workingDates = [], session = 'full_day', lopDays = 0 }) {
   const nextEntries = [];
   let remaining = roundDays(lopDays);
@@ -882,9 +970,9 @@ export async function syncPayrollLopEntriesForLeaveApproval({
     day_fraction: entry.day_fraction,
     source,
     notes:
-      index === 0 && roundDays(paidDays) > 0
-        ? `Paid leave applied first (${roundDays(paidDays)}), remaining days converted to LOP.`
-        : 'Generated from approved leave request for payroll.',
+      roundDays(paidDays) > 0
+        ? 'Generated from approved leave request for payroll.'
+        : 'Generated from approved LOP leave request for payroll.',
   }));
 
   const { data, error } = await adminClient
@@ -902,6 +990,7 @@ export async function syncPayrollLopEntriesForLeaveApproval({
 async function loadPayrollReferenceData(year, month) {
   const { startDate, endDate, monthKey, daysInMonth } = getMonthBounds(year, month);
   await backfillHistoricalPayrollLopEntries();
+  await syncAttendancePayrollLopEntriesForMonth(year, month);
 
   const [employeesResult, profilesResult, revisionsResult, schedulesResult, releasesResult, lopResult] = await Promise.all([
     adminClient

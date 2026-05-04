@@ -471,6 +471,23 @@ function getTodayDateValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function getDoneStateFromPercent(percentDone, existingDoneDate = "") {
+  const normalizedPercent = Math.max(0, Math.min(100, Number(percentDone) || 0));
+  if (normalizedPercent >= 100) {
+    return {
+      isDone: true,
+      doneMarkedOn: existingDoneDate || getTodayDateValue(),
+      remaining: "0",
+    };
+  }
+
+  return {
+    isDone: false,
+    doneMarkedOn: "",
+    remaining: calculateRemainingValue(normalizedPercent),
+  };
+}
+
 function normalizeMemberAssign(value) {
   if (Array.isArray(value)) {
     return Array.from(new Set(value.map((item) => cleanCell(item)).filter(Boolean)));
@@ -557,22 +574,29 @@ function parseMappedRows(sectionKey, rows, headerIndex, fieldMapping) {
 
   if (sectionKey === "gantt") {
     return dataRows
-      .map((row, index) => ({
-        id: `gantt-${Date.now()}-${index}`,
-        label: cleanCell(readValue(row, "label")) || `${index + 1}.1.1`,
-        taskName: cleanCell(readValue(row, "taskName")),
-        indiaTeam: cleanCell(readValue(row, "indiaTeam")),
-        ksaTeam: cleanCell(readValue(row, "ksaTeam")),
-        memberAssign: [],
-        startDate: normalizeDateValue(readValue(row, "startDate")),
-        endDate: normalizeDateValue(readValue(row, "endDate")),
-        isDone: false,
-        doneMarkedOn: "",
-        percentDone: normalizePercentDoneString(readValue(row, "percentDone")) || "0",
-        workDays: calculateWorkDays(normalizeDateValue(readValue(row, "startDate")), normalizeDateValue(readValue(row, "endDate"))),
-        remaining: calculateRemainingValue(normalizePercentDoneString(readValue(row, "percentDone")) || "0"),
-        remark: "",
-      }))
+      .map((row, index) => {
+        const startDate = normalizeDateValue(readValue(row, "startDate"));
+        const endDate = normalizeDateValue(readValue(row, "endDate"));
+        const percentDone = normalizePercentDoneString(readValue(row, "percentDone")) || "0";
+        const doneState = getDoneStateFromPercent(percentDone);
+
+        return {
+          id: `gantt-${Date.now()}-${index}`,
+          label: cleanCell(readValue(row, "label")) || `${index + 1}.1.1`,
+          taskName: cleanCell(readValue(row, "taskName")),
+          indiaTeam: cleanCell(readValue(row, "indiaTeam")),
+          ksaTeam: cleanCell(readValue(row, "ksaTeam")),
+          memberAssign: [],
+          startDate,
+          endDate,
+          isDone: doneState.isDone,
+          doneMarkedOn: doneState.doneMarkedOn,
+          percentDone,
+          workDays: calculateWorkDays(startDate, endDate),
+          remaining: doneState.remaining,
+          remark: "",
+        };
+      })
       .filter((row) => row.taskName);
   }
 
@@ -2270,6 +2294,7 @@ export default function PdplWorkspace({
   search,
   setSearch,
   showToast,
+  onBackToTemplates,
 }) {
   const emptyProjectForm = {
     projectName: "",
@@ -2303,6 +2328,7 @@ export default function PdplWorkspace({
   const [drawerState, setDrawerState] = useState({ open: false, sectionKey: "", key: null });
   const [drawerValues, setDrawerValues] = useState({});
   const [drawerInitialValues, setDrawerInitialValues] = useState({});
+  const [drawerSaving, setDrawerSaving] = useState(false);
   const [saveConfirmState, setSaveConfirmState] = useState({ open: false, scope: "all", verified: false });
   const [savingScope, setSavingScope] = useState(null);
   const [projectSaveBaseline, setProjectSaveBaseline] = useState({});
@@ -2669,6 +2695,86 @@ export default function PdplWorkspace({
     return result;
   };
 
+  const serializePdplRowPayload = (project, sectionKey, row) => {
+    if (sectionKey === "gantt") {
+      return {
+        label: row.label || "",
+        taskName: row.taskName || "",
+        indiaTeam: row.indiaTeam || "",
+        ksaTeam: row.ksaTeam || "",
+        memberAssignEmployeeIds: resolveProjectMemberIdsByName(project, row.memberAssign),
+        startDate: row.startDate || "",
+        endDate: row.endDate || "",
+        isDone: Boolean(row.isDone),
+        doneMarkedOn: row.doneMarkedOn || "",
+        percentDone: row.percentDone || 0,
+        workDays: row.workDays || 0,
+        remaining: row.remaining || 0,
+        remark: row.remark || "",
+      };
+    }
+
+    if (sectionKey === "controls") {
+      return {
+        serialNo: row.serialNo || "",
+        category: row.category || "",
+        title: row.title || "",
+        status: row.status || "Not Started",
+      };
+    }
+
+    if (sectionKey === "policies") {
+      return {
+        serialNo: row.serialNo || "",
+        policyName: row.policyName || "",
+        status: row.status || "Pending",
+        documentStatus: row.documentStatus || "Not Received",
+      };
+    }
+
+    return {
+      serialNo: row.serialNo || "",
+      documentName: row.documentName || "",
+      status: row.status || "Incomplete",
+      documentStatus: row.documentStatus || "Not Received",
+    };
+  };
+
+  const reloadPdplProjectFromDatabase = async (persistedProjectId, drawerSectionKey = "", drawerRowId = null) => {
+    const response = await fetch(`/Auditing/api/pdpl/projects/${persistedProjectId}`, { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to reload PDPL project.");
+    }
+
+    const detailedProject = mapPdplProjectDetailToLocalProject(result.project);
+    setProjectSaveBaseline((current) => ({ ...current, [detailedProject.id]: createPdplSaveBaseline(detailedProject) }));
+    setProjects((existing) => existing.map((project) => (project.id === detailedProject.id ? { ...project, ...detailedProject } : project)));
+    setProjectId(detailedProject.id);
+
+    if (drawerSectionKey && drawerRowId) {
+      const listKey = sectionListKeyMap[drawerSectionKey];
+      const reloadedRow = (detailedProject.pdplData[listKey] || []).find((item) => item.id === drawerRowId);
+      if (reloadedRow) {
+        const nextDrawerValues =
+          drawerSectionKey === "gantt"
+            ? {
+                ...reloadedRow,
+                memberAssign: normalizeMemberAssign(reloadedRow.memberAssign),
+                isDone: Boolean(reloadedRow.isDone),
+                doneMarkedOn: reloadedRow.doneMarkedOn || "",
+              }
+            : { ...reloadedRow };
+        setDrawerState({ open: true, sectionKey: drawerSectionKey, key: drawerRowId });
+        setDrawerValues(nextDrawerValues);
+        setDrawerInitialValues(nextDrawerValues);
+        return;
+      }
+    }
+
+    closeDrawer();
+  };
+
   const createProject = (form) => {
     if (!form.projectName || !form.clientName) {
       showToast("error", "Project name and client name are required.");
@@ -2975,7 +3081,7 @@ export default function PdplWorkspace({
     setDrawerInitialValues({});
   };
 
-  const saveDrawer = () => {
+  const saveDrawer = async () => {
     if (!currentProject || !drawerState.open) return;
     const sectionKey = drawerState.sectionKey;
     if (sectionKey === "dashboard") {
@@ -2990,52 +3096,96 @@ export default function PdplWorkspace({
       showToast("success", "Row changes applied. Use the top save button to sync them to the database.");
       return;
     }
-    if (sectionKey === "documents") {
-      const nextValues = { ...drawerValues };
-      if (Array.isArray(nextValues.attachments) && nextValues.attachments.length) {
-        nextValues.status = "Complete";
-        nextValues.documentStatus = "Received";
-      }
-      updateCurrentProject((project) => {
-        const listKey = sectionListKeyMap[sectionKey];
-        const nextRows = (project.pdplData[listKey] || []).map((row) => (row.id === drawerState.key ? { ...row, ...nextValues } : row));
-        return { ...project, pdplData: { ...project.pdplData, [listKey]: nextRows } };
-      });
-      setDrawerValues(nextValues);
-      setDrawerInitialValues(nextValues);
-      showToast("success", "Row changes applied. Use the top save button to sync them to the database.");
-      return;
-    }
-    updateCurrentProject((project) => {
-      const listKey = sectionListKeyMap[sectionKey];
-      const nextRows = (project.pdplData[listKey] || []).map((row) => {
-        if (row.id !== drawerState.key) return row;
-        const nextRow = { ...row, ...drawerValues };
-        if (sectionKey === "gantt") {
-          nextRow.memberAssign = normalizeMemberAssign(nextRow.memberAssign);
-          nextRow.isDone = Boolean(nextRow.isDone);
-          nextRow.doneMarkedOn = nextRow.isDone ? nextRow.doneMarkedOn || getTodayDateValue() : "";
-          const workDays = calculateWorkDays(nextRow.startDate, nextRow.endDate);
-          nextRow.workDays = workDays;
+
+    setDrawerSaving(true);
+    try {
+      const projectSnapshot = ensurePdplProject(currentProject);
+      const persistedProjectId = await saveProjectShellToDatabase(projectSnapshot);
+
+      const nextDrawerValues =
+        sectionKey === "gantt"
+          ? {
+              ...drawerValues,
+              memberAssign: normalizeMemberAssign(drawerValues.memberAssign),
+              ...getDoneStateFromPercent(drawerValues.percentDone, drawerValues.doneMarkedOn),
+              workDays: calculateWorkDays(drawerValues.startDate, drawerValues.endDate),
+            }
+          : sectionKey === "documents"
+          ? {
+              ...drawerValues,
+              status: Array.isArray(drawerValues.attachments) && drawerValues.attachments.length ? "Complete" : drawerValues.status,
+              documentStatus: Array.isArray(drawerValues.attachments) && drawerValues.attachments.length ? "Received" : drawerValues.documentStatus,
+            }
+          : { ...drawerValues };
+
+      const payload = serializePdplRowPayload(projectSnapshot, sectionKey, nextDrawerValues);
+      let persistedRowId = drawerState.key;
+
+      if (isPersistedProjectId(String(drawerState.key))) {
+        const response = await fetch(`/Auditing/api/pdpl/projects/${persistedProjectId}/sections/${sectionKey}/${drawerState.key}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || `Failed to update ${SECTION_META[sectionKey]?.label || sectionKey} row.`);
         }
-        return nextRow;
-      });
-      return { ...project, pdplData: { ...project.pdplData, [listKey]: nextRows } };
-    });
-    const nextDrawerValues =
-      sectionKey === "gantt"
-        ? {
-            ...drawerValues,
-            memberAssign: normalizeMemberAssign(drawerValues.memberAssign),
-            isDone: Boolean(drawerValues.isDone),
-            doneMarkedOn: drawerValues.isDone ? drawerValues.doneMarkedOn || getTodayDateValue() : "",
-            workDays: calculateWorkDays(drawerValues.startDate, drawerValues.endDate),
-            remaining: calculateRemainingValue(drawerValues.percentDone),
+      } else {
+        const response = await fetch(`/Auditing/api/pdpl/projects/${persistedProjectId}/sections/${sectionKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || `Failed to create ${SECTION_META[sectionKey]?.label || sectionKey} row.`);
+        }
+        persistedRowId = result.rowId;
+      }
+
+      if (sectionKey === "documents") {
+        const originalRow = (projectSnapshot.pdplData.documentRows || []).find((row) => row.id === drawerState.key) || { attachments: [] };
+        const originalAttachments = Array.isArray(originalRow.attachments) ? originalRow.attachments : [];
+        const currentAttachments = Array.isArray(nextDrawerValues.attachments) ? nextDrawerValues.attachments : [];
+        const persistedAttachments = currentAttachments.filter((item) => !(item instanceof File));
+        const newFiles = currentAttachments.filter((item) => item instanceof File);
+        const removedAttachments = originalAttachments.filter(
+          (attachment) => !persistedAttachments.some((item) => item.id && item.id === attachment.id)
+        );
+
+        for (const attachment of removedAttachments) {
+          const response = await fetch(
+            `/Auditing/api/pdpl/projects/${persistedProjectId}/documents/${persistedRowId}/attachments/${attachment.id}`,
+            { method: "DELETE" }
+          );
+          const result = await response.json();
+          if (!response.ok) {
+            throw new Error(result.error || "Failed to delete PDPL attachment.");
           }
-        : { ...drawerValues };
-    setDrawerValues(nextDrawerValues);
-    setDrawerInitialValues(nextDrawerValues);
-    showToast("success", "Row changes applied. Use the top save button to sync them to the database.");
+        }
+
+        if (newFiles.length) {
+          const formData = new FormData();
+          newFiles.forEach((file) => formData.append("files", file));
+          const response = await fetch(`/Auditing/api/pdpl/projects/${persistedProjectId}/documents/${persistedRowId}/attachments`, {
+            method: "POST",
+            body: formData,
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            throw new Error(result.error || "Failed to upload PDPL attachments.");
+          }
+        }
+      }
+
+      await reloadPdplProjectFromDatabase(persistedProjectId, sectionKey, persistedRowId);
+      showToast("success", "Row changes saved to the database.");
+    } catch (error) {
+      showToast("error", error.message || "Failed to save PDPL row.");
+    } finally {
+      setDrawerSaving(false);
+    }
   };
 
   const deleteRow = (sectionKey, rowId) => {
@@ -3057,7 +3207,7 @@ export default function PdplWorkspace({
     });
   };
 
-  const deleteDrawerRow = () => {
+  const deleteDrawerRow = async () => {
     if (!drawerState.open) return;
     if (drawerState.sectionKey === "dashboard") {
       const listKey = sectionListKeyMap[drawerState.sectionKey];
@@ -3069,8 +3219,24 @@ export default function PdplWorkspace({
       closeDrawer();
       return;
     }
-    deleteRow(drawerState.sectionKey, drawerState.key);
-    closeDrawer();
+    try {
+      if (currentProject && isPersistedProjectId(currentProject.id) && isPersistedProjectId(String(drawerState.key))) {
+        const response = await fetch(`/Auditing/api/pdpl/projects/${currentProject.id}/sections/${drawerState.sectionKey}/${drawerState.key}`, {
+          method: "DELETE",
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to delete PDPL row.");
+        }
+        await reloadPdplProjectFromDatabase(currentProject.id);
+      } else {
+        deleteRow(drawerState.sectionKey, drawerState.key);
+        closeDrawer();
+      }
+      showToast("success", "Row deleted.");
+    } catch (error) {
+      showToast("error", error.message || "Failed to delete PDPL row.");
+    }
   };
 
   const downloadTextFile = (fileName, content, type = "text/csv;charset=utf-8;") => {
@@ -3280,12 +3446,12 @@ export default function PdplWorkspace({
   const renderDashboard = () => (
     <div style={{ padding: "24px 28px 32px", overflowY: "auto", flex: 1 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.text }}>PDPL Projects</div>
-          <div style={{ fontSize: 13, color: COLORS.textSoft, marginTop: 6 }}>
-            Create a PDPL project first, then upload the workbook or fill each section manually.
-          </div>
-        </div>
+        <button
+          onClick={() => onBackToTemplates?.()}
+          style={{ ...tableInputStyle, width: 140, cursor: "pointer" }}
+        >
+          Back Template
+        </button>
       </div>
 
       {pdplProjectsLoading ? (
@@ -3947,9 +4113,18 @@ export default function PdplWorkspace({
               if (key === "startDate" || key === "endDate") {
                 next.workDays = calculateWorkDays(next.startDate, next.endDate);
               }
+              if (key === "percentDone") {
+                Object.assign(next, getDoneStateFromPercent(value, next.doneMarkedOn));
+              }
               if (key === "isDone") {
-                next.isDone = Boolean(value);
-                next.doneMarkedOn = value ? next.doneMarkedOn || getTodayDateValue() : "";
+                if (value) {
+                  next.percentDone = "100";
+                  Object.assign(next, getDoneStateFromPercent(100, next.doneMarkedOn));
+                } else {
+                  next.isDone = false;
+                  next.doneMarkedOn = "";
+                  next.remaining = calculateRemainingValue(next.percentDone);
+                }
               }
             }
             return next;
@@ -3958,8 +4133,8 @@ export default function PdplWorkspace({
         onClose={closeDrawer}
         onSave={saveDrawer}
         onDelete={deleteDrawerRow}
-        saveDisabled={!isDrawerDirty}
-        saveLabel={isDrawerDirty ? "Apply Changes" : "Applied"}
+        saveDisabled={!isDrawerDirty || drawerSaving}
+        saveLabel={drawerSaving ? "Saving..." : isDrawerDirty ? "Apply Changes" : "Applied"}
       />
     </div>
   );

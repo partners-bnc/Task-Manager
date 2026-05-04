@@ -23,4 +23,16 @@ export const AUDIT_TEMPLATES = [
       "Audit structure for operational and process-driven engagements with project-wise control testing.",
     status: "Ready",
   },
+  {
+    id: "cst-audit-template",
+    name: "CST Audit",
+    shortCode: "CST",
+    icon: "📊",
+    accent: "#0f766e",
+    bg: "#ecfeff",
+    border: "#a5f3fc",
+    description:
+      "CST audit workspace focused on Gantt execution, task ownership, progress tracking, and dashboard completion insights.",
+    status: "Ready",
+  },
 ];

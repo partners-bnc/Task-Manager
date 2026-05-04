@@ -69,14 +69,10 @@ function getProjectedLopLabel(item: { projectedPaidDays?: number; projectedLopDa
   const projectedLopDays = Number(item.projectedLopDays || 0);
 
   if (projectedLopDays <= 0) {
-    return 'Paid Leave';
+    return projectedPaidDays > 0 ? 'Paid Leave' : 'No Deduction';
   }
 
-  if (projectedPaidDays <= 0) {
-    return 'Will be LOP';
-  }
-
-  return 'Partially LOP';
+  return 'Unpaid Leave';
 }
 
 function statusTone(status: string) {

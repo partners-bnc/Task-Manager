@@ -748,16 +748,16 @@ export async function deletePdplProject(projectId, actor) {
 function normalizeGanttRowPayload(payload = {}, index = 0) {
   const memberAssignEmployeeIds = normalizeMultiValue(payload.memberAssignEmployeeIds || payload.member_assign_employee_ids || payload.memberIds || payload.member_ids);
   const isDoneRaw = payload.isDone ?? payload.is_done;
-  const isDone =
+  const explicitDone =
     isDoneRaw === true ||
     isDoneRaw === 'true' ||
     isDoneRaw === 'yes' ||
     isDoneRaw === 'done' ||
     isDoneRaw === 1 ||
     isDoneRaw === '1';
-  const doneMarkedOn = isDone ? normalizeDate(payload.doneMarkedOn || payload.done_marked_on) || new Date().toISOString().slice(0, 10) : null;
-
   const normalizedPercentDone = Math.max(0, Math.min(100, normalizePercentDoneValue(payload.percentDone ?? payload.percent_done, 0)));
+  const isDone = explicitDone || normalizedPercentDone >= 100;
+  const doneMarkedOn = isDone ? normalizeDate(payload.doneMarkedOn || payload.done_marked_on) || new Date().toISOString().slice(0, 10) : null;
 
   return {
     sort_order: payload.sortOrder ?? payload.sort_order ?? index,

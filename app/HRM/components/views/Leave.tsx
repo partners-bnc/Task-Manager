@@ -108,14 +108,10 @@ function getProjectedLopLabel(item: { projectedPaidDays?: number; projectedLopDa
   const projectedLopDays = Number(item.projectedLopDays || 0);
 
   if (projectedLopDays <= 0) {
-    return 'Paid Leave';
+    return projectedPaidDays > 0 ? 'Paid Leave' : 'No Deduction';
   }
 
-  if (projectedPaidDays <= 0) {
-    return 'Will be LOP';
-  }
-
-  return 'Partially LOP';
+  return 'Unpaid Leave';
 }
 
 function getStatusPill(status: string) {
@@ -172,6 +168,9 @@ export default function Leave() {
 
   const isSpecialLeave = selectedLeaveType?.code === 'special_leave';
   const isCompOffLeave = selectedLeaveType?.code === 'comp_off' || selectedLeaveType?.code === 'compensatory_off';
+  const isLopLeave = selectedLeaveType?.code === 'lop' || selectedLeaveType?.code === 'loss_of_pay' || selectedLeaveType?.code === 'loss_of_pay_lop';
+  const isClientHolidayLeave =
+    selectedLeaveType?.code === 'client_holiday' || selectedLeaveType?.code === 'client_holiday_ch' || selectedLeaveType?.code === 'ch';
   const sessionOptions = isSpecialLeave ? [SESSION_OPTIONS[0]] : SESSION_OPTIONS;
 
   const loadLeaveData = useCallback(async () => {
@@ -469,16 +468,22 @@ export default function Leave() {
                       ))}
                     </select>
                     {isSpecialLeave ? (
-                      <p className="mt-2 text-xs text-on-surface-variant">Special Leave is full-day only. If no balance is left, approved leave will convert into LOP.</p>
+                      <p className="mt-2 text-xs text-on-surface-variant">Special Leave is full-day only. If balance is not enough, apply under LOP instead.</p>
                     ) : null}
                     {isCompOffLeave ? (
                       <p className="mt-2 text-xs text-on-surface-variant">Comp Off is for working on your non-working Saturday or Sunday and using a compensatory leave later.</p>
                     ) : null}
-                    {!isCompOffLeave && selectedLeaveBalance && Number(selectedLeaveBalance.availableDays || 0) <= 0 ? (
-                      <p className="mt-2 text-xs font-medium text-rose-700">No paid balance left. If approved, this leave will be marked fully as LOP.</p>
+                    {isLopLeave ? (
+                      <p className="mt-2 text-xs text-on-surface-variant">LOP is an unpaid leave. You can choose it directly even if paid leave balance is still available.</p>
                     ) : null}
-                    {!isCompOffLeave && selectedLeaveBalance && Number(selectedLeaveBalance.availableDays || 0) > 0 && Number(selectedLeaveBalance.availableDays || 0) < 1 ? (
-                      <p className="mt-2 text-xs font-medium text-amber-700">Remaining balance is low. Any shortage after approval will convert to LOP.</p>
+                    {isClientHolidayLeave ? (
+                      <p className="mt-2 text-xs text-on-surface-variant">Client Holiday is approval-based and does not deduct balance or payroll.</p>
+                    ) : null}
+                    {!isCompOffLeave && !isLopLeave && !isClientHolidayLeave && selectedLeaveBalance && Number(selectedLeaveBalance.availableDays || 0) <= 0 ? (
+                      <p className="mt-2 text-xs font-medium text-rose-700">No paid balance left. Please apply under LOP if you need unpaid leave.</p>
+                    ) : null}
+                    {!isCompOffLeave && !isLopLeave && !isClientHolidayLeave && selectedLeaveBalance && Number(selectedLeaveBalance.availableDays || 0) > 0 && Number(selectedLeaveBalance.availableDays || 0) < 1 ? (
+                      <p className="mt-2 text-xs font-medium text-amber-700">Remaining balance is low. If the selected dates need more leave than available, apply under LOP instead.</p>
                     ) : null}
                   </div>
 
@@ -520,7 +525,7 @@ export default function Leave() {
                           <span className="text-on-surface-variant">Selected Type</span>
                           <span className="font-semibold text-on-surface">
                             {selectedLeaveType.name}
-                            {isCompOffLeave
+                            {isCompOffLeave || isLopLeave || isClientHolidayLeave
                               ? ' (approval based)'
                               : ` (${formatLeaveDays(selectedLeaveBalance?.availableDays ?? 0)} left)`}
                           </span>
@@ -595,7 +600,7 @@ export default function Leave() {
           <div className="relative z-10">
             <h3 className="text-xl font-bold font-headline leading-tight text-on-tertiary-container">Leave Policy Snapshot</h3>
             <p className="mt-2 text-sm leading-6 text-on-tertiary-container/80">
-              Casual, Sick, and Special Leave use paid balance first, and any shortage converts into LOP after approval. Comp Off remains approval-based without any LOP impact.
+              Casual, Sick, and Special Leave need enough balance before submission. If balance is not enough, apply under LOP. Comp Off and Client Holiday remain approval-based without payroll deduction.
             </p>
           </div>
 
@@ -610,9 +615,13 @@ export default function Leave() {
                   <p className="text-sm font-semibold text-on-tertiary-container">{leaveType.name}</p>
                   <p className="text-xs text-on-tertiary-container/80">
                     {leaveType.code === 'special_leave'
-                      ? 'Yearly allocation: 1 day - balance shortage converts to LOP'
+                      ? 'Yearly allocation: 1 day - insufficient balance must use LOP'
                       : leaveType.code === 'comp_off' || leaveType.code === 'compensatory_off'
                         ? 'Approval-based compensatory leave - No LOP impact'
+                        : leaveType.code === 'lop' || leaveType.code === 'loss_of_pay' || leaveType.code === 'loss_of_pay_lop'
+                          ? 'Unpaid leave - Payroll deduction applies after approval'
+                          : leaveType.code === 'client_holiday' || leaveType.code === 'client_holiday_ch' || leaveType.code === 'ch'
+                            ? 'Approval-based client holiday - No balance or payroll deduction'
                         : `Monthly credit: ${formatLeaveDays(leaveType.monthlyCreditDays)} day(s)${leaveType.isPaid ? ' - Paid Leave' : ' - Unpaid'}`}
                   </p>
                 </div>

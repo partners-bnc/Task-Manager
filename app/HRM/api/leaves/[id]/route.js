@@ -7,6 +7,7 @@ import {
   buildLeaveBalanceMap,
   calculateLeaveDays,
   getEmployeeLeaveContext,
+  isLopLeaveType,
   isMissingLeaveSchemaError,
   listActiveLeaveTypes,
   resolveApprovedLeaveOutcome,
@@ -152,7 +153,7 @@ export async function PATCH(request, context) {
       employeeSchedule: employee.workingSchedule,
     });
 
-    const { approvedDays, paidDays, lopDays, deductFromBalance } = resolveApprovedLeaveOutcome({
+    const { approvedDays, paidDays, lopDays, balanceUpdateMode } = resolveApprovedLeaveOutcome({
       leaveType,
       balance,
       requestedDays: calculation.totalDays,
@@ -178,12 +179,11 @@ export async function PATCH(request, context) {
       return NextResponse.json({ error: approveError.message || 'Failed to approve leave request' }, { status: 500 });
     }
 
-    if (deductFromBalance) {
+    if (balanceUpdateMode === 'paid') {
       const { error: balanceError } = await adminClient
         .from('hrm_leave_balances')
         .update({
           used_days: Number(balance.used_days || 0) + paidDays,
-          lop_days: Number(balance.lop_days || 0) + lopDays,
           available_days: Math.max(0, Number(balance.available_days || 0) - paidDays),
         })
         .eq('id', balance.id);
@@ -194,6 +194,19 @@ export async function PATCH(request, context) {
     }
 
     if (lopDays > 0) {
+      if (balanceUpdateMode === 'lop_only') {
+        const { error: balanceError } = await adminClient
+          .from('hrm_leave_balances')
+          .update({
+            lop_days: Number(balance.lop_days || 0) + lopDays,
+          })
+          .eq('id', balance.id);
+
+        if (balanceError) {
+          return NextResponse.json({ error: balanceError.message || 'Failed to update leave balance' }, { status: 500 });
+        }
+      }
+
       await createLedgerEntry({
         employee_id: employee.id,
         leave_type_id: leaveType.id,
@@ -202,7 +215,9 @@ export async function PATCH(request, context) {
         entry_type: 'lop_conversion',
         days: lopDays,
         reference_request_id: leaveRequest.id,
-        note: `Loss of pay generated for request ${leaveRequest.id}.`,
+        note: isLopLeaveType(leaveType)
+          ? `Approved LOP request ${leaveRequest.id}.`
+          : `Loss of pay generated for request ${leaveRequest.id}.`,
       });
     }
 

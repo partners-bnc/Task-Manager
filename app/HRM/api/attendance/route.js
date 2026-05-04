@@ -18,6 +18,8 @@ import {
 } from '@/utils/attendance';
 import { resolveAttendanceDoorAddress } from '@/utils/attendance-location-server';
 
+const HALF_DAY_BOUNDARY_MINUTES = 14 * 60;
+
 function isMissingAttendanceTableError(error) {
   const message = error?.message || '';
   return (
@@ -211,6 +213,25 @@ async function getTodayActionFromLatestSwipe(employeeId, attendanceDate) {
   return latestSwipe?.swipe_type === 'in' ? 'check_out' : 'check_in';
 }
 
+async function getApprovedLeaveForDate(employeeId, attendanceDate) {
+  const { data, error } = await adminClient
+    .from('hrm_leave_requests')
+    .select('id, leave_type_id, start_date, end_date, session, applied_session, status, leave_type:hrm_leave_types (id, name)')
+    .eq('employee_id', employeeId)
+    .eq('status', 'approved')
+    .lte('start_date', attendanceDate)
+    .gte('end_date', attendanceDate)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || 'Failed to validate approved leave for the selected date');
+  }
+
+  return data || null;
+}
+
 function buildMonthPayload(month, rows, holidays, employeeSchedule, todayAction = 'check_in') {
   const { start, end } = getDateRangeForMonth(month);
   const today = getCurrentDateInTimeZone();
@@ -373,9 +394,13 @@ export async function POST(request) {
       return NextResponse.json({ error: todayError.message || 'Failed to load attendance status' }, { status: 500 });
     }
 
-    if (todayAttendance?.status === 'on_leave') {
+    const approvedLeave = await getApprovedLeaveForDate(employeeContext.employeeId, attendanceDate);
+    const approvedLeaveSession = String(approvedLeave?.applied_session || approvedLeave?.session || 'full_day').toLowerCase();
+    const approvedLeaveName = approvedLeave?.leave_type?.name || 'approved leave';
+
+    if (todayAttendance?.status === 'on_leave' || approvedLeaveSession === 'full_day') {
       return NextResponse.json(
-        { error: 'Approved leave is already applied for today. Attendance cannot be marked.' },
+        { error: `Approved ${approvedLeaveName} is already applied for today. Attendance cannot be marked.` },
         { status: 400 }
       );
     }
@@ -400,6 +425,21 @@ export async function POST(request) {
 
     const lastSwipe = existingSwipes[existingSwipes.length - 1] || null;
     const nextSwipeType = !lastSwipe || lastSwipe.swipe_type === 'out' ? 'in' : 'out';
+
+    if (nextSwipeType === 'in' && approvedLeaveSession === 'first_half' && getCurrentMinutesInTimeZone() < HALF_DAY_BOUNDARY_MINUTES) {
+      return NextResponse.json(
+        { error: `Approved ${approvedLeaveName} covers the first half today. Attendance can be marked only in the second half.` },
+        { status: 400 }
+      );
+    }
+
+    if (nextSwipeType === 'in' && approvedLeaveSession === 'second_half' && getCurrentMinutesInTimeZone() >= HALF_DAY_BOUNDARY_MINUTES) {
+      return NextResponse.json(
+        { error: `Approved ${approvedLeaveName} covers the second half today. Attendance can be marked only in the first half.` },
+        { status: 400 }
+      );
+    }
+
     const resolvedLocation = await resolveAttendanceDoorAddress(locationPayload);
 
     let attendanceId = todayAttendance?.id || null;

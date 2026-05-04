@@ -6,8 +6,12 @@ import {
   buildLeaveSummary,
   calculateLeaveDays,
   formatLeaveSession,
+  getLeaveAttendanceCode,
   getEmployeeLeaveContext,
   getLeaveTypeCode,
+  isClientHolidayLeaveType,
+  isCompOffLeaveType,
+  isLopLeaveType,
   isMissingLeaveSchemaError,
   listDirectReportEmployeesForLeave,
   listActiveLeaveTypes,
@@ -66,6 +70,47 @@ function mapLeaveRequest(row, leaveTypeMap) {
   };
 }
 
+function buildProjectedOutcome(leaveType, totalDays) {
+  if (isLopLeaveType(leaveType)) {
+    return {
+      projectedPaidDays: 0,
+      projectedLopDays: totalDays,
+      isProjectedLop: totalDays > 0,
+    };
+  }
+
+  if (isCompOffLeaveType(leaveType) || isClientHolidayLeaveType(leaveType)) {
+    return {
+      projectedPaidDays: totalDays,
+      projectedLopDays: 0,
+      isProjectedLop: false,
+    };
+  }
+
+  return {
+    projectedPaidDays: totalDays,
+    projectedLopDays: 0,
+    isProjectedLop: false,
+  };
+}
+
+async function loadBalanceAvailabilityForEmployees(employees = []) {
+  const balanceGroups = await Promise.all(
+    employees.map(async (reportEmployee) => {
+      const reportContext = await getEmployeeLeaveContext(reportEmployee.id);
+      const { balances: reportBalances } = await syncEmployeeLeaveBalances(reportContext);
+
+      return reportBalances.map((balance) => ({
+        employeeId: reportEmployee.id,
+        leaveTypeId: balance.leave_type_id,
+        availableDays: Number(balance.available_days || 0),
+      }));
+    })
+  );
+
+  return balanceGroups.flat();
+}
+
 export async function GET() {
   try {
     const employeeAuth = await requireEmployeeContext();
@@ -79,18 +124,7 @@ export async function GET() {
 
     const directReports = await listDirectReportEmployeesForLeave(employee.id);
     const directReportIds = directReports.map((item) => item.id).filter(Boolean);
-    const teamBalances = [];
-    for (const reportEmployee of directReports) {
-      const reportContext = await getEmployeeLeaveContext(reportEmployee.id);
-      const { balances: reportBalances } = await syncEmployeeLeaveBalances(reportContext);
-      teamBalances.push(
-        ...reportBalances.map((balance) => ({
-          employeeId: reportEmployee.id,
-          leaveTypeId: balance.leave_type_id,
-          availableDays: Number(balance.available_days || 0),
-        }))
-      );
-    }
+    const teamBalances = await loadBalanceAvailabilityForEmployees(directReports);
     const teamBalanceAvailabilityMap = new Map(
       teamBalances.map((balance) => [`${balance.employeeId}:${balance.leaveTypeId}`, balance.availableDays])
     );
@@ -138,19 +172,17 @@ export async function GET() {
     const mappedTeamRequests = (teamRequests || []).map((row) => {
       const employeeRow = teamEmployeeMap.get(row.employee_id);
       const baseRequest = mapLeaveRequest(row, leaveTypeMap);
-      const availableDays = Number(teamBalanceAvailabilityMap.get(`${row.employee_id}:${row.leave_type_id}`) || 0);
-      const isCompOff = baseRequest.leaveTypeCode === 'comp_off' || baseRequest.leaveTypeCode === 'compensatory_off';
-      const projectedPaidDays = isCompOff ? baseRequest.totalDays : Math.min(baseRequest.totalDays, availableDays);
-      const projectedLopDays = isCompOff ? 0 : Math.max(0, baseRequest.totalDays - projectedPaidDays);
+      const leaveType = leaveTypeMap.get(row.leave_type_id);
+      const projected = buildProjectedOutcome(leaveType, baseRequest.totalDays);
 
       return {
         ...baseRequest,
         employeeId: row.employee_id,
         employeeCode: employeeRow?.employee_id || '',
         employeeName: employeeRow?.name || 'Employee',
-        projectedPaidDays,
-        projectedLopDays,
-        isProjectedLop: projectedLopDays > 0,
+        projectedPaidDays: projected.projectedPaidDays,
+        projectedLopDays: projected.projectedLopDays,
+        isProjectedLop: projected.isProjectedLop,
       };
     });
 
@@ -230,8 +262,9 @@ export async function POST(request) {
     }
 
     const employee = await getEmployeeLeaveContext(employeeAuth.employeeId);
-    const { leaveTypes } = await syncEmployeeLeaveBalances(employee);
+    const { leaveTypes, balances } = await syncEmployeeLeaveBalances(employee);
     const leaveType = leaveTypes.find((item) => item.id === leaveTypeId);
+    const selectedBalance = (balances || []).find((item) => item.leave_type_id === leaveTypeId) || null;
 
     if (!leaveType) {
       return NextResponse.json({ error: 'Selected leave type is not active.' }, { status: 400 });
@@ -252,6 +285,7 @@ export async function POST(request) {
       session,
       compOffWorkedDate,
       totalDays: calculation.totalDays,
+      availableDays: Number(selectedBalance?.available_days || 0),
     });
 
     if (calculation.totalDays <= 0) {
@@ -336,6 +370,7 @@ export async function POST(request) {
         request: {
           id: created.id,
           leaveTypeName: leaveType.name,
+          leaveTypeCode: getLeaveAttendanceCode(leaveType),
           totalDays: calculation.totalDays,
           sessionLabel: formatLeaveSession(session),
         },

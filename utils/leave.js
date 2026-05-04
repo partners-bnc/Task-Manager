@@ -46,6 +46,33 @@ export function isCompOffLeaveType(leaveType) {
   return code === 'comp_off' || code === 'compensatory_off';
 }
 
+export function isLopLeaveType(leaveType) {
+  const code = getLeaveTypeCode(leaveType);
+  return code === 'lop' || code === 'loss_of_pay' || code === 'loss_of_pay_lop';
+}
+
+export function isClientHolidayLeaveType(leaveType) {
+  const code = getLeaveTypeCode(leaveType);
+  return code === 'client_holiday' || code === 'client_holiday_ch' || code === 'ch';
+}
+
+export function getLeaveAttendanceCode(leaveType) {
+  if (isLopLeaveType(leaveType)) return 'LOP';
+  if (isClientHolidayLeaveType(leaveType)) return 'CH';
+  if (isCompOffLeaveType(leaveType)) return 'COFF';
+  if (isSpecialLeaveType(leaveType)) return 'SP';
+
+  const code = getLeaveTypeCode(leaveType);
+  if (code === 'casual_leave') return 'CL';
+  if (code === 'sick_leave') return 'SL';
+
+  return String(leaveType?.name || leaveType || 'L')
+    .split(/\s+/)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('')
+    .slice(0, 3) || 'L';
+}
+
 function toNumber(value, fallback = 0) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
@@ -524,6 +551,7 @@ export async function validateLeaveRequestPolicy({
   session,
   compOffWorkedDate,
   totalDays,
+  availableDays = 0,
 }) {
   if (isSpecialLeaveType(leaveType)) {
     if (session !== 'full_day') {
@@ -536,6 +564,11 @@ export async function validateLeaveRequestPolicy({
   }
 
   if (!isCompOffLeaveType(leaveType)) {
+    if (!isLopLeaveType(leaveType) && !isClientHolidayLeaveType(leaveType) && leaveType?.is_paid) {
+      if (roundLeaveDays(availableDays) < roundLeaveDays(totalDays)) {
+        throw new Error('Insufficient paid leave balance. Please apply under LOP if you want to request unpaid leave.');
+      }
+    }
     return;
   }
 
@@ -603,23 +636,33 @@ export async function checkSpecialLeaveAvailability({ employeeId, leaveTypeId, y
 }
 
 export function resolveApprovedLeaveOutcome({ leaveType, balance, requestedDays }) {
-  if (isCompOffLeaveType(leaveType)) {
+  if (isCompOffLeaveType(leaveType) || isClientHolidayLeaveType(leaveType)) {
     return {
       approvedDays: requestedDays,
       paidDays: requestedDays,
       lopDays: 0,
-      deductFromBalance: false,
+      balanceUpdateMode: 'none',
+    };
+  }
+
+  if (isLopLeaveType(leaveType)) {
+    return {
+      approvedDays: requestedDays,
+      paidDays: 0,
+      lopDays: requestedDays,
+      balanceUpdateMode: 'lop_only',
     };
   }
 
   const availableDays = Number(balance?.available_days || 0);
-
-  const { paidDays, lopDays } = buildPaidAndLopDays(requestedDays, availableDays);
+  if (roundLeaveDays(availableDays) < roundLeaveDays(requestedDays)) {
+    throw new Error('The employee no longer has enough paid leave balance for this request. Ask them to apply under LOP instead.');
+  }
   return {
     approvedDays: requestedDays,
-    paidDays,
-    lopDays,
-    deductFromBalance: true,
+    paidDays: requestedDays,
+    lopDays: 0,
+    balanceUpdateMode: 'paid',
   };
 }
 
@@ -651,17 +694,21 @@ export async function applyApprovedLeaveToAttendance({ employeeId, workingDates,
       throw new Error(existingQuery.error.message || 'Failed to load attendance for leave approval');
     }
 
-    const status = session === 'full_day' ? 'on_leave' : 'halfday';
-    const notes = `Approved ${leaveTypeName} leave${requestId ? ` (request ${requestId})` : ''}.`;
+    const isHalfDay = session !== 'full_day';
+    const sessionLabel = formatLeaveSession(session);
+    const status = isHalfDay ? 'halfday' : 'on_leave';
+    const notes = isHalfDay
+      ? `Approved ${leaveTypeName} leave for ${sessionLabel}${requestId ? ` (request ${requestId})` : ''}. Attendance can be marked only in the opposite half.`
+      : `Approved ${leaveTypeName} leave${requestId ? ` (request ${requestId})` : ''}.`;
     const payload = {
       employee_id: employeeId,
       date: attendanceDate,
-      check_in: session === 'full_day' ? null : createTimestampForAttendanceDate(attendanceDate, '10:00'),
-      check_out: session === 'full_day' ? null : createTimestampForAttendanceDate(attendanceDate, '14:00'),
+      check_in: null,
+      check_out: null,
       status,
       late_in_minutes: 0,
       early_out_minutes: 0,
-      work_hours_minutes: session === 'full_day' ? 0 : 4 * 60,
+      work_hours_minutes: 0,
       source: 'manual',
       notes,
     };

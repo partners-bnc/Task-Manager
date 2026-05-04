@@ -76,8 +76,9 @@ type MonthlyEditorState = {
   employeeName: string;
   date: string;
   status: string;
-  x: number;
-  y: number;
+  code: string;
+  label: string;
+  notes: string;
   saving: boolean;
 };
 
@@ -198,6 +199,59 @@ function safeFilePart(value = '') {
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
     .replace(/\s+/g, '_');
 }
+
+const MONTHLY_ATTENDANCE_ACTIONS: Array<{ value: string; label: string }> = [
+  { value: 'present', label: 'Present' },
+  { value: 'absent', label: 'Absent' },
+  { value: 'halfday', label: 'Half Day' },
+  { value: 'holiday', label: 'Holiday' },
+  { value: 'weekend', label: 'Off / Weekend' },
+];
+
+const MONTHLY_LEAVE_ACTION_GROUPS: Array<{ title: string; options: Array<{ value: string; label: string }> }> = [
+  {
+    title: 'LOP',
+    options: [
+      { value: 'lop_full_day', label: 'Full Day' },
+      { value: 'lop_first_half', label: 'First Half' },
+      { value: 'lop_second_half', label: 'Second Half' },
+      { value: 'lop_first_half_present', label: 'LOP:P - First Half Leave' },
+      { value: 'lop_second_half_present', label: 'P:LOP - Second Half Leave' },
+    ],
+  },
+  {
+    title: 'Casual Leave',
+    options: [
+      { value: 'casual_leave_full_day', label: 'CL - Full Day' },
+      { value: 'casual_leave_first_half', label: 'CL - First Half' },
+      { value: 'casual_leave_second_half', label: 'CL - Second Half' },
+      { value: 'casual_leave_first_half_present', label: 'CL:P - First Half Leave' },
+      { value: 'casual_leave_second_half_present', label: 'P:CL - Second Half Leave' },
+    ],
+  },
+  {
+    title: 'Sick Leave',
+    options: [
+      { value: 'sick_leave_full_day', label: 'SL - Full Day' },
+      { value: 'sick_leave_first_half', label: 'SL - First Half' },
+      { value: 'sick_leave_second_half', label: 'SL - Second Half' },
+      { value: 'sick_leave_first_half_present', label: 'SL:P - First Half Leave' },
+      { value: 'sick_leave_second_half_present', label: 'P:SL - Second Half Leave' },
+    ],
+  },
+  {
+    title: 'Special Leave',
+    options: [{ value: 'special_leave_full_day', label: 'SP - Full Day' }],
+  },
+  {
+    title: 'Comp Off',
+    options: [{ value: 'comp_off_full_day', label: 'COFF - Full Day' }],
+  },
+  {
+    title: 'Client Holiday',
+    options: [{ value: 'client_holiday_full_day', label: 'CH - Full Day' }],
+  },
+];
 
 export default function AdminAttendance() {
   const { showFeedback } = useHrmFeedback();
@@ -442,29 +496,15 @@ export default function AdminAttendance() {
       return;
     }
 
-    const rect = event.currentTarget.getBoundingClientRect();
-    const popupWidth = 240;
-    const popupHeight = 360;
-    const viewportPadding = 12;
-    const left = Math.max(
-      viewportPadding,
-      Math.min(rect.left, window.innerWidth - popupWidth - viewportPadding)
-    );
-    const preferredBottom = rect.bottom + 8;
-    const preferredTop = rect.top - popupHeight - 8;
-    const top =
-      preferredBottom + popupHeight <= window.innerHeight - viewportPadding
-        ? preferredBottom
-        : Math.max(viewportPadding, preferredTop);
-
     setMonthlyEditor({
       open: true,
       employeeId: row.employee.id,
       employeeName: row.employee.name,
       date: day.date,
       status: day.status,
-      x: left,
-      y: top,
+      code: day.code,
+      label: day.label,
+      notes: day.notes,
       saving: false,
     });
   };
@@ -484,6 +524,7 @@ export default function AdminAttendance() {
           employeeId: monthlyEditor.employeeId,
           date: monthlyEditor.date,
           status: nextStatus,
+          currentCode: monthlyEditor.code,
         }),
       });
       const result = await request.json();
@@ -928,50 +969,69 @@ export default function AdminAttendance() {
               />
             ) : (
               <div className="space-y-7">
-                <div className="flex items-center gap-3 overflow-x-auto">
-                  <div className="shrink-0 text-sm leading-none text-on-surface-variant whitespace-nowrap">
-                    Month-wise attendance matrix for {formatMonthLabel(response?.month || selectedMonth)}.
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm text-on-surface-variant">
+                      Month-wise attendance matrix for {formatMonthLabel(response?.month || selectedMonth)}.
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-3">
+                      <div className="rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1 text-[11px] text-on-surface-variant whitespace-nowrap">
+                        Click past or today cells to edit
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleExportMonthlyExcel}
+                        disabled={monthlyRows.length === 0}
+                        className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                          monthlyRows.length === 0
+                            ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
+                            : 'border border-outline-variant/20 bg-white text-on-surface hover:bg-surface-container-low'
+                        }`}
+                      >
+                        Export Excel
+                      </button>
+                      <span className="rounded-xl border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm whitespace-nowrap">
+                        {monthlyRows.length} employees
+                      </span>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1 pl-17">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1 text-[11px] text-on-surface-variant shadow-sm whitespace-nowrap">
+                  <div className="min-w-0">
+                    <div className="rounded-2xl border border-outline-variant/10 bg-surface-container-low px-3 py-3 shadow-sm">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 text-[11px] text-on-surface-variant">
                       {[
                         ['P', 'present'],
                         ['A', 'absent'],
                         ['HD', 'halfday'],
-                        ['L', 'on_leave'],
+                        ['CL', 'casual leave'],
+                        ['SL', 'sick leave'],
+                        ['SP', 'special leave'],
+                        ['LOP', 'loss of pay'],
+                        ['CH', 'client holiday'],
+                        ['COFF', 'comp off'],
                         ['H', 'holiday'],
                         ['OFF', 'weekend'],
+                        ['LOP:P', 'half-day leave + work'],
                       ].map(([code, status]) => (
-                        <div key={code} className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                        <div
+                          key={code}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/70 px-2.5 py-1 shadow-[0_1px_2px_rgba(15,23,42,0.04)] whitespace-nowrap"
+                        >
                           <span
-                            className={`inline-flex min-w-[28px] items-center justify-center rounded-md px-1.5 py-0.5 text-[9px] font-bold ${getStatusCellTone(status)}`}
+                            className={`inline-flex min-w-[28px] items-center justify-center rounded-md px-1.5 py-0.5 text-[9px] font-bold ${
+                              code.includes(':')
+                                ? getStatusCellTone('halfday')
+                                : getStatusCellTone(
+                                    ['CL', 'SL', 'SP', 'LOP', 'CH', 'COFF'].includes(code) ? 'on_leave' : status
+                                  )
+                            }`}
                           >
                             {code}
                           </span>
                           <span>{status === 'weekend' ? 'Off' : status.replace(/_/g, ' ')}</span>
                         </div>
                       ))}
+                      </div>
                     </div>
-                  </div>
-                  <div className="shrink-0 rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1 text-[11px] text-on-surface-variant whitespace-nowrap">
-                    Click past or today cells to edit
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3 whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={handleExportMonthlyExcel}
-                      disabled={monthlyRows.length === 0}
-                      className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                        monthlyRows.length === 0
-                          ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
-                          : 'border border-outline-variant/20 bg-white text-on-surface hover:bg-surface-container-low'
-                      }`}
-                    >
-                      Export Excel
-                    </button>
-                    <span className="rounded-xl border border-outline-variant/10 bg-surface-container-low px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm whitespace-nowrap">
-                      {monthlyRows.length} employees
-                    </span>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
@@ -1069,55 +1129,83 @@ export default function AdminAttendance() {
             type="button"
             aria-label="Close attendance editor"
             onClick={closeMonthlyEditor}
-            className="fixed inset-0 z-40 cursor-default bg-transparent"
+            className="fixed inset-0 z-40 cursor-default bg-slate-950/18 backdrop-blur-[2px]"
           />
           <div
-            className="fixed z-50 w-[240px] rounded-2xl border border-outline-variant/10 bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
-            style={{
-              left: monthlyEditor.x,
-              top: monthlyEditor.y,
-            }}
+            className="fixed left-[53%] top-1/2 z-50 w-[min(860px,calc(100vw-40px))] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[1.35rem] border border-outline-variant/10 bg-white shadow-[0_20px_60px_rgba(15,23,42,0.22)]"
           >
-            <div className="mb-3">
-              <p className="text-sm font-semibold text-on-surface">{monthlyEditor.employeeName}</p>
-              <p className="mt-1 text-xs text-on-surface-variant">{monthlyEditor.date}</p>
-            </div>
-            <div className="space-y-2">
-              {[
-                ['present', 'Present'],
-                ['absent', 'Absent'],
-                ['halfday', 'Half Day'],
-                ['on_leave', 'On Leave'],
-                ['holiday', 'Holiday'],
-                ['weekend', 'Off / Weekend'],
-              ].map(([value, label]) => (
+            <div className="border-b border-outline-variant/10 px-4 py-3">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <p className="text-sm font-semibold text-on-surface">{monthlyEditor.employeeName}</p>
+                    <p className="text-xs text-on-surface-variant">{monthlyEditor.date}</p>
+                    <span className="rounded-full bg-surface-container px-2.5 py-1 text-[11px] font-semibold text-on-surface">
+                      Current: {monthlyEditor.code} - {monthlyEditor.label}
+                    </span>
+                    <span className="rounded-full bg-surface-container px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-on-surface-variant">
+                      Update Status
+                    </span>
+                  </div>
+                </div>
                 <button
-                  key={value}
                   type="button"
-                  onClick={() => handleMonthlyStatusChange(value)}
+                  onClick={closeMonthlyEditor}
                   disabled={monthlyEditor.saving}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
-                    monthlyEditor.status === value
-                      ? 'bg-surface-container-low font-semibold text-on-surface'
-                      : 'text-on-surface hover:bg-surface-container-low'
-                  } ${monthlyEditor.saving ? 'cursor-wait opacity-70' : ''}`}
+                  aria-label="Close editor"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-outline-variant/15 text-lg leading-none text-on-surface-variant transition hover:bg-surface-container-low disabled:opacity-70"
                 >
-                  <span>{label}</span>
-                  {monthlyEditor.status === value ? (
-                    <span className="material-symbols-outlined text-base">check</span>
-                  ) : null}
+                  ×
                 </button>
-              ))}
+              </div>
             </div>
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={closeMonthlyEditor}
-                disabled={monthlyEditor.saving}
-                className="rounded-full border border-outline-variant/15 px-3 py-1.5 text-xs font-semibold text-on-surface-variant transition hover:bg-surface-container-low disabled:opacity-70"
-              >
-                {monthlyEditor.saving ? 'Saving...' : 'Close'}
-              </button>
+            <div
+              className="grid max-h-[76vh] grid-cols-1 overflow-y-auto pb-4 md:grid-cols-[200px_minmax(0,1fr)] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-200/90 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-2"
+              style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(203,213,225,0.9) transparent' }}
+            >
+              <div className="border-b border-outline-variant/10 px-4 py-3 md:border-b-0 md:border-r">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">Attendance</p>
+                <div className="space-y-2">
+                  {MONTHLY_ATTENDANCE_ACTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => handleMonthlyStatusChange(option.value)}
+                      disabled={monthlyEditor.saving}
+                      className={`flex w-full items-center justify-between rounded-xl border border-outline-variant/10 px-3 py-2 text-left text-[13px] font-medium text-on-surface transition hover:bg-surface-container-low ${
+                        monthlyEditor.saving ? 'cursor-wait opacity-70' : ''
+                      }`}
+                    >
+                      <span>{option.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="px-4 py-3">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">Leave And LOP</p>
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                  {MONTHLY_LEAVE_ACTION_GROUPS.map((group) => (
+                    <div key={group.title} className="rounded-2xl border border-outline-variant/10 bg-surface-container-lowest p-2.5">
+                      <p className="mb-2 text-[12px] font-semibold text-on-surface">{group.title}</p>
+                      <div className="space-y-2">
+                        {group.options.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => handleMonthlyStatusChange(option.value)}
+                            disabled={monthlyEditor.saving}
+                            className={`flex w-full items-center justify-between rounded-xl border border-outline-variant/10 bg-white px-3 py-2 text-left text-[13px] leading-5 text-on-surface transition hover:bg-surface-container-low ${
+                              monthlyEditor.saving ? 'cursor-wait opacity-70' : ''
+                            }`}
+                          >
+                            <span>{option.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </>

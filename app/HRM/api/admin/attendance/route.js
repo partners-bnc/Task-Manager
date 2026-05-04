@@ -10,6 +10,9 @@ import {
   getDateRangeForMonth,
   listDatesInRange,
 } from '@/utils/attendance';
+import { formatLeaveSession, getLeaveAttendanceCode, getLeaveTypeCode } from '@/utils/leave';
+
+const OPPOSITE_HALF_PRESENT_MARKER = '[hr_override_opposite_half_present]';
 
 function isMissingEmploymentColumnError(error) {
   const message = String(error?.message || '').toLowerCase();
@@ -19,6 +22,11 @@ function isMissingEmploymentColumnError(error) {
     message.includes('current_stage') ||
     (message.includes('column') && message.includes('does not exist'))
   );
+}
+
+function isMissingAttendanceColumnError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('hrm_attendance') && message.includes('does not exist');
 }
 
 async function requireHrAdminAccess() {
@@ -87,6 +95,34 @@ async function loadEmployeeRows() {
     .order('name', { ascending: true });
 }
 
+async function loadMonthlyAttendanceRows(employeeIds = [], range = null) {
+  if (!range || !employeeIds.length) {
+    return { data: [], error: null };
+  }
+
+  const preferred = await adminClient
+    .from('hrm_attendance')
+    .select(
+      'employee_id, date, status, check_in, check_out, late_in_minutes, early_out_minutes, work_hours_minutes, source, checkout_source, is_auto_checkout, is_regularized, notes'
+    )
+    .in('employee_id', employeeIds)
+    .gte('date', range.start)
+    .lte('date', range.end)
+    .order('date', { ascending: true });
+
+  if (!preferred.error || !isMissingAttendanceColumnError(preferred.error)) {
+    return preferred;
+  }
+
+  return adminClient
+    .from('hrm_attendance')
+    .select('employee_id, date, status, check_in, check_out, late_in_minutes, early_out_minutes, work_hours_minutes, source, notes')
+    .in('employee_id', employeeIds)
+    .gte('date', range.start)
+    .lte('date', range.end)
+    .order('date', { ascending: true });
+}
+
 function getRelationRecord(value) {
   if (Array.isArray(value)) return value[0] || null;
   return value && typeof value === 'object' ? value : null;
@@ -125,16 +161,51 @@ function mapMonthlyStatusToCode(status = '') {
   return '--';
 }
 
+function buildLeaveCellDetails(leaveRequest, rawAttendance) {
+  const leaveTypeName = leaveRequest?.leave_type?.name || 'Leave';
+  const leaveCode = getLeaveAttendanceCode(leaveRequest?.leave_type || leaveTypeName);
+  const session = leaveRequest?.applied_session || leaveRequest?.session || 'full_day';
+  const isHalfDay = session !== 'full_day';
+  const attendanceMarked =
+    Boolean(rawAttendance?.check_in || rawAttendance?.check_out || Number(rawAttendance?.work_hours_minutes || 0) > 0) ||
+    String(rawAttendance?.attendance_status || rawAttendance?.status || '').toLowerCase() === 'present' ||
+    String(rawAttendance?.notes || '').includes(OPPOSITE_HALF_PRESENT_MARKER);
+  const sourceLabel = leaveRequest?.request_source === 'hr_override' ? 'HR Overwrite' : 'Approved Leave';
+
+  if (isHalfDay) {
+    const oppositeHalfCode = attendanceMarked ? 'P' : 'A';
+    const code = session === 'first_half' ? `${leaveCode}:${oppositeHalfCode}` : `${oppositeHalfCode}:${leaveCode}`;
+
+    return {
+      code,
+      status: 'halfday',
+      label: `${leaveTypeName} (${formatLeaveSession(session)})`,
+      notes: attendanceMarked
+        ? `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Attendance was marked in the opposite half.`
+        : `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Opposite-half attendance was not marked, so the remaining half is absent.`,
+    };
+  }
+
+  return {
+    code: leaveCode,
+    status: 'on_leave',
+    label: leaveTypeName,
+    notes: `${sourceLabel}: ${leaveTypeName} approved for this date.`,
+  };
+}
+
 function buildMonthlySummary(dailyStatuses = []) {
   return dailyStatuses.reduce(
     (summary, day) => {
       const code = String(day?.code || '--');
+      if (code.includes(':')) summary.halfDay += 1;
+      else
       if (code === 'P') summary.present += 1;
       else if (code === 'HD') summary.halfDay += 1;
       else if (code === 'A') summary.absent += 1;
       else if (code === 'OFF') summary.off += 1;
       else if (code === 'H') summary.holiday += 1;
-      else if (code === 'L') summary.leave += 1;
+      else if (['L', 'CL', 'SL', 'SP', 'COFF', 'CH', 'LOP'].includes(code)) summary.leave += 1;
       else summary.missing += 1;
       return summary;
     },
@@ -316,22 +387,26 @@ export async function GET(request) {
         ? employeeRows.filter((employee) => employee.id === employeeId)
         : employeeRows;
 
-      const [attendanceResult, holidaysResult] = range
+      const [attendanceResult, holidaysResult, leaveRequestsResult] = range
         ? await Promise.all([
-            adminClient
-              .from('hrm_attendance')
-              .select('*')
-              .in('employee_id', selectedEmployees.map((employee) => employee.id))
-              .gte('date', range.start)
-              .lte('date', range.end)
-              .order('date', { ascending: true }),
+            loadMonthlyAttendanceRows(
+              selectedEmployees.map((employee) => employee.id),
+              range
+            ),
             adminClient
               .from('hrm_holidays')
               .select('*')
               .gte('date', range.start)
               .lte('date', range.end),
+            adminClient
+              .from('hrm_leave_requests')
+              .select('id, employee_id, leave_type_id, start_date, end_date, applied_session, session, status, request_source, leave_type:hrm_leave_types (id, name)')
+              .in('employee_id', selectedEmployees.map((employee) => employee.id))
+              .eq('status', 'approved')
+              .lte('start_date', range.end)
+              .gte('end_date', range.start),
           ])
-        : [{ data: [], error: null }, { data: [], error: null }];
+        : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
 
       if (attendanceResult.error) {
         return NextResponse.json(
@@ -345,31 +420,51 @@ export async function GET(request) {
           { status: 500 }
         );
       }
-
+      if (leaveRequestsResult.error) {
+        return NextResponse.json(
+          { error: leaveRequestsResult.error.message || 'Failed to load monthly leave requests' },
+          { status: 500 }
+        );
+      }
       const holidayMap = new Map((holidaysResult.data || []).map((holiday) => [holiday.date, holiday]));
       const attendanceMap = new Map(
         (attendanceResult.data || []).map((row) => [`${row.employee_id}:${row.date}`, row])
       );
+      const calendarDateSet = new Set(calendarDays.map((day) => day.date));
+      const leaveRequestMap = new Map();
+      for (const request of (range ? leaveRequestsResult?.data || [] : [])) {
+        const requestStart = request.start_date < range.start ? range.start : request.start_date;
+        const requestEnd = request.end_date > range.end ? range.end : request.end_date;
+        for (const date of listDatesInRange(requestStart, requestEnd)) {
+          if (!calendarDateSet.has(date)) continue;
+          leaveRequestMap.set(`${request.employee_id}:${date}`, request);
+        }
+      }
 
       const rows = selectedEmployees
         .map((employee) => {
           const dailyStatuses = calendarDays.map((day) => {
             const holiday = holidayMap.get(day.date);
             const rawAttendance = attendanceMap.get(`${employee.id}:${day.date}`) || null;
+            const leaveRequest = leaveRequestMap.get(`${employee.id}:${day.date}`) || null;
             const rendered = holiday
               ? buildHolidayUiRecord(day.date, holiday)
               : buildAttendanceUiRecord(day.date, rawAttendance, {
                   workingDays: employee.working_days || [],
                   secondSaturdayOff: Boolean(employee.second_saturday_off),
                 });
-            const normalizedStatus = String(rendered.status || '').toLowerCase() || 'missing';
-            const code = mapMonthlyStatusToCode(normalizedStatus);
+            const leaveDetails =
+              !holiday && rendered.status !== 'weekend' && leaveRequest
+                ? buildLeaveCellDetails(leaveRequest, rawAttendance)
+                : null;
+            const normalizedStatus = String(leaveDetails?.status || rendered.status || '').toLowerCase() || 'missing';
+            const code = leaveDetails?.code || mapMonthlyStatusToCode(normalizedStatus);
             return {
               date: day.date,
               code,
               status: normalizedStatus === 'weekend' ? 'weekend' : normalizedStatus || 'missing',
-              label: formatStatusLabel(normalizedStatus),
-              notes: rendered.notes || '',
+              label: leaveDetails?.label || formatStatusLabel(normalizedStatus),
+              notes: leaveDetails?.notes || rendered.notes || '',
             };
           });
 

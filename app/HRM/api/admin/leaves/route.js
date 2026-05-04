@@ -6,6 +6,9 @@ import {
   buildLeaveSummary,
   getEmployeeLeaveContext,
   getLeaveTypeCode,
+  isClientHolidayLeaveType,
+  isCompOffLeaveType,
+  isLopLeaveType,
   isMissingLeaveSchemaError,
   listActiveEmployeesForLeave,
   listActiveLeaveTypes,
@@ -31,6 +34,30 @@ async function requireHrAdminAccess() {
   return { authContext };
 }
 
+async function loadBalanceRowsForEmployees(employees = []) {
+  const balanceGroups = await Promise.all(
+    (employees || []).map(async (employee) => {
+      const context = await getEmployeeLeaveContext(employee.id);
+      const { balances } = await syncEmployeeLeaveBalances(context);
+
+      return balances.map((balance) => ({
+        employeeId: employee.id,
+        employeeCode: employee.employee_id,
+        employeeName: employee.name,
+        leaveTypeId: balance.leave_type_id,
+        leaveTypeName: balance.leave_type?.name || '',
+        leaveTypeCode: balance.leave_type?.code || getLeaveTypeCode(balance.leave_type?.name || ''),
+        availableDays: Number(balance.available_days || 0),
+        usedDays: Number(balance.used_days || 0),
+        creditedDays: Number(balance.credited_days || 0),
+        lopDays: Number(balance.lop_days || 0),
+      }));
+    })
+  );
+
+  return balanceGroups.flat();
+}
+
 export async function GET() {
   try {
     const auth = await requireHrAdminAccess();
@@ -44,30 +71,7 @@ export async function GET() {
     ]);
 
     const leaveTypeMap = new Map(leaveTypes.map((type) => [type.id, type]));
-
-    const allBalances = [];
-    for (const employee of employees || []) {
-      const context = await getEmployeeLeaveContext(employee.id);
-      const { balances } = await syncEmployeeLeaveBalances(context);
-      allBalances.push(
-        ...balances.map((balance) => ({
-          employeeId: employee.id,
-          employeeCode: employee.employee_id,
-          employeeName: employee.name,
-          leaveTypeId: balance.leave_type_id,
-          leaveTypeName: balance.leave_type?.name || '',
-          leaveTypeCode: balance.leave_type?.code || getLeaveTypeCode(balance.leave_type?.name || ''),
-          availableDays: Number(balance.available_days || 0),
-          usedDays: Number(balance.used_days || 0),
-          creditedDays: Number(balance.credited_days || 0),
-          lopDays: Number(balance.lop_days || 0),
-        }))
-      );
-    }
-
-    const balanceAvailabilityMap = new Map(
-      allBalances.map((balance) => [`${balance.employeeId}:${balance.leaveTypeId}`, Number(balance.availableDays || 0)])
-    );
+    const allBalances = await loadBalanceRowsForEmployees(employees || []);
 
     const { data: requests, error: requestError } = await adminClient
       .from('hrm_leave_requests')
@@ -89,10 +93,12 @@ export async function GET() {
       const leaveType = leaveTypeMap.get(row.leave_type_id);
       const leaveTypeCode = leaveType?.code || getLeaveTypeCode(leaveType?.name || '');
       const totalDays = Number(row.total_days ?? row.duration_days ?? 0);
-      const availableDays = Number(balanceAvailabilityMap.get(`${row.employee_id}:${row.leave_type_id}`) || 0);
-      const isCompOff = leaveTypeCode === 'comp_off' || leaveTypeCode === 'compensatory_off';
-      const projectedPaidDays = isCompOff ? totalDays : Math.min(totalDays, availableDays);
-      const projectedLopDays = isCompOff ? 0 : Math.max(0, totalDays - projectedPaidDays);
+      const projectedPaidDays =
+        isLopLeaveType(leaveTypeCode)
+          ? 0
+          : totalDays;
+      const projectedLopDays = isLopLeaveType(leaveTypeCode) ? totalDays : 0;
+      const isProjectedLop = isLopLeaveType(leaveTypeCode);
 
       return {
         id: row.id,
@@ -113,7 +119,7 @@ export async function GET() {
         lopDays: Number(row.lop_days ?? 0),
         projectedPaidDays,
         projectedLopDays,
-        isProjectedLop: projectedLopDays > 0,
+        isProjectedLop,
         session: row.applied_session || row.session || 'full_day',
         reason: row.reason || '',
         reviewNote: row.review_note || '',
