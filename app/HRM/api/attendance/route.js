@@ -210,7 +210,30 @@ async function getTodayActionFromLatestSwipe(employeeId, attendanceDate) {
     throw new Error(error.message || 'Failed to determine current attendance action');
   }
 
-  return latestSwipe?.swipe_type === 'in' ? 'check_out' : 'check_in';
+  if (latestSwipe?.swipe_type === 'in') {
+    return 'check_out';
+  }
+
+  if (latestSwipe?.swipe_type === 'out') {
+    return 'check_in';
+  }
+
+  const { data: attendanceRow, error: attendanceError } = await adminClient
+    .from('hrm_attendance')
+    .select('check_in, check_out')
+    .eq('employee_id', employeeId)
+    .eq('date', attendanceDate)
+    .maybeSingle();
+
+  if (attendanceError) {
+    throw new Error(attendanceError.message || 'Failed to determine attendance action from today summary');
+  }
+
+  if (attendanceRow?.check_in && !attendanceRow?.check_out) {
+    return 'check_out';
+  }
+
+  return 'check_in';
 }
 
 async function getApprovedLeaveForDate(employeeId, attendanceDate) {
@@ -413,12 +436,15 @@ export async function POST(request) {
     }
 
     const lastSwipe = existingSwipes[existingSwipes.length - 1] || null;
-    const nextSwipeType = !lastSwipe || lastSwipe.swipe_type === 'out' ? 'in' : 'out';
+    const hasOpenAttendanceSession =
+      lastSwipe?.swipe_type === 'in' ||
+      (!lastSwipe && todayAttendance?.check_in && !todayAttendance?.check_out);
+    let nextSwipeType = hasOpenAttendanceSession ? 'out' : 'in';
     const approvedLeave = await getApprovedLeaveForDate(employeeContext.employeeId, attendanceDate);
     const approvedLeaveSession = String(approvedLeave?.applied_session || approvedLeave?.session || 'full_day').toLowerCase();
     const approvedLeaveName = approvedLeave?.leave_type?.name || 'leave';
 
-    if (nextSwipeType === 'in' && (todayAttendance?.status === 'on_leave' || approvedLeaveSession === 'full_day')) {
+    if (!hasOpenAttendanceSession && nextSwipeType === 'in' && approvedLeave?.id && approvedLeaveSession === 'full_day') {
       return NextResponse.json(
         { error: `Approved ${approvedLeaveName} is already applied for today. Attendance cannot be marked.` },
         { status: 400 }
