@@ -13,6 +13,8 @@ import {
 import { formatLeaveSession, getLeaveAttendanceCode, getLeaveTypeCode } from '@/utils/leave';
 
 const OPPOSITE_HALF_PRESENT_MARKER = '[hr_override_opposite_half_present]';
+const APRIL_BACKFILL_CODE_MARKER = 'april_backfill_code';
+const APRIL_BACKFILL_LABEL_MARKER = 'april_backfill_label';
 
 function isMissingEmploymentColumnError(error) {
   const message = String(error?.message || '').toLowerCase();
@@ -159,6 +161,36 @@ function mapMonthlyStatusToCode(status = '') {
   if (normalized === 'holiday') return 'H';
   if (normalized === 'weekend') return 'OFF';
   return '--';
+}
+
+function readNoteMarker(noteText = '', markerName = '') {
+  const match = String(noteText || '').match(new RegExp(`\\[${markerName}:([^\\]]+)\\]`, 'i'));
+  return match?.[1]?.trim() || '';
+}
+
+function buildAttendanceBackfillCellDetails(rawAttendance) {
+  const code = readNoteMarker(rawAttendance?.notes, APRIL_BACKFILL_CODE_MARKER);
+  if (!code) {
+    return null;
+  }
+
+  const label = readNoteMarker(rawAttendance?.notes, APRIL_BACKFILL_LABEL_MARKER) || formatStatusLabel(rawAttendance?.status);
+  const normalizedCode = String(code).toUpperCase();
+  let status = String(rawAttendance?.status || '').toLowerCase();
+
+  if (normalizedCode === 'OFF') status = 'weekend';
+  else if (normalizedCode.includes(':') || normalizedCode === 'HD') status = 'halfday';
+  else if (['CL', 'SL', 'SP', 'LOP', 'CH', 'COFF', 'L'].includes(normalizedCode)) status = 'on_leave';
+  else if (normalizedCode === 'H') status = 'holiday';
+  else if (normalizedCode === 'P') status = 'present';
+  else if (normalizedCode === 'A') status = 'absent';
+
+  return {
+    code: normalizedCode,
+    status,
+    label,
+    notes: rawAttendance?.notes || '',
+  };
 }
 
 function buildLeaveCellDetails(leaveRequest, rawAttendance) {
@@ -457,14 +489,18 @@ export async function GET(request) {
               !holiday && rendered.status !== 'weekend' && leaveRequest
                 ? buildLeaveCellDetails(leaveRequest, rawAttendance)
                 : null;
-            const normalizedStatus = String(leaveDetails?.status || rendered.status || '').toLowerCase() || 'missing';
-            const code = leaveDetails?.code || mapMonthlyStatusToCode(normalizedStatus);
+            const backfillDetails =
+              !holiday && rawAttendance && !leaveRequest
+                ? buildAttendanceBackfillCellDetails(rawAttendance)
+                : null;
+            const normalizedStatus = String(leaveDetails?.status || backfillDetails?.status || rendered.status || '').toLowerCase() || 'missing';
+            const code = leaveDetails?.code || backfillDetails?.code || mapMonthlyStatusToCode(normalizedStatus);
             return {
               date: day.date,
               code,
               status: normalizedStatus === 'weekend' ? 'weekend' : normalizedStatus || 'missing',
-              label: leaveDetails?.label || formatStatusLabel(normalizedStatus),
-              notes: leaveDetails?.notes || rendered.notes || '',
+              label: leaveDetails?.label || backfillDetails?.label || formatStatusLabel(normalizedStatus),
+              notes: leaveDetails?.notes || backfillDetails?.notes || rendered.notes || '',
             };
           });
 
