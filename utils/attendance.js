@@ -184,12 +184,12 @@ export function isEmployeeScheduledOff(dateString, employeeSchedule = {}) {
   const workingDays = normalizeWorkingDays(employeeSchedule.workingDays);
   const secondSaturdayOff = Boolean(employeeSchedule.secondSaturdayOff);
 
-  if (workingDays.length === 0) {
-    return isWeekendDate(dateString);
+  if (dayName === 'Saturday' && secondSaturdayOff && isSecondSaturday(dateString)) {
+    return true;
   }
 
-  if (dayName === 'Saturday' && secondSaturdayOff && isSecondSaturday(dateString) && !workingDays.includes('Saturday')) {
-    return true;
+  if (workingDays.length === 0) {
+    return isWeekendDate(dateString);
   }
 
   return !workingDays.includes(dayName);
@@ -202,8 +202,7 @@ export function getOffDayLabel(dateString, employeeSchedule = {}) {
   if (
     dayName === 'Saturday' &&
     Boolean(employeeSchedule.secondSaturdayOff) &&
-    isSecondSaturday(dateString) &&
-    !workingDays.includes('Saturday')
+    isSecondSaturday(dateString)
   ) {
     return 'Second Saturday Off';
   }
