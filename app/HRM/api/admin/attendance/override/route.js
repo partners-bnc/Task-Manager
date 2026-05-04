@@ -31,7 +31,6 @@ import {
 
 const OPPOSITE_HALF_PRESENT_MARKER = '[hr_override_opposite_half_present]';
 const ATTENDANCE_ACTIONS = new Set(['present', 'absent', 'halfday', 'holiday', 'weekend']);
-const APRIL_BACKFILL_MONTH = '2026-04';
 const APRIL_BACKFILL_CODE_MARKER = 'april_backfill_code';
 const APRIL_BACKFILL_LABEL_MARKER = 'april_backfill_label';
 
@@ -79,6 +78,10 @@ function setNoteMarker(noteText = '', markerName = '', markerValue = '') {
   const cleaned = stripNoteMarker(noteText, markerName);
   const marker = `[${markerName}:${markerValue}]`;
   return [cleaned, marker].filter(Boolean).join(' ').trim();
+}
+
+function stripAprilBackfillMarkers(noteText = '') {
+  return stripNoteMarker(stripNoteMarker(noteText, APRIL_BACKFILL_CODE_MARKER), APRIL_BACKFILL_LABEL_MARKER);
 }
 
 function formatStatusLabel(status = '') {
@@ -190,103 +193,6 @@ function parseOverrideAction(action) {
     session: match[2],
     markOppositeHalfPresent: normalized.endsWith('_present'),
   };
-}
-
-function buildAprilBackfillDisplay(action) {
-  if (action.kind === 'attendance') {
-    if (action.status === 'present') {
-      return { status: 'present', code: 'P', label: 'Present' };
-    }
-    if (action.status === 'absent') {
-      return { status: 'absent', code: 'A', label: 'Absent' };
-    }
-    if (action.status === 'halfday') {
-      return { status: 'halfday', code: 'HD', label: 'Half Day' };
-    }
-    if (action.status === 'holiday') {
-      return { status: 'holiday', code: 'H', label: 'Holiday' };
-    }
-    if (action.status === 'weekend') {
-      return { status: 'holiday', code: 'OFF', label: 'Off' };
-    }
-  }
-
-  const baseMap = {
-    lop: { code: 'LOP', label: 'Loss of Pay' },
-    casual_leave: { code: 'CL', label: 'Casual Leave' },
-    sick_leave: { code: 'SL', label: 'Sick Leave' },
-    special_leave: { code: 'SP', label: 'Special Leave' },
-    comp_off: { code: 'COFF', label: 'Comp Off' },
-    client_holiday: { code: 'CH', label: 'Client Holiday' },
-  };
-
-  const base = baseMap[action.leaveTypeCode];
-  if (!base) {
-    return { status: 'on_leave', code: 'L', label: 'On Leave' };
-  }
-
-  if (action.session === 'full_day') {
-    return { status: 'on_leave', code: base.code, label: base.label };
-  }
-
-  if (action.markOppositeHalfPresent) {
-    const code =
-      action.session === 'first_half'
-        ? `${base.code}:P`
-        : `P:${base.code}`;
-    const label =
-      action.session === 'first_half'
-        ? `${base.label} + Present`
-        : `Present + ${base.label}`;
-    return { status: 'halfday', code, label };
-  }
-
-  return { status: 'halfday', code: base.code, label: `${base.label} (${formatLeaveSession(action.session)})` };
-}
-
-async function applyAprilAttendanceBackfill({
-  employeeId,
-  date,
-  action,
-  existingAttendance,
-  actorName,
-  previousCode,
-}) {
-  const display = buildAprilBackfillDisplay(action);
-  let notes = stripNoteMarker(existingAttendance?.notes, APRIL_BACKFILL_CODE_MARKER);
-  notes = stripNoteMarker(notes, APRIL_BACKFILL_LABEL_MARKER);
-  notes = appendAuditNote(notes, buildAttendanceAuditMessage(actorName, previousCode, display.label, date));
-  notes = setNoteMarker(notes, APRIL_BACKFILL_CODE_MARKER, display.code);
-  notes = setNoteMarker(notes, APRIL_BACKFILL_LABEL_MARKER, display.label);
-
-  const payload = {
-    employee_id: employeeId,
-    date,
-    status: display.status,
-    check_in: existingAttendance?.check_in ?? null,
-    check_out: existingAttendance?.check_out ?? null,
-    late_in_minutes: Number(existingAttendance?.late_in_minutes || 0),
-    early_out_minutes: Number(existingAttendance?.early_out_minutes || 0),
-    work_hours_minutes: Number(existingAttendance?.work_hours_minutes || 0),
-    source: 'manual',
-    notes,
-  };
-
-  if (existingAttendance?.id) {
-    const { error } = await adminClient
-      .from('hrm_attendance')
-      .update(payload)
-      .eq('id', existingAttendance.id);
-
-    if (error) {
-      throw new Error(error.message || 'Failed to update April attendance backfill row.');
-    }
-  } else {
-    const { error } = await adminClient.from('hrm_attendance').insert(payload);
-    if (error) {
-      throw new Error(error.message || 'Failed to create April attendance backfill row.');
-    }
-  }
 }
 
 async function createLedgerEntry(payload) {
@@ -608,7 +514,7 @@ async function createApprovedHrOverrideLeave({
     const { error: updateError } = await adminClient
       .from('hrm_attendance')
       .update({
-        notes: appendAuditNote(attendanceRow.notes, OPPOSITE_HALF_PRESENT_MARKER),
+        notes: appendAuditNote(stripAprilBackfillMarkers(attendanceRow.notes), OPPOSITE_HALF_PRESENT_MARKER),
         source: 'manual',
       })
       .eq('id', attendanceRow.id);
@@ -729,43 +635,6 @@ export async function PATCH(request) {
       currentCode ||
       getLeaveAttendanceCode({ code: existingAttendance?.status || 'A', name: existingAttendance?.status || 'Absent' });
 
-    if (date.startsWith(APRIL_BACKFILL_MONTH)) {
-      await applyAprilAttendanceBackfill({
-        employeeId,
-        date,
-        action,
-        existingAttendance,
-        actorName,
-        previousCode,
-      });
-
-      const month = date.slice(0, 7);
-      const refreshed = await refreshMonthlyEmployeeState({
-        employeeRow,
-        employeeId,
-        month,
-        today,
-      });
-
-      const updatedCell = refreshed.dailyStatuses.find((day) => day.date === date) || {
-        date,
-        code: buildAprilBackfillDisplay(action).code,
-        status: buildAprilBackfillDisplay(action).status,
-        label: buildAprilBackfillDisplay(action).label,
-        notes: '',
-      };
-
-      return NextResponse.json(
-        {
-          employeeId,
-          date,
-          updatedCell,
-          summary: refreshed.summary,
-        },
-        { status: 200 }
-      );
-    }
-
     if (action.kind === 'leave') {
       const leaveType = leaveState.leaveTypes.find((item) => getLeaveTypeCode(item) === action.leaveTypeCode);
       const balance = leaveType ? balanceMap.get(leaveType.id) : null;
@@ -806,7 +675,7 @@ export async function PATCH(request) {
           work_hours_minutes: Number(existingAttendance?.work_hours_minutes || 0),
           source: 'manual',
           notes: appendAuditNote(
-            existingAttendance?.notes,
+            stripAprilBackfillMarkers(existingAttendance?.notes),
             buildAttendanceAuditMessage(actorName, previousCode, action.label, date)
           ),
         };

@@ -394,17 +394,6 @@ export async function POST(request) {
       return NextResponse.json({ error: todayError.message || 'Failed to load attendance status' }, { status: 500 });
     }
 
-    const approvedLeave = await getApprovedLeaveForDate(employeeContext.employeeId, attendanceDate);
-    const approvedLeaveSession = String(approvedLeave?.applied_session || approvedLeave?.session || 'full_day').toLowerCase();
-    const approvedLeaveName = approvedLeave?.leave_type?.name || 'approved leave';
-
-    if (todayAttendance?.status === 'on_leave' || approvedLeaveSession === 'full_day') {
-      return NextResponse.json(
-        { error: `Approved ${approvedLeaveName} is already applied for today. Attendance cannot be marked.` },
-        { status: 400 }
-      );
-    }
-
     const { data: existingSwipes = [], error: swipeError } = await adminClient
       .from('hrm_attendance_swipes')
       .select('*')
@@ -425,6 +414,16 @@ export async function POST(request) {
 
     const lastSwipe = existingSwipes[existingSwipes.length - 1] || null;
     const nextSwipeType = !lastSwipe || lastSwipe.swipe_type === 'out' ? 'in' : 'out';
+    const approvedLeave = await getApprovedLeaveForDate(employeeContext.employeeId, attendanceDate);
+    const approvedLeaveSession = String(approvedLeave?.applied_session || approvedLeave?.session || 'full_day').toLowerCase();
+    const approvedLeaveName = approvedLeave?.leave_type?.name || 'leave';
+
+    if (nextSwipeType === 'in' && (todayAttendance?.status === 'on_leave' || approvedLeaveSession === 'full_day')) {
+      return NextResponse.json(
+        { error: `Approved ${approvedLeaveName} is already applied for today. Attendance cannot be marked.` },
+        { status: 400 }
+      );
+    }
 
     if (nextSwipeType === 'in' && approvedLeaveSession === 'first_half' && getCurrentMinutesInTimeZone() < HALF_DAY_BOUNDARY_MINUTES) {
       return NextResponse.json(
