@@ -256,10 +256,10 @@ export default function ModuleAccessManager() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[1.5rem] border border-outline-variant/10">
-          <div className="overflow-x-auto">
+        <div className="rounded-[1.5rem] border border-outline-variant/10">
+          <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <table className="w-full min-w-[1180px] table-fixed">
-              <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
+              <thead className="sticky top-0 z-20 border-b border-outline-variant/10 bg-surface-container-low/50">
                 <tr>
                   <th className="w-[320px] px-3 py-3 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/70">
                     Employee

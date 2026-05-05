@@ -281,17 +281,17 @@ export default function EmployeeList({
         </div>
       )}
 
-      <div className="overflow-hidden rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest shadow-sm">
-        <div className="overflow-x-auto">
+      <div className="rounded-[1.75rem] border border-outline-variant/10 bg-surface-container-lowest shadow-sm">
+        <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <table className="min-w-[1060px] w-full">
-            <thead className="bg-surface-container-low/50 border-b border-outline-variant/10">
+            <thead className="sticky top-0 z-20 bg-surface-container-low/50 border-b border-outline-variant/10">
               <tr>
-                <th className="px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">ID</th>
-                <th className="px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Name</th>
-                <th className="px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Phone Number</th>
-                <th className="px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Designation</th>
-                <th className="px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Reporting To</th>
-                <th className="px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Status</th>
+                <th className="sticky top-0 z-10 bg-surface-container-low/50 px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">ID</th>
+                <th className="sticky top-0 z-10 bg-surface-container-low/50 px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Name</th>
+                <th className="sticky top-0 z-10 bg-surface-container-low/50 px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Phone Number</th>
+                <th className="sticky top-0 z-10 bg-surface-container-low/50 px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Designation</th>
+                <th className="sticky top-0 z-10 bg-surface-container-low/50 px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Reporting To</th>
+                <th className="sticky top-0 z-10 bg-surface-container-low/50 px-5 py-4 text-left text-[11px] font-extrabold uppercase tracking-[0.18em] text-on-surface-variant/60">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/10">

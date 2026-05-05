@@ -192,7 +192,7 @@ export default function LeaveManagement() {
       }
 
       current.usedDays += Number(balance.usedDays) || 0;
-      current.lopDays += Number(balance.lopDays) || 0;
+      current.lopDays = Math.max(current.lopDays, Number(balance.lopDays) || 0);
       grouped.set(balance.employeeId, current);
     }
 
@@ -318,19 +318,19 @@ export default function LeaveManagement() {
                 message="New leave applications will appear here as soon as employees send them for review."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <table className="w-full min-w-[1180px] text-left">
-                  <thead>
+                  <thead className="sticky top-0 z-20 bg-white">
                     <tr className="border-b border-outline-variant/10">
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Leave Type</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date Range</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Worked On</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Days</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP Term</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reason</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Review Note</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Action</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Leave Type</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date Range</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Worked On</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Days</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP Term</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reason</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Review Note</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/10">
@@ -410,18 +410,18 @@ export default function LeaveManagement() {
                 message="Approved and rejected leave decisions will start building a review history here."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <table className="w-full min-w-[980px] text-left">
-                  <thead>
+                  <thead className="sticky top-0 z-20 bg-white">
                     <tr className="border-b border-outline-variant/10">
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Leave Type</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date Range</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Worked On</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Status</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Paid</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Review Note</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Leave Type</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date Range</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Worked On</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Status</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Paid</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Review Note</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/10">
@@ -472,17 +472,17 @@ export default function LeaveManagement() {
                 message="Once leave credit and employee balances are available, this summary table will fill in automatically."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <table className="w-full min-w-[860px] text-left">
-                  <thead>
+                  <thead className="sticky top-0 z-20 bg-white">
                     <tr className="border-b border-outline-variant/10">
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Sl No.</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee Name</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Casual Leave</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Sick Leave</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Special Leave</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Used</th>
-                      <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Sl No.</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee Name</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Casual Leave</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Sick Leave</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Special Leave</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Used</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/10">

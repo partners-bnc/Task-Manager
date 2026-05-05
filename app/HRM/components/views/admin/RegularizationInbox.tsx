@@ -199,9 +199,9 @@ export default function RegularizationInbox() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <table className="w-full min-w-[1160px] text-left">
-                <thead>
+                <thead className="sticky top-0 z-20 bg-white">
                   <tr className="border-b border-outline-variant/10">
                     <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
                     <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date</th>
@@ -284,9 +284,9 @@ export default function RegularizationInbox() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <table className="w-full min-w-[1080px] text-left">
-                <thead>
+                <thead className="sticky top-0 z-20 bg-white">
                   <tr className="border-b border-outline-variant/10">
                     <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
                     <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date</th>

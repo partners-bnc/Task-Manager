@@ -966,9 +966,9 @@ export default function AdminAttendance() {
                 message="Try another date or widen the filters to view employee attendance records."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <table className="min-w-[1600px] w-full text-left">
-                  <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
+                  <thead className="sticky top-0 z-20 border-b border-outline-variant/10 bg-surface-container-low/50">
                     <tr>
                       {['Employee ID', 'Employee Name', 'Department', 'Designation', 'Reporting To', 'Status', 'Check-in', 'Check-out', 'Swipe Type', 'Work Hours', 'Notes / Source', 'Swipes'].map((column) => (
                         <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">
@@ -1066,9 +1066,9 @@ export default function AdminAttendance() {
                 message="No attendance rows matched this employee and filter combination."
               />
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <table className="min-w-[1100px] w-full text-left">
-                  <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
+                  <thead className="sticky top-0 z-20 border-b border-outline-variant/10 bg-surface-container-low/50">
                     <tr>
                       {['Date', 'Status', 'Check-in', 'Check-out', 'Work Hours', 'Shift Hours', 'Notes'].map((column) => (
                         <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">
@@ -1188,7 +1188,7 @@ export default function AdminAttendance() {
                   </div>
                 </div>
                 <div
-                  className="max-h-[68vh] overflow-auto rounded-2xl border border-outline-variant/10 overscroll-contain scroll-smooth [scroll-behavior:smooth] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  className="max-h-[78vh] overflow-auto rounded-2xl border border-outline-variant/10 overscroll-contain scroll-smooth [scroll-behavior:smooth] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 >
                 <table className="min-w-[1320px] w-full border-separate border-spacing-0 text-center">
                   <thead>
@@ -1397,9 +1397,9 @@ export default function AdminAttendance() {
                   message="No swipe entries were saved for this employee on the selected date."
                 />
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <table className="min-w-[980px] w-full text-left">
-                    <thead className="border-b border-outline-variant/10 bg-surface-container-low/50">
+                    <thead className="sticky top-0 z-20 border-b border-outline-variant/10 bg-surface-container-low/50">
                       <tr>
                         {['Swipe Time', 'In / Out', 'Door / Address'].map((column) => (
                           <th key={column} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">

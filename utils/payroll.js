@@ -409,10 +409,10 @@ function getCurrentRetentionSchedule(schedules = [], monthKey) {
   }) || null;
 }
 
-function calculatePolicyAmount({ enabled, mode, value, amountBase, ratio }) {
+function calculatePolicyAmount({ enabled, mode, value, amountBase }) {
   if (!enabled) return 0;
   if (mode === 'fixed') {
-    return roundCurrency(toNumber(value, 0) * ratio);
+    return roundCurrency(toNumber(value, 0));
   }
 
   return roundCurrency((amountBase * toNumber(value, 0)) / 100);
@@ -1104,30 +1104,29 @@ export function calculateEmployeePayroll({
       : employee.salary
   );
 
-  const ratio = activeDays > 0 && daysInMonth > 0 ? activeDays / daysInMonth : 0;
-  const proratedSalary = roundCurrency(salarySnapshot * ratio);
+  const grossSalary = salarySnapshot;
+  const proratedSalary = grossSalary;
   const normalizedLopDays = roundDays(lopDays);
   const lopDeduction = roundCurrency(daysInMonth > 0 ? (salarySnapshot / daysInMonth) * normalizedLopDays : 0);
   const activeRetention = profile?.retention_enabled
     ? getCurrentRetentionSchedule(retentionSchedules, buildMonthKey(year, month))
     : null;
-  const pfEmployeeDeduction = profile?.pf_enabled ? roundCurrency(toNumber(profile.pf_value, 0) * ratio) : 0;
-  const pfEmployerDeduction = profile?.pf_enabled ? roundCurrency(toNumber(profile.pf_value, 0) * ratio) : 0;
+  const pfEmployeeDeduction = profile?.pf_enabled ? roundCurrency(toNumber(profile.pf_value, 0)) : 0;
+  const pfEmployerDeduction = profile?.pf_enabled ? roundCurrency(toNumber(profile.pf_value, 0)) : 0;
   const totalPfDeduction = roundCurrency(pfEmployeeDeduction + pfEmployerDeduction);
   const tdsEmployeeDeduction = calculatePolicyAmount({
     enabled: Boolean(profile?.tds_enabled),
     mode: profile?.tds_mode || 'percent',
     value: profile?.tds_value,
-    amountBase: proratedSalary,
-    ratio,
+    amountBase: grossSalary,
   });
   const tdsEmployerDeduction = 0;
   const totalTdsDeduction = roundCurrency(tdsEmployeeDeduction);
-  const retentionDeduction = activeRetention ? roundCurrency(toNumber(activeRetention.monthly_amount, 0) * ratio) : 0;
+  const retentionDeduction = activeRetention ? roundCurrency(toNumber(activeRetention.monthly_amount, 0)) : 0;
   const totalDeductions = roundCurrency(
     lopDeduction + totalPfDeduction + totalTdsDeduction + retentionDeduction
   );
-  const netSalary = roundCurrency(proratedSalary - totalDeductions + toNumber(retentionReleaseAmount, 0));
+  const netSalary = roundCurrency(grossSalary - totalDeductions + toNumber(retentionReleaseAmount, 0));
 
   return {
     employeeId: employee.id,

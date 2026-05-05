@@ -197,9 +197,10 @@ export default function HolidayManager() {
                 message="Create the first holiday entry so employees can see the calendar in attendance and dashboard views."
               />
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-outline-variant/10">
+              <div className="rounded-2xl border border-outline-variant/10">
+                <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <table className="w-full border-collapse text-left text-sm">
-                  <thead className="bg-surface-container-low text-on-surface">
+                  <thead className="sticky top-0 z-20 bg-surface-container-low text-on-surface">
                     <tr>
                       <th className="px-4 py-3 font-bold">Sl No.</th>
                       <th className="px-4 py-3 font-bold">Date</th>
@@ -237,6 +238,7 @@ export default function HolidayManager() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
           </section>

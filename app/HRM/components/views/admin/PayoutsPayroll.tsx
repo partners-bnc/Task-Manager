@@ -7,7 +7,6 @@ import HrmEmptyState from '../../ui/HrmEmptyState';
 import { DetailPanelSkeleton, LoadingPanel, TableRowsSkeleton } from '../../ui/Skeleton';
 
 const SECTIONS = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard' },
   { id: 'directory', label: 'Employee Salary Directory', icon: 'groups' },
   { id: 'history', label: 'Employee Salary History', icon: 'history' },
   { id: 'policy', label: 'Payroll Policy', icon: 'policy' },
@@ -15,32 +14,14 @@ const SECTIONS = [
   { id: 'ledger', label: 'Payroll Ledger', icon: 'receipt_long' },
 ];
 
-let xlsxLoaderPromise: Promise<any> | null = null;
-
-function ensureXlsxLoaded() {
-  if (typeof window === 'undefined') {
-    return Promise.reject(new Error('Excel export is only available in the browser.'));
-  }
-
-  if ((window as any).XLSX) {
-    return Promise.resolve((window as any).XLSX);
-  }
-
-  if (xlsxLoaderPromise) {
-    return xlsxLoaderPromise;
-  }
-
-  xlsxLoaderPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    script.async = true;
-    script.onload = () => resolve((window as any).XLSX);
-    script.onerror = () => reject(new Error('Failed to load Excel export library.'));
-    document.head.appendChild(script);
-  });
-
-  return xlsxLoaderPromise;
-}
+const DIRECTORY_COLUMNS = ['Employee ID', 'Profile', 'Join Date', 'Status', 'Company', 'Salary', 'PF', 'TDS', 'Retention', 'Est. In Hand', 'Last Increment'];
+const HISTORY_COLUMNS = ['Month', 'Gross', 'Deductions', 'Net', 'Payment Status', 'Payslip Status', 'Paid At', 'Action'];
+const PREVIEW_COLUMNS = ['Employee ID', 'Name', 'Company', 'Active Days', 'LOP Days', 'Gross Salary', 'LOP Deduction', 'Employee PF', 'Employer PF', 'Total PF', 'Employee TDS', 'Total TDS', 'Retention', 'Release', 'Net Salary'];
+const LEDGER_COLUMNS = ['Month', 'Employee ID', 'Name', 'Company', 'Gross', 'Deductions', 'Net', 'Status', 'Actions'];
+const DIRECTORY_COLUMN_WIDTHS = ['140px', '320px', '140px', '180px', '140px', '120px', '90px', '90px', '110px', '140px', '220px'];
+const HISTORY_COLUMN_WIDTHS = ['150px', '140px', '150px', '150px', '160px', '160px', '140px', '110px'];
+const PREVIEW_COLUMN_WIDTHS = ['130px', '240px', '140px', '110px', '100px', '150px', '160px', '130px', '130px', '130px', '130px', '130px', '130px', '130px', '150px'];
+const LEDGER_COLUMN_WIDTHS = ['130px', '120px', '220px', '140px', '120px', '140px', '140px', '130px', '260px'];
 
 function formatCurrency(value: any) {
   const numeric = Number(value || 0);
@@ -49,6 +30,16 @@ function formatCurrency(value: any) {
     currency: 'INR',
     maximumFractionDigits: 2,
   }).format(Number.isFinite(numeric) ? numeric : 0);
+}
+
+function TableColGroup({ widths }: { widths: string[] }) {
+  return (
+    <colgroup>
+      {widths.map((width, index) => (
+        <col key={`${width}-${index}`} style={{ width }} />
+      ))}
+    </colgroup>
+  );
 }
 
 function formatDate(value?: string | null) {
@@ -268,7 +259,7 @@ export default function PayoutsPayroll() {
   const currentYear = new Date().getFullYear();
   const currentMonth = String(new Date().getMonth() + 1).padStart(2, '0');
   const currentMonthValue = `${currentYear}-${currentMonth}`;
-  const [activeSection, setActiveSection] = useState('dashboard');
+  const [activeSection, setActiveSection] = useState('directory');
   const [directory, setDirectory] = useState<any[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(true);
   const [runs, setRuns] = useState<any[]>([]);
@@ -492,78 +483,53 @@ export default function PayoutsPayroll() {
     }
   }, [fetchPayrollJson, isSessionExpiredError, showFeedback]);
 
-  const exportExcelFile = useCallback(async (sheetName: string, rows: Array<Record<string, any>>, fileName: string) => {
-    if (!rows.length) {
-      showFeedback('error', 'No data is available to export.');
-      return;
-    }
-
+  const exportCsvFile = useCallback(async (rows: Array<Record<string, any>>, fileName: string) => {
     try {
-      const XLSX = await ensureXlsxLoaded();
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-      XLSX.writeFile(workbook, fileName);
-      showFeedback('success', 'Excel file exported successfully.');
+      if (!rows.length) {
+        showFeedback('error', 'No data available to export.');
+        return;
+      }
+
+      const headers = Array.from(
+        rows.reduce((set, row) => {
+          Object.keys(row || {}).forEach((key) => set.add(key));
+          return set;
+        }, new Set<string>())
+      );
+      const escapeCsv = (value: unknown) => {
+        const normalized = value === null || value === undefined ? '' : String(value);
+        if (/[",\n]/.test(normalized)) {
+          return `"${normalized.replace(/"/g, '""')}"`;
+        }
+        return normalized;
+      };
+      const lines = [
+        headers.map(escapeCsv).join(','),
+        ...rows.map((row) => headers.map((header) => escapeCsv(row?.[header])).join(',')),
+      ];
+      const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showFeedback('success', 'CSV file exported successfully.');
     } catch (error: any) {
-      showFeedback('error', error.message || 'Failed to export Excel file.');
+      showFeedback('error', error.message || 'Failed to export CSV file.');
     }
   }, [showFeedback]);
 
-  const handleExportDirectory = useCallback(() => {
-    const rows = directory.map((employee: any) => ({
-      employee_id: employee.employee_id || '--',
-      employee_name: employee.name || '--',
-      email: employee.email || '--',
-      designation: employee.designation_title || '--',
-      join_date: formatDate(employee.date_of_joining),
-      lifecycle_status: formatStatusText(employee.resolved_employment_lifecycle_status || 'active'),
-      current_stage: formatStatusText(employee.resolved_current_stage || '--'),
-      company: employee.company || '--',
-      salary: Number(employee.salary || 0),
-      pf_enabled: employee.deduction_flags?.pf ? 'Enabled' : 'Disabled',
-      tds_enabled: employee.deduction_flags?.tds ? 'Enabled' : 'Disabled',
-      retention_enabled: employee.deduction_flags?.retention ? 'Enabled' : 'Disabled',
-      estimated_in_hand_salary: Number(employee.estimated_in_hand_salary || 0),
-      last_increment_date: employee.latest_revision ? formatDate(employee.latest_revision.effective_from) : '--',
-      last_increment_salary: employee.latest_revision ? Number(employee.latest_revision.new_salary || 0) : '',
-    }));
-
-    return exportExcelFile('Salary Directory', rows, 'employee_salary_directory.xlsx');
-  }, [directory, exportExcelFile]);
-
-  const handleExportHistory = useCallback(() => {
-    const historyEmployee = directory.find((employee) => employee.id === historyEmployeeId) || null;
-    const employeeName = historyEmployee?.name || 'employee';
-    const rows = historyRows.map((row: any) => ({
-      employee_name: historyEmployee?.name || row.employee?.name || '--',
-      employee_id: historyEmployee?.employee_id || row.employee?.employee_id || '--',
-      year: row.payroll_run?.year || historyYear,
-      month: formatMonthLabel(row.payroll_run?.year || Number(historyYear), row.payroll_run?.month || 1),
-      gross_salary: Number(row.prorated_salary || 0),
-      total_deductions: Number(row.total_deductions || 0),
-      net_salary: Number(row.net_salary || 0),
-      payment_status: formatStatusLabel(row.payment_status),
-      payslip_status: row.isPayslipReleased ? 'Released' : row.hasPayslip ? 'Generated' : 'Not Generated',
-      paid_at: formatDate(row.paid_at),
-    }));
-
-    return exportExcelFile(
-      'Salary History',
-      rows,
-      `${safeFilePart(employeeName)}_${safeFilePart(historyYear)}_salary_history.xlsx`
-    );
-  }, [directory, exportExcelFile, historyEmployeeId, historyRows, historyYear]);
-
-  const handleExportPreview = useCallback(() => {
+  const handleExportPreviewCsv = useCallback(() => {
     const rows = (previewData?.rows || []).map((row: any) => ({
       employee_id: row.employeeCode || '--',
       employee_name: row.employeeName || '--',
       company: row.company || '--',
       active_days: Number(row.activeDays || 0),
       lop_days: Number(row.lopDays || 0),
-      salary_snapshot: Number(row.salarySnapshot || 0),
-      prorated_salary: Number(row.proratedSalary || 0),
+      gross_salary: Number(row.salarySnapshot || 0),
       lop_deduction: Number(row.lopDeduction || 0),
       employee_pf: Number(row.pfEmployeeDeduction || 0),
       employer_pf: Number(row.pfEmployerDeduction || 0),
@@ -575,31 +541,11 @@ export default function PayoutsPayroll() {
       net_salary: Number(row.netSalary || 0),
     }));
 
-    return exportExcelFile(
-      'Salary Preview',
+    return exportCsvFile(
       rows,
-      `salary_preview_${safeFilePart(previewYear)}_${safeFilePart(previewMonth)}.xlsx`
+      `salary_preview_${safeFilePart(previewYear)}_${safeFilePart(previewMonth)}.csv`
     );
-  }, [exportExcelFile, previewData, previewMonth, previewYear]);
-
-  const handleExportLedger = useCallback(() => {
-    const rows = runs.flatMap((run: any) =>
-      (run.items || []).map((item: any) => ({
-        month: formatMonthLabel(run.year, run.month),
-        employee_id: item.employee?.employee_id || '--',
-        employee_name: item.employee?.name || '--',
-        company: item.employee?.company || '--',
-        gross_salary: Number(item.prorated_salary || 0),
-        total_deductions: Number(item.total_deductions || 0),
-        net_salary: Number(item.net_salary || 0),
-        payment_status: formatStatusLabel(item.payment_status),
-        payslip_status: item.isPayslipReleased ? 'Released' : item.hasPayslip ? 'Generated' : 'Not Generated',
-        paid_at: formatDate(item.paid_at),
-      }))
-    );
-
-    return exportExcelFile('Payroll Ledger', rows, 'payroll_ledger.xlsx');
-  }, [exportExcelFile, runs]);
+  }, [exportCsvFile, previewData, previewMonth, previewYear]);
 
   useEffect(() => {
     loadDirectory();
@@ -962,9 +908,9 @@ export default function PayoutsPayroll() {
         </div>
 
         <section className="pb-1">
-          <div className="relative grid w-full grid-cols-6 gap-1 rounded-full border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(244,246,250,0.98)_100%)] p-1 shadow-[0_12px_28px_rgba(15,23,42,0.06)] backdrop-blur">
+          <div className="relative grid w-full grid-cols-5 gap-1 rounded-full border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(244,246,250,0.98)_100%)] p-1 shadow-[0_12px_28px_rgba(15,23,42,0.06)] backdrop-blur">
             <div
-              className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem-1.25rem)/6)] rounded-full bg-[linear-gradient(135deg,rgba(245,238,255,1)_0%,rgba(224,210,255,1)_55%,rgba(208,186,255,1)_100%)] shadow-[0_10px_22px_rgba(167,139,250,0.24)] ring-1 ring-white/70 transition-transform duration-300 ease-out"
+              className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem-1rem)/5)] rounded-full bg-[linear-gradient(135deg,rgba(245,238,255,1)_0%,rgba(224,210,255,1)_55%,rgba(208,186,255,1)_100%)] shadow-[0_10px_22px_rgba(167,139,250,0.24)] ring-1 ring-white/70 transition-transform duration-300 ease-out"
               style={{ transform: `translateX(calc(${activeSectionIndex} * (100% + 0.25rem)))` }}
             />
             {SECTIONS.map((section) => {
@@ -988,7 +934,7 @@ export default function PayoutsPayroll() {
         </section>
       </section>
 
-      {activeSection === 'dashboard' ? (
+      {false ? (
         <section className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <KpiCard
@@ -1111,7 +1057,7 @@ export default function PayoutsPayroll() {
       {activeSection === 'directory' ? (
         <section className="space-y-6">
           {!directoryDetailOpen ? (
-          <div className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+          <div className="rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
             <div className="flex flex-col gap-4 border-b border-slate-200/80 px-6 py-5 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-xl font-bold text-on-surface">Employee Salary Directory</h2>
@@ -1119,34 +1065,28 @@ export default function PayoutsPayroll() {
                   Full payroll master list with employee photo, deduction status, salary, and last revision.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleExportDirectory}
-                disabled={directoryLoading || directory.length === 0}
-                className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
-                  directoryLoading || directory.length === 0
-                    ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
-                    : 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                }`}
-              >
-                Export Excel
-              </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1500px]">
-                <thead className="border-b border-slate-200/80 bg-[#f8fbff]">
-                  <tr>
-                    {['Employee ID', 'Profile', 'Join Date', 'Status', 'Company', 'Salary', 'PF', 'TDS', 'Retention', 'Est. In Hand', 'Last Increment'].map((label) => (
-                      <th
-                        key={label}
-                        className="px-5 py-4 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500"
-                      >
-                        {label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+            <div className="relative overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#f8fbff] shadow-sm">
+                <table className="w-full min-w-[1690px] table-fixed">
+                  <TableColGroup widths={DIRECTORY_COLUMN_WIDTHS} />
+                  <thead>
+                    <tr>
+                      {DIRECTORY_COLUMNS.map((label) => (
+                        <th
+                          key={label}
+                          className="bg-[#f8fbff] px-5 py-4 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500"
+                        >
+                          {label}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                </table>
+              </div>
+              <table className="w-full min-w-[1690px] table-fixed">
+                <TableColGroup widths={DIRECTORY_COLUMN_WIDTHS} />
                 <tbody className="divide-y divide-slate-200/70">
                   {directoryLoading ? (
                     <tr>
@@ -1599,33 +1539,27 @@ export default function PayoutsPayroll() {
                       ))}
                     </SelectInput>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleExportHistory}
-                    disabled={historyLoading || historyRows.length === 0}
-                    className={`inline-flex items-center justify-center rounded-full px-4 py-3 text-sm font-semibold shadow-sm transition ${
-                      historyLoading || historyRows.length === 0
-                        ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
-                        : 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                    }`}
-                  >
-                    Export Excel
-                  </button>
                 </div>
               </div>
 
-              <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-outline-variant/10 bg-white">
-                <div className="overflow-x-auto">
-                  <table className="w-full table-fixed">
-                    <thead className="border-b border-slate-200/80 bg-[#f8fbff]">
-                      <tr>
-                        {['Month', 'Gross', 'Deductions', 'Net', 'Payment Status', 'Payslip Status', 'Paid At', 'Action'].map((label) => (
-                          <th key={label} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                            {label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
+              <div className="mt-6 rounded-[1.5rem] border border-outline-variant/10 bg-white">
+                <div className="relative overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#f8fbff] shadow-sm">
+                    <table className="w-full min-w-[1160px] table-fixed">
+                      <TableColGroup widths={HISTORY_COLUMN_WIDTHS} />
+                      <thead>
+                        <tr>
+                          {HISTORY_COLUMNS.map((label) => (
+                            <th key={label} className="bg-[#f8fbff] px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                    </table>
+                  </div>
+                  <table className="w-full min-w-[1160px] table-fixed">
+                    <TableColGroup widths={HISTORY_COLUMN_WIDTHS} />
                     <tbody className="divide-y divide-slate-200/70">
                       {historyLoading ? (
                         <tr>
@@ -1839,7 +1773,7 @@ export default function PayoutsPayroll() {
             </p>
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-outline-variant/10 bg-white">
+          <div className="mt-6 rounded-[1.5rem] border border-outline-variant/10 bg-white">
             <div className="grid grid-cols-[220px_minmax(0,1fr)] border-b border-outline-variant/10 bg-surface-container-low/40 px-5 py-4 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
               <div>Rule</div>
               <div>How It Works</div>
@@ -1920,18 +1854,6 @@ export default function PayoutsPayroll() {
                   >
                     {submitting ? 'Generating...' : 'Generate Payroll'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleExportPreview}
-                    disabled={!previewData?.rows?.length}
-                    className={`rounded-full border px-5 py-3 text-sm font-semibold transition ${
-                      !previewData?.rows?.length
-                        ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                        : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50'
-                    }`}
-                  >
-                    Export Excel
-                  </button>
                 </div>
                 <div className="text-right text-sm text-on-surface-variant">
                   {!isClosedPayrollMonthSelected
@@ -1950,31 +1872,53 @@ export default function PayoutsPayroll() {
             <>
               <div className="grid gap-4 md:grid-cols-3">
                 <KpiCard label="Employees" value={previewData.summary.totalEmployees} helper="Included in this preview" />
-                <KpiCard label="Gross" value={formatCurrency(previewData.summary.totalGross)} helper="Total prorated salary" />
+                <KpiCard label="Gross" value={formatCurrency(previewData.summary.totalGross)} helper="Total gross salary" />
                 <KpiCard label="Net" value={formatCurrency(previewData.summary.totalNet)} helper="Expected payout after deductions" />
               </div>
 
               {!selectedPreviewRow ? (
-                <div className="overflow-hidden rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-                  <div className="border-b border-slate-200/80 px-6 py-5">
-                    <h3 className="text-lg font-bold text-on-surface">
-                      {formatMonthLabel(Number(previewYear), Number(previewMonth))}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Select any employee row to open the salary calculation detail page.
-                    </p>
+                <div className="rounded-[2rem] border border-slate-200/80 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+                  <div className="flex flex-col gap-4 border-b border-slate-200/80 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-on-surface">
+                        {formatMonthLabel(Number(previewYear), Number(previewMonth))}
+                      </h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        Select any employee row to open the salary calculation detail page.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleExportPreviewCsv}
+                        disabled={!previewData?.rows?.length}
+                        className={`rounded-full border px-5 py-2.5 text-sm font-semibold transition ${
+                          !previewData?.rows?.length
+                            ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                            : 'border-slate-300 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50'
+                        }`}
+                      >
+                        Export CSV
+                      </button>
+                    </div>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[1460px]">
-                      <thead className="border-b border-slate-200/80 bg-[#f8fbff]">
-                        <tr>
-                          {['Employee ID', 'Name', 'Company', 'Active Days', 'LOP Days', 'Prorated Salary', 'LOP Deduction', 'Employee PF', 'Employer PF', 'Total PF', 'Employee TDS', 'Total TDS', 'Retention', 'Release', 'Net Salary'].map((label) => (
-                            <th key={label} className="px-5 py-4 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                              {label}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
+                  <div className="relative overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <div className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#f8fbff] shadow-sm">
+                      <table className="w-full min-w-[2090px] table-fixed">
+                        <TableColGroup widths={PREVIEW_COLUMN_WIDTHS} />
+                        <thead>
+                          <tr>
+                            {PREVIEW_COLUMNS.map((label) => (
+                              <th key={label} className="bg-[#f8fbff] px-5 py-4 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                                {label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                      </table>
+                    </div>
+                    <table className="w-full min-w-[2090px] table-fixed">
+                      <TableColGroup widths={PREVIEW_COLUMN_WIDTHS} />
                       <tbody className="divide-y divide-slate-200/70">
                         {previewData.rows.map((row: any) => (
                           <tr
@@ -1992,7 +1936,7 @@ export default function PayoutsPayroll() {
                             <td className="px-5 py-4 text-sm text-slate-700">{row.company || '--'}</td>
                             <td className="px-5 py-4 text-sm text-slate-700">{row.activeDays}</td>
                             <td className="px-5 py-4 text-sm text-slate-700">{row.lopDays}</td>
-                            <td className="px-5 py-4 text-sm font-semibold text-slate-900">{formatCurrency(row.proratedSalary)}</td>
+                            <td className="px-5 py-4 text-sm font-semibold text-slate-900">{formatCurrency(row.salarySnapshot)}</td>
                             <td className="px-5 py-4 text-sm text-rose-700">{formatCurrency(row.lopDeduction)}</td>
                             <td className="px-5 py-4 text-sm text-slate-700">{formatCurrency(row.pfEmployeeDeduction)}</td>
                             <td className="px-5 py-4 text-sm text-slate-700">{formatCurrency(row.pfEmployerDeduction)}</td>
@@ -2061,7 +2005,7 @@ export default function PayoutsPayroll() {
                       </div>
                       <div className="mt-4 grid gap-5 lg:grid-cols-2">
                         <div>
-                          <DetailKeyValue label="Prorated Salary" value={formatCurrency(selectedPreviewRow.proratedSalary)} />
+                          <DetailKeyValue label="Gross Salary" value={formatCurrency(selectedPreviewRow.salarySnapshot)} />
                           <DetailKeyValue label="LOP Deduction" value={formatCurrency(selectedPreviewRow.lopDeduction)} />
                           <DetailKeyValue label="Employee PF" value={formatCurrency(selectedPreviewRow.pfEmployeeDeduction)} />
                           <DetailKeyValue label="Employer PF" value={formatCurrency(selectedPreviewRow.pfEmployerDeduction)} />
@@ -2087,7 +2031,7 @@ export default function PayoutsPayroll() {
       {activeSection === 'ledger' ? (
         <section className="space-y-6">
           {!isLedgerDetailOpen ? (
-          <div className="overflow-hidden rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest shadow-sm">
+          <div className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest shadow-sm">
             <div className="flex flex-col gap-4 border-b border-outline-variant/10 px-6 py-5 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-xl font-bold text-on-surface">Payroll Ledger</h2>
@@ -2095,18 +2039,6 @@ export default function PayoutsPayroll() {
                   Generated payroll runs, payment tracking, and payslip actions.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleExportLedger}
-                disabled={runsLoading || ledgerRows.length === 0}
-                className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition ${
-                  runsLoading || ledgerRows.length === 0
-                    ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
-                    : 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                }`}
-              >
-                Export Excel
-              </button>
             </div>
 
             <div className="space-y-6 p-6">
@@ -2120,17 +2052,23 @@ export default function PayoutsPayroll() {
                   No payroll run is available yet.
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-[1.5rem] border border-outline-variant/10 bg-white">
-                  <table className="w-full min-w-[1420px]">
-                    <thead className="border-b border-slate-200/80 bg-[#f8fbff]">
-                      <tr>
-                        {['Month', 'Employee ID', 'Name', 'Company', 'Gross', 'Deductions', 'Net', 'Status', 'Actions'].map((label) => (
-                          <th key={label} className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                            {label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
+                <div className="relative overflow-x-auto rounded-[1.5rem] border border-outline-variant/10 bg-white scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="sticky top-0 z-30 border-b border-slate-200/80 bg-[#f8fbff] shadow-sm">
+                    <table className="w-full min-w-[1400px] table-fixed">
+                      <TableColGroup widths={LEDGER_COLUMN_WIDTHS} />
+                      <thead>
+                        <tr>
+                          {LEDGER_COLUMNS.map((label) => (
+                            <th key={label} className="bg-[#f8fbff] px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                    </table>
+                  </div>
+                  <table className="w-full min-w-[1400px] table-fixed">
+                    <TableColGroup widths={LEDGER_COLUMN_WIDTHS} />
                     <tbody className="divide-y divide-slate-200/70">
                       {ledgerRows.map((item: any) => {
                         const isViewing = activeLedgerAction?.itemId === item.id && activeLedgerAction?.type === 'view';
