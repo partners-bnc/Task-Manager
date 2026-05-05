@@ -23,9 +23,9 @@
   --red: #c0392b;
   --blue: #2a72c3;
   --purple: #7e3fb5;
-  --mono: 'Space Mono', monospace;
-  --display: 'Bricolage Grotesque', sans-serif;
-  --body: 'DM Sans', sans-serif;
+  --mono: "SFMono-Regular", "Cascadia Code", "Fira Code", "Consolas", "Liberation Mono", monospace;
+  --display: "Segoe UI", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif;
+  --body: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 @keyframes pulse-glow {

@@ -1,26 +1,4 @@
-import { Space_Mono, Bricolage_Grotesque, DM_Sans } from "next/font/google";
 import "./globals.css";
-
-const spaceMono = Space_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-  display: "swap",
-});
-
-const bricolageGrotesque = Bricolage_Grotesque({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
-  display: "swap",
-});
-
-const dmSans = DM_Sans({
-  variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["300", "400", "500"],
-  display: "swap",
-});
 
 export const metadata = {
   title: "TaskFlow — Internal Task Management",
@@ -34,7 +12,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${spaceMono.variable} ${bricolageGrotesque.variable} ${dmSans.variable}`}>
+    <html lang="en">
       <head>
         <link
           rel="stylesheet"
