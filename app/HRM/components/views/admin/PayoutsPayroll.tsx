@@ -491,7 +491,7 @@ export default function PayoutsPayroll() {
       }
 
       const headers = Array.from(
-        rows.reduce((set, row) => {
+        rows.reduce<Set<string>>((set, row) => {
           Object.keys(row || {}).forEach((key) => set.add(key));
           return set;
         }, new Set<string>())
