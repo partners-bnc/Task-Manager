@@ -140,7 +140,7 @@ function ensureXlsxLoaded() {
 
   xlsxLoaderPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
     script.async = true;
     script.onload = () => resolve((window as any).XLSX);
     script.onerror = () => reject(new Error('Failed to load Excel export library.'));
@@ -198,6 +198,50 @@ function safeFilePart(value = '') {
     .trim()
     .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
     .replace(/\s+/g, '_');
+}
+
+function getMonthlyExcelCellStyle(cell: MonthlyStatusCell) {
+  const normalizedStatus = String(cell?.status || '').toLowerCase();
+  const fill =
+    normalizedStatus === 'present'
+      ? 'DBEAFE'
+      : normalizedStatus === 'absent'
+      ? 'FFE4E6'
+      : normalizedStatus === 'halfday'
+      ? 'EDE9FE'
+      : normalizedStatus === 'on_leave'
+      ? 'D1FAE5'
+      : normalizedStatus === 'holiday'
+      ? 'FFEDD5'
+      : normalizedStatus === 'weekend'
+      ? 'E2E8F0'
+      : 'FFFFFF';
+  const fontColor =
+    normalizedStatus === 'present'
+      ? '0C4A6E'
+      : normalizedStatus === 'absent'
+      ? '881337'
+      : normalizedStatus === 'halfday'
+      ? '4C1D95'
+      : normalizedStatus === 'on_leave'
+      ? '065F46'
+      : normalizedStatus === 'holiday'
+      ? '9A3412'
+      : normalizedStatus === 'weekend'
+      ? '334155'
+      : '64748B';
+
+  return {
+    fill: { fgColor: { rgb: fill } },
+    font: { color: { rgb: fontColor }, bold: true, sz: 10 },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: {
+      top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      right: { style: 'thin', color: { rgb: 'E2E8F0' } },
+    },
+  };
 }
 
 const MONTHLY_ATTENDANCE_ACTIONS: Array<{ value: string; label: string }> = [
@@ -453,35 +497,119 @@ export default function AdminAttendance() {
   };
 
   const handleExportMonthlyExcel = async () => {
-    const rows = monthlyRows.map((row) => {
-      const base: Record<string, any> = {
-        employee_id: row.employee?.employeeId || '--',
-        employee_name: row.employee?.name || 'Employee',
-        department: row.employee?.department || 'Department not set',
-        designation: row.employee?.designation || 'Designation not set',
-      };
+    if (!monthlyRows.length) {
+      return;
+    }
 
-      for (const day of row.dailyStatuses || []) {
-        const dayNumber = String(day.date).slice(-2);
-        base[`day_${dayNumber}`] = day.code;
+    const XLSX = await ensureXlsxLoaded();
+    const headerRow = [
+      'Employee ID',
+      'Employee Name',
+      'Department',
+      'Designation',
+      ...calendarDays.map((day) => day.dayNumber),
+      'P',
+      'HD',
+      'A',
+      'OFF',
+      'H',
+      'Lv',
+      'T',
+    ];
+    const dataRows = monthlyRows.map((row) => [
+      row.employee?.employeeId || '--',
+      row.employee?.name || 'Employee',
+      row.employee?.department || 'Department not set',
+      row.employee?.designation || 'Designation not set',
+      ...row.dailyStatuses.map((day) => day.code),
+      row.summary.present,
+      row.summary.halfDay,
+      row.summary.absent,
+      row.summary.off,
+      row.summary.holiday,
+      row.summary.leave,
+      row.summary.totalDays,
+    ]);
+    const worksheet = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+    const workbook = XLSX.utils.book_new();
+
+    worksheet['!cols'] = [
+      { wch: 14 },
+      { wch: 24 },
+      { wch: 20 },
+      { wch: 22 },
+      ...calendarDays.map(() => ({ wch: 7 })),
+      { wch: 7 },
+      { wch: 7 },
+      { wch: 7 },
+      { wch: 7 },
+      { wch: 7 },
+      { wch: 7 },
+      { wch: 7 },
+    ];
+
+    const headerStyle = {
+      fill: { fgColor: { rgb: 'F1F5F9' } },
+      font: { bold: true, color: { rgb: '0F172A' }, sz: 10 },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        right: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      },
+    };
+    const summaryStyle = {
+      fill: { fgColor: { rgb: 'F8FAFC' } },
+      font: { bold: true, color: { rgb: '0F172A' }, sz: 10 },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+        right: { style: 'thin', color: { rgb: 'CBD5E1' } },
+      },
+    };
+    const metaStyle = {
+      alignment: { horizontal: 'left', vertical: 'center' },
+      border: {
+        top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+        bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+        left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+        right: { style: 'thin', color: { rgb: 'E2E8F0' } },
+      },
+      font: { color: { rgb: '0F172A' }, sz: 10 },
+    };
+    const dayStartColumn = 4;
+    const dayEndColumn = dayStartColumn + calendarDays.length - 1;
+    const summaryStartColumn = dayEndColumn + 1;
+
+    const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex += 1) {
+      for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex += 1) {
+        const address = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+        const cell = worksheet[address];
+        if (!cell) continue;
+
+        if (rowIndex === 0) {
+          cell.s = headerStyle;
+        } else if (colIndex < dayStartColumn) {
+          cell.s = metaStyle;
+        } else if (colIndex >= dayStartColumn && colIndex <= dayEndColumn) {
+          const dayCell = monthlyRows[rowIndex - 1]?.dailyStatuses?.[colIndex - dayStartColumn];
+          cell.s = dayCell ? getMonthlyExcelCellStyle(dayCell) : summaryStyle;
+        } else if (colIndex >= summaryStartColumn) {
+          cell.s = summaryStyle;
+        }
       }
+    }
 
-      base.present = row.summary.present;
-      base.half_day = row.summary.halfDay;
-      base.absent = row.summary.absent;
-      base.off = row.summary.off;
-      base.holiday = row.summary.holiday;
-      base.leave = row.summary.leave;
-      base.total_days = row.summary.totalDays;
-      return base;
-    });
-
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Monthly Attendance');
     const employeeName =
       filteredEmployeeOptions.find((employee) => employee.id === selectedEmployeeId)?.name || 'all_employees';
-    await exportExcelFile(
-      rows,
-      `monthly_attendance_${safeFilePart(selectedMonth)}_${safeFilePart(selectedEmployeeId ? employeeName : 'all')}.xlsx`,
-      'Monthly Attendance'
+    XLSX.writeFile(
+      workbook,
+      `monthly_attendance_${safeFilePart(selectedMonth)}_${safeFilePart(selectedEmployeeId ? employeeName : 'all')}.xlsx`
     );
   };
 
@@ -1083,7 +1211,7 @@ export default function AdminAttendance() {
                         ['A', 'absent'],
                         ['OFF', 'off'],
                         ['H', 'holiday'],
-                        ['LE', 'leave'],
+                        ['LV', 'leave'],
                         ['T', 'totalDays'],
                       ].map(([label]) => (
                         <th
