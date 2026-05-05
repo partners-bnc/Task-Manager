@@ -1,7 +1,7 @@
 import { adminClient } from '@/utils/supabase/admin';
 import { deriveEmploymentFields } from '@/utils/hrm-employment';
 import { calculateLeaveDays, getEmployeeLeaveContext } from '@/utils/leave';
-import { getCurrentDateInTimeZone } from '@/utils/attendance';
+import { getCurrentDateInTimeZone, listDatesInRange } from '@/utils/attendance';
 
 const PAYROLL_PROFILE_SELECT = `
   id,

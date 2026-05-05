@@ -16,6 +16,10 @@ const OPPOSITE_HALF_PRESENT_MARKER = '[hr_override_opposite_half_present]';
 const APRIL_BACKFILL_CODE_MARKER = 'april_backfill_code';
 const APRIL_BACKFILL_LABEL_MARKER = 'april_backfill_label';
 
+function isAprilBackfillDate(date = '') {
+  return String(date || '').startsWith('2026-04-');
+}
+
 function isMissingEmploymentColumnError(error) {
   const message = String(error?.message || '').toLowerCase();
   return (
@@ -226,23 +230,50 @@ function buildLeaveCellDetails(leaveRequest, rawAttendance) {
   };
 }
 
+function roundSummaryValue(value = 0) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function addSummaryContribution(summary, code, fraction = 1) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (normalized === 'P') summary.present += fraction;
+  else if (normalized === 'A') summary.absent += fraction;
+  else if (normalized === 'HD') summary.halfDay += fraction;
+  else if (normalized === 'OFF') summary.off += fraction;
+  else if (normalized === 'H') summary.holiday += fraction;
+  else if (['L', 'CL', 'SL', 'SP', 'COFF', 'CH', 'LOP'].includes(normalized)) summary.leave += fraction;
+}
+
 function buildMonthlySummary(dailyStatuses = []) {
-  return dailyStatuses.reduce(
-    (summary, day) => {
-      const code = String(day?.code || '--');
-      if (code.includes(':')) summary.halfDay += 1;
-      else
-      if (code === 'P') summary.present += 1;
-      else if (code === 'HD') summary.halfDay += 1;
-      else if (code === 'A') summary.absent += 1;
-      else if (code === 'OFF') summary.off += 1;
-      else if (code === 'H') summary.holiday += 1;
-      else if (['L', 'CL', 'SL', 'SP', 'COFF', 'CH', 'LOP'].includes(code)) summary.leave += 1;
-      else summary.missing += 1;
-      return summary;
+  const summary = dailyStatuses.reduce(
+    (current, day) => {
+      const code = String(day?.code || '--').trim().toUpperCase();
+      current.totalDays += 1;
+
+      if (code.includes(':')) {
+        current.halfDay += 1;
+        code
+          .split(':')
+          .slice(0, 2)
+          .forEach((part) => addSummaryContribution(current, part, 0.5));
+        return current;
+      }
+
+      addSummaryContribution(current, code, 1);
+      return current;
     },
-    { present: 0, halfDay: 0, absent: 0, off: 0, holiday: 0, leave: 0, missing: 0 }
+    { present: 0, halfDay: 0, absent: 0, off: 0, holiday: 0, leave: 0, totalDays: 0 }
   );
+
+  return {
+    present: roundSummaryValue(summary.present),
+    halfDay: roundSummaryValue(summary.halfDay),
+    absent: roundSummaryValue(summary.absent),
+    off: roundSummaryValue(summary.off),
+    holiday: roundSummaryValue(summary.holiday),
+    leave: roundSummaryValue(summary.leave),
+    totalDays: roundSummaryValue(summary.totalDays),
+  };
 }
 
 function summarizeSwipePattern(swipes = []) {
@@ -485,13 +516,13 @@ export async function GET(request) {
                   workingDays: employee.working_days || [],
                   secondSaturdayOff: Boolean(employee.second_saturday_off),
                 });
-            const leaveDetails =
-              !holiday && rendered.status !== 'weekend' && leaveRequest
-                ? buildLeaveCellDetails(leaveRequest, rawAttendance)
-                : null;
             const backfillDetails =
-              !holiday && rawAttendance && !leaveRequest
+              !holiday && rawAttendance
                 ? buildAttendanceBackfillCellDetails(rawAttendance)
+                : null;
+            const leaveDetails =
+              !holiday && rendered.status !== 'weekend' && leaveRequest && !backfillDetails
+                ? buildLeaveCellDetails(leaveRequest, rawAttendance)
                 : null;
             const normalizedStatus = String(leaveDetails?.status || backfillDetails?.status || rendered.status || '').toLowerCase() || 'missing';
             const code = leaveDetails?.code || backfillDetails?.code || mapMonthlyStatusToCode(normalizedStatus);
@@ -525,7 +556,7 @@ export async function GET(request) {
           if (!statusFilter) return true;
           const normalizedStatus = String(statusFilter).toLowerCase();
           if (normalizedStatus === 'missing') {
-            return row.summary.missing > 0;
+            return row.dailyStatuses.some((day) => day.status === 'missing');
           }
           return row.dailyStatuses.some((day) => day.status === normalizedStatus);
         });

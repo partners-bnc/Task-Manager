@@ -100,7 +100,7 @@ type MonthlyAttendanceRow = {
     off: number;
     holiday: number;
     leave: number;
-    missing: number;
+    totalDays: number;
   };
 };
 
@@ -241,7 +241,15 @@ const MONTHLY_LEAVE_ACTION_GROUPS: Array<{ title: string; options: Array<{ value
   },
   {
     title: 'Special Leave',
-    options: [{ value: 'special_leave_full_day', label: 'SP - Full Day' }],
+    options: [
+      { value: 'special_leave_full_day', label: 'SP - Full Day' },
+      { value: 'special_leave_first_half', label: 'SP - First Half' },
+      { value: 'special_leave_second_half', label: 'SP - Second Half' },
+      { value: 'special_leave_first_half_present', label: 'SP:P - First Half Leave' },
+      { value: 'special_leave_second_half_present', label: 'P:SP - Second Half Leave' },
+      { value: 'special_leave_first_half_absent', label: 'SP:A - First Half Leave' },
+      { value: 'special_leave_second_half_absent', label: 'A:SP - Second Half Leave' },
+    ],
   },
   {
     title: 'Comp Off',
@@ -270,6 +278,7 @@ export default function AdminAttendance() {
   const [swipeLoading, setSwipeLoading] = useState(false);
   const [swipeError, setSwipeError] = useState('');
   const [monthlyEditor, setMonthlyEditor] = useState<MonthlyEditorState | null>(null);
+  const [monthlyRefreshKey, setMonthlyRefreshKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -329,7 +338,7 @@ export default function AdminAttendance() {
     return () => {
       active = false;
     };
-  }, [departmentFilter, mode, search, selectedDate, selectedEmployeeId, selectedMonth, statusFilter]);
+  }, [departmentFilter, mode, search, selectedDate, selectedEmployeeId, selectedMonth, statusFilter, monthlyRefreshKey]);
 
   useEffect(() => {
     if (mode !== 'monthly') {
@@ -372,7 +381,7 @@ export default function AdminAttendance() {
           off: Number(row?.summary?.off || 0),
           holiday: Number(row?.summary?.holiday || 0),
           leave: Number(row?.summary?.leave || 0),
-          missing: Number(row?.summary?.missing || 0),
+          totalDays: Number(row?.summary?.totalDays || 0),
         },
       }));
   }, [mode, response?.rows]);
@@ -463,7 +472,7 @@ export default function AdminAttendance() {
       base.off = row.summary.off;
       base.holiday = row.summary.holiday;
       base.leave = row.summary.leave;
-      base.missing = row.summary.missing;
+      base.total_days = row.summary.totalDays;
       return base;
     });
 
@@ -485,6 +494,10 @@ export default function AdminAttendance() {
 
   const closeMonthlyEditor = () => {
     setMonthlyEditor(null);
+  };
+
+  const handleRefreshMonthlyAttendance = () => {
+    setMonthlyRefreshKey((current) => current + 1);
   };
 
   const handleOpenMonthlyEditor = (
@@ -560,7 +573,7 @@ export default function AdminAttendance() {
               off: Number(result.summary?.off || 0),
               holiday: Number(result.summary?.holiday || 0),
               leave: Number(result.summary?.leave || 0),
-              missing: Number(result.summary?.missing || 0),
+              totalDays: Number(result.summary?.totalDays || 0),
             },
           };
         });
@@ -975,6 +988,18 @@ export default function AdminAttendance() {
                       Month-wise attendance matrix for {formatMonthLabel(response?.month || selectedMonth)}.
                     </div>
                     <div className="flex flex-wrap items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={handleRefreshMonthlyAttendance}
+                        disabled={isLoading}
+                        className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                          isLoading
+                            ? 'cursor-not-allowed bg-slate-200 text-slate-500 shadow-none'
+                            : 'border border-outline-variant/20 bg-white text-on-surface hover:bg-surface-container-low'
+                        }`}
+                      >
+                        Refresh
+                      </button>
                       <div className="rounded-full border border-outline-variant/10 bg-surface-container-low px-3 py-1 text-[11px] text-on-surface-variant whitespace-nowrap">
                         Click past or today cells to edit
                       </div>
@@ -1034,17 +1059,19 @@ export default function AdminAttendance() {
                     </div>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div
+                  className="max-h-[68vh] overflow-auto rounded-2xl border border-outline-variant/10 overscroll-contain scroll-smooth [scroll-behavior:smooth] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                >
                 <table className="min-w-[1320px] w-full border-separate border-spacing-0 text-center">
                   <thead>
                     <tr className="bg-surface-container-low/40">
-                      <th className="sticky left-0 z-20 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-outline-variant/10 bg-white px-3 py-2.5 text-left text-sm font-bold text-on-surface shadow-[8px_0_18px_rgba(255,255,255,0.95)]">
+                      <th className="sticky left-0 top-0 z-30 w-[180px] min-w-[180px] max-w-[180px] border-b border-r border-outline-variant/10 bg-white px-3 py-2.5 text-left text-sm font-bold text-on-surface shadow-[8px_0_18px_rgba(255,255,255,0.95)]">
                         Employee
                       </th>
                       {calendarDays.map((day) => (
                         <th
                           key={day.date}
-                          className="min-w-[32px] border-b border-r border-outline-variant/10 px-0.5 py-2 text-[10px] font-bold text-on-surface"
+                          className="sticky top-0 z-20 min-w-[32px] border-b border-r border-outline-variant/10 bg-surface-container-lowest px-0.5 py-2 text-[10px] font-bold text-on-surface"
                         >
                           <div>{day.dayNumber}</div>
                           <div className="mt-0.5 text-[9px] font-medium text-on-surface-variant">{day.weekdayShort}</div>
@@ -1056,12 +1083,12 @@ export default function AdminAttendance() {
                         ['A', 'absent'],
                         ['OFF', 'off'],
                         ['H', 'holiday'],
-                        ['L', 'leave'],
-                        ['?', 'missing'],
+                        ['LE', 'leave'],
+                        ['T', 'totalDays'],
                       ].map(([label]) => (
                         <th
                           key={label}
-                          className="min-w-[34px] border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-bold text-on-surface"
+                          className="sticky top-0 z-20 min-w-[34px] border-b border-r border-outline-variant/10 bg-surface-container-lowest px-1 py-2 text-[10px] font-bold text-on-surface"
                         >
                           {label}
                         </th>
@@ -1111,7 +1138,7 @@ export default function AdminAttendance() {
                         <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.off}</td>
                         <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.holiday}</td>
                         <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.leave}</td>
-                        <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.missing}</td>
+                        <td className="border-b border-r border-outline-variant/10 px-1 py-2 text-[10px] font-semibold text-on-surface">{row.summary.totalDays}</td>
                       </tr>
                     ))}
                   </tbody>

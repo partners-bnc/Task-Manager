@@ -84,6 +84,11 @@ function stripAprilBackfillMarkers(noteText = '') {
   return stripNoteMarker(stripNoteMarker(noteText, APRIL_BACKFILL_CODE_MARKER), APRIL_BACKFILL_LABEL_MARKER);
 }
 
+function readNoteMarker(noteText = '', markerName = '') {
+  const match = String(noteText || '').match(new RegExp(`\\[${markerName}:([^\\]]+)\\]`, 'i'));
+  return match?.[1]?.trim() || '';
+}
+
 function formatStatusLabel(status = '') {
   const normalized = String(status || '').trim().toLowerCase();
   if (!normalized) return '--';
@@ -107,22 +112,128 @@ function mapMonthlyStatusToCode(status = '') {
   return '--';
 }
 
+function isAprilBackfillDate(date = '') {
+  return String(date || '').startsWith('2026-04-');
+}
+
+function getLeaveTypeDisplayCode(leaveTypeCode = '') {
+  const normalized = String(leaveTypeCode || '').trim().toLowerCase();
+  if (normalized === 'casual_leave') return 'CL';
+  if (normalized === 'sick_leave') return 'SL';
+  if (normalized === 'special_leave') return 'SP';
+  if (normalized === 'lop') return 'LOP';
+  if (normalized === 'comp_off') return 'COFF';
+  if (normalized === 'client_holiday') return 'CH';
+  return '--';
+}
+
+function buildAprilBackfillOverrideDetails(action) {
+  if (!action) {
+    return {
+      status: 'absent',
+      code: 'A',
+      label: 'Absent',
+    };
+  }
+
+  if (action.kind === 'attendance') {
+    return {
+      status: action.status,
+      code: mapMonthlyStatusToCode(action.status),
+      label: action.label,
+    };
+  }
+
+  const leaveCode = getLeaveTypeDisplayCode(action.leaveTypeCode);
+  const isMarkedPresent = action.markOppositeHalfPresent;
+  const oppositeCode = isMarkedPresent ? 'P' : 'A';
+  const isHalfDay = action.session !== 'full_day';
+  const code = !isHalfDay
+    ? leaveCode
+    : action.session === 'first_half'
+      ? `${leaveCode}:${oppositeCode}`
+      : `${oppositeCode}:${leaveCode}`;
+
+  return {
+    status: isHalfDay ? 'halfday' : 'on_leave',
+    code,
+    label: !isHalfDay
+      ? leaveCode
+      : action.session === 'first_half'
+        ? `${leaveCode} - First Half`
+        : `${leaveCode} - Second Half`,
+  };
+}
+
+function roundSummaryValue(value = 0) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function addSummaryContribution(summary, code, fraction = 1) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (normalized === 'P') summary.present += fraction;
+  else if (normalized === 'A') summary.absent += fraction;
+  else if (normalized === 'HD') summary.halfDay += fraction;
+  else if (normalized === 'OFF') summary.off += fraction;
+  else if (normalized === 'H') summary.holiday += fraction;
+  else if (['L', 'CL', 'SL', 'SP', 'COFF', 'CH', 'LOP'].includes(normalized)) summary.leave += fraction;
+}
+
 function buildMonthlySummary(dailyStatuses = []) {
-  return dailyStatuses.reduce(
-    (summary, day) => {
-      const code = String(day?.code || '--');
-      if (code.includes(':')) summary.halfDay += 1;
-      else if (code === 'P') summary.present += 1;
-      else if (code === 'HD') summary.halfDay += 1;
-      else if (code === 'A') summary.absent += 1;
-      else if (code === 'OFF') summary.off += 1;
-      else if (code === 'H') summary.holiday += 1;
-      else if (['L', 'CL', 'SL', 'SP', 'COFF', 'CH', 'LOP'].includes(code)) summary.leave += 1;
-      else summary.missing += 1;
-      return summary;
+  const summary = dailyStatuses.reduce(
+    (current, day) => {
+      const code = String(day?.code || '--').trim().toUpperCase();
+      current.totalDays += 1;
+
+      if (code.includes(':')) {
+        current.halfDay += 1;
+        code
+          .split(':')
+          .slice(0, 2)
+          .forEach((part) => addSummaryContribution(current, part, 0.5));
+        return current;
+      }
+
+      addSummaryContribution(current, code, 1);
+      return current;
     },
-    { present: 0, halfDay: 0, absent: 0, off: 0, holiday: 0, leave: 0, missing: 0 }
+    { present: 0, halfDay: 0, absent: 0, off: 0, holiday: 0, leave: 0, totalDays: 0 }
   );
+
+  return {
+    present: roundSummaryValue(summary.present),
+    halfDay: roundSummaryValue(summary.halfDay),
+    absent: roundSummaryValue(summary.absent),
+    off: roundSummaryValue(summary.off),
+    holiday: roundSummaryValue(summary.holiday),
+    leave: roundSummaryValue(summary.leave),
+    totalDays: roundSummaryValue(summary.totalDays),
+  };
+}
+
+function buildAttendanceBackfillCellDetails(rawAttendance) {
+  const code = readNoteMarker(rawAttendance?.notes, APRIL_BACKFILL_CODE_MARKER);
+  if (!code) {
+    return null;
+  }
+
+  const label = readNoteMarker(rawAttendance?.notes, APRIL_BACKFILL_LABEL_MARKER) || formatStatusLabel(rawAttendance?.status);
+  const normalizedCode = String(code).toUpperCase();
+  let status = String(rawAttendance?.status || '').toLowerCase();
+
+  if (normalizedCode === 'OFF') status = 'weekend';
+  else if (normalizedCode.includes(':') || normalizedCode === 'HD') status = 'halfday';
+  else if (['CL', 'SL', 'SP', 'LOP', 'CH', 'COFF', 'L'].includes(normalizedCode)) status = 'on_leave';
+  else if (normalizedCode === 'H') status = 'holiday';
+  else if (normalizedCode === 'P') status = 'present';
+  else if (normalizedCode === 'A') status = 'absent';
+
+  return {
+    code: normalizedCode,
+    status,
+    label,
+    notes: rawAttendance?.notes || '',
+  };
 }
 
 function buildLeaveCellDetails(leaveRequest, rawAttendance) {
@@ -182,7 +293,7 @@ function parseOverrideAction(action) {
     };
   }
 
-  const match = normalized.match(/^(casual_leave|sick_leave|special_leave|lop|comp_off|client_holiday)_(full_day|first_half|second_half)(?:_present)?$/);
+  const match = normalized.match(/^(casual_leave|sick_leave|special_leave|lop|comp_off|client_holiday)_(full_day|first_half|second_half)(?:_(present|absent))?$/);
   if (!match) {
     return null;
   }
@@ -191,7 +302,7 @@ function parseOverrideAction(action) {
     kind: 'leave',
     leaveTypeCode: match[1],
     session: match[2],
-    markOppositeHalfPresent: normalized.endsWith('_present'),
+    markOppositeHalfPresent: match[3] === 'present',
   };
 }
 
@@ -337,18 +448,22 @@ async function refreshMonthlyEmployeeState({ employeeRow, employeeId, month, tod
             workingDays: employeeRow.working_days || [],
             secondSaturdayOff: Boolean(employeeRow.second_saturday_off),
           });
+      const backfillDetails =
+        !holiday && rawAttendance
+          ? buildAttendanceBackfillCellDetails(rawAttendance)
+          : null;
       const leaveDetails =
-        !holiday && rendered.status !== 'weekend' && leaveRequest
+        !holiday && rendered.status !== 'weekend' && leaveRequest && !backfillDetails
           ? buildLeaveCellDetails(leaveRequest, rawAttendance)
           : null;
-      const normalizedStatus = String(leaveDetails?.status || rendered.status || '').toLowerCase() || 'missing';
+      const normalizedStatus = String(leaveDetails?.status || backfillDetails?.status || rendered.status || '').toLowerCase() || 'missing';
 
       return {
         date: calendarDate,
-        code: leaveDetails?.code || mapMonthlyStatusToCode(normalizedStatus),
+        code: leaveDetails?.code || backfillDetails?.code || mapMonthlyStatusToCode(normalizedStatus),
         status: normalizedStatus,
-        label: leaveDetails?.label || formatStatusLabel(normalizedStatus),
-        notes: leaveDetails?.notes || rendered.notes || '',
+        label: leaveDetails?.label || backfillDetails?.label || formatStatusLabel(normalizedStatus),
+        notes: leaveDetails?.notes || backfillDetails?.notes || rendered.notes || '',
       };
     });
 
@@ -369,10 +484,6 @@ async function createApprovedHrOverrideLeave({
   reviewerEmployeeId,
   previousCode,
 }) {
-  if (getLeaveTypeCode(leaveType) === 'special_leave' && action.session !== 'full_day') {
-    throw new Error('Special Leave can only be overwritten as a full-day leave.');
-  }
-
   const calculation = await calculateLeaveDays({
     startDate: date,
     endDate: date,
@@ -589,6 +700,91 @@ export async function PATCH(request) {
 
     if (attendanceError) {
       return NextResponse.json({ error: attendanceError.message || 'Failed to load attendance row.' }, { status: 500 });
+    }
+
+    if (isAprilBackfillDate(date)) {
+      if (action.status === 'weekend') {
+        if (existingAttendance?.id) {
+          const { error } = await adminClient.from('hrm_attendance').delete().eq('id', existingAttendance.id);
+          if (error) {
+            return NextResponse.json({ error: error.message || 'Failed to clear attendance row.' }, { status: 500 });
+          }
+        }
+      } else {
+        const aprilDetails = buildAprilBackfillOverrideDetails(action);
+        const auditNote = buildAttendanceAuditMessage(actorName, currentCode || mapMonthlyStatusToCode(existingAttendance?.status), aprilDetails.label, date);
+        const payload = {
+          employee_id: employeeId,
+          date,
+          status: aprilDetails.status,
+          check_in: existingAttendance?.check_in ?? null,
+          check_out: existingAttendance?.check_out ?? null,
+          late_in_minutes: Number(existingAttendance?.late_in_minutes || 0),
+          early_out_minutes: Number(existingAttendance?.early_out_minutes || 0),
+          work_hours_minutes: Number(existingAttendance?.work_hours_minutes || 0),
+          source: 'manual',
+          notes: setNoteMarker(
+            setNoteMarker(
+              appendAuditNote(stripAprilBackfillMarkers(existingAttendance?.notes), auditNote),
+              APRIL_BACKFILL_CODE_MARKER,
+              aprilDetails.code
+            ),
+            APRIL_BACKFILL_LABEL_MARKER,
+            aprilDetails.label
+          ),
+        };
+
+        if (existingAttendance?.id) {
+          const { error } = await adminClient
+            .from('hrm_attendance')
+            .update(payload)
+            .eq('id', existingAttendance.id);
+
+          if (error) {
+            return NextResponse.json({ error: error.message || 'Failed to update attendance.' }, { status: 500 });
+          }
+        } else {
+          const { error } = await adminClient.from('hrm_attendance').insert(payload);
+          if (error) {
+            return NextResponse.json({ error: error.message || 'Failed to create attendance.' }, { status: 500 });
+          }
+        }
+      }
+
+      const month = date.slice(0, 7);
+      const refreshed = await refreshMonthlyEmployeeState({
+        employeeRow,
+        employeeId,
+        month,
+        today,
+      });
+
+      const updatedCell = refreshed.dailyStatuses.find((day) => day.date === date) || {
+        date,
+        code: action.kind === 'attendance' ? mapMonthlyStatusToCode(action.status) : '--',
+        status: action.kind === 'attendance' ? action.status : 'on_leave',
+        label: action.kind === 'attendance' ? action.label : 'Leave',
+        notes: '',
+      };
+
+      return NextResponse.json(
+        {
+          employeeId,
+          date,
+          month,
+          updatedCell,
+          summary: refreshed.summary,
+          employee: {
+            id: employeeRow.id,
+            employeeId: employeeRow.employee_id || '--',
+            name: employeeRow.name || 'Employee',
+            department: getRelationRecord(employeeRow.department)?.name || 'Department not set',
+            designation: getRelationRecord(employeeRow.designation)?.title || 'Designation not set',
+            city: employeeRow.city || '',
+          },
+        },
+        { status: 200 }
+      );
     }
 
     const { data: coveringRequests, error: requestError } = await adminClient
