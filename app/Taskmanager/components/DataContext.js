@@ -111,9 +111,8 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     currentUserId && (task?.created_by === currentUserId || task?.created_by_employee_id === currentUserId);
   const createdByLabel = isCurrentCreator
     ? 'You'
-    : task?.created_by
-      ? 'Admin'
-      : 'Employee';
+    : task?.creator_name ||
+      (task?.created_by ? 'Admin' : 'Employee');
 
   return {
     id: task.id,
@@ -209,8 +208,12 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
   };
 
   const fetchEmployeeData = async () => {
-    const response = await fetch('/HRM/api/employee/tasks', { method: 'GET' });
+    const [response, taskLabelsRes] = await Promise.all([
+      fetch('/HRM/api/employee/tasks', { method: 'GET' }),
+      fetch('/Taskmanager/api/task-labels', { method: 'GET' }),
+    ]);
     const result = await response.json();
+    const taskLabelsJson = await taskLabelsRes.json();
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -223,12 +226,19 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
       throw new Error(result.error || 'Failed to fetch employee tasks');
     }
 
+    if (!taskLabelsRes.ok) {
+      throw new Error(taskLabelsJson.error || 'Failed to fetch task labels');
+    }
+
     const employee = result.employee || null;
     const rawTasks = result.tasks || [];
     const nextTasks = rawTasks.map((task) => normalizeTask(task, employee?.id ? [employee.id] : [], employee?.id || null));
     const nextUsers = Array.isArray(result.members)
       ? normalizeUsers(result.members)
       : deriveSharedUsersFromTasks(rawTasks, employee);
+    const nextTaskLabels = Array.isArray(taskLabelsJson.labels)
+      ? taskLabelsJson.labels.map((item) => item.name).filter(Boolean)
+      : [];
 
     setUser(
       employee
@@ -243,7 +253,7 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
     );
     setTasks(nextTasks);
     setUsers(nextUsers);
-    setTaskLabels([]);
+    setTaskLabels(nextTaskLabels);
   };
 
   const refreshData = async () => {

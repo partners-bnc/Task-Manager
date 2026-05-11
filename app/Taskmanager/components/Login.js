@@ -14,6 +14,22 @@ const LOGIN_OPTIONS = [
   { id: 'employee', label: 'Employee' },
 ];
 
+const SIMPLE_ROLE_ERROR_BY_LOGIN = {
+  super_admin: 'This email is not registered as a Super Admin. Please choose the correct login type.',
+  hr_admin: 'This email is not registered as an HR Admin. Please choose the correct login type.',
+  employee: 'This email is not registered as an Employee. Please choose the correct login type.',
+};
+
+function sanitizeLoginErrorMessage(message, loginAs) {
+  const normalized = String(message || '').toLowerCase();
+
+  if (normalized.includes('belongs to') && normalized.includes('correct login type')) {
+    return SIMPLE_ROLE_ERROR_BY_LOGIN[loginAs] || 'This email is not registered for the selected login type.';
+  }
+
+  return message || 'Invalid credentials';
+}
+
 function ButtonSpinner() {
   return (
     <span className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
@@ -107,7 +123,7 @@ export default function Login({ onSuccess }) {
 
     const result = await login({ identifier, password, loginAs });
     if (!result.success) {
-      setError(result.error || 'Invalid credentials');
+      setError(sanitizeLoginErrorMessage(result.error, loginAs));
       setLoading(false);
       return;
     }

@@ -140,23 +140,26 @@ function getAvatarInitial(name) {
 
 function MetricCard({ icon: Icon, label, value, tone = 'slate' }) {
   const toneClass = {
-    slate: 'bg-slate-100 text-slate-700',
-    purple: 'bg-purple-100 text-purple-700',
-    sky: 'bg-sky-100 text-sky-700',
-    emerald: 'bg-emerald-100 text-emerald-700',
-    rose: 'bg-rose-100 text-rose-700',
-    amber: 'bg-amber-100 text-amber-700',
-  }[tone] || 'bg-slate-100 text-slate-700';
+    slate: 'text-slate-700',
+    purple: 'text-purple-700',
+    sky: 'text-sky-700',
+    emerald: 'text-emerald-700',
+    rose: 'text-rose-700',
+    amber: 'text-amber-700',
+  }[tone] || 'text-slate-700';
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{label}</p>
-          <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{value}</p>
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+      <div className="flex min-h-[84px] items-center gap-4">
+        <div className={`flex shrink-0 items-center ${toneClass}`}>
+          <Icon size={30} strokeWidth={2} />
         </div>
-        <div className={`rounded-2xl p-3 ${toneClass}`}>
-          <Icon size={22} />
+        <div className="h-11 w-px shrink-0 bg-slate-200"></div>
+        <div className="flex min-h-[76px] flex-1 flex-col">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">{label}</p>
+          <div className="mt-auto flex justify-center">
+            <p className="text-2xl font-bold tracking-tight text-slate-900">{value}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -276,7 +279,7 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
 
   return (
     <div className="min-h-screen bg-slate-50 px-6 py-10 md:px-10">
-      <div className="mx-auto max-w-7xl space-y-8">
+      <div className="mx-auto max-w-[1560px] space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link href="/Taskmanager/admin/team" className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900">
             <ArrowLeft size={16} />
@@ -308,30 +311,140 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                   </div>
                 </div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-slate-200">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Completion Rate</p>
-                <p className="mt-2 text-4xl font-bold text-white">{stats?.completionRate ?? 0}%</p>
+              <div className="flex flex-wrap gap-3">
+                <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Completion Rate</p>
+                  <p className="mt-2 text-4xl font-bold text-white">{stats?.completionRate ?? 0}%</p>
+                </div>
+                <div className="rounded-3xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-slate-200">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Avg Rating</p>
+                  <p className="mt-2 text-4xl font-bold text-white">
+                    {stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A'}
+                    <span className="ml-2 text-2xl align-middle">⭐</span>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6">
           <MetricCard icon={UserRoundCheck} label="Total Assigned" value={stats?.totalAssigned ?? 0} tone="slate" />
           <MetricCard icon={Clock3} label="Pending" value={stats?.pending ?? 0} tone="purple" />
           <MetricCard icon={CalendarDays} label="In Progress" value={stats?.inProgress ?? 0} tone="sky" />
           <MetricCard icon={CircleCheckBig} label="Completed" value={stats?.completed ?? 0} tone="emerald" />
-          <MetricCard icon={Star} label="Avg Rating" value={stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A'} tone="amber" />
+          <MetricCard icon={Star} label="Rated Tasks" value={stats?.totalRatedTasks ?? 0} tone="amber" />
           <MetricCard icon={TriangleAlert} label="Overdue" value={stats?.overdue ?? 0} tone="rose" />
         </section>
 
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
-          <section className="min-w-0 space-y-6">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="grid gap-5 xl:grid-cols-3">
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight text-slate-900">Pending Focus</h2>
+                <p className="mt-1 text-sm text-slate-500">Outstanding work and due-date pressure.</p>
+              </div>
+              <div className="rounded-full bg-purple-100 px-3 py-1 text-sm font-semibold text-purple-700">
+                {pendingTasks.length}
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {pendingTasks.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  No pending or in-progress tasks.
+                </div>
+              )}
+              {pendingTasks.slice(0, 5).map((task) => (
+                <div key={task.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <Link href={`/Taskmanager/admin/tasks/${task.id}`} className="font-semibold text-slate-900 hover:text-[#7F40EE]">
+                        {task.task_name}
+                      </Link>
+                      <p className="mt-1 text-xs text-slate-500">Due {formatDate(task.due_date, { includeTime: true })}</p>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase ${STATUS_STYLES[task.status] || STATUS_STYLES.pending}`}>
+                      {String(task.status || 'pending').replace('_', ' ')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight text-slate-900">Latest Rated Tasks</h2>
+                <p className="mt-1 text-sm text-slate-500">Most recent performance ratings received by this employee.</p>
+              </div>
+              <div className="rounded-full bg-amber-50 px-3 py-1 text-sm font-semibold text-amber-700">
+                {stats?.totalRatedTasks ?? 0}
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {(stats?.latestRatedTasks || []).length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  No employee ratings recorded yet.
+                </div>
+              )}
+              {(stats?.latestRatedTasks || []).map((item) => (
+                <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <Link href={`/Taskmanager/admin/tasks/${item.taskId}`} className="font-semibold text-slate-900 hover:text-[#7F40EE]">
+                        {item.taskName}
+                      </Link>
+                      <p className="mt-1 text-xs text-slate-500">Rated {formatDate(item.ratedAt, { includeTime: true })}</p>
+                    </div>
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                      {item.rating.toFixed(1)} / 5
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold tracking-tight text-slate-900">Recent Assignment Activity</h2>
+                <p className="mt-1 text-sm text-slate-500">Latest task delegation events for this employee.</p>
+              </div>
+              <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+                {assignmentActivity.length}
+              </div>
+            </div>
+            <div className="mt-4 space-y-3">
+              {assignmentActivity.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                  No assignment activity recorded yet.
+                </div>
+              )}
+              {assignmentActivity.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold leading-6 text-slate-800">{getActivityText(item)}</p>
+                      <p className="mt-2 text-xs text-slate-500">{formatDate(item.createdAt, { includeTime: true })}</p>
+                    </div>
+                    <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase text-slate-600">
+                      {item.entityType}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </section>
+
+        <section className="min-w-0">
+          <div className="rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight text-slate-900">Assigned Tasks</h2>
-                  <p className="mt-1 text-sm text-slate-500">Pending work appears first, followed by due-date priority.</p>
+                  <h2 className="text-2xl font-bold tracking-tight text-slate-900">Assigned Tasks</h2>
+                  <p className="mt-1 text-sm text-slate-500">Pending work appears first, followed by due-date priority and employee performance details.</p>
                 </div>
                 <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
                   {sortedTasks.length} tasks
@@ -343,15 +456,16 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                   No assigned tasks found for this employee.
                 </div>
               ) : (
-                <div className="mt-6 w-full">
+                <div className="mt-6 w-full overflow-x-auto">
                   <table className="w-full table-fixed divide-y divide-slate-200 text-sm">
                     <thead>
                       <tr className="text-left text-xs uppercase tracking-[0.16em] text-slate-400">
-                        <th style={{ width: '24%' }} className="pb-3 pr-4 font-semibold">Task</th>
-                        <th style={{ width: '10%' }} className="pb-3 pr-4 font-semibold">Status</th>
-                        <th style={{ width: '11%' }} className="pb-3 pr-4 font-semibold">Due</th>
-                        <th style={{ width: '22%' }} className="pb-3 pr-4 font-semibold">Due Timeline</th>
-                        <th style={{ width: '12%' }} className="pb-3 pr-4 font-semibold">Progress</th>
+                        <th style={{ width: '22%' }} className="pb-3 pr-4 font-semibold">Task</th>
+                        <th style={{ width: '9%' }} className="pb-3 pr-4 font-semibold">Status</th>
+                        <th style={{ width: '10%' }} className="pb-3 pr-4 font-semibold">Due</th>
+                        <th style={{ width: '20%' }} className="pb-3 pr-4 font-semibold">Due Timeline</th>
+                        <th style={{ width: '10%' }} className="pb-3 pr-4 font-semibold">Progress</th>
+                        <th style={{ width: '8%' }} className="pb-3 pr-4 font-semibold">Rating</th>
                         <th style={{ width: '11%' }} className="pb-3 pr-4 font-semibold">Assigned By</th>
                         <th style={{ width: '10%' }} className="pb-3 font-semibold">Assigned At</th>
                       </tr>
@@ -401,6 +515,15 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                                 </div>
                               </div>
                             </td>
+                            <td className="py-4 pr-4">
+                              {typeof task.employee_rating === 'number' ? (
+                                <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700">
+                                  {task.employee_rating.toFixed(1)} / 5
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">Not rated</span>
+                              )}
+                            </td>
                             <td className="wrap-break-word py-4 pr-4 text-slate-700">{task.assigned_by || 'Assigned'}</td>
                             <td className="py-4 text-slate-700">{formatDate(task.assigned_at, { includeTime: true })}</td>
                           </tr>
@@ -410,77 +533,8 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                   </table>
                 </div>
               )}
-            </div>
-          </section>
-
-          <aside className="min-w-0 space-y-6">
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold tracking-tight text-slate-900">Pending Focus</h2>
-                  <p className="mt-1 text-sm text-slate-500">Outstanding work and due-date pressure.</p>
-                </div>
-                <div className="rounded-full bg-purple-100 px-3 py-1 text-sm font-semibold text-purple-700">
-                  {pendingTasks.length}
-                </div>
-              </div>
-              <div className="mt-5 space-y-3">
-                {pendingTasks.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                    No pending or in-progress tasks.
-                  </div>
-                )}
-                {pendingTasks.slice(0, 5).map((task) => (
-                  <div key={task.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <Link href={`/Taskmanager/admin/tasks/${task.id}`} className="font-semibold text-slate-900 hover:text-[#7F40EE]">
-                          {task.task_name}
-                        </Link>
-                        <p className="mt-1 text-xs text-slate-500">Due {formatDate(task.due_date, { includeTime: true })}</p>
-                      </div>
-                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase ${STATUS_STYLES[task.status] || STATUS_STYLES.pending}`}>
-                        {String(task.status || 'pending').replace('_', ' ')}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-bold tracking-tight text-slate-900">Recent Assignment Activity</h2>
-                  <p className="mt-1 text-sm text-slate-500">Latest task delegation events for this employee.</p>
-                </div>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
-                  {assignmentActivity.length}
-                </div>
-              </div>
-              <div className="mt-5 space-y-3">
-                {assignmentActivity.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                    No assignment activity recorded yet.
-                  </div>
-                )}
-                {assignmentActivity.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold leading-6 text-slate-800">{getActivityText(item)}</p>
-                        <p className="mt-2 text-xs text-slate-500">{formatDate(item.createdAt, { includeTime: true })}</p>
-                      </div>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase text-slate-600">
-                        {item.entityType}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </aside>
-        </div>
+          </div>
+        </section>
       </div>
     </div>
   );

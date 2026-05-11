@@ -13,8 +13,38 @@ import {
   normalizeDueDate,
   insertAssignmentActivityRows,
 } from '@/utils/api-helpers';
+import { getTaskReviewAssigneeIds, getTaskReviewAssignees } from '@/utils/task-ratings';
 
 const TASK_FILES_BUCKET_CANDIDATES = ['task-files', 'task_files'];
+const TASK_EMPLOYEE_RATING_SELECT = `
+  id,
+  task_id,
+  employee_id,
+  rated_by_profile_id,
+  rated_by_employee_id,
+  rating,
+  created_at,
+  updated_at,
+  employee:hrm_employees!task_employee_ratings_employee_id_fkey (
+    id,
+    name,
+    email,
+    role,
+    profile_picture_url
+  ),
+  rated_by_employee:hrm_employees!task_employee_ratings_rated_by_employee_id_fkey (
+    id,
+    name,
+    email,
+    role,
+    profile_picture_url
+  ),
+  rated_by_profile:hrm_profiles!task_employee_ratings_rated_by_profile_id_fkey (
+    id,
+    full_name,
+    email
+  )
+`;
 
 function isBucketNotFoundError(error) {
   const message = String(error?.message || '').toLowerCase();
@@ -99,7 +129,6 @@ async function fetchTaskById(taskId) {
       due_date,
       frequency,
       last_cycle_reset,
-      rating,
       created_by,
       created_by_employee_id,
       created_at,
@@ -175,6 +204,51 @@ async function fetchTaskById(taskId) {
   };
 }
 
+async function fetchTaskEmployeeRatings(taskId) {
+  const { data, error } = await adminClient
+    .from('task_employee_ratings')
+    .select(TASK_EMPLOYEE_RATING_SELECT)
+    .eq('task_id', taskId)
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map((row) => ({
+    id: row.id,
+    taskId: row.task_id,
+    employeeId: row.employee_id,
+    rating: row.rating,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    employee: row.employee || null,
+    ratedBy: row.rated_by_employee || (row.rated_by_profile
+      ? {
+        id: row.rated_by_profile.id,
+        name: row.rated_by_profile.full_name || row.rated_by_profile.email || 'Admin',
+        email: row.rated_by_profile.email || '',
+        role: 'admin',
+        profile_picture_url: null,
+      }
+      : null),
+  }));
+}
+
+async function taskHasIncompleteSubtasks(taskId) {
+  const { count, error } = await adminClient
+    .from('task_subtasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('task_id', taskId)
+    .eq('is_completed', false);
+
+  if (error) {
+    throw error;
+  }
+
+  return (count || 0) > 0;
+}
+
 export async function GET(request, { params }) {
   try {
     const { id: taskId } = await params;
@@ -200,7 +274,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const [employees, assignmentActivity, commentsResult, labelsResult] = await Promise.all([
+    const [employees, assignmentActivity, commentsResult, labelsResult, taskRatings] = await Promise.all([
       fetchEmployeeDirectory(adminClient, { taskManagerOnly: true }),
       fetchAssignmentActivity(taskId, adminClient),
       adminClient
@@ -212,6 +286,7 @@ export async function GET(request, { params }) {
         .from('task_labels')
         .select('id, name, created_at')
         .order('name', { ascending: true }),
+      fetchTaskEmployeeRatings(taskId),
     ]);
 
     const comments = (commentsResult.data || []).map((comment) => ({
@@ -222,9 +297,11 @@ export async function GET(request, { params }) {
     }));
 
     const taskLabels = (labelsResult.data || []).map((item) => item.name).filter(Boolean);
+    const employeeDirectoryById = new Map((employees || []).map((employee) => [employee.id, employee]));
+    const reviewAssignees = getTaskReviewAssignees(task, employeeDirectoryById);
 
     const canManageTask = actor.type === 'admin' || isTaskCreator(task, actor);
-    const canRateTask = task.status === 'completed' && isTaskCreator(task, actor);
+    const canReviewAssignees = task.status === 'completed' && (isTaskCreator(task, actor) || actor.isSuperAdmin);
 
     const viewer = {
       type: actor.type,
@@ -232,10 +309,20 @@ export async function GET(request, { params }) {
       canManageTask,
       canManageSubtasks: actor.type === 'admin' || actor.type === 'employee',
       canComment: actor.type === 'admin' || actor.type === 'employee',
-      canRateTask,
+      canReviewAssignees,
     };
 
-    return NextResponse.json({ success: true, task, viewer, employees, assignmentActivity, comments, taskLabels });
+    return NextResponse.json({
+      success: true,
+      task,
+      viewer,
+      employees,
+      assignmentActivity,
+      comments,
+      taskLabels,
+      reviewAssignees,
+      taskRatings,
+    });
   } catch (error) {
     console.error('Error fetching task detail:', error);
     return NextResponse.json({ error: 'Failed to fetch task detail' }, { status: 500 });
@@ -262,10 +349,10 @@ export async function PATCH(request, { params }) {
     const body = await request.json();
     const actorPayload = getAssignmentActivityActorPayload(actor);
 
-    if (typeof body?.rating === 'number') {
+    if (Array.isArray(body?.employeeRatings)) {
       const { data: taskToCheck, error: fetchError } = await adminClient
         .from('tasks')
-        .select('created_by, created_by_employee_id, status')
+        .select('id, created_by, created_by_employee_id, status')
         .eq('id', taskId)
         .single();
       let resolvedTaskToCheck = taskToCheck;
@@ -274,40 +361,77 @@ export async function PATCH(request, { params }) {
       if (isMissingTaskCreatorEmployeeColumn(fetchError)) {
         const legacyResult = await adminClient
           .from('tasks')
-          .select('created_by, status')
+          .select('id, created_by, status')
           .eq('id', taskId)
           .single();
         resolvedTaskToCheck = legacyResult.data;
         resolvedFetchError = legacyResult.error;
       }
-        
+
       if (resolvedFetchError || !resolvedTaskToCheck) {
         return NextResponse.json({ error: 'Task not found' }, { status: 404 });
       }
-      
-      if (!isTaskCreator(resolvedTaskToCheck, actor)) {
-        return NextResponse.json({ error: 'Only the task creator can rate this task' }, { status: 403 });
+
+      if (!(isTaskCreator(resolvedTaskToCheck, actor) || actor.isSuperAdmin)) {
+        return NextResponse.json({ error: 'Only the task creator or super admin can review assignees' }, { status: 403 });
       }
+
       if (resolvedTaskToCheck.status !== 'completed') {
-        return NextResponse.json({ error: 'Task must be completed before rating' }, { status: 400 });
+        return NextResponse.json({ error: 'Task must be completed before rating assignees' }, { status: 400 });
       }
-      if (body.rating < 1 || body.rating > 5) {
-        return NextResponse.json({ error: 'Rating must be between 1 and 5' }, { status: 400 });
+
+      const taskWithAssignees = await fetchTaskById(taskId);
+      if (!taskWithAssignees) {
+        return NextResponse.json({ error: 'Task not found' }, { status: 404 });
       }
-      
+
+      const reviewAssigneeIds = new Set(getTaskReviewAssigneeIds(taskWithAssignees));
+      const sanitizedRows = body.employeeRatings
+        .map((item) => ({
+          employee_id: item?.employeeId || null,
+          rating: Math.round(Number(item?.rating)),
+        }))
+        .filter((item) => item.employee_id && Number.isFinite(item.rating));
+
+      if (sanitizedRows.length === 0) {
+        return NextResponse.json({ error: 'At least one employee rating is required' }, { status: 400 });
+      }
+
+      for (const row of sanitizedRows) {
+        if (!reviewAssigneeIds.has(row.employee_id)) {
+          return NextResponse.json({ error: 'One or more selected employees are not assigned to this task' }, { status: 400 });
+        }
+
+        if (row.rating < 1 || row.rating > 5) {
+          return NextResponse.json({ error: 'Rating must be between 1 and 5' }, { status: 400 });
+        }
+      }
+
+      const dedupedRows = Array.from(
+        sanitizedRows.reduce((map, row) => map.set(row.employee_id, row), new Map()).values()
+      );
+      const timestamp = new Date().toISOString();
+
       const { error: ratingError } = await adminClient
-        .from('tasks')
-        .update({
-          rating: Math.round(body.rating),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', taskId);
+        .from('task_employee_ratings')
+        .upsert(
+          dedupedRows.map((row) => ({
+            task_id: taskId,
+            employee_id: row.employee_id,
+            rating: row.rating,
+            rated_by_profile_id: actor.type === 'admin' ? actor.userId : null,
+            rated_by_employee_id: actor.type === 'employee' ? actor.employeeId : null,
+            updated_at: timestamp,
+          })),
+          { onConflict: 'task_id,employee_id' }
+        );
 
       if (ratingError) {
         return NextResponse.json({ error: ratingError.message }, { status: 500 });
       }
 
-      return NextResponse.json({ success: true, message: 'Task rating updated' });
+      const taskRatings = await fetchTaskEmployeeRatings(taskId);
+      return NextResponse.json({ success: true, message: 'Employee ratings updated', taskRatings });
     }
 
     if (body?.subtaskId && typeof body?.isCompleted === 'boolean') {
@@ -519,6 +643,12 @@ export async function PATCH(request, { params }) {
     // This is used by the status buttons in the UI
     if (typeof body?.status === 'string' && Object.keys(body).length === 1) {
       const normalizedStatus = ['pending', 'in_progress', 'completed'].includes(body.status) ? body.status : 'pending';
+      if (normalizedStatus === 'completed') {
+        const hasIncompleteSubtasks = await taskHasIncompleteSubtasks(taskId);
+        if (hasIncompleteSubtasks) {
+          return NextResponse.json({ error: 'Complete all subtasks before marking the task as completed' }, { status: 400 });
+        }
+      }
 
       const { error: updateError } = await adminClient
         .from('tasks')
@@ -601,6 +731,12 @@ export async function PATCH(request, { params }) {
       }
       if (typeof body?.status === 'string') {
         const normalizedStatus = ['pending', 'in_progress', 'completed'].includes(body.status) ? body.status : 'pending';
+        if (normalizedStatus === 'completed') {
+          const hasIncompleteSubtasks = await taskHasIncompleteSubtasks(taskId);
+          if (hasIncompleteSubtasks) {
+            return NextResponse.json({ error: 'Complete all subtasks before marking the task as completed' }, { status: 400 });
+          }
+        }
         updatePayload.status = normalizedStatus;
       }
 

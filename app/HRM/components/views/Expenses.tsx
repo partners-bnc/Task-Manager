@@ -100,6 +100,29 @@ function createDraft(defaultReviewer = '', defaultCurrency = 'INR'): DraftState 
   };
 }
 
+function toMonthValue(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatMonthLabel(value: string) {
+  const [year, month] = String(value || '').split('-');
+  const monthNumber = Number(month);
+  const yearNumber = Number(year);
+  if (!yearNumber || !monthNumber) return value;
+  return new Date(yearNumber, monthNumber - 1, 1).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function toCsvCell(value: unknown) {
+  const text = String(value ?? '').replaceAll('"', '""');
+  return `"${text}"`;
+}
+
 function ClaimStatusBadge({ status }: { status: string }) {
   const tones =
     status === 'approved'
@@ -352,6 +375,7 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
   const [isReviewSubmitting, setIsReviewSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [historyMode, setHistoryMode] = useState<'mine' | 'reviewed'>('mine');
+  const [reviewMonth, setReviewMonth] = useState('all');
 
   const reviewerOptions = listData?.reviewerOptions || [];
   const currencies = listData?.currencies || ['INR'];
@@ -383,9 +407,28 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
     [listData]
   );
 
-  const myHistoryClaims = listData?.historyClaims || [];
-  const reviewedByMeClaims = reviewData.reviewedHistory || [];
-  const pendingReviewClaims = reviewData.pendingReview || [];
+  const myHistoryClaims = useMemo(() => listData?.historyClaims || [], [listData]);
+  const reviewedByMeClaims = useMemo(() => reviewData.reviewedHistory || [], [reviewData]);
+  const pendingReviewClaims = useMemo(() => reviewData.pendingReview || [], [reviewData]);
+  const reviewMonthOptions = useMemo(() => {
+    const months = Array.from(
+      new Set(
+        pendingReviewClaims
+          .map((claim) => toMonthValue(claim.submittedAt || claim.createdAt))
+          .filter(Boolean)
+      )
+    ).sort((left, right) => right.localeCompare(left));
+
+    return months;
+  }, [pendingReviewClaims]);
+
+  const filteredPendingReviewClaims = useMemo(() => {
+    if (reviewMonth === 'all') return pendingReviewClaims;
+    return pendingReviewClaims.filter((claim) => {
+      const claimMonth = toMonthValue(claim.submittedAt || claim.createdAt);
+      return claimMonth === reviewMonth;
+    });
+  }, [pendingReviewClaims, reviewMonth]);
 
   const totalDraftAmount = useMemo(
     () =>
@@ -660,6 +703,90 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
       showFeedback({ type: 'error', title: 'Expense Review Failed', message: requestError instanceof Error ? requestError.message : 'Failed to review expense claim.' });
     } finally {
       setIsReviewSubmitting(false);
+    }
+  };
+
+  const exportPendingReviews = async () => {
+    if (!filteredPendingReviewClaims.length) {
+      showFeedback({ type: 'warning', title: 'No Claims To Export', message: 'There are no pending expense claims for the selected month.' });
+      return;
+    }
+
+    try {
+      const detailResponses = await Promise.all(
+        filteredPendingReviewClaims.map(async (claim) => {
+          const response = await fetch(`/HRM/api/expenses/${claim.id}`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || `Failed to load details for ${claim.claimNo}.`);
+          }
+
+          return result.claim as ExpenseClaimDetail;
+        })
+      );
+
+      const header = [
+        'Claim No',
+        'Title',
+        'Employee',
+        'Reviewer',
+        'Reporting Manager',
+        'Status',
+        'Currency',
+        'Total Amount',
+        'Submitted At',
+        'Updated At',
+        'Purpose',
+        'Description',
+        'Vendor',
+      ];
+      const rows = detailResponses.map((claim) => {
+        const description = claim.items.map((item) => item.description).filter(Boolean).join(' | ');
+        const vendor = claim.items.map((item) => item.vendorName).filter(Boolean).join(' | ');
+
+        return [
+          claim.claimNo,
+          claim.title,
+          claim.employee.name,
+          claim.reviewer.name,
+          claim.reportingManager?.name || claim.reportingManagerName || '',
+          claim.statusLabel,
+          claim.currency,
+          claim.totalAmount,
+          formatExpenseDateTime(claim.submittedAt),
+          formatExpenseDateTime(claim.updatedAt),
+          claim.purpose,
+          description,
+          vendor,
+        ];
+      });
+
+      const csvContent = [header, ...rows]
+        .map((row) => row.map((cell) => toCsvCell(cell)).join(','))
+        .join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const monthSuffix = reviewMonth === 'all' ? 'all-months' : reviewMonth;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `expense-pending-review-${monthSuffix}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showFeedback({ type: 'success', title: 'Export Ready', message: 'Pending expense reviews exported successfully.' });
+    } catch (exportError) {
+      showFeedback({
+        type: 'error',
+        title: 'Export Failed',
+        message: exportError instanceof Error ? exportError.message : 'Failed to export pending reviews.',
+      });
     }
   };
 
@@ -1179,15 +1306,52 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
 
     if (activeSection === 'review') {
       return (
-        <ClaimsSection
-          title="Pending Review"
-          subtitle="These expense claims are assigned to you for action right now."
-          claims={pendingReviewClaims}
-          emptyTitle="No claims pending review"
-          emptyIcon="fact_check"
-          emptyMessage="No expense claims are pending your review right now."
-          onOpen={openClaim}
-        />
+        <div className="space-y-6">
+          <div className="flex flex-col gap-4 rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-5 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h3 className="text-2xl font-headline font-bold text-on-surface">Pending Review</h3>
+              <p className="mt-1 text-sm text-on-surface-variant">
+                Review expense claims month-wise, export the current list, then approve or reject them one by one in the portal.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <div>
+                <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Select Month</label>
+                <select
+                  value={reviewMonth}
+                  onChange={(event) => setReviewMonth(event.target.value)}
+                  className="min-w-[220px] rounded-[1.1rem] border border-outline-variant/20 bg-white px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+                >
+                  <option value="all">All Months</option>
+                  {reviewMonthOptions.map((month) => (
+                    <option key={month} value={month}>
+                      {formatMonthLabel(month)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={exportPendingReviews}
+                className="inline-flex items-center justify-center gap-2 rounded-[1.1rem] border border-outline-variant/20 bg-white px-4 py-3 text-sm font-semibold text-on-surface transition hover:border-violet-200 hover:text-violet-700"
+              >
+                <span className="material-symbols-outlined text-[18px]">download</span>
+                Export
+              </button>
+            </div>
+          </div>
+
+          <ClaimsSection
+            title="Pending Review"
+            subtitle="These expense claims are assigned to you for action right now."
+            claims={filteredPendingReviewClaims}
+            emptyTitle="No claims pending review"
+            emptyIcon="fact_check"
+            emptyMessage="No expense claims are pending for the selected month."
+            onOpen={openClaim}
+            hideHeader
+          />
+        </div>
       );
     }
 

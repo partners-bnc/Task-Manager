@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
 import { requireAdmin } from '@/utils/api-helpers';
+import { buildEmployeeRatingStats, buildEmployeeTaskRatingMap } from '@/utils/task-ratings';
 
 const EMPLOYEE_ANALYTICS_ACTIVITY_SELECT = `
   id,
@@ -111,7 +112,7 @@ function getDerivedProgress(task) {
   return Math.round((completed / subtasks.length) * 100);
 }
 
-function buildTaskPayload(assignments = [], activities = []) {
+function buildTaskPayload(assignments = [], activities = [], ratingMap = new Map()) {
   const latestActivityByTaskId = getLatestTaskActivityByTaskId(activities);
 
   return assignments
@@ -123,6 +124,8 @@ function buildTaskPayload(assignments = [], activities = []) {
       const taskSubtasks = Array.isArray(task.task_subtasks) ? task.task_subtasks : [];
       const completedSubtasks = taskSubtasks.filter((subtask) => subtask?.is_completed).length;
 
+      const employeeRating = ratingMap.get(task.id) || null;
+
       return {
         id: task.id,
         task_name: task.task_name || 'Untitled task',
@@ -133,7 +136,8 @@ function buildTaskPayload(assignments = [], activities = []) {
         created_at: task.created_at || null,
         updated_at: task.updated_at || null,
         progress_percentage: getDerivedProgress(task),
-        rating: typeof task.rating === 'number' ? task.rating : null,
+        employee_rating: employeeRating?.rating ?? null,
+        employee_rating_updated_at: employeeRating?.updated_at || employeeRating?.created_at || null,
         assigned_at: latestActivity?.created_at || assignment?.assigned_at || null,
         assigned_by: latestActivity ? getActorName(latestActivity) : 'Assigned',
         assignment_action: latestActivity?.action || 'assigned',
@@ -150,7 +154,7 @@ function buildTaskPayload(assignments = [], activities = []) {
     .filter(Boolean);
 }
 
-function buildStats(tasks = []) {
+function buildStats(tasks = [], ratingRows = []) {
   const now = Date.now();
   const totalAssigned = tasks.length;
   const pending = tasks.filter((task) => task.status === 'pending').length;
@@ -163,11 +167,7 @@ function buildStats(tasks = []) {
   }).length;
   const completionRate = totalAssigned > 0 ? Math.round((completed / totalAssigned) * 100) : 0;
 
-  const completedTasks = tasks.filter((task) => task.status === 'completed');
-  const ratedTasks = completedTasks.filter((task) => typeof task.rating === 'number');
-  const averageRating = ratedTasks.length > 0
-    ? ratedTasks.reduce((sum, task) => sum + task.rating, 0) / ratedTasks.length
-    : null;
+  const ratingStats = buildEmployeeRatingStats(ratingRows);
 
   const nextDueTask = [...tasks]
     .filter((task) => task?.due_date && task.status !== 'completed')
@@ -180,7 +180,9 @@ function buildStats(tasks = []) {
     completed,
     overdue,
     completionRate,
-    averageRating,
+    averageRating: ratingStats.averageRating,
+    totalRatedTasks: ratingStats.totalRatedTasks,
+    latestRatedTasks: ratingStats.latestRatedTasks.slice(0, 5),
     nextDueTask: nextDueTask
       ? {
         id: nextDueTask.id,
@@ -201,7 +203,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Employee ID is required' }, { status: 400 });
     }
 
-    const [employeeResult, assignmentResult, activityResult] = await Promise.all([
+    const [employeeResult, assignmentResult, activityResult, ratingResult] = await Promise.all([
       adminClient
         .from('hrm_employees')
         .select('id, employee_id, name, username, email, role, profile_picture_url, created_at, updated_at')
@@ -221,7 +223,6 @@ export async function GET(request, { params }) {
             created_at,
             updated_at,
             progress_percentage,
-            rating,
             task_assignments (
               employee:hrm_employees!task_assignments_employee_id_fkey (
                 id,
@@ -247,6 +248,24 @@ export async function GET(request, { params }) {
         .select(EMPLOYEE_ANALYTICS_ACTIVITY_SELECT)
         .eq('to_employee_id', id)
         .order('created_at', { ascending: false }),
+      adminClient
+        .from('task_employee_ratings')
+        .select(`
+          id,
+          task_id,
+          employee_id,
+          rating,
+          created_at,
+          updated_at,
+          task:tasks (
+            id,
+            task_name,
+            status,
+            due_date
+          )
+        `)
+        .eq('employee_id', id)
+        .order('updated_at', { ascending: false }),
     ]);
 
     if (employeeResult.error) {
@@ -264,10 +283,15 @@ export async function GET(request, { params }) {
     if (activityResult.error) {
       return NextResponse.json({ error: activityResult.error.message }, { status: 500 });
     }
+    if (ratingResult.error) {
+      return NextResponse.json({ error: ratingResult.error.message }, { status: 500 });
+    }
 
     const rawActivities = activityResult.data || [];
-    const tasks = buildTaskPayload(assignmentResult.data || [], rawActivities);
-    const stats = buildStats(tasks);
+    const ratingRows = ratingResult.data || [];
+    const ratingMap = buildEmployeeTaskRatingMap(ratingRows, id);
+    const tasks = buildTaskPayload(assignmentResult.data || [], rawActivities, ratingMap);
+    const stats = buildStats(tasks, ratingRows);
     const assignmentActivity = rawActivities.map(mapActivity);
 
     return NextResponse.json({

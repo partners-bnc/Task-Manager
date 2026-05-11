@@ -3,19 +3,37 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { FileDown, Paperclip } from 'lucide-react';
+import { Paperclip } from 'lucide-react';
 import { useData } from './DataContext';
+
+const normalizeLabelValue = (value) => String(value || '').trim().toLowerCase();
 
 export default function ManageTasks() {
   const router = useRouter();
-  const { tasks, users, isAdminMode } = useData();
+  const { tasks, users, taskLabels, isAdminMode } = useData();
   const [statusFilter, setStatusFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
+  const [labelFilter, setLabelFilter] = useState('All');
+
+  const mergedLabelOptions = Array.from(
+    new Map(
+      [...taskLabels, ...tasks.map((task) => task.label).filter(Boolean)]
+        .map((label) => [normalizeLabelValue(label), String(label).trim()])
+        .filter(([key, value]) => key && value)
+    ).values()
+  ).sort((left, right) => left.localeCompare(right));
+
+  const getLabelCount = (label) => {
+    const normalized = normalizeLabelValue(label);
+    return tasks.filter((task) => normalizeLabelValue(task.label) === normalized).length;
+  };
 
   const displayTasks = tasks.filter((task) => {
     const matchesStatus = statusFilter === 'All' || task.status === statusFilter;
     const matchesPriority = priorityFilter === 'All' || task.priority === priorityFilter;
-    return matchesStatus && matchesPriority;
+    const matchesLabel =
+      labelFilter === 'All' || normalizeLabelValue(task.label) === normalizeLabelValue(labelFilter);
+    return matchesStatus && matchesPriority && matchesLabel;
   });
 
   const getPriorityColor = (p) => {
@@ -53,11 +71,12 @@ export default function ManageTasks() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-col gap-4 xl:flex-row xl:justify-between xl:items-center mb-8">
-        <h2 className="text-2xl font-bold text-black">My Tasks</h2>
+      <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <h2 className="shrink-0 text-2xl font-bold text-black">Tasks</h2>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex bg-white p-1 rounded-lg shadow-sm overflow-x-auto">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+            <div className="min-w-0 flex bg-white p-1 rounded-lg shadow-sm overflow-x-auto">
             {['All', 'Pending', 'In Progress', 'Completed'].map((tab) => (
               <button
                 key={tab}
@@ -76,9 +95,9 @@ export default function ManageTasks() {
                 </span>
               </button>
             ))}
-          </div>
+            </div>
 
-          <div className="flex bg-white p-1 rounded-lg shadow-sm overflow-x-auto">
+            <div className="min-w-0 flex bg-white p-1 rounded-lg shadow-sm overflow-x-auto">
             {['All', 'High', 'Medium', 'Low'].map((tab) => (
               <button
                 key={tab}
@@ -97,18 +116,29 @@ export default function ManageTasks() {
                 </span>
               </button>
             ))}
-          </div>
+            </div>
 
-          <button className="flex items-center gap-2 bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors">
-            <FileDown size={18} />
-            Download Report
-          </button>
+            <div className="w-[170px] shrink-0 rounded-lg bg-white p-1 shadow-sm xl:w-[185px]">
+              <select
+                value={labelFilter}
+                onChange={(event) => setLabelFilter(event.target.value)}
+                className="w-full rounded-md border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-700 outline-none"
+              >
+                <option value="All">All Labels ({tasks.length})</option>
+                {mergedLabelOptions.map((taskLabel) => (
+                  <option key={taskLabel} value={taskLabel}>
+                    {taskLabel} ({getLabelCount(taskLabel)})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
       {displayTasks.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
-          No tasks match the selected status and priority filters.
+          No tasks match the selected status, priority, and label filters.
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -184,7 +214,7 @@ export default function ManageTasks() {
                     return (
                       <div
                         key={uid}
-                        className="w-8 h-8 rounded-full border-2 border-white bg-slate-200 text-slate-700 text-xs font-semibold flex items-center justify-center"
+                        className="h-10 w-10 rounded-full border-2 border-white bg-slate-200 text-sm font-semibold flex items-center justify-center text-slate-700"
                         title={assignee?.name || 'Assignee'}
                         aria-label={assignee?.name || 'Assignee'}
                       >
@@ -197,10 +227,10 @@ export default function ManageTasks() {
                     <Image
                       key={uid}
                       src={avatarSrc}
-                      width={32}
-                      height={32}
+                      width={40}
+                      height={40}
                       unoptimized
-                      className="w-8 h-8 rounded-full border-2 border-white"
+                      className="h-10 w-10 rounded-full border-2 border-white"
                       alt={assignee?.name ? `${assignee.name} avatar` : 'Assignee avatar'}
                     />
                   );

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Star } from 'lucide-react';
+import { ArrowLeft, Star, X } from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
@@ -116,9 +116,9 @@ const getCommentAuthorLabel = (comment, viewer) => {
   return 'Team Member';
 };
 
-function TaskRating({ rating, hoverRating, setHoverRating, onRate, canRate }) {
+function StarRating({ rating, hoverRating, setHoverRating, onRate, canRate, size = 20 }) {
   return (
-    <div className="flex items-center gap-1" title={canRate ? "Rate this task" : "Task rating"}>
+    <div className="flex items-center gap-1" title={canRate ? 'Rate employee' : 'Employee rating'}>
       {[1, 2, 3, 4, 5].map((star) => {
         const isFilled = (hoverRating || rating) >= star;
         return (
@@ -133,7 +133,7 @@ function TaskRating({ rating, hoverRating, setHoverRating, onRate, canRate }) {
             aria-label={`Rate ${star} stars`}
           >
             <Star
-              size={20}
+              size={size}
               className={`transition-colors ${isFilled ? 'fill-amber-400 text-amber-400' : 'fill-transparent text-slate-300'}`}
             />
           </button>
@@ -270,6 +270,97 @@ function AssignmentTreeNode({ node }) {
   );
 }
 
+function EmployeeReviewModal({
+  open,
+  assignees,
+  ratingsByEmployeeId,
+  hoverRatings,
+  onHoverRatingChange,
+  onChangeRating,
+  onClose,
+  onSave,
+  saving,
+}) {
+  if (!open) return null;
+
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4'>
+      <div className='w-full max-w-3xl rounded-[28px] bg-white shadow-2xl'>
+        <div className='flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5'>
+          <div>
+            <h2 className='text-xl font-semibold text-slate-900'>Review Assignees</h2>
+            <p className='mt-1 text-sm text-slate-500'>Rate each assigned employee separately. You can update these ratings later.</p>
+          </div>
+          <button
+            type='button'
+            onClick={onClose}
+            className='inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:border-slate-300 hover:text-slate-800'
+            aria-label='Close review modal'
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className='max-h-[60vh] space-y-3 overflow-y-auto px-6 py-5'>
+          {assignees.length === 0 ? (
+            <div className='rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-center text-sm text-slate-500'>
+              No assigned employees available for review.
+            </div>
+          ) : (
+            assignees.map((employee) => {
+              const rating = ratingsByEmployeeId[employee.id] || 0;
+              const hoverRating = hoverRatings[employee.id] || 0;
+
+              return (
+                <div key={employee.id} className='flex flex-col gap-4 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between'>
+                  <div className='flex items-center gap-3'>
+                    <Avatar name={employee.name} src={employee.profile_picture_url || employee.avatar} size='h-12 w-12' />
+                    <div>
+                      <p className='text-sm font-semibold text-slate-900'>{employee.name}</p>
+                      <p className='text-xs text-slate-500'>{employee.role || 'Employee'}</p>
+                    </div>
+                  </div>
+                  <div className='flex items-center gap-3'>
+                    <span className='text-xs font-semibold uppercase tracking-[0.18em] text-slate-400'>
+                      {rating > 0 ? `${rating}/5` : 'Not Rated'}
+                    </span>
+                    <StarRating
+                      rating={rating}
+                      hoverRating={hoverRating}
+                      setHoverRating={(value) => onHoverRatingChange(employee.id, value)}
+                      onRate={(value) => onChangeRating(employee.id, value)}
+                      canRate
+                      size={18}
+                    />
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className='flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-5'>
+          <button
+            type='button'
+            onClick={onClose}
+            className='rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900'
+          >
+            Cancel
+          </button>
+          <button
+            type='button'
+            disabled={saving || assignees.length === 0}
+            onClick={onSave}
+            className='rounded-full bg-slate-900 px-5 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60'
+          >
+            {saving ? 'Saving...' : 'Save Ratings'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [task, setTask] = useState(null);
   const [viewer, setViewer] = useState(null);
@@ -290,8 +381,11 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [taskLabels, setTaskLabels] = useState([]);
   const [newLabelName, setNewLabelName] = useState('');
   const [creatingLabel, setCreatingLabel] = useState(false);
-  const [ratingDraft, setRatingDraft] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
+  const [taskRatings, setTaskRatings] = useState([]);
+  const [reviewAssignees, setReviewAssignees] = useState([]);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewRatingsDraft, setReviewRatingsDraft] = useState({});
+  const [reviewHoverRatings, setReviewHoverRatings] = useState({});
 
   const [editForm, setEditForm] = useState({
     taskName: '',
@@ -327,6 +421,21 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     return { done, total: subtasks.length };
   }, [task]);
 
+  const ratedAssigneeCount = useMemo(
+    () => Object.values(reviewRatingsDraft).filter((value) => Number(value) > 0).length,
+    [reviewRatingsDraft]
+  );
+
+  const reviewRatingsByEmployeeId = useMemo(() => {
+    const mapped = {};
+    for (const item of taskRatings) {
+      if (item?.employeeId) {
+        mapped[item.employeeId] = Number(item.rating) || 0;
+      }
+    }
+    return mapped;
+  }, [taskRatings]);
+
   const assignmentTree = useMemo(() => {
     const taskAssignments = Array.isArray(task?.task_assignments) ? task.task_assignments : [];
     const subtasks = Array.isArray(task?.task_subtasks) ? task.task_subtasks : [];
@@ -335,23 +444,18 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       return [];
     }
 
-    const latestTaskActivityByEmployeeId = new Map();
-    const latestSubtaskActivityBySubtaskId = new Map();
+    const latestAssignmentByEmployeeId = new Map();
 
     for (const item of assignmentActivity) {
       if (!item?.toEmployee?.id || item.action === 'unassigned') continue;
-
-      if (item.entityType === 'task' && !latestTaskActivityByEmployeeId.has(item.toEmployee.id)) {
-        latestTaskActivityByEmployeeId.set(item.toEmployee.id, item);
-      }
-
-      if (item.entityType === 'subtask' && item.subtaskId && !latestSubtaskActivityBySubtaskId.has(item.subtaskId)) {
-        latestSubtaskActivityBySubtaskId.set(item.subtaskId, item);
+      if (!latestAssignmentByEmployeeId.has(item.toEmployee.id)) {
+        latestAssignmentByEmployeeId.set(item.toEmployee.id, item);
       }
     }
 
     const nodes = new Map();
     const childIds = new Set();
+    const parentByChildId = new Map();
 
     const getRoleMeta = (person, fallback = '') => {
       if (!person) return fallback;
@@ -382,9 +486,17 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
 
     const linkNodes = (parentNode, childNode) => {
       if (!parentNode || !childNode || parentNode.id === childNode.id) return;
-      if (!parentNode.children.some((item) => item.id === childNode.id)) {
-        parentNode.children.push(childNode);
+      const previousParentId = parentByChildId.get(childNode.id);
+      if (previousParentId && previousParentId !== parentNode.id) {
+        const previousParent = nodes.get(previousParentId);
+        if (previousParent) {
+          previousParent.children = previousParent.children.filter((item) => item.id !== childNode.id);
+        }
       }
+      if (!parentNode.children.some((item) => item.id === childNode.id)) {
+        parentNode.children = [...parentNode.children, childNode];
+      }
+      parentByChildId.set(childNode.id, parentNode.id);
       childIds.add(childNode.id);
     };
 
@@ -403,8 +515,22 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       if (!employee?.id) continue;
 
       currentTaskAssigneeIds.add(employee.id);
+      getOrCreateNode(employee, { meta: 'Task Member' });
+    }
+
+    for (const subtask of subtasks) {
+      if (!subtask?.assigned_employee_id) continue;
+      const assignedEmployee = employeeDirectoryById.get(subtask.assigned_employee_id);
+      if (!assignedEmployee?.id) continue;
+      getOrCreateNode(assignedEmployee, { meta: currentTaskAssigneeIds.has(assignedEmployee.id) ? 'Task Member' : 'Subtask Owner' });
+    }
+
+    for (const assignment of taskAssignments) {
+      const employee = assignment?.employee;
+      if (!employee?.id) continue;
+
       const childNode = getOrCreateNode(employee, { meta: 'Task Member' });
-      const activity = latestTaskActivityByEmployeeId.get(employee.id);
+      const activity = latestAssignmentByEmployeeId.get(employee.id);
       const actorNode = activity?.actor
         ? getOrCreateNode(activity.actor, { meta: getRoleMeta(activity.actor, 'Assigner') })
         : fallbackTaskRoot;
@@ -419,18 +545,13 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       if (!assignedEmployee) continue;
 
       const childNode = getOrCreateNode(assignedEmployee, { meta: currentTaskAssigneeIds.has(assignedEmployee.id) ? 'Task Member' : 'Subtask Owner' });
-      const activity = latestSubtaskActivityBySubtaskId.get(subtask.id);
+      const activity = latestAssignmentByEmployeeId.get(assignedEmployee.id);
 
       let parentNode = null;
       if (activity?.actor) {
         parentNode = getOrCreateNode(activity.actor, { meta: getRoleMeta(activity.actor, 'Assigner') });
-      } else if (currentTaskAssigneeIds.has(assignedEmployee.id)) {
-        parentNode = fallbackTaskRoot;
       } else {
-        const taskActivity = latestTaskActivityByEmployeeId.get(assignedEmployee.id);
-        parentNode = taskActivity?.actor
-          ? getOrCreateNode(taskActivity.actor, { meta: getRoleMeta(taskActivity.actor, 'Assigner') })
-          : fallbackTaskRoot;
+        parentNode = fallbackTaskRoot;
       }
 
       linkNodes(parentNode, childNode);
@@ -466,9 +587,16 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       }
 
       const fetchedTask = taskJson.task;
+      const fetchedTaskRatings = Array.isArray(taskJson.taskRatings) ? taskJson.taskRatings : [];
+      const fetchedReviewAssignees = Array.isArray(taskJson.reviewAssignees) ? taskJson.reviewAssignees : [];
+      const nextReviewDraft = {};
+      for (const rating of fetchedTaskRatings) {
+        if (rating?.employeeId) {
+          nextReviewDraft[rating.employeeId] = Number(rating.rating) || 0;
+        }
+      }
 
       setTask(fetchedTask);
-      setRatingDraft(typeof fetchedTask?.rating === 'number' ? fetchedTask.rating : 0);
       setProgressDraft(
         Number.isFinite(Number(fetchedTask?.progress_percentage))
           ? Math.min(100, Math.max(0, Math.round(Number(fetchedTask.progress_percentage))))
@@ -479,6 +607,10 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       setAssignmentActivity(taskJson.assignmentActivity || []);
       setComments(taskJson.comments || []);
       setTaskLabels(Array.isArray(taskJson.taskLabels) ? taskJson.taskLabels : []);
+      setTaskRatings(fetchedTaskRatings);
+      setReviewAssignees(fetchedReviewAssignees);
+      setReviewRatingsDraft(nextReviewDraft);
+      setReviewHoverRatings({});
       setEditForm({
         taskName: fetchedTask.task_name || '',
         description: fetchedTask.description || '',
@@ -699,32 +831,64 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     }
   };
 
-  const updateTaskRating = async (nextRating) => {
-    if (!viewer?.canRateTask || !task) return;
+  const handleReviewRatingChange = (employeeId, nextRating) => {
+    setReviewRatingsDraft((prev) => ({
+      ...prev,
+      [employeeId]: nextRating,
+    }));
+  };
 
-    const previousRating = task.rating || 0;
-    if (nextRating === previousRating) return;
+  const handleReviewHoverChange = (employeeId, nextRating) => {
+    setReviewHoverRatings((prev) => ({
+      ...prev,
+      [employeeId]: nextRating,
+    }));
+  };
+
+  const saveEmployeeRatings = async () => {
+    if (!viewer?.canReviewAssignees || !task) return;
+
+    const payload = reviewAssignees
+      .map((employee) => ({
+        employeeId: employee.id,
+        rating: Number(reviewRatingsDraft[employee.id] || 0),
+      }))
+      .filter((item) => item.employeeId && item.rating >= 1 && item.rating <= 5);
+
+    if (payload.length === 0) {
+      setError('Add at least one employee rating before saving.');
+      return;
+    }
 
     setSaving(true);
     setError('');
-    setTask((prev) => (prev ? { ...prev, rating: nextRating } : prev));
-    setRatingDraft(nextRating);
 
     try {
       const response = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating: nextRating }),
+        body: JSON.stringify({ employeeRatings: payload }),
       });
 
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to update task rating');
+        throw new Error(result.error || 'Failed to save employee ratings');
       }
+
+      const nextRatings = Array.isArray(result.taskRatings) ? result.taskRatings : [];
+      const nextDraft = {};
+      for (const rating of nextRatings) {
+        if (rating?.employeeId) {
+          nextDraft[rating.employeeId] = Number(rating.rating) || 0;
+        }
+      }
+
+      setTaskRatings(nextRatings);
+      setReviewRatingsDraft(nextDraft);
+      setReviewModalOpen(false);
+      setReviewHoverRatings({});
     } catch (err) {
-      setTask((prev) => (prev ? { ...prev, rating: previousRating } : prev));
-      setRatingDraft(previousRating);
-      setError(err.message || 'Failed to update task rating');
+      setError(err.message || 'Failed to save employee ratings');
     } finally {
       setSaving(false);
     }
@@ -964,16 +1128,23 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
             <div>
             <h1 className='text-2xl font-bold text-slate-900'>{task.task_name}</h1>
             <div className='mt-3 flex flex-wrap items-center gap-4'>
-              {(task.status === 'completed' || ratingDraft > 0) && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-600">Rating:</span>
-                  <TaskRating
-                    rating={ratingDraft}
-                    hoverRating={hoverRating}
-                    setHoverRating={setHoverRating}
-                    onRate={updateTaskRating}
-                    canRate={!!viewer?.canRateTask}
-                  />
+              {task.status === 'completed' && reviewAssignees.length > 0 && (
+                <div className='flex flex-wrap items-center gap-3'>
+                  <span className='rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-amber-700'>
+                    Rated {ratedAssigneeCount}/{reviewAssignees.length}
+                  </span>
+                  {viewer?.canReviewAssignees && (
+                    <button
+                      type='button'
+                      onClick={() => {
+                        setReviewModalOpen(true);
+                        setReviewHoverRatings({});
+                      }}
+                      className='inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-slate-700 transition hover:border-slate-300 hover:text-slate-900'
+                    >
+                      {ratedAssigneeCount > 0 ? 'Edit Reviews' : 'Review Assignees'}
+                    </button>
+                  )}
                 </div>
               )}
               {task.label && (
@@ -1484,6 +1655,22 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
             </div>
           )}
         </section>
+
+        <EmployeeReviewModal
+          open={reviewModalOpen}
+          assignees={reviewAssignees}
+          ratingsByEmployeeId={reviewRatingsDraft}
+          hoverRatings={reviewHoverRatings}
+          onHoverRatingChange={handleReviewHoverChange}
+          onChangeRating={handleReviewRatingChange}
+          onClose={() => {
+            setReviewModalOpen(false);
+            setReviewHoverRatings({});
+            setReviewRatingsDraft(reviewRatingsByEmployeeId);
+          }}
+          onSave={saveEmployeeRatings}
+          saving={saving}
+        />
       </div>
     </div>
   );

@@ -32,6 +32,64 @@ async function ensureTaskLabelExists(supabase, label) {
   }
 }
 
+async function attachTaskCreatorNames(tasks = [], supabase) {
+  if (!Array.isArray(tasks) || tasks.length === 0) {
+    return [];
+  }
+
+  const employeeIds = Array.from(
+    new Set(tasks.map((task) => task?.created_by_employee_id).filter(Boolean))
+  );
+  const profileIds = Array.from(
+    new Set(tasks.map((task) => task?.created_by).filter(Boolean))
+  );
+
+  const [employeeResult, profileResult] = await Promise.all([
+    employeeIds.length > 0
+      ? supabase
+        .from('hrm_employees')
+        .select('id, name, email')
+        .in('id', employeeIds)
+      : Promise.resolve({ data: [], error: null }),
+    profileIds.length > 0
+      ? supabase
+        .from('hrm_profiles')
+        .select('id, full_name, email')
+        .in('id', profileIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (employeeResult.error) {
+    throw new Error(employeeResult.error.message || 'Failed to load task creators');
+  }
+
+  if (profileResult.error) {
+    throw new Error(profileResult.error.message || 'Failed to load task creators');
+  }
+
+  const employeeById = new Map((employeeResult.data || []).map((item) => [item.id, item]));
+  const profileById = new Map((profileResult.data || []).map((item) => [item.id, item]));
+
+  return tasks.map((task) => {
+    const employeeCreator = task?.created_by_employee_id
+      ? employeeById.get(task.created_by_employee_id)
+      : null;
+    const profileCreator = task?.created_by
+      ? profileById.get(task.created_by)
+      : null;
+
+    return {
+      ...task,
+      creator_name:
+        employeeCreator?.name ||
+        profileCreator?.full_name ||
+        employeeCreator?.email ||
+        profileCreator?.email ||
+        null,
+    };
+  });
+}
+
 
 export async function GET() {
   const supabase = await createClient();
@@ -65,7 +123,8 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ tasks });
+  const tasksWithCreators = await attachTaskCreatorNames(tasks || [], supabase);
+  return NextResponse.json({ tasks: tasksWithCreators });
 }
 
 export async function POST(request) {

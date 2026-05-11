@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
-import { isHrAdminRole } from '@/utils/auth/roles';
+import { isHrAdminRole, isSuperAdminRole, normalizeProfileRole } from '@/utils/auth/roles';
 
 const EMPLOYEE_DIRECTORY_SELECT = `
   id,
@@ -234,6 +234,8 @@ async function getActorFromSupabaseUserWithOptions(options = {}) {
       type: 'admin',
       userId: user.id,
       authUserId: user.id,
+      adminRole: normalizeProfileRole(profile?.role),
+      isSuperAdmin: isSuperAdminRole(profile?.role),
       name: profile?.full_name || user.email || 'Admin',
       email: user.email || '',
       avatarUrl: user.user_metadata?.avatar_url || null,
@@ -247,6 +249,7 @@ async function getActorFromSupabaseUserWithOptions(options = {}) {
     type: 'employee',
     employeeId: resolvedEmployee.id,
     authUserId: user.id,
+    isSuperAdmin: false,
     name: resolvedEmployee.name || profile?.full_name || user.email || 'Employee',
     email: resolvedEmployee.email || profile?.email || user.email || '',
     role: resolvedEmployee.role || 'Employee',
