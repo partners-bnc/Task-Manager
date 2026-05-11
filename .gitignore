@@ -40,3 +40,7 @@ migration_artifacts/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# logs
+.log
+next-dev-latency.err.log
+next-dev-latency.log

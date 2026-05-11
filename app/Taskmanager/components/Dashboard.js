@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis } from 'recharts';
 import { ArrowRight, BriefcaseBusiness, Clock3, ChartNoAxesColumnIncreasing, BadgeCheck } from 'lucide-react';
 import { useData } from './DataContext';
@@ -49,6 +50,7 @@ const getDashboardDateTime = () => {
 };
 
 export default function Dashboard({ onNavigate }) {
+  const router = useRouter();
   const { user, tasks, isAdminMode } = useData();
   const [dashboardDateTime, setDashboardDateTime] = useState(() => getDashboardDateTime());
 
@@ -116,7 +118,7 @@ export default function Dashboard({ onNavigate }) {
 
   const openTaskDetail = (taskId) => {
     const path = isAdminMode ? `/Taskmanager/admin/tasks/${taskId}` : `/Taskmanager/dashboard/tasks/${taskId}`;
-    window.open(path, '_blank', 'noopener,noreferrer');
+    router.push(path);
   };
 
   return (

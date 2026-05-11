@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { FileDown, Paperclip } from 'lucide-react';
 import { useData } from './DataContext';
 
 export default function ManageTasks() {
+  const router = useRouter();
   const { tasks, users, isAdminMode } = useData();
   const [statusFilter, setStatusFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
@@ -46,7 +48,7 @@ export default function ManageTasks() {
 
   const openTaskDetail = (taskId) => {
     const path = isAdminMode ? `/Taskmanager/admin/tasks/${taskId}` : `/Taskmanager/dashboard/tasks/${taskId}`;
-    window.open(path, '_blank', 'noopener,noreferrer');
+    router.push(path);
   };
 
   return (
