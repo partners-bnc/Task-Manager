@@ -146,8 +146,8 @@ export default function ManageTasks() {
 
             <div className="mb-6">
               <div className="flex justify-between items-center text-xs font-semibold text-slate-600 mb-2">
-                <span>
-                  Task Done: {task.completedSubtasks}/{task.totalSubtasks}
+                <span className="font-headline text-[1.35rem] font-light tracking-[0.02em] text-slate-800">
+                  {task.completedSubtasks}/{task.totalSubtasks}
                 </span>
                 {task.attachments > 0 && (
                   <div className="flex items-center text-[#7F40EE] gap-1 bg-[#7F40EE]/10 px-2 py-0.5 rounded-full">
@@ -155,12 +155,6 @@ export default function ManageTasks() {
                     <span>{task.attachments}</span>
                   </div>
                 )}
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2">
-                <div
-                  className="bg-[#7F40EE] h-2 rounded-full transition-all duration-500"
-                  style={{ width: `${(task.completedSubtasks / Math.max(task.totalSubtasks, 1)) * 100}%` }}
-                ></div>
               </div>
             </div>
 

@@ -29,6 +29,7 @@ type LeaveAdminItem = {
   rejectionReason: string;
   reviewedAt: string;
   reviewedByName: string;
+  reviewedByRole?: string;
 };
 
 type LeaveAdminBalance = {
@@ -84,6 +85,12 @@ function statusTone(status: string) {
     default:
       return 'bg-primary/10 text-primary';
   }
+}
+
+function formatReviewerRole(role?: string) {
+  if (role === 'reporting_manager') return 'Reporting Manager';
+  if (role === 'hr_admin') return 'HR Admin';
+  return '';
 }
 
 type BalanceSummaryRow = {
@@ -421,6 +428,7 @@ export default function LeaveManagement() {
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Status</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Paid</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Approved / Rejected By</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Review Note</th>
                     </tr>
                   </thead>
@@ -439,6 +447,12 @@ export default function LeaveManagement() {
                         </td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(item.paidDays)}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(item.lopDays)}</td>
+                        <td className="px-4 py-4 text-sm text-on-surface">
+                          {item.reviewedByName || '--'}
+                          {item.reviewedByRole ? (
+                            <p className="text-xs text-on-surface-variant">{formatReviewerRole(item.reviewedByRole)}</p>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-4 text-sm text-on-surface">
                           {item.reviewNote || item.rejectionReason || '--'}
                         </td>

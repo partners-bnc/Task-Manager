@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis } from 'recharts';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, BriefcaseBusiness, Clock3, ChartNoAxesColumnIncreasing, BadgeCheck } from 'lucide-react';
 import { useData } from './DataContext';
 
 const IST_TIMEZONE = 'Asia/Kolkata';
@@ -66,7 +66,7 @@ export default function Dashboard({ onNavigate }) {
   };
 
   const pieData = [
-    { name: 'Pending', value: stats.pending, color: '#8b5cf6' },
+    { name: 'Pending', value: stats.pending, color: '#f59e0b' },
     { name: 'In Progress', value: stats.inProgress, color: '#7F40EE' },
     { name: 'Completed', value: stats.completed, color: '#84cc16' },
   ];
@@ -75,6 +75,13 @@ export default function Dashboard({ onNavigate }) {
     { name: 'Low', count: tasks.filter((t) => t.priority === 'Low').length, fill: '#10b981' },
     { name: 'Medium', count: tasks.filter((t) => t.priority === 'Medium').length, fill: '#f59e0b' },
     { name: 'High', count: tasks.filter((t) => t.priority === 'High').length, fill: '#f43f5e' },
+  ];
+
+  const kpiCards = [
+    { label: 'Total Tasks', value: stats.total, icon: BriefcaseBusiness },
+    { label: 'Pending Tasks', value: stats.pending, icon: Clock3 },
+    { label: 'In Progress', value: stats.inProgress, icon: ChartNoAxesColumnIncreasing },
+    { label: 'Completed Tasks', value: stats.completed, icon: BadgeCheck },
   ];
 
   const recentTasks = [...tasks]
@@ -115,48 +122,42 @@ export default function Dashboard({ onNavigate }) {
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="bg-white rounded-xl p-6 mb-8 shadow-sm">
-        <h2 className="text-2xl font-bold text-black mb-6">{dashboardDateTime.greeting}! {user?.name}</h2>
-        <p className="text-slate-500 mb-6">{dashboardDateTime.date}</p>
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-black mb-2">{dashboardDateTime.greeting}! {user?.name}</h2>
+            <p className="text-slate-500">Your task dashboard overview</p>
+          </div>
+          <div className="text-left sm:text-right">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Today</div>
+            <p className="mt-1 text-slate-600">{dashboardDateTime.date}</p>
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-          <div className="flex items-center space-x-3">
-            <div className="w-1 bg-[#7F40EE] h-8 rounded-full"></div>
-            <div>
-              <div className="text-2xl font-bold text-black">{stats.total}</div>
-              <div className="text-slate-500 text-sm">Total Tasks</div>
+          {kpiCards.map((item) => (
+            <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-5">
+              <div className="flex items-center gap-4">
+                <div className="inline-flex h-12 w-12 items-center justify-center text-slate-900">
+                  <item.icon size={26} strokeWidth={2.1} />
+                </div>
+                <div className="h-12 w-px bg-slate-200"></div>
+                <div className="flex-1 text-left">
+                  <div className="text-sm font-medium text-slate-500">{item.label}</div>
+                  <div className="mt-1 text-[1.75rem] font-semibold tracking-tight text-slate-700">{item.value}</div>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <div className="w-1 bg-purple-600 h-8 rounded-full"></div>
-            <div>
-              <div className="text-2xl font-bold text-black">{stats.pending}</div>
-              <div className="text-slate-500 text-sm">Pending Tasks</div>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <div className="w-1 bg-[#7F40EE] h-8 rounded-full"></div>
-            <div>
-              <div className="text-2xl font-bold text-black">{stats.inProgress}</div>
-              <div className="text-slate-500 text-sm">In Progress</div>
-            </div>
-          </div>
-          <div className="flex items-center space-x-3">
-            <div className="w-1 bg-green-600 h-8 rounded-full"></div>
-            <div>
-              <div className="text-2xl font-bold text-black">{stats.completed}</div>
-              <div className="text-slate-500 text-sm">Completed Tasks</div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <h3 className="font-bold text-slate-800 mb-4">Task Distribution</h3>
-          <div className="h-64 flex items-center justify-center relative">
+          <div className="h-72 flex items-center justify-center relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={pieData} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                <Pie data={pieData} innerRadius={68} outerRadius={92} paddingAngle={5} dataKey="value">
                   {pieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -179,8 +180,8 @@ export default function Dashboard({ onNavigate }) {
           <h3 className="font-bold text-slate-800 mb-4">Task Priority Levels</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} barSize={60}>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
+              <BarChart data={barData} barSize={60} margin={{ top: 8, right: 10, left: 0, bottom: 18 }}>
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tickMargin={14} />
                 <YAxis hide />
                 <Tooltip cursor={{ fill: 'transparent' }} />
                 <Bar dataKey="count" radius={[8, 8, 0, 0]}>
@@ -190,11 +191,6 @@ export default function Dashboard({ onNavigate }) {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
-          <div className="flex justify-between px-8 text-sm text-slate-500 mt-2">
-            <span>Low</span>
-            <span>Medium</span>
-            <span>High</span>
           </div>
         </div>
       </div>

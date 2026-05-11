@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Star } from 'lucide-react';
+import { ArrowLeft, Star } from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
@@ -77,63 +77,43 @@ const getDisplayName = (person, fallback = 'Unknown user') => {
   return person.name || person.full_name || person.email || fallback;
 };
 
-const buildAssignmentActivityText = (item) => {
-  const actorName = getDisplayName(item.actor, 'Unknown actor');
-  const targetLabel = item.entityType === 'subtask'
-    ? (item.subtaskTitle || 'Untitled subtask')
-    : 'the task';
-  const fromName = getDisplayName(item.fromEmployee, 'Former assignee');
-  const toName = getDisplayName(item.toEmployee, 'Unknown assignee');
-
-  if (item.action === 'assigned') {
-    return `${actorName} assigned ${targetLabel} to ${toName}`;
-  }
-
-  if (item.action === 'reassigned') {
-    return `${actorName} reassigned ${targetLabel} from ${fromName} to ${toName}`;
-  }
-
-  if (item.action === 'unassigned') {
-    return `${actorName} unassigned ${targetLabel} from ${fromName}`;
-  }
-
-  return `${actorName} updated ${targetLabel}`;
+const getPersonKey = (person, fallbackPrefix = 'person') => {
+  if (!person) return `${fallbackPrefix}:unknown`;
+  const isAdmin = person.role === 'admin';
+  const prefix = isAdmin ? 'admin' : 'employee';
+  return `${prefix}:${person.id || person.email || person.name || 'unknown'}`;
 };
 
-const getActivityAccent = (action) => {
-  if (action === 'assigned') {
-    return {
-      rail: 'from-emerald-500 to-teal-500',
-      badge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      dot: 'bg-emerald-500',
-      label: 'Assigned',
-    };
+const buildTreeNode = (person, overrides = {}) => ({
+  id: overrides.id || getPersonKey(person, overrides.fallbackPrefix),
+  name: overrides.name || getDisplayName(person, 'Unknown'),
+  email: overrides.email ?? person?.email ?? '',
+  avatarUrl: overrides.avatarUrl ?? person?.profile_picture_url ?? person?.avatar ?? null,
+  role: overrides.role || person?.role || 'employee',
+  meta: overrides.meta || '',
+});
+
+const dedupeTreeChildren = (children = []) => {
+  const seen = new Set();
+  return children.filter((child) => {
+    if (!child?.id || seen.has(child.id)) return false;
+    seen.add(child.id);
+    return true;
+  });
+};
+
+const TASK_PROGRESS_MARKS = [0, 25, 50, 75, 100];
+
+const getCommentAuthorLabel = (comment, viewer) => {
+  if (comment?.author_name && String(comment.author_name).trim() && String(comment.author_name).trim().toLowerCase() !== 'unknown') {
+    return String(comment.author_name).trim();
   }
 
-  if (action === 'reassigned') {
-    return {
-      rail: 'from-amber-500 to-orange-500',
-      badge: 'bg-amber-50 text-amber-700 border-amber-200',
-      dot: 'bg-amber-500',
-      label: 'Reassigned',
-    };
+  if (comment?.can_delete) {
+    return 'You';
   }
 
-  if (action === 'unassigned') {
-    return {
-      rail: 'from-rose-500 to-pink-500',
-      badge: 'bg-rose-50 text-rose-700 border-rose-200',
-      dot: 'bg-rose-500',
-      label: 'Unassigned',
-    };
-  }
-
-  return {
-    rail: 'from-slate-400 to-slate-500',
-    badge: 'bg-slate-50 text-slate-700 border-slate-200',
-    dot: 'bg-slate-500',
-    label: 'Updated',
-  };
+  return 'Team Member';
 };
 
 function TaskRating({ rating, hoverRating, setHoverRating, onRate, canRate }) {
@@ -255,59 +235,37 @@ function AssigneePicker({
   );
 }
 
-function AssignmentActivityItem({ item }) {
-  const actorName = getDisplayName(item.actor, 'Unknown actor');
-  const targetLabel = item.entityType === 'subtask'
-    ? (item.subtaskTitle || 'Untitled subtask')
-    : 'Task assignment';
-  const toName = getDisplayName(item.toEmployee, 'Unknown assignee');
-  const fromName = getDisplayName(item.fromEmployee, 'Former assignee');
-  const accent = getActivityAccent(item.action);
+function AssignmentTreeNode({ node }) {
+  const children = dedupeTreeChildren(node.children || []);
 
   return (
-    <div className='group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition-all hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(15,23,42,0.1)]'>
-      <div className={`absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${accent.rail}`}></div>
-      <div className='absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(148,163,184,0.08),transparent_38%)] pointer-events-none'></div>
-      <div className='relative'>
-        <div className='flex items-start gap-3'>
-          <div className='relative mt-0.5'>
-            <Avatar
-              name={actorName}
-              src={item.actor?.profile_picture_url}
-              size='w-10 h-10'
-            />
-            <span className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white ${accent.dot}`}></span>
-          </div>
-          <div className='min-w-0 flex-1'>
-            <div className='flex flex-wrap items-center gap-2'>
-              <p className='text-sm font-semibold tracking-tight text-slate-900'>{actorName}</p>
-              <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${accent.badge}`}>
-                {accent.label}
-              </span>
-            </div>
-            <p className='mt-1 text-sm leading-6 text-slate-700'>{buildAssignmentActivityText(item)}</p>
-            <div className='mt-3 flex flex-wrap items-center gap-2'>
-              <span className='rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-600'>
-                {item.entityType === 'subtask' ? 'Subtask' : 'Task'}
-              </span>
-              <span className='max-w-full truncate rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700'>
-                {targetLabel}
-              </span>
-              {item.action !== 'unassigned' && (
-                <span className='rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-medium text-sky-700'>
-                  To {toName}
-                </span>
-              )}
-              {item.action === 'reassigned' && (
-                <span className='rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700'>
-                  From {fromName}
-                </span>
-              )}
-            </div>
-            <p className='mt-3 text-xs font-medium text-slate-500'>{formatDate(item.createdAt)}</p>
-          </div>
-        </div>
+    <div className='flex flex-col items-center'>
+      <div className='flex min-w-[88px] max-w-[120px] flex-col items-center text-center'>
+        <Avatar name={node.name} src={node.avatarUrl} size='h-12 w-12' />
+        <p className='mt-2 line-clamp-2 text-xs font-semibold text-slate-800'>{node.name}</p>
       </div>
+
+      {children.length > 0 ? (
+        <>
+          <div className='h-5 w-px bg-slate-300'></div>
+          <div className='flex w-full flex-col items-center'>
+            {children.length > 1 ? (
+              <div className='hidden h-px w-[calc(100%-1rem)] max-w-[420px] bg-slate-300 sm:block'></div>
+            ) : null}
+            <div className='mt-0 flex flex-wrap items-start justify-center gap-x-3 gap-y-5 sm:gap-x-5'>
+              {children.map((child) => (
+                <div key={child.id} className='flex min-w-[96px] flex-col items-center'>
+                  <div className='hidden h-4 w-px bg-slate-300 sm:block'></div>
+                  <div className='mb-2 text-slate-300'>
+                    <span className='text-lg leading-none'>↓</span>
+                  </div>
+                  <AssignmentTreeNode node={child} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -368,6 +326,132 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     const done = subtasks.filter((subtask) => subtask.is_completed).length;
     return { done, total: subtasks.length };
   }, [task]);
+
+  const assignmentTree = useMemo(() => {
+    const taskAssignments = Array.isArray(task?.task_assignments) ? task.task_assignments : [];
+    const subtasks = Array.isArray(task?.task_subtasks) ? task.task_subtasks : [];
+
+    if (taskAssignments.length === 0 && subtasks.length === 0 && assignmentActivity.length === 0) {
+      return [];
+    }
+
+    const latestTaskActivityByEmployeeId = new Map();
+    const latestSubtaskActivityBySubtaskId = new Map();
+
+    for (const item of assignmentActivity) {
+      if (!item?.toEmployee?.id || item.action === 'unassigned') continue;
+
+      if (item.entityType === 'task' && !latestTaskActivityByEmployeeId.has(item.toEmployee.id)) {
+        latestTaskActivityByEmployeeId.set(item.toEmployee.id, item);
+      }
+
+      if (item.entityType === 'subtask' && item.subtaskId && !latestSubtaskActivityBySubtaskId.has(item.subtaskId)) {
+        latestSubtaskActivityBySubtaskId.set(item.subtaskId, item);
+      }
+    }
+
+    const nodes = new Map();
+    const childIds = new Set();
+
+    const getRoleMeta = (person, fallback = '') => {
+      if (!person) return fallback;
+      if (person.role === 'admin') return 'Admin';
+      return 'Employee';
+    };
+
+    const getOrCreateNode = (person, overrides = {}) => {
+      const nodeId = overrides.id || getPersonKey(person, overrides.fallbackPrefix);
+      const existing = nodes.get(nodeId);
+      if (existing) {
+        if (!existing.avatarUrl && (overrides.avatarUrl || person?.profile_picture_url || person?.avatar)) {
+          existing.avatarUrl = overrides.avatarUrl || person?.profile_picture_url || person?.avatar;
+        }
+        if (!existing.email && (overrides.email || person?.email)) {
+          existing.email = overrides.email || person?.email || '';
+        }
+        if (!existing.meta && overrides.meta) {
+          existing.meta = overrides.meta;
+        }
+        return existing;
+      }
+
+      const created = { ...buildTreeNode(person, overrides), children: [] };
+      nodes.set(nodeId, created);
+      return created;
+    };
+
+    const linkNodes = (parentNode, childNode) => {
+      if (!parentNode || !childNode || parentNode.id === childNode.id) return;
+      if (!parentNode.children.some((item) => item.id === childNode.id)) {
+        parentNode.children.push(childNode);
+      }
+      childIds.add(childNode.id);
+    };
+
+    const fallbackTaskRoot = getOrCreateNode(null, {
+      id: 'system:task-root',
+      name: 'Task',
+      role: 'system',
+      meta: 'Direct Assignment',
+      fallbackPrefix: 'system',
+    });
+
+    const currentTaskAssigneeIds = new Set();
+
+    for (const assignment of taskAssignments) {
+      const employee = assignment?.employee;
+      if (!employee?.id) continue;
+
+      currentTaskAssigneeIds.add(employee.id);
+      const childNode = getOrCreateNode(employee, { meta: 'Task Member' });
+      const activity = latestTaskActivityByEmployeeId.get(employee.id);
+      const actorNode = activity?.actor
+        ? getOrCreateNode(activity.actor, { meta: getRoleMeta(activity.actor, 'Assigner') })
+        : fallbackTaskRoot;
+
+      linkNodes(actorNode, childNode);
+    }
+
+    for (const subtask of subtasks) {
+      if (!subtask?.assigned_employee_id) continue;
+
+      const assignedEmployee = employeeDirectoryById.get(subtask.assigned_employee_id);
+      if (!assignedEmployee) continue;
+
+      const childNode = getOrCreateNode(assignedEmployee, { meta: currentTaskAssigneeIds.has(assignedEmployee.id) ? 'Task Member' : 'Subtask Owner' });
+      const activity = latestSubtaskActivityBySubtaskId.get(subtask.id);
+
+      let parentNode = null;
+      if (activity?.actor) {
+        parentNode = getOrCreateNode(activity.actor, { meta: getRoleMeta(activity.actor, 'Assigner') });
+      } else if (currentTaskAssigneeIds.has(assignedEmployee.id)) {
+        parentNode = fallbackTaskRoot;
+      } else {
+        const taskActivity = latestTaskActivityByEmployeeId.get(assignedEmployee.id);
+        parentNode = taskActivity?.actor
+          ? getOrCreateNode(taskActivity.actor, { meta: getRoleMeta(taskActivity.actor, 'Assigner') })
+          : fallbackTaskRoot;
+      }
+
+      linkNodes(parentNode, childNode);
+    }
+
+    const rootNodes = Array.from(nodes.values()).filter((node) => !childIds.has(node.id));
+    return rootNodes.filter((node) => node.id !== 'system:task-root' || node.children.length > 0);
+  }, [assignmentActivity, employeeDirectoryById, task]);
+
+  const visibleAssignmentMemberCount = useMemo(() => {
+    const seen = new Set();
+
+    const visit = (node) => {
+      if (!node || seen.has(node.id) || node.role === 'system') return;
+      seen.add(node.id);
+      (node.children || []).forEach(visit);
+    };
+
+    assignmentTree.forEach(visit);
+    return seen.size;
+  }, [assignmentTree]);
 
   const loadTaskData = async () => {
     setLoading(true);
@@ -867,13 +951,18 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
 
   return (
     <div className='min-h-screen bg-slate-50 p-8'>
-      <div className='mx-auto max-w-5xl space-y-6'>
-        <div className='flex items-center justify-between'>
-          <div>
-            <Link href={backHref} className='text-sm font-medium text-[#7F40EE] hover:underline'>
-              Back to tasks
+      <div className='mx-auto max-w-[1380px] space-y-6'>
+        <div className='flex items-start justify-between gap-4'>
+          <div className='flex items-start gap-4'>
+            <Link
+              href={backHref}
+              aria-label='Back to tasks'
+              className='mt-1 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:-translate-x-0.5 hover:border-slate-300 hover:text-slate-900'
+            >
+              <ArrowLeft size={18} />
             </Link>
-            <h1 className='mt-2 text-2xl font-bold text-slate-900'>{task.task_name}</h1>
+            <div>
+            <h1 className='text-2xl font-bold text-slate-900'>{task.task_name}</h1>
             <div className='mt-3 flex flex-wrap items-center gap-4'>
               {(task.status === 'completed' || ratingDraft > 0) && (
                 <div className="flex items-center gap-2">
@@ -894,6 +983,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
               )}
             </div>
             <p className='mt-2 text-sm text-slate-500'>Created {formatDate(task.created_at)}</p>
+            </div>
           </div>
 
           {canEditTask && (
@@ -914,30 +1004,35 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
           </div>
         )}
 
-        <div className='grid gap-6 lg:grid-cols-3'>
-          <section className='rounded-xl bg-white p-6 shadow-sm space-y-5 lg:col-span-2'>
-            <div className='flex flex-wrap gap-2'>
-              <span className='rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold uppercase text-purple-700'>
-                {task.status.replace('_', ' ')}
-              </span>
-              <span className='rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold uppercase text-orange-700'>
-                {task.priority} priority
-              </span>
-              {task.frequency && (
-                <span className='rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase text-blue-700'>
-                  Repeats {task.frequency}
+        <div className='grid gap-8 lg:grid-cols-[minmax(0,0.86fr)_minmax(320px,0.54fr)]'>
+          <section className='rounded-xl bg-white p-6 shadow-sm space-y-4'>
+            <div className='flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between'>
+              <div className='flex flex-wrap gap-2'>
+                <span className='rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold uppercase text-purple-700'>
+                  {task.status.replace('_', ' ')}
                 </span>
-              )}
-              {task.label && (
-                <span className='rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700'>
-                  {task.label}
+                <span className='rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold uppercase text-orange-700'>
+                  {task.priority} priority
                 </span>
-              )}
+                {task.frequency && (
+                  <span className='rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase text-blue-700'>
+                    Repeats {task.frequency}
+                  </span>
+                )}
+                {task.label && (
+                  <span className='rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-semibold uppercase text-slate-700'>
+                    {task.label}
+                  </span>
+                )}
+              </div>
+              <div className='w-full max-w-[120px] text-right'>
+                <span className='font-headline text-[2rem] font-light tracking-[0.02em] text-slate-800'>{completion.done}/{completion.total}</span>
+              </div>
             </div>
 
             {canManageStatus && (
-              <div>
-                <h2 className='mb-3 text-sm font-semibold text-slate-600'>Update Status</h2>
+              <div className='space-y-1'>
+                <h2 className='text-sm font-semibold text-slate-600'>Update Status</h2>
                 <div className='flex flex-wrap gap-2'>
                   {STATUS_OPTIONS.map((option) => {
                     const isActive = task.status === option.value;
@@ -977,7 +1072,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
 
             {canManageStatus && (
               <div>
-                <div className='mb-2 flex items-center justify-between text-sm text-slate-600'>
+                <div className='mb-1 flex items-center justify-between text-sm text-slate-600'>
                   <span>Task Progress</span>
                   <span className='font-semibold text-slate-800'>{progressDraft}%</span>
                 </div>
@@ -985,7 +1080,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                   type='range'
                   min={0}
                   max={100}
-                  step={1}
+                  step={25}
                   value={progressDraft}
                   disabled={saving}
                   onChange={(event) => setProgressDraft(Number(event.target.value))}
@@ -998,29 +1093,34 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                   }}
                   aria-label='Task progress percentage'
                   style={{
-                    background: `linear-gradient(to right, #7F40EE 0%, #7F40EE ${progressDraft}%, #e2e8f0 ${progressDraft}%, #e2e8f0 100%)`,
+                    background: `linear-gradient(to right, #c084fc 0%, #c084fc ${progressDraft}%, #e2e8f0 ${progressDraft}%, #e2e8f0 100%)`,
                   }}
-                  className='h-2 w-full cursor-pointer appearance-none rounded-lg'
+                  className='h-1.5 w-full cursor-pointer appearance-none rounded-full'
                 />
+                <div className='mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-400'>
+                  {TASK_PROGRESS_MARKS.map((mark) => (
+                    <button
+                      key={mark}
+                      type='button'
+                      disabled={saving}
+                      onClick={() => {
+                        setProgressDraft(mark);
+                        updateTaskProgress(mark);
+                      }}
+                      className={`rounded-full px-1.5 py-0.5 transition ${
+                        progressDraft === mark ? 'bg-slate-100 font-semibold text-slate-700' : 'hover:text-slate-600'
+                      }`}
+                    >
+                      {mark}%
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
             <div>
               <h2 className='text-sm font-semibold text-slate-600'>Description</h2>
               <p className='mt-2 whitespace-pre-wrap text-slate-800'>{task.description || 'No description provided.'}</p>
-            </div>
-
-            <div>
-              <div className='mb-2 flex items-center justify-between text-sm text-slate-600'>
-                <span>Checklist progress</span>
-                <span>{completion.done}/{completion.total}</span>
-              </div>
-              <div className='h-2 w-full rounded-full bg-slate-100'>
-                <div
-                  className='h-2 rounded-full bg-[#7F40EE] transition-all'
-                  style={{ width: `${completion.total ? (completion.done / completion.total) * 100 : 0}%` }}
-                ></div>
-              </div>
             </div>
 
             <div>
@@ -1159,17 +1259,19 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
             </div>
           </section>
 
-          <aside className='space-y-6 lg:col-span-1'>
-            <section className='rounded-xl bg-white p-5 shadow-sm'>
-              <h3 className='mb-3 text-sm font-semibold text-slate-600'>Assigned Members</h3>
+          <aside className='space-y-8 lg:col-span-1'>
+            <section className='rounded-[24px] bg-slate-100/80 px-5 py-5'>
+              <div className='mb-4'>
+                <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Assigned Members</h3>
+              </div>
               <div className='space-y-3'>
                 {(task.task_assignments || []).map((assignment) => {
                   const employee = assignment.employee;
                   return (
                     <div key={assignment.employee_id} className='flex items-center gap-3'>
-                      <Avatar name={employee?.name} src={employee?.profile_picture_url} />
-                      <div>
-                        <div className='text-sm font-semibold text-slate-800'>{employee?.name || 'Unknown'}</div>
+                      <Avatar name={employee?.name} src={employee?.profile_picture_url} size='h-10 w-10' />
+                      <div className='text-sm font-semibold text-slate-800'>
+                        {employee?.name || 'Unknown'}
                         <div className='text-xs text-slate-500'>{employee?.email || '—'}</div>
                       </div>
                     </div>
@@ -1181,24 +1283,27 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
               </div>
             </section>
 
-            <section className='overflow-hidden rounded-[28px] border border-slate-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.95))] p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)]'>
+            <section className='w-full rounded-[24px] bg-slate-100/80 px-5 py-5'>
               <div className='mb-4 flex items-start justify-between gap-3'>
                 <div>
-                  <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Assignment Activity</h3>
-                  <p className='mt-1 text-sm text-slate-600'>Latest delegation and assignment changes for this task.</p>
+                  <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Assignment Tree</h3>
                 </div>
-                <div className='rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white'>
-                  {assignmentActivity.length}
+                <div className='rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white'>
+                  {visibleAssignmentMemberCount}
                 </div>
               </div>
-              <div className='space-y-3'>
-                {assignmentActivity.map((item) => (
-                  <AssignmentActivityItem key={item.id} item={item} />
-                ))}
-                {assignmentActivity.length === 0 && (
-                  <div className='rounded-2xl border border-dashed border-slate-300 bg-white/80 px-4 py-6 text-center'>
-                    <p className='text-sm font-medium text-slate-700'>No assignment activity yet.</p>
-                    <p className='mt-1 text-xs text-slate-500'>New task and subtask assignee changes will appear here.</p>
+              <div className='w-full px-1 py-2'>
+                {assignmentTree.length === 0 ? (
+                  <div className='px-2 py-4 text-center'>
+                    <p className='text-sm font-medium text-slate-700'>No assignment map yet.</p>
+                  </div>
+                ) : (
+                  <div className='overflow-x-auto pb-1'>
+                    <div className='flex min-w-[240px] flex-wrap items-start justify-center gap-6'>
+                      {assignmentTree.map((node) => (
+                        <AssignmentTreeNode key={node.id} node={node} />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1322,28 +1427,39 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
         <section className='rounded-xl bg-white p-6 shadow-sm'>
           <h2 className='mb-4 text-lg font-semibold text-slate-800'>Comments</h2>
 
-          <div className='space-y-3'>
+          <div className='space-y-5'>
             {comments.map((comment) => (
-              <div key={comment.id} className='rounded-lg border border-slate-100 p-3'>
-                <div className='flex items-start justify-between gap-3'>
-                  <div className='flex items-center gap-3'>
-                    <Avatar name={comment.author_name} src={comment.author_avatar_url} size='w-8 h-8' />
-                    <div>
-                      <div className='text-sm font-semibold text-slate-800'>{comment.author_name}</div>
-                      <div className='text-xs text-slate-500'>{formatDate(comment.created_at)}</div>
+              <div key={comment.id} className='relative pl-14'>
+                <div className='absolute left-[15px] top-10 bottom-[-18px] w-px bg-slate-200 last:hidden'></div>
+                <div className='absolute left-0 top-0'>
+                  <Avatar
+                    name={getCommentAuthorLabel(comment, viewer)}
+                    src={comment.author_avatar_url}
+                    size='w-8 h-8'
+                  />
+                </div>
+                <div className='max-w-[820px] rounded-2xl border border-slate-200/90 bg-slate-50/70 px-4 py-2.5'>
+                  <div className='flex items-start justify-between gap-3'>
+                    <div className='min-w-0'>
+                      <div className='truncate text-sm font-semibold text-slate-800'>
+                        {getCommentAuthorLabel(comment, viewer)}
+                        <span className='ml-2 text-xs font-normal text-slate-500'>{formatDate(comment.created_at)}</span>
+                      </div>
+                    </div>
+                    <div className='flex items-center gap-3'>
+                      {comment.can_delete && (
+                        <button
+                          type='button'
+                          onClick={() => removeComment(comment.id)}
+                          className='text-xs font-medium text-red-600 hover:underline'
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </div>
-                  {comment.can_delete && (
-                    <button
-                      type='button'
-                      onClick={() => removeComment(comment.id)}
-                      className='text-xs font-medium text-red-600 hover:underline'
-                    >
-                      Delete
-                    </button>
-                  )}
+                  <p className='mt-1.5 text-sm leading-6 text-slate-700'>{comment.comment_text}</p>
                 </div>
-                <p className='mt-2 text-sm text-slate-700'>{comment.comment_text}</p>
               </div>
             ))}
             {comments.length === 0 && <p className='text-sm text-slate-500'>No comments yet.</p>}

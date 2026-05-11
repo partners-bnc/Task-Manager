@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { LayoutDashboard, ListTodo, PlusSquare, Users, Settings, LogOut, Camera, ChevronLeft, ChevronRight, Home, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, ListTodo, PlusSquare, Users, Settings, LogOut, Camera, ChevronLeft, ChevronRight, Home, MessageSquare, ClipboardList } from 'lucide-react';
 import { useData } from './DataContext';
 
 export default function Sidebar({
@@ -22,7 +22,7 @@ export default function Sidebar({
   const menuItems = [
     { label: 'Dashboard', icon: LayoutDashboard, view: 'dashboard' },
     { label: 'Manage Tasks', icon: ListTodo, view: 'tasks' },
-    ...(!isAdminMode ? [{ label: '+ Add Todos', icon: PlusSquare, view: 'todos' }] : []),
+    ...(!isAdminMode ? [{ label: '+ Add Todos', icon: ClipboardList, view: 'todos' }] : []),
     { label: 'Create Task', icon: PlusSquare, view: 'create-task' },
     { label: 'Team Members', icon: Users, view: 'team' },
     { label: 'Chat', icon: MessageSquare, view: 'chat' },

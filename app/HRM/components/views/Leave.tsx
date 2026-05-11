@@ -125,6 +125,12 @@ function getStatusPill(status: string) {
   }
 }
 
+function formatReviewerRole(role?: string) {
+  if (role === 'reporting_manager') return 'Reporting Manager';
+  if (role === 'hr_admin') return 'HR Admin';
+  return '';
+}
+
 export default function Leave() {
   const { showFeedback } = useHrmFeedback();
   const [data, setData] = useState<LeaveResponse | null>(null);
@@ -653,19 +659,20 @@ export default function Leave() {
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Worked On</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Status</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Paid / LOP</th>
+                <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Approved / Rejected By</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Reason</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-container/50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="px-0 py-0">
-                    <TableRowsSkeleton rows={5} columns={7} />
+                  <td colSpan={8} className="px-0 py-0">
+                    <TableRowsSkeleton rows={5} columns={8} />
                   </td>
                 </tr>
               ) : !isLoading && (data?.history || []).length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center text-sm text-on-surface-variant">
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-on-surface-variant">
                     No leave requests have been submitted yet.
                   </td>
                 </tr>
@@ -687,6 +694,12 @@ export default function Leave() {
                   </td>
                   <td className="px-5 py-4 text-sm text-on-surface-variant">
                     {formatLeaveDays(item.paidDays)} paid / {formatLeaveDays(item.lopDays)} LOP
+                  </td>
+                  <td className="px-5 py-4 text-sm text-on-surface-variant">
+                    {item.reviewedByName || '--'}
+                    {item.reviewedByRole ? (
+                      <p className="mt-1 text-[11px] text-on-surface-variant">{formatReviewerRole(item.reviewedByRole)}</p>
+                    ) : null}
                   </td>
                   <td className="max-w-[280px] px-5 py-4 text-sm text-on-surface-variant">
                     <p className="line-clamp-2">{item.reason}</p>
