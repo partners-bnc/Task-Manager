@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import EmployeePageHeader from '../ui/EmployeePageHeader';
 import { useHrmFeedback } from '../ui/HrmFeedback';
 import HrmEmptyState from '../ui/HrmEmptyState';
@@ -50,8 +50,19 @@ const SECTION_CONFIG: Array<{ key: TicketSection; label: string; icon: string }>
   { key: 'raise', label: 'Raise Ticket', icon: 'add_circle' },
   { key: 'my', label: 'My Tickets', icon: 'inbox' },
   { key: 'assigned', label: 'Assigned To Me', icon: 'assignment_ind' },
+  { key: 'all', label: 'All Tickets', icon: 'dataset' },
   { key: 'closed', label: 'Resolved / Closed', icon: 'inventory_2' },
 ];
+
+function SlaBadge({ ticket }: { ticket: Pick<TicketSummary, 'isLate' | 'isSlaBreached'> }) {
+  if (ticket.isSlaBreached) {
+    return <span className="rounded-full bg-rose-100 px-3 py-1 text-[11px] font-semibold text-rose-700">SLA Breached</span>;
+  }
+  if (ticket.isLate) {
+    return <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold text-amber-700">Late</span>;
+  }
+  return null;
+}
 
 function personLabel(person?: TicketPerson | null) {
   if (!person) return '-';
@@ -217,37 +228,55 @@ function TicketCard({
   ticket,
   onSelect,
   showCompactFlow = true,
+  appearance = 'default',
 }: {
   ticket: TicketSummary;
   onSelect: () => void;
   showCompactFlow?: boolean;
+  appearance?: 'default' | 'task_manager';
 }) {
+  const isTaskManagerAppearance = appearance === 'task_manager';
+  const cardMetaBadgeClass = isTaskManagerAppearance
+    ? 'rounded-2xl bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-700'
+    : 'rounded-full bg-surface-container-low px-3 py-1 text-[11px] font-semibold text-on-surface-variant';
+
   return (
     <button
       type="button"
       onClick={onSelect}
-      className="w-full max-w-[1080px] overflow-hidden rounded-3xl border border-outline-variant/10 bg-surface-container-lowest px-5 py-4 text-left transition-all hover:border-violet-100 hover:bg-surface-container-lowest"
+      className={`w-full max-w-[1080px] overflow-hidden rounded-3xl px-5 py-4 text-left transition-all ${
+        isTaskManagerAppearance
+          ? 'bg-white shadow-sm hover:bg-white hover:shadow-md'
+          : 'border border-outline-variant/10 bg-surface-container-lowest hover:border-violet-100 hover:bg-surface-container-lowest'
+      }`}
     >
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <span className="rounded-full bg-violet-100 px-3 py-1 text-[11px] font-semibold text-violet-700 shadow-sm">{ticket.statusLabel}</span>
-        <span className="rounded-full bg-surface-container-low px-3 py-1 text-[11px] font-semibold text-on-surface-variant">{ticket.priorityLabel}</span>
+      <div className="-mb-5 flex items-start justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-violet-100 px-3 py-1 text-[11px] font-semibold text-violet-700 shadow-sm">{ticket.statusLabel}</span>
+          <SlaBadge ticket={ticket} />
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <span className={cardMetaBadgeClass}>
+            {ticket.priorityLabel}
+          </span>
+          <span className={cardMetaBadgeClass}>
+            {ticket.categoryLabel || ticket.category.replace(/_/g, ' ')}
+          </span>
+        </div>
       </div>
 
       <div className="min-w-0">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">{ticket.ticketNo}</p>
-        <h3 className="mt-2 line-clamp-2 text-base font-headline font-bold text-on-surface">{ticket.subject}</h3>
+        <h3 className="mt-1 line-clamp-2 text-base font-headline font-bold text-on-surface">{ticket.subject}</h3>
       </div>
 
-      <p className="mt-3 line-clamp-2 text-sm leading-6 text-on-surface-variant">{ticket.description}</p>
+      <p className="mt-2 line-clamp-2 text-sm leading-6 text-on-surface-variant">{ticket.description}</p>
 
-      <div className="mt-4 flex items-center justify-between gap-4">
-        <span className="rounded-full bg-surface-container-low px-3 py-1 text-[11px] font-semibold text-on-surface-variant">
-          {ticket.category.replace(/_/g, ' ')}
-        </span>
+      <div className="mt-3 flex items-center justify-end gap-4">
         {showCompactFlow ? <CompactStatusPipeline status={ticket.status} /> : null}
       </div>
 
-      <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-3 text-xs text-on-surface-variant">
+      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-3 text-xs text-on-surface-variant">
         <div className="grid grid-cols-3 gap-3">
           <p>
             <span className="font-semibold text-on-surface">Requester:</span> {personLabel(ticket.requester)}
@@ -259,10 +288,17 @@ function TicketCard({
             <span className="font-semibold text-on-surface">Updated:</span> {formatRelativeTicketTime(ticket.lastActivityAt)}
           </p>
         </div>
-        <span className="inline-flex items-center gap-2 self-end rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-semibold text-violet-700">
-          View Details
-          <span className="material-symbols-outlined text-[14px]">arrow_outward</span>
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-15 -mt-3 self-center text-left">
+          {ticket.escalatedTo ? (
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold text-amber-800">
+              Escalated To: {ticket.escalatedTo.name}
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-semibold text-violet-700 text-left">
+            View Details
+            <span className="material-symbols-outlined text-[14px]">arrow_outward</span>
+          </span>
+        </div>
       </div>
     </button>
   );
@@ -363,7 +399,77 @@ function FileDropzone({
   );
 }
 
-export default function Tickets({ variant = 'employee' }: { variant?: 'employee' | 'admin' }) {
+function InlineFilePicker({
+  files,
+  onFilesChange,
+}: {
+  files: File[];
+  onFilesChange: (files: File[]) => void;
+}) {
+  const inputId = 'ticket-inline-files-input';
+
+  return (
+    <div className="space-y-3">
+      <label
+        htmlFor={inputId}
+        className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-dashed border-violet-200 bg-violet-50/60 px-4 py-3 transition hover:border-violet-300 hover:bg-violet-50"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-violet-700 shadow-sm">
+            <span className="material-symbols-outlined text-[20px]">upload_file</span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-900">Attach files</p>
+            <p className="text-xs text-slate-500">Click to choose files for this reply</p>
+          </div>
+        </div>
+        <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-violet-700 shadow-sm">
+          Choose Files
+        </span>
+      </label>
+
+      <input
+        id={inputId}
+        type="file"
+        multiple
+        onChange={(event) => onFilesChange(Array.from(event.target.files || []))}
+        className="hidden"
+      />
+
+      {files.length ? (
+        <div className="space-y-2 rounded-2xl border border-outline-variant/10 bg-surface-container-low px-4 py-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Selected Files</p>
+          <div className="space-y-2">
+            {files.map((file) => (
+              <div key={`${file.name}-${file.size}`} className="flex items-center justify-between gap-3 rounded-2xl bg-white/80 px-3 py-2 text-sm">
+                <span className="min-w-0 truncate font-medium text-on-surface">{file.name}</span>
+                <span className="shrink-0 text-xs text-on-surface-variant">{formatFileSize(file.size)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface TicketsProps {
+  variant?: 'employee' | 'admin';
+  apiBasePath?: string;
+  moduleTitle?: string;
+  moduleDescription?: string;
+  createLabel?: string;
+  appearance?: 'default' | 'task_manager';
+}
+
+export default function Tickets({
+  variant = 'employee',
+  apiBasePath = '/HRM/api/tickets',
+  moduleTitle = 'HRM Tickets',
+  moduleDescription = 'Raise HR issues, follow their progress, and keep all replies, attachments, and closure updates in one place.',
+  createLabel = 'Create Ticket',
+  appearance = 'default',
+}: TicketsProps) {
   const { showFeedback } = useHrmFeedback();
   const [activeSection, setActiveSection] = useState<TicketSection>('raise');
   const [data, setData] = useState<TicketListResponse | null>(null);
@@ -371,6 +477,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
   const [detail, setDetail] = useState<TicketDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -378,6 +485,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
   const [visibleCounts, setVisibleCounts] = useState<Record<string, number>>({
     my: INITIAL_VISIBLE_COUNT,
     assigned: INITIAL_VISIBLE_COUNT,
+    all: INITIAL_VISIBLE_COUNT,
     closed: INITIAL_VISIBLE_COUNT,
   });
   const [subject, setSubject] = useState('');
@@ -391,15 +499,17 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [commentBody, setCommentBody] = useState('');
   const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [escalationTargetAuthUserId, setEscalationTargetAuthUserId] = useState('');
+  const [escalationNote, setEscalationNote] = useState('');
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const sectionRef = useRef<HTMLDivElement | null>(null);
 
-  const loadTickets = async (keepCurrentSelection = true) => {
+  const loadTickets = useCallback(async (keepCurrentSelection = true) => {
     setIsLoading(true);
     setError('');
 
     try {
-      const response = await fetch('/HRM/api/tickets', {
+      const response = await fetch(apiBasePath, {
         method: 'GET',
         credentials: 'include',
         cache: 'no-store',
@@ -420,16 +530,16 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [apiBasePath]);
 
-  const loadTicketDetail = async (ticketId: string, allowRetry = true) => {
+  const loadTicketDetail = useCallback(async (ticketId: string, allowRetry = true) => {
     if (!ticketId) {
       setDetail(null);
       return;
     }
 
     try {
-      const response = await fetch(`/HRM/api/tickets/${ticketId}`, {
+      const response = await fetch(`${apiBasePath}/${ticketId}`, {
         method: 'GET',
         credentials: 'include',
         cache: 'no-store',
@@ -444,11 +554,11 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
     } catch (requestError) {
       showFeedback({ type: 'error', title: 'Ticket Detail Not Loaded', message: requestError instanceof Error ? requestError.message : 'Failed to load ticket detail.' });
     }
-  };
+  }, [apiBasePath, showFeedback]);
 
   useEffect(() => {
     loadTickets(false);
-  }, []);
+  }, [loadTickets]);
 
   const myTickets = useMemo(
     () => filterTicketCollection(data?.myTickets || [], search, statusFilter, categoryFilter),
@@ -458,6 +568,10 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
     const base = data?.actor?.isAdmin ? data?.adminOpenTickets || [] : data?.assignedTickets || [];
     return filterTicketCollection(base, search, statusFilter, categoryFilter);
   }, [categoryFilter, data?.actor?.isAdmin, data?.adminOpenTickets, data?.assignedTickets, search, statusFilter]);
+  const allTickets = useMemo(
+    () => filterTicketCollection(data?.allTickets || [], search, statusFilter, categoryFilter),
+    [categoryFilter, data?.allTickets, search, statusFilter]
+  );
   const closedTickets = useMemo(
     () => filterTicketCollection(data?.closedTickets || [], search, statusFilter, categoryFilter),
     [categoryFilter, data?.closedTickets, search, statusFilter]
@@ -469,12 +583,14 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
         return myTickets;
       case 'assigned':
         return assignedTickets;
+      case 'all':
+        return allTickets;
       case 'closed':
         return closedTickets;
       default:
         return [];
     }
-  }, [activeSection, assignedTickets, closedTickets, myTickets]);
+  }, [activeSection, allTickets, assignedTickets, closedTickets, myTickets]);
 
   useEffect(() => {
     if (activeSection === 'raise' || activeCollection.length === 0) {
@@ -490,6 +606,16 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
   }, [activeCollection, activeSection, selectedTicketId]);
 
   const visiblePeople = data?.people || [];
+  const categoryOptions = useMemo(() => {
+    const categories = data?.filters?.categories?.length ? data.filters.categories : CATEGORY_OPTIONS.map((option) => option.value);
+    return categories.map((value) => ({
+      value,
+      label: value
+        .split('_')
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(' '),
+    }));
+  }, [data?.filters?.categories]);
   const preferredOwner =
     visiblePeople.find((person) => person.role === 'hr_admin') ||
     visiblePeople.find((person) => person.role === 'super_admin') ||
@@ -515,7 +641,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
   const resetCreateForm = () => {
     setSubject('');
     setDescription('');
-    setCategory('attendance');
+    setCategory(categoryOptions[0]?.value || 'other');
     setPriority('medium');
     setRaisedForAuthUserId(data?.actor?.authUserId || '');
     setOwnerAuthUserId(preferredOwner?.authUserId || data?.actor?.authUserId || '');
@@ -535,6 +661,13 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
       setOwnerAuthUserId(data.actor.authUserId);
     }
   }, [data?.actor?.authUserId, ownerAuthUserId, preferredOwner?.authUserId, visiblePeople.length]);
+
+  useEffect(() => {
+    if (!categoryOptions.length) return;
+    if (!categoryOptions.some((option) => option.value === category)) {
+      setCategory(categoryOptions[0].value);
+    }
+  }, [category, categoryOptions]);
 
   const handleCreateTicket = async () => {
     if (!subject.trim()) {
@@ -567,7 +700,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
       );
       newFiles.forEach((file) => payload.append('files', file));
 
-      const response = await fetch('/HRM/api/tickets', {
+      const response = await fetch(apiBasePath, {
         method: 'POST',
         credentials: 'include',
         body: payload,
@@ -594,7 +727,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
     }
     try {
       setIsSaving(true);
-      const response = await fetch(`/HRM/api/tickets/${detail.id}`, {
+      const response = await fetch(`${apiBasePath}/${detail.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -616,7 +749,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
     if (!detail?.id) return;
     try {
       setIsSaving(true);
-      const response = await fetch(`/HRM/api/tickets/${detail.id}`, {
+      const response = await fetch(`${apiBasePath}/${detail.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -639,7 +772,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
     if (!detail?.id) return;
     try {
       setIsSaving(true);
-      const response = await fetch(`/HRM/api/tickets/${detail.id}`, {
+      const response = await fetch(`${apiBasePath}/${detail.id}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -670,7 +803,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
       payload.append('payload', JSON.stringify({ commentBody }));
       commentFiles.forEach((file) => payload.append('files', file));
 
-      const response = await fetch(`/HRM/api/tickets/${detail.id}/comments`, {
+      const response = await fetch(`${apiBasePath}/${detail.id}/comments`, {
         method: 'POST',
         credentials: 'include',
         body: payload,
@@ -694,7 +827,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
     if (!detail?.id) return;
     try {
       setIsSaving(true);
-      const response = await fetch(`/HRM/api/tickets/${detail.id}/reopen`, { method: 'POST', credentials: 'include' });
+      const response = await fetch(`${apiBasePath}/${detail.id}/reopen`, { method: 'POST', credentials: 'include' });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to reopen ticket.');
       await loadTickets(true);
@@ -708,12 +841,108 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
     }
   };
 
-  const pageTitle = variant === 'admin' ? 'Ticket Inbox' : 'HRM Tickets';
+  const handleEscalate = async () => {
+    if (!detail?.id || !escalationTargetAuthUserId) return;
+    try {
+      setIsSaving(true);
+      const response = await fetch(`${apiBasePath}/${detail.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          escalateToAuthUserId: escalationTargetAuthUserId,
+          escalationNote,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Failed to escalate ticket.');
+      setEscalationTargetAuthUserId('');
+      setEscalationNote('');
+      await loadTickets(true);
+      await loadTicketDetail(detail.id);
+      showFeedback({ type: 'success', title: 'Ticket Escalated', message: 'Ticket escalation saved successfully.' });
+    } catch (requestError) {
+      showFeedback({ type: 'error', title: 'Escalation Failed', message: requestError instanceof Error ? requestError.message : 'Failed to escalate ticket.' });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleExportTickets = async () => {
+    try {
+      setIsExporting(true);
+      const query = new URLSearchParams();
+      if (search.trim()) query.set('search', search.trim());
+      if (statusFilter) query.set('status', statusFilter);
+      if (categoryFilter) query.set('category', categoryFilter);
+
+      const response = await fetch(`${apiBasePath}/export?${query.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || 'Failed to export tickets.');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const contentDisposition = response.headers.get('Content-Disposition') || '';
+      const fileNameMatch = contentDisposition.match(/filename="([^"]+)"/i);
+      const fileName = fileNameMatch?.[1] || `${moduleTitle.toLowerCase().replace(/\s+/g, '-')}-export.csv`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showFeedback({ type: 'success', title: 'Export Ready', message: 'Ticket export downloaded successfully.' });
+    } catch (exportError) {
+      showFeedback({
+        type: 'error',
+        title: 'Export Failed',
+        message: exportError instanceof Error ? exportError.message : 'Failed to export tickets.',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const pageTitle = variant === 'admin' ? `${moduleTitle} Inbox` : moduleTitle;
   const pageDescription =
     variant === 'admin'
-      ? 'Review HR tickets, assign responsibility, and keep replies and attachments together in one shared workspace.'
-      : 'Raise HR issues, follow their progress, and keep all replies, attachments, and closure updates in one place.';
+      ? `Review ${moduleTitle.toLowerCase()}, assign responsibility, and keep replies and attachments together in one shared workspace.`
+      : moduleDescription;
   const isAdminView = variant === 'admin';
+  const sections = isAdminView ? SECTION_CONFIG : SECTION_CONFIG.filter((section) => section.key !== 'all');
+  const isTaskManagerAppearance = appearance === 'task_manager';
+  const filterControlClass = isTaskManagerAppearance
+    ? 'border border-slate-200 bg-white text-slate-700 focus:border-slate-300 focus:ring-2 focus:ring-slate-100'
+    : 'border border-outline-variant/20 bg-transparent focus:border-violet-200 focus:ring-2 focus:ring-violet-100';
+  const detailMetaBadgeClass = isTaskManagerAppearance
+    ? 'rounded-2xl bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700'
+    : 'rounded-full bg-surface-container-low px-3 py-1 text-xs font-semibold text-on-surface-variant';
+  const raisePanelClass = isTaskManagerAppearance
+    ? 'rounded-3xl bg-white p-6 shadow-sm'
+    : 'rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 editorial-shadow';
+  const raiseSummaryClass = isTaskManagerAppearance
+    ? 'h-fit space-y-6 self-start rounded-3xl bg-white p-6 shadow-sm'
+    : 'h-fit space-y-6 self-start rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 editorial-shadow';
+  const formControlClass = isTaskManagerAppearance
+    ? 'w-full rounded-2xl bg-slate-50 px-4 py-3 text-sm outline-none transition focus:bg-white focus:ring-2 focus:ring-slate-200'
+    : 'w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200';
+  const textAreaControlClass = isTaskManagerAppearance
+    ? 'w-full resize-none rounded-2xl bg-slate-50 px-4 py-3 text-sm outline-none transition focus:bg-white focus:ring-2 focus:ring-slate-200'
+    : 'w-full resize-none rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200';
+  const emptyStateWrapperClass = isTaskManagerAppearance
+    ? 'p-0'
+    : 'rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5 editorial-shadow';
+  const loadMoreClass = isTaskManagerAppearance
+    ? 'w-full rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50'
+    : 'w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface transition hover:bg-surface-container';
 
   return (
     <div className={`mx-auto ${isAdminView ? 'max-w-7xl space-y-5 px-4 pt-4 pb-6 lg:px-5 lg:pt-5' : 'max-w-7xl space-y-6 pb-8'}`}>
@@ -722,13 +951,17 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
       <section className="overflow-x-auto">
         <div
           ref={sectionRef}
-          className={`relative inline-grid min-w-[560px] grid-cols-4 items-center overflow-hidden border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,244,255,0.96)_100%)] shadow-[0_14px_30px_rgba(15,23,42,0.06)] backdrop-blur ${isAdminView ? 'rounded-[1rem] p-1' : 'rounded-[1.2rem] p-1.5'}`}
+          className={`relative inline-grid min-w-[560px] items-center overflow-hidden border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,244,255,0.96)_100%)] shadow-[0_14px_30px_rgba(15,23,42,0.06)] backdrop-blur ${isAdminView ? 'rounded-[1rem] p-1' : 'rounded-[1.2rem] p-1.5'}`}
+          style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))` }}
         >
           <div
-            className={`absolute bg-[linear-gradient(135deg,rgba(245,238,255,1)_0%,rgba(224,210,255,1)_55%,rgba(208,186,255,1)_100%)] shadow-[0_10px_22px_rgba(167,139,250,0.24)] ring-1 ring-white/70 transition-transform duration-300 ease-out ${isAdminView ? 'inset-y-1 left-1 w-[calc((100%-0.5rem)/4)] rounded-[0.8rem]' : 'inset-y-1.5 left-1.5 w-[calc((100%-0.75rem)/4)] rounded-[0.95rem]'}`}
-            style={{ transform: `translateX(calc(${SECTION_CONFIG.findIndex((section) => section.key === activeSection)} * 100%))` }}
+            className={`absolute bg-[linear-gradient(135deg,rgba(245,238,255,1)_0%,rgba(224,210,255,1)_55%,rgba(208,186,255,1)_100%)] shadow-[0_10px_22px_rgba(167,139,250,0.24)] ring-1 ring-white/70 transition-transform duration-300 ease-out ${isAdminView ? 'inset-y-1 left-1 rounded-[0.8rem]' : 'inset-y-1.5 left-1.5 rounded-[0.95rem]'}`}
+            style={{
+              width: isAdminView ? `calc((100% - 0.5rem) / ${sections.length})` : `calc((100% - 0.75rem) / ${sections.length})`,
+              transform: `translateX(calc(${sections.findIndex((section) => section.key === activeSection)} * 100%))`,
+            }}
           />
-          {SECTION_CONFIG.map((section) => {
+          {sections.map((section) => {
             const isActive = activeSection === section.key;
             return (
               <button
@@ -760,14 +993,14 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
         </div>
       ) : activeSection === 'raise' ? (
         <section className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 editorial-shadow">
+          <div className={raisePanelClass}>
             <div className="grid gap-5 md:grid-cols-2">
               <div className="md:col-span-2">
                 <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Subject</label>
                 <input
                   value={subject}
                   onChange={(event) => setSubject(event.target.value)}
-                  className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+                  className={formControlClass}
                   placeholder="Short issue title"
                 />
               </div>
@@ -777,9 +1010,9 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                 <select
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
-                  className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+                  className={formControlClass}
                 >
-                  {CATEGORY_OPTIONS.map((option) => (
+                  {categoryOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -792,7 +1025,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                 <select
                   value={priority}
                   onChange={(event) => setPriority(event.target.value)}
-                  className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+                  className={formControlClass}
                 >
                   {PRIORITY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -807,7 +1040,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                 <select
                   value={raisedForAuthUserId}
                   onChange={(event) => setRaisedForAuthUserId(event.target.value)}
-                  className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+                  className={formControlClass}
                 >
                   {visiblePeople.map((person) => (
                     <option key={person.authUserId} value={person.authUserId}>
@@ -826,7 +1059,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                     setOwnerAuthUserId(nextOwnerId);
                     setSelectedCc((current) => current.filter((id) => id !== nextOwnerId));
                   }}
-                  className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+                  className={formControlClass}
                 >
                   {visiblePeople.map((person) => (
                     <option key={person.authUserId} value={person.authUserId}>
@@ -842,7 +1075,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                   value={description}
                   onChange={(event) => setDescription(event.target.value)}
                   rows={6}
-                  className="w-full resize-none rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-violet-200"
+                  className={textAreaControlClass}
                   placeholder="Explain the issue clearly so the main handler can act quickly."
                 />
               </div>
@@ -854,7 +1087,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                     <input
                       value={ccSearch}
                       onChange={(event) => setCcSearch(event.target.value)}
-                      className="w-full rounded-2xl border border-outline-variant/20 bg-white/70 px-4 py-2.5 text-sm outline-none transition focus:border-violet-200 focus:ring-2 focus:ring-violet-100"
+                      className={isTaskManagerAppearance ? 'w-full rounded-2xl bg-white px-4 py-2.5 text-sm outline-none transition focus:ring-2 focus:ring-slate-200' : 'w-full rounded-2xl border border-outline-variant/20 bg-white/70 px-4 py-2.5 text-sm outline-none transition focus:border-violet-200 focus:ring-2 focus:ring-violet-100'}
                       placeholder="Search CC people"
                     />
                   </div>
@@ -910,7 +1143,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
             </div>
           </div>
 
-          <div className="h-fit space-y-6 self-start rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-6 editorial-shadow">
+          <div className={raiseSummaryClass}>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700">Ticket Summary</p>
               <div className="mt-4 grid gap-3 text-sm text-on-surface">
@@ -944,7 +1177,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
               disabled={isSaving}
               className="w-full rounded-2xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:shadow-md hover:shadow-violet-200 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isSaving ? 'Creating Ticket...' : 'Create Ticket'}
+              {isSaving ? 'Creating Ticket...' : createLabel}
             </button>
           </div>
         </section>
@@ -974,11 +1207,30 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <span className="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">{detail.statusLabel}</span>
-                      <span className="rounded-full bg-surface-container-low px-3 py-1 text-xs font-semibold text-on-surface-variant">
+                      <span className={detailMetaBadgeClass}>
                         {detail.priorityLabel}
                       </span>
+                      <span className={detailMetaBadgeClass}>
+                        {detail.categoryLabel || detail.category.replace(/_/g, ' ')}
+                      </span>
+                      <SlaBadge ticket={detail} />
                     </div>
                   </div>
+
+                  {(detail.isLate || detail.isSlaBreached) ? (
+                    <div className="grid gap-4 rounded-3xl border border-amber-200 bg-amber-50 p-5 md:grid-cols-2">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Turnaround Status</p>
+                        <p className="mt-2 text-sm font-semibold text-amber-900">
+                          {detail.isSlaBreached ? 'This ticket has crossed the 72 hour deadline.' : 'This ticket is late and has crossed the 24 hour mark.'}
+                        </p>
+                      </div>
+                      <div className="text-sm text-amber-900">
+                        <p><span className="font-semibold">Late At:</span> {detail.lateAt ? formatTicketDateTime(detail.lateAt) : '-'}</p>
+                        <p className="mt-2"><span className="font-semibold">Due At:</span> {detail.dueAt ? formatTicketDateTime(detail.dueAt) : '-'}</p>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5">
                     <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Ticket Flow</p>
@@ -1045,12 +1297,20 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                       <p className="mt-2 text-sm font-semibold text-on-surface">{personLabel(detail.owner)}</p>
                     </div>
                     <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Escalated To</p>
+                      <p className="mt-2 text-sm font-semibold text-on-surface">{personLabel(detail.escalatedTo)}</p>
+                    </div>
+                    <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Raised For</p>
                       <p className="mt-2 text-sm font-semibold text-on-surface">{personLabel(detail.raisedFor)}</p>
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Last Activity</p>
                       <p className="mt-2 text-sm font-semibold text-on-surface">{formatTicketDateTime(detail.lastActivityAt)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Due At</p>
+                      <p className="mt-2 text-sm font-semibold text-on-surface">{detail.dueAt ? formatTicketDateTime(detail.dueAt) : '-'}</p>
                     </div>
                   </div>
 
@@ -1090,7 +1350,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                           onChange={(event) => handleAdminMetaUpdate('category', event.target.value)}
                           className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm"
                         >
-                          {CATEGORY_OPTIONS.map((option) => (
+                          {categoryOptions.map((option) => (
                             <option key={option.value} value={option.value}>
                               {option.label}
                             </option>
@@ -1110,6 +1370,61 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                             </option>
                           ))}
                         </select>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {detail.permissions.canEscalate ? (
+                    <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+                      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-700">Escalate Ticket</p>
+                      <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+                        <select
+                          value={escalationTargetAuthUserId}
+                          onChange={(event) => setEscalationTargetAuthUserId(event.target.value)}
+                          className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm"
+                        >
+                          <option value="">Select escalation target</option>
+                          {visiblePeople
+                            .filter((person) => person.authUserId !== detail.owner?.authUserId)
+                            .map((person) => (
+                              <option key={person.authUserId} value={person.authUserId}>
+                                {person.name} {person.employeeCode ? `(${person.employeeCode})` : ''}
+                              </option>
+                            ))}
+                        </select>
+                        <input
+                          value={escalationNote}
+                          onChange={(event) => setEscalationNote(event.target.value)}
+                          className="w-full rounded-2xl border border-amber-200 bg-white px-4 py-3 text-sm"
+                          placeholder="Optional escalation note"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleEscalate}
+                          disabled={!escalationTargetAuthUserId || isSaving}
+                          className="rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Escalate
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {detail.escalations.length ? (
+                    <div className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5">
+                      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Escalation History</p>
+                      <div className="space-y-3">
+                        {detail.escalations.map((entry) => (
+                          <div key={entry.id} className="rounded-2xl bg-surface-container-low px-4 py-3 text-sm text-on-surface">
+                            <p className="font-semibold">
+                              {personLabel(entry.from)} to {personLabel(entry.to)}
+                            </p>
+                            <p className="mt-1 text-xs text-on-surface-variant">
+                              Escalated by {personLabel(entry.escalatedBy)} on {formatTicketDateTime(entry.createdAt)}
+                            </p>
+                            {entry.note ? <p className="mt-2 text-sm text-on-surface-variant">{entry.note}</p> : null}
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ) : null}
@@ -1176,7 +1491,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                     )}
                   </div>
 
-                  {detail.permissions.canComment ? (
+                    {detail.permissions.canComment ? (
                     <div className="grid grid-cols-[56px_minmax(0,1fr)] gap-4">
                       <div className="flex items-start justify-center pt-1">
                         <AvatarNode person={data?.actor || null} />
@@ -1192,7 +1507,9 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                           placeholder="Reply to this ticket..."
                         />
                         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                          <input type="file" multiple onChange={(event) => setCommentFiles(Array.from(event.target.files || []))} className="text-sm" />
+                          <div className="w-full md:max-w-md">
+                            <InlineFilePicker files={commentFiles} onFilesChange={setCommentFiles} />
+                          </div>
                           <button
                             type="button"
                             onClick={handleAddComment}
@@ -1210,17 +1527,17 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
             </div>
           ) : (
             <div className="space-y-5">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.6fr)_220px_220px] lg:justify-start">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,0.6fr)_220px_220px_auto] lg:items-center lg:justify-start">
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  className="w-full max-w-[360px] rounded-2xl border border-outline-variant/20 bg-transparent px-4 py-3 text-sm outline-none transition focus:border-violet-200 focus:ring-2 focus:ring-violet-100"
+                  className={`w-full max-w-[360px] rounded-2xl px-4 py-3 text-sm outline-none transition ${filterControlClass}`}
                   placeholder="Search by ticket number or subject"
                 />
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className="w-full max-w-[220px] rounded-2xl border border-outline-variant/20 bg-transparent px-4 py-3 text-sm outline-none transition focus:border-violet-200 focus:ring-2 focus:ring-violet-100"
+                  className={`w-full max-w-[220px] rounded-2xl px-4 py-3 text-sm outline-none transition ${filterControlClass}`}
                 >
                   <option value="">All Statuses</option>
                   {(data?.filters.statuses || []).map((status) => (
@@ -1232,25 +1549,41 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                 <select
                   value={categoryFilter}
                   onChange={(event) => setCategoryFilter(event.target.value)}
-                  className="w-full max-w-[220px] rounded-2xl border border-outline-variant/20 bg-transparent px-4 py-3 text-sm outline-none transition focus:border-violet-200 focus:ring-2 focus:ring-violet-100"
+                  className={`w-full max-w-[220px] rounded-2xl px-4 py-3 text-sm outline-none transition ${filterControlClass}`}
                 >
                   <option value="">All Categories</option>
-                  {CATEGORY_OPTIONS.map((option) => (
+                  {categoryOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
                   ))}
                 </select>
+                {isAdminView && activeSection === 'all' ? (
+                  <button
+                    type="button"
+                    onClick={handleExportTickets}
+                    disabled={isExporting}
+                    className={`inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                      isTaskManagerAppearance
+                        ? 'bg-white text-slate-700 shadow-sm hover:bg-slate-50'
+                        : 'bg-violet-600 text-white hover:shadow-md hover:shadow-violet-200'
+                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                  >
+                    {isExporting ? 'Exporting...' : 'Export Excel'}
+                  </button>
+                ) : null}
               </div>
 
               {visibleTickets.length === 0 ? (
-                <div className="rounded-3xl border border-outline-variant/10 bg-surface-container-lowest p-5 editorial-shadow">
+                <div className={emptyStateWrapperClass}>
                   <HrmEmptyState
                     icon={
                       activeSection === 'my'
                         ? 'confirmation_number'
                         : activeSection === 'assigned'
                           ? 'assignment_ind'
+                          : activeSection === 'all'
+                            ? 'dataset'
                           : 'inventory_2'
                     }
                     title={
@@ -1258,6 +1591,8 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                         ? 'No tickets in your queue'
                         : activeSection === 'assigned'
                           ? 'No assigned tickets right now'
+                          : activeSection === 'all'
+                            ? 'No tickets found in all tickets'
                           : 'No resolved tickets yet'
                     }
                     message="No tickets found in this section."
@@ -1269,6 +1604,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                     key={ticket.id}
                     ticket={ticket}
                     showCompactFlow={activeSection === 'closed'}
+                    appearance={appearance}
                     onSelect={() => {
                       setSelectedTicketId(ticket.id);
                       loadTicketDetail(ticket.id);
@@ -1286,7 +1622,7 @@ export default function Tickets({ variant = 'employee' }: { variant?: 'employee'
                       [activeSection]: (current[activeSection] || INITIAL_VISIBLE_COUNT) + INITIAL_VISIBLE_COUNT,
                     }))
                   }
-                  className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm font-semibold text-on-surface transition hover:bg-surface-container"
+                  className={loadMoreClass}
                 >
                   Load More
                 </button>

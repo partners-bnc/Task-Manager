@@ -24,7 +24,7 @@ function createEmptyResponse(actor = null) {
     filters: {
       statuses: TICKET_STATUSES,
       priorities: TICKET_PRIORITIES,
-      categories: getTicketCategories('hrm'),
+      categories: getTicketCategories('task_manager'),
     },
     people: [],
     myTickets: [],
@@ -45,7 +45,7 @@ export async function GET() {
 
     let tickets;
     try {
-      tickets = await loadVisibleTickets(actor, 'hrm');
+      tickets = await loadVisibleTickets(actor, 'task_manager');
     } catch (error) {
       if (isMissingTicketSchemaError(error)) {
         return NextResponse.json(createEmptyResponse(actor), { status: 200 });
@@ -63,7 +63,7 @@ export async function GET() {
         filters: {
           statuses: TICKET_STATUSES,
           priorities: TICKET_PRIORITIES,
-          categories: getTicketCategories('hrm'),
+          categories: getTicketCategories('task_manager'),
         },
         people: directory.people,
         ...grouped,
@@ -71,7 +71,7 @@ export async function GET() {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error loading tickets:', error);
+    console.error('Error loading task manager tickets:', error);
     return NextResponse.json({ error: error.message || 'Failed to load tickets' }, { status: 500 });
   }
 }
@@ -101,7 +101,7 @@ export async function POST(request) {
     if (!description) {
       return NextResponse.json({ error: 'Description is required.' }, { status: 400 });
     }
-    if (!getTicketCategories('hrm').includes(category)) {
+    if (!getTicketCategories('task_manager').includes(category)) {
       return NextResponse.json({ error: 'Category is invalid.' }, { status: 400 });
     }
     if (!TICKET_PRIORITIES.includes(priority)) {
@@ -128,7 +128,7 @@ export async function POST(request) {
     const now = new Date().toISOString();
     const ticketPayload = {
       id: ticketId,
-      module_key: 'hrm',
+      module_key: 'task_manager',
       subject,
       description,
       category,
@@ -233,7 +233,7 @@ export async function POST(request) {
 
     return NextResponse.json({ ticket: insertedTicket }, { status: 201 });
   } catch (error) {
-    console.error('Error creating ticket:', error);
+    console.error('Error creating task manager ticket:', error);
     if (isMissingTicketSchemaError(error)) {
       return NextResponse.json({ error: 'Ticket database setup is pending. Apply the latest migration first.' }, { status: 503 });
     }

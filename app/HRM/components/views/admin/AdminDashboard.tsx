@@ -37,6 +37,16 @@ function formatBirthday(value) {
   });
 }
 
+function formatAnniversary(value) {
+  if (!value) {
+    return '--';
+  }
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 function formatLeaveWindow(startDate, endDate) {
   if (!startDate && !endDate) {
     return 'Today';
@@ -120,6 +130,91 @@ function getBirthdayCopy(employees = []) {
   return {
     heading: `${leadEmployee.name}'s birthday is coming up`,
     body: 'A special celebration is on the way. Sending warm wishes for a beautiful birthday ahead.',
+  };
+}
+
+function formatAnniversaryNames(employees = []) {
+  const names = employees
+    .map((employee) => String(employee?.name || '').trim())
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (names.length === 0) {
+    return 'Your team';
+  }
+
+  if (names.length === 1) {
+    return names[0];
+  }
+
+  if (names.length === 2) {
+    return `${names[0]} & ${names[1]}`;
+  }
+
+  return `${names[0]}, ${names[1]} & ${names[2]}`;
+}
+
+function getAnniversaryYearLabel(years) {
+  const value = Number(years || 0);
+  if (!value) {
+    return 'Work anniversary';
+  }
+  if (value % 100 >= 11 && value % 100 <= 13) {
+    return `${value}th work anniversary`;
+  }
+  const suffix = value % 10 === 1 ? 'st' : value % 10 === 2 ? 'nd' : value % 10 === 3 ? 'rd' : 'th';
+  return `${value}${suffix} work anniversary`;
+}
+
+function getAnniversaryCopy(employees = []) {
+  const leadEmployee = employees[0];
+  const groupedNames = formatAnniversaryNames(employees);
+
+  if (!leadEmployee) {
+    return {
+      heading: 'No anniversaries lined up yet',
+      body: 'Employee work anniversaries will appear here once joining dates are available in HR records.',
+    };
+  }
+
+  if (employees.length > 1) {
+    if (leadEmployee.daysUntilAnniversary === 0) {
+      return {
+        heading: `${groupedNames} celebrate today`,
+        body: 'A wonderful milestone day is here. Take a moment to celebrate their time and contribution.',
+      };
+    }
+
+    if (leadEmployee.daysUntilAnniversary === 1) {
+      return {
+        heading: `${groupedNames} celebrate tomorrow`,
+        body: 'Their work anniversary is just around the corner. A lovely team moment is coming up.',
+      };
+    }
+
+    return {
+      heading: `${groupedNames} anniversaries are coming up`,
+      body: 'Their next work milestone is approaching soon. A perfect time to celebrate their journey with the team.',
+    };
+  }
+
+  if (leadEmployee.daysUntilAnniversary === 0) {
+    return {
+      heading: `${leadEmployee.name} completes ${leadEmployee.completedYears} year${leadEmployee.completedYears === 1 ? '' : 's'} today`,
+      body: 'Today marks a meaningful work milestone worth celebrating and recognizing with the team.',
+    };
+  }
+
+  if (leadEmployee.daysUntilAnniversary === 1) {
+    return {
+      heading: `${leadEmployee.name} completes ${leadEmployee.completedYears} year${leadEmployee.completedYears === 1 ? '' : 's'} tomorrow`,
+      body: 'Their next work anniversary is almost here. A thoughtful celebration can be planned in advance.',
+    };
+  }
+
+  return {
+    heading: `${leadEmployee.name}'s work anniversary is coming up`,
+    body: `They will soon complete ${leadEmployee.completedYears} year${leadEmployee.completedYears === 1 ? '' : 's'} with the company.`,
   };
 }
 
@@ -229,6 +324,23 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
   const visibleBirthdayEmployees = featuredBirthdayGroup.slice(0, 4);
   const avatarLayoutClassName =
     visibleBirthdayEmployees.length <= 2
+      ? 'flex w-full items-center justify-center gap-2'
+      : 'grid w-full grid-cols-2 gap-x-2 gap-y-3';
+  const featuredAnniversaryGroup = useMemo(() => {
+    const upcomingAnniversaries = dashboard?.upcomingAnniversaries || [];
+    if (!upcomingAnniversaries.length) {
+      return [];
+    }
+
+    const nearestOffset = upcomingAnniversaries[0].daysUntilAnniversary;
+    return upcomingAnniversaries.filter((employee) => employee.daysUntilAnniversary === nearestOffset);
+  }, [dashboard?.upcomingAnniversaries]);
+  const featuredAnniversary = featuredAnniversaryGroup[0] || null;
+  const anniversaryCopy = getAnniversaryCopy(featuredAnniversaryGroup);
+  const anniversaryLabel = featuredAnniversary?.daysUntilAnniversary === 0 ? 'Today Anniversary' : 'Upcoming Anniversary';
+  const visibleAnniversaryEmployees = featuredAnniversaryGroup.slice(0, 4);
+  const anniversaryAvatarLayoutClassName =
+    visibleAnniversaryEmployees.length <= 2
       ? 'flex w-full items-center justify-center gap-2'
       : 'grid w-full grid-cols-2 gap-x-2 gap-y-3';
 
@@ -535,19 +647,91 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
               ) : null}
             </div>
 
-            <div className="relative self-start xl:max-w-[300px]">
-              {(dashboard.upcomingBirthdays || []).length > 0 ? (
-                <button
-                  type="button"
-                  onClick={handleBirthdayCardDownload}
-                  disabled={isDownloadingBirthdayCard}
-                  className="absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/70 bg-white/85 text-[#9A3412] shadow-md backdrop-blur-sm transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                  title="Download birthday card"
-                  aria-label="Download birthday card"
-                >
-                  <Download className="h-4 w-4" />
-                </button>
-              ) : null}
+            <div className="space-y-5 self-start xl:max-w-[300px]">
+              <div className="relative">
+                {(dashboard.upcomingBirthdays || []).length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={handleBirthdayCardDownload}
+                    disabled={isDownloadingBirthdayCard}
+                    className="absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/70 bg-white/85 text-[#9A3412] shadow-md backdrop-blur-sm transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Download birthday card"
+                    aria-label="Download birthday card"
+                  >
+                    <Download className="h-4 w-4" />
+                  </button>
+                ) : null}
+
+                <div className="relative overflow-hidden rounded-[2rem] border border-[#E9D8FF] bg-[#F6ECFF] p-5 shadow-[0_22px_70px_rgba(137,92,246,0.16)]">
+                  <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-[#D8B4FE]/60 blur-3xl" />
+                  <div className="pointer-events-none absolute left-1/2 top-0 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#F0ABFC]/45 blur-2xl" />
+                  <div className="pointer-events-none absolute -left-8 bottom-12 h-28 w-28 rounded-full bg-[#BFDBFE]/35 blur-3xl" />
+                  <div className="pointer-events-none absolute right-6 top-16 h-2.5 w-2.5 rounded-full bg-[#A855F7]/65" />
+                  <div className="pointer-events-none absolute right-12 top-24 h-1.5 w-1.5 rounded-full bg-[#EC4899]/70" />
+                  <div className="pointer-events-none absolute left-8 top-20 h-2 w-2 rounded-full bg-[#8B5CF6]/60" />
+
+                  <div className="relative flex h-full flex-col">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#B45309]">{birthdayLabel}</p>
+                      </div>
+                      <span className="material-symbols-outlined text-[28px] text-[#EA580C]">celebration</span>
+                    </div>
+
+                    {(dashboard.upcomingBirthdays || []).length === 0 ? (
+                      <div className="mt-6">
+                        <HrmEmptyState
+                          compact
+                          icon="cake"
+                          title="No birthdays available yet"
+                          message="Add employee birth dates in the HR records to start showing upcoming birthday reminders here."
+                          className="border-white/70 bg-white/45"
+                        />
+                      </div>
+                    ) : (
+                      <div className="mt-6 flex flex-col items-center px-1 pb-1 text-center">
+                        <div className={avatarLayoutClassName}>
+                          {visibleBirthdayEmployees.map((employee) => (
+                            <div key={employee.id} className="flex flex-col items-center text-center">
+                              {employee?.profile_picture_url ? (
+                                <Image
+                                  src={employee.profile_picture_url}
+                                  alt={employee.name || 'Birthday employee'}
+                                  width={88}
+                                  height={88}
+                                  className="h-[88px] w-[88px] rounded-full border-4 border-white/90 object-cover shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
+                                  unoptimized
+                                />
+                              ) : (
+                                <div
+                                  className="flex h-[88px] w-[88px] items-center justify-center rounded-full border-4 border-white/90 bg-white text-2xl font-extrabold text-[#7C3AED] shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
+                                >
+                                  {getInitials(employee?.name)}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        {featuredBirthdayGroup.length > 4 ? (
+                          <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-[#C2410C]">
+                            +{featuredBirthdayGroup.length - 4} more on the same date
+                          </p>
+                        ) : null}
+                        <p className="mt-5 text-xl font-extrabold leading-tight text-[#4A2412]">
+                          {birthdayCopy.heading}
+                        </p>
+                        <p className="mt-3 max-w-[15rem] text-sm leading-6 text-[#7C5A49]">
+                          {birthdayCopy.body}
+                        </p>
+                        <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/85 px-4 py-2 text-sm font-bold text-[#9A3412] shadow-sm">
+                          <span className="material-symbols-outlined text-[18px] text-[#EA580C]">cake</span>
+                          {formatBirthday(featuredBirthday?.date_of_birth)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
               <div className="relative overflow-hidden rounded-[2rem] border border-[#E9D8FF] bg-[#F6ECFF] p-5 shadow-[0_22px_70px_rgba(137,92,246,0.16)]">
                 <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-[#D8B4FE]/60 blur-3xl" />
@@ -560,33 +744,33 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
                 <div className="relative flex h-full flex-col">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#B45309]">{birthdayLabel}</p>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.26em] text-[#B45309]">{anniversaryLabel}</p>
                     </div>
-                    <span className="material-symbols-outlined text-[28px] text-[#EA580C]">celebration</span>
+                    <span className="material-symbols-outlined text-[28px] text-[#EA580C]">workspace_premium</span>
                   </div>
 
-                  {(dashboard.upcomingBirthdays || []).length === 0 ? (
+                  {(dashboard.upcomingAnniversaries || []).length === 0 ? (
                     <div className="mt-6">
                       <HrmEmptyState
                         compact
-                        icon="cake"
-                        title="No birthdays available yet"
-                        message="Add employee birth dates in the HR records to start showing upcoming birthday reminders here."
+                        icon="workspace_premium"
+                        title="No anniversaries available yet"
+                        message="Add employee joining dates in the HR records to start showing upcoming work anniversaries here."
                         className="border-white/70 bg-white/45"
                       />
                     </div>
                   ) : (
                     <div className="mt-6 flex flex-col items-center px-1 pb-1 text-center">
-                      <div className={avatarLayoutClassName}>
-                        {visibleBirthdayEmployees.map((employee) => (
+                      <div className={anniversaryAvatarLayoutClassName}>
+                        {visibleAnniversaryEmployees.map((employee) => (
                           <div key={employee.id} className="flex flex-col items-center text-center">
                             {employee?.profile_picture_url ? (
                               <Image
                                 src={employee.profile_picture_url}
-                                alt={employee.name || 'Birthday employee'}
+                                alt={employee.name || 'Anniversary employee'}
                                 width={88}
                                 height={88}
-                                className="h-[88px] w-[88px] rounded-full object-cover border-4 border-white/90 shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
+                                className="h-[88px] w-[88px] rounded-full border-4 border-white/90 object-cover shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
                                 unoptimized
                               />
                             ) : (
@@ -599,20 +783,26 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
                           </div>
                         ))}
                       </div>
-                      {featuredBirthdayGroup.length > 4 ? (
+                      {featuredAnniversaryGroup.length > 4 ? (
                         <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-[#C2410C]">
-                          +{featuredBirthdayGroup.length - 4} more on the same date
+                          +{featuredAnniversaryGroup.length - 4} more on the same date
                         </p>
                       ) : null}
                       <p className="mt-5 text-xl font-extrabold leading-tight text-[#4A2412]">
-                        {birthdayCopy.heading}
+                        {anniversaryCopy.heading}
                       </p>
                       <p className="mt-3 max-w-[15rem] text-sm leading-6 text-[#7C5A49]">
-                        {birthdayCopy.body}
+                        {anniversaryCopy.body}
                       </p>
-                      <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/85 px-4 py-2 text-sm font-bold text-[#9A3412] shadow-sm">
-                        <span className="material-symbols-outlined text-[18px] text-[#EA580C]">cake</span>
-                        {formatBirthday(featuredBirthday?.date_of_birth)}
+                      <div className="mt-5 flex flex-col items-center gap-2">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-white/85 px-4 py-2 text-sm font-bold text-[#9A3412] shadow-sm">
+                          <span className="material-symbols-outlined text-[18px] text-[#EA580C]">calendar_month</span>
+                          {formatAnniversary(featuredAnniversary?.date_of_joining)}
+                        </div>
+                        <div className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#7C3AED] shadow-sm">
+                          <span className="material-symbols-outlined text-[16px] text-[#A855F7]">military_tech</span>
+                          {getAnniversaryYearLabel(featuredAnniversary?.completedYears)}
+                        </div>
                       </div>
                     </div>
                   )}

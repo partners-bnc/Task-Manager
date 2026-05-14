@@ -7,18 +7,18 @@ import {
   canActorUpdateTicket,
   canActorViewTicket,
   ensureActorInTicketDirectory,
-  formatTicketPriorityLabel,
-  formatTicketStatusLabel,
   formatTicketCategoryLabel,
   formatTicketModuleLabel,
+  formatTicketPriorityLabel,
+  formatTicketStatusLabel,
   getTicketCategories,
   getCurrentCycleNumber,
   getTicketAvailableActions,
   getTicketCurrentStepNumber,
   getTicketNextAllowedStep,
   groupByKey,
-  insertTicketHistoryEntry,
   insertTicketEscalationEntry,
+  insertTicketHistoryEntry,
   isMissingTicketSchemaError,
   listTicketPeople,
   loadTicketEscalations,
@@ -26,12 +26,12 @@ import {
   loadTicketStatusHistory,
   mapTicketEscalationRows,
   mapTicketHistoryRows,
-  normalizeTicketStatus,
   normalizeTicketModuleKey,
+  normalizeTicketStatus,
   requireTicketActor,
   resolveTicketPerson,
-  withDerivedTicketSla,
   withAttachmentUrls,
+  withDerivedTicketSla,
 } from '@/utils/tickets';
 
 async function loadTicketBundle(ticketId) {
@@ -151,16 +151,13 @@ function buildUpdatePayload(ticket, body, actor, reassignedOwner, escalatedTo, h
       if (!ticket.resolved_at) {
         nextPayload.resolved_at = now;
       }
-    }
-    if (!['resolved', 'closed'].includes(nextStatus)) {
-      nextPayload.closed_at = null;
-    }
-
-    if (nextStatus === 'closed') {
       nextPayload.current_escalated_auth_user_id = null;
       nextPayload.current_escalated_employee_id = null;
       nextPayload.current_escalated_role = null;
       nextPayload.escalated_at = null;
+    }
+    if (!['resolved', 'closed'].includes(nextStatus)) {
+      nextPayload.closed_at = null;
     }
 
     return {
@@ -171,6 +168,7 @@ function buildUpdatePayload(ticket, body, actor, reassignedOwner, escalatedTo, h
         stepKey: nextStatus,
         createdAt: now,
       },
+      escalationEntry: null,
     };
   }
 
@@ -253,10 +251,7 @@ export async function GET(_request, context) {
     const directory = ensureActorInTicketDirectory(await listTicketPeople(), actor);
     const { ticket, participants, comments, attachments, history, escalations } = await loadTicketBundle(ticketId);
 
-    if (!ticket) {
-      return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-    }
-    if (normalizeTicketModuleKey(ticket.module_key) !== 'hrm') {
+    if (!ticket || normalizeTicketModuleKey(ticket.module_key) !== 'task_manager') {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
 
@@ -271,7 +266,7 @@ export async function GET(_request, context) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error loading ticket detail:', error);
+    console.error('Error loading task manager ticket detail:', error);
     if (isMissingTicketSchemaError(error)) {
       return NextResponse.json({ error: 'Ticket database setup is pending. Apply the latest migration first.' }, { status: 503 });
     }
@@ -295,10 +290,7 @@ export async function PATCH(request, context) {
     const directory = ensureActorInTicketDirectory(await listTicketPeople(), actor);
     const { ticket, participants, history } = await loadTicketBundle(ticketId);
 
-    if (!ticket) {
-      return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-    }
-    if (normalizeTicketModuleKey(ticket.module_key) !== 'hrm') {
+    if (!ticket || normalizeTicketModuleKey(ticket.module_key) !== 'task_manager') {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
 
@@ -371,7 +363,7 @@ export async function PATCH(request, context) {
 
     return NextResponse.json({ ticket: updatedTicket }, { status: 200 });
   } catch (error) {
-    console.error('Error updating ticket:', error);
+    console.error('Error updating task manager ticket:', error);
     if (isMissingTicketSchemaError(error)) {
       return NextResponse.json({ error: 'Ticket database setup is pending. Apply the latest migration first.' }, { status: 503 });
     }

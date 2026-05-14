@@ -53,11 +53,63 @@ export default function Dashboard({ onNavigate }) {
   const router = useRouter();
   const { user, tasks, isAdminMode } = useData();
   const [dashboardDateTime, setDashboardDateTime] = useState(() => getDashboardDateTime());
+  const [ticketStats, setTicketStats] = useState({
+    open: 0,
+    late: 0,
+    breached: 0,
+    avgResolutionHours: 0,
+  });
 
   useEffect(() => {
     const updateDateTime = () => setDashboardDateTime(getDashboardDateTime());
     const intervalId = setInterval(updateDateTime, 60 * 1000);
     return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadTicketStats() {
+      try {
+        const response = await fetch('/Taskmanager/api/tickets', { method: 'GET', credentials: 'include', cache: 'no-store' });
+        const result = await response.json();
+        if (!response.ok || !active) return;
+
+        const openTickets = [...(result.myTickets || []), ...(result.assignedTickets || []), ...(result.adminOpenTickets || [])];
+        const dedupedOpen = Array.from(new Map(openTickets.map((ticket) => [ticket.id, ticket])).values());
+        const closedTickets = Array.isArray(result.closedTickets) ? result.closedTickets : [];
+        const durations = closedTickets
+          .map((ticket) => {
+            const start = ticket?.createdAt ? new Date(ticket.createdAt).getTime() : NaN;
+            const end = ticket?.closedAt || ticket?.resolvedAt ? new Date(ticket.closedAt || ticket.resolvedAt).getTime() : NaN;
+            if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+            return (end - start) / (1000 * 60 * 60);
+          })
+          .filter((value) => typeof value === 'number');
+        const avgResolutionHours = durations.length > 0 ? Math.round((durations.reduce((sum, value) => sum + value, 0) / durations.length) * 10) / 10 : 0;
+
+        setTicketStats({
+          open: dedupedOpen.length,
+          late: dedupedOpen.filter((ticket) => ticket.isLate && !ticket.isSlaBreached).length,
+          breached: dedupedOpen.filter((ticket) => ticket.isSlaBreached).length,
+          avgResolutionHours,
+        });
+      } catch {
+        if (active) {
+          setTicketStats({
+            open: 0,
+            late: 0,
+            breached: 0,
+            avgResolutionHours: 0,
+          });
+        }
+      }
+    }
+
+    loadTicketStats();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const stats = {
@@ -84,6 +136,10 @@ export default function Dashboard({ onNavigate }) {
     { label: 'Pending Tasks', value: stats.pending, icon: Clock3 },
     { label: 'In Progress', value: stats.inProgress, icon: ChartNoAxesColumnIncreasing },
     { label: 'Completed Tasks', value: stats.completed, icon: BadgeCheck },
+    { label: 'Open Tickets', value: ticketStats.open, icon: BriefcaseBusiness },
+    { label: 'Late Tickets', value: ticketStats.late, icon: Clock3 },
+    { label: 'Breached SLA', value: ticketStats.breached, icon: ChartNoAxesColumnIncreasing },
+    { label: 'Avg Resolve Hrs', value: ticketStats.avgResolutionHours, icon: BadgeCheck },
   ];
 
   const recentTasks = [...tasks]

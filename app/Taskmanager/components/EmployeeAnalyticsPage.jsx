@@ -170,6 +170,7 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
   const [employee, setEmployee] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [stats, setStats] = useState(null);
+  const [ticketStats, setTicketStats] = useState(null);
   const [assignmentActivity, setAssignmentActivity] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -193,6 +194,7 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
         setEmployee(result.employee || null);
         setTasks(Array.isArray(result.tasks) ? result.tasks : []);
         setStats(result.stats || null);
+        setTicketStats(result.ticketStats || null);
         setAssignmentActivity(Array.isArray(result.assignmentActivity) ? result.assignmentActivity : []);
       } catch (requestError) {
         if (!isMounted) return;
@@ -335,6 +337,14 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
           <MetricCard icon={CircleCheckBig} label="Completed" value={stats?.completed ?? 0} tone="emerald" />
           <MetricCard icon={Star} label="Rated Tasks" value={stats?.totalRatedTasks ?? 0} tone="amber" />
           <MetricCard icon={TriangleAlert} label="Overdue" value={stats?.overdue ?? 0} tone="rose" />
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <MetricCard icon={UserRoundCheck} label="Ticket Total" value={ticketStats?.total ?? 0} tone="slate" />
+          <MetricCard icon={Clock3} label="Ticket Open" value={ticketStats?.open ?? 0} tone="purple" />
+          <MetricCard icon={TriangleAlert} label="Ticket Late" value={ticketStats?.late ?? 0} tone="amber" />
+          <MetricCard icon={TriangleAlert} label="Ticket Breached" value={ticketStats?.breached ?? 0} tone="rose" />
+          <MetricCard icon={CircleCheckBig} label="Avg Resolve Hrs" value={ticketStats?.avgResolutionHours ?? 0} tone="emerald" />
         </section>
 
         <section className="grid gap-5 xl:grid-cols-3">

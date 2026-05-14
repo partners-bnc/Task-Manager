@@ -5,7 +5,7 @@ import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 
 export const TICKET_STATUSES = ['ticket_raised', 'open', 'in_progress', 'waiting_on_requester', 'resolved', 'closed'];
 export const TICKET_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
-export const TICKET_CATEGORIES = [
+export const HRM_TICKET_CATEGORIES = [
   'attendance',
   'leave',
   'payroll',
@@ -14,6 +14,18 @@ export const TICKET_CATEGORIES = [
   'system_access',
   'other',
 ];
+export const TASK_MANAGER_TICKET_CATEGORIES = [
+  'task_not_completed',
+  'deadline_risk',
+  'dependency_blocked',
+  'task_clarification',
+  'reassignment_request',
+  'access_issue',
+  'bug_report',
+  'work_update',
+  'other',
+];
+export const TICKET_CATEGORIES = HRM_TICKET_CATEGORIES;
 export const TICKET_FLOW_STEPS = ['ticket_raised', 'open', 'in_progress', 'waiting_on_requester', 'resolved', 'closed'];
 export const TICKET_HISTORY_STEPS = [...TICKET_FLOW_STEPS, 'reopened'];
 export const HRM_TICKET_FILES_BUCKET = 'hrm-ticket-files';
@@ -34,8 +46,75 @@ export function normalizeTicketStatus(status) {
   return String(status || '').trim().toLowerCase();
 }
 
+export function normalizeTicketModuleKey(moduleKey) {
+  return String(moduleKey || 'hrm').trim().toLowerCase() === 'task_manager' ? 'task_manager' : 'hrm';
+}
+
+export function getTicketCategories(moduleKey = 'hrm') {
+  return normalizeTicketModuleKey(moduleKey) === 'task_manager'
+    ? TASK_MANAGER_TICKET_CATEGORIES
+    : HRM_TICKET_CATEGORIES;
+}
+
+export function formatTicketCategoryLabel(category) {
+  const normalized = String(category || '').trim().toLowerCase();
+  if (!normalized) return 'Other';
+  return normalized
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export function formatTicketModuleLabel(moduleKey) {
+  return normalizeTicketModuleKey(moduleKey) === 'task_manager' ? 'Task Manager' : 'HRM';
+}
+
 export function isTicketClosedStatus(status) {
   return ['resolved', 'closed'].includes(normalizeTicketStatus(status));
+}
+
+export function buildTicketSlaFields(createdAt = new Date().toISOString()) {
+  const createdTime = new Date(createdAt);
+  const safeCreatedAt = Number.isNaN(createdTime.getTime()) ? new Date() : createdTime;
+  return {
+    late_at: new Date(safeCreatedAt.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    due_at: new Date(safeCreatedAt.getTime() + 72 * 60 * 60 * 1000).toISOString(),
+  };
+}
+
+export function deriveTicketSlaState(ticket, now = new Date()) {
+  const lateAt = ticket?.late_at ? new Date(ticket.late_at) : null;
+  const dueAt = ticket?.due_at ? new Date(ticket.due_at) : null;
+  const isClosed = normalizeTicketStatus(ticket?.status) === 'closed';
+
+  const fallbackLate = ticket?.created_at ? new Date(new Date(ticket.created_at).getTime() + 24 * 60 * 60 * 1000) : null;
+  const fallbackDue = ticket?.created_at ? new Date(new Date(ticket.created_at).getTime() + 72 * 60 * 60 * 1000) : null;
+  const resolvedLateAt = lateAt && !Number.isNaN(lateAt.getTime()) ? lateAt : fallbackLate;
+  const resolvedDueAt = dueAt && !Number.isNaN(dueAt.getTime()) ? dueAt : fallbackDue;
+
+  const nowTime = now instanceof Date && !Number.isNaN(now.getTime()) ? now.getTime() : Date.now();
+  const isLate = !isClosed && !!resolvedLateAt && resolvedLateAt.getTime() <= nowTime;
+  const isSlaBreached = !isClosed && !!resolvedDueAt && resolvedDueAt.getTime() <= nowTime;
+
+  return {
+    lateAt: resolvedLateAt ? resolvedLateAt.toISOString() : null,
+    dueAt: resolvedDueAt ? resolvedDueAt.toISOString() : null,
+    isLate,
+    isSlaBreached,
+  };
+}
+
+export function withDerivedTicketSla(ticket) {
+  if (!ticket) return ticket;
+  const sla = deriveTicketSlaState(ticket);
+  return {
+    ...ticket,
+    late_at: ticket.late_at || sla.lateAt,
+    due_at: ticket.due_at || sla.dueAt,
+    is_late: typeof ticket.is_late === 'boolean' ? ticket.is_late || sla.isLate : sla.isLate,
+    is_sla_breached: typeof ticket.is_sla_breached === 'boolean' ? ticket.is_sla_breached || sla.isSlaBreached : sla.isSlaBreached,
+  };
 }
 
 export function formatTicketStatusLabel(status) {
@@ -93,7 +172,7 @@ export function sanitizeStorageFileName(fileName = '') {
 export function isMissingTicketSchemaError(error) {
   const message = String(error?.message || '').toLowerCase();
   return (
-    (message.includes('hrm_ticket') || message.includes('hrm_tickets')) &&
+    (message.includes('hrm_ticket') || message.includes('hrm_tickets') || message.includes('hrm_ticket_escalation')) &&
     (message.includes('schema cache') || message.includes('relation') || message.includes('does not exist'))
   );
 }
@@ -305,11 +384,22 @@ export function resolveTicketPerson(byAuthUserId, authUserId) {
   return byAuthUserId.get(authUserId) || null;
 }
 
+export function getTicketActiveHandlerAuthUserId(ticket) {
+  return ticket?.current_escalated_auth_user_id || ticket?.owner_auth_user_id || null;
+}
+
+export function canActorEscalateTicket(ticket, actor) {
+  if (!ticket || !actor?.authUserId) return false;
+  const activeHandlerAuthUserId = getTicketActiveHandlerAuthUserId(ticket);
+  return Boolean(activeHandlerAuthUserId && activeHandlerAuthUserId === actor.authUserId);
+}
+
 export function canActorViewTicket(ticket, actor, participants = []) {
   if (!ticket || !actor?.authUserId) return false;
   if (actor.isAdmin) return true;
   if (ticket.requester_auth_user_id === actor.authUserId) return true;
   if (ticket.owner_auth_user_id === actor.authUserId) return true;
+  if (ticket.current_escalated_auth_user_id === actor.authUserId) return true;
   if (ticket.raised_for_auth_user_id === actor.authUserId) return true;
   return participants.some((participant) => participant.participant_auth_user_id === actor.authUserId);
 }
@@ -321,12 +411,26 @@ export function canActorCommentOnTicket(ticket, actor, participants = []) {
 export function canActorReopenTicket(ticket, actor) {
   if (!ticket || !actor?.authUserId) return false;
   if (normalizeTicketStatus(ticket.status) !== 'resolved') return false;
-  return actor.isAdmin || ticket.requester_auth_user_id === actor.authUserId;
+  return ticket.requester_auth_user_id === actor.authUserId;
 }
 
-export function canActorUpdateTicket(ticket, actor) {
+export function canActorCloseTicket(ticket, actor) {
   if (!ticket || !actor?.authUserId) return false;
-  return actor.isAdmin || ticket.owner_auth_user_id === actor.authUserId;
+  return normalizeTicketStatus(ticket.status) === 'resolved' && ticket.requester_auth_user_id === actor.authUserId;
+}
+
+export function canActorAdvanceTicket(ticket, actor) {
+  if (!ticket || !actor?.authUserId) return false;
+  const activeHandlerAuthUserId = getTicketActiveHandlerAuthUserId(ticket);
+  return Boolean(actor.isAdmin || activeHandlerAuthUserId === actor.authUserId);
+}
+
+export function canActorUpdateTicket(ticket, actor, nextStatus = '') {
+  const normalizedNextStatus = normalizeTicketStatus(nextStatus);
+  if (normalizedNextStatus === 'closed') {
+    return canActorCloseTicket(ticket, actor);
+  }
+  return canActorAdvanceTicket(ticket, actor);
 }
 
 export function getTicketCurrentStepNumber(historyRows = []) {
@@ -338,7 +442,9 @@ export function getCurrentCycleNumber(historyRows = []) {
 }
 
 export function getTicketNextAllowedStep(ticket, actor) {
-  if (!canActorUpdateTicket(ticket, actor)) return null;
+  if (canActorCloseTicket(ticket, actor)) return 'closed';
+  if (!canActorAdvanceTicket(ticket, actor)) return null;
+  if (normalizeTicketStatus(ticket?.status) === 'resolved') return null;
   return getNextWorkflowStep(ticket?.status);
 }
 
@@ -353,14 +459,18 @@ export function getTicketAvailableActions(ticket, actor, participants = []) {
     canReopen: canActorReopenTicket(ticket, actor),
     canEditMeta: Boolean(actor?.isAdmin),
     canReassign: Boolean(actor?.isAdmin),
+    canEscalate: canActorEscalateTicket(ticket, actor),
+    canClose: canActorCloseTicket(ticket, actor),
     canAdvanceFlow: Boolean(nextAllowedStep),
   };
 }
 
 export function mapTicketSummary(ticket, participants, byAuthUserId, actor) {
+  const enrichedTicket = withDerivedTicketSla(ticket);
   const requester = resolveTicketPerson(byAuthUserId, ticket.requester_auth_user_id);
   const owner = resolveTicketPerson(byAuthUserId, ticket.owner_auth_user_id);
   const raisedFor = resolveTicketPerson(byAuthUserId, ticket.raised_for_auth_user_id);
+  const escalatedTo = resolveTicketPerson(byAuthUserId, ticket.current_escalated_auth_user_id);
   const ccPeople = participants
     .filter((participant) => participant.participant_type === 'cc')
     .map((participant) => resolveTicketPerson(byAuthUserId, participant.participant_auth_user_id))
@@ -369,52 +479,81 @@ export function mapTicketSummary(ticket, participants, byAuthUserId, actor) {
   return {
     id: ticket.id,
     ticketNo: ticket.ticket_no,
+    moduleKey: normalizeTicketModuleKey(ticket.module_key),
+    moduleLabel: formatTicketModuleLabel(ticket.module_key),
     subject: ticket.subject,
     description: ticket.description,
     category: ticket.category,
+    categoryLabel: formatTicketCategoryLabel(ticket.category),
     priority: ticket.priority,
     priorityLabel: formatTicketPriorityLabel(ticket.priority),
     status: ticket.status,
     statusLabel: formatTicketStatusLabel(ticket.status),
     requester,
     owner,
+    escalatedTo,
     raisedFor,
     ccPeople,
     lastActivityAt: ticket.last_activity_at,
     createdAt: ticket.created_at,
     updatedAt: ticket.updated_at,
+    resolvedAt: ticket.resolved_at || null,
+    closedAt: ticket.closed_at || null,
+    dueAt: enrichedTicket.due_at,
+    lateAt: enrichedTicket.late_at,
+    isLate: Boolean(enrichedTicket.is_late),
+    isSlaBreached: Boolean(enrichedTicket.is_sla_breached),
+    escalatedAt: ticket.escalated_at || null,
     permissions: getTicketAvailableActions(ticket, actor, participants),
   };
 }
 
-export async function loadVisibleTickets(actor) {
+export async function loadVisibleTickets(actor, moduleKey = 'hrm') {
+  const normalizedModuleKey = normalizeTicketModuleKey(moduleKey);
   if (actor.isAdmin) {
-    const result = await adminClient.from('hrm_tickets').select('*').order('last_activity_at', { ascending: false });
+    const result = await adminClient
+      .from('hrm_tickets')
+      .select('*')
+      .eq('module_key', normalizedModuleKey)
+      .order('last_activity_at', { ascending: false });
     if (result.error) throw result.error;
-    return result.data || [];
+    return (result.data || []).map(withDerivedTicketSla);
   }
 
-  const [requesterRows, ownerRows, raisedForRows, participantRowsResult] = await Promise.all([
-    adminClient.from('hrm_tickets').select('*').eq('requester_auth_user_id', actor.authUserId),
-    adminClient.from('hrm_tickets').select('*').eq('owner_auth_user_id', actor.authUserId),
-    adminClient.from('hrm_tickets').select('*').eq('raised_for_auth_user_id', actor.authUserId),
+  const [requesterRows, ownerRows, escalatedRows, raisedForRows, participantRowsResult] = await Promise.all([
+    adminClient.from('hrm_tickets').select('*').eq('module_key', normalizedModuleKey).eq('requester_auth_user_id', actor.authUserId),
+    adminClient.from('hrm_tickets').select('*').eq('module_key', normalizedModuleKey).eq('owner_auth_user_id', actor.authUserId),
+    adminClient.from('hrm_tickets').select('*').eq('module_key', normalizedModuleKey).eq('current_escalated_auth_user_id', actor.authUserId),
+    adminClient.from('hrm_tickets').select('*').eq('module_key', normalizedModuleKey).eq('raised_for_auth_user_id', actor.authUserId),
     adminClient.from('hrm_ticket_participants').select('ticket_id').eq('participant_auth_user_id', actor.authUserId),
   ]);
 
-  const possibleError = requesterRows.error || ownerRows.error || raisedForRows.error || participantRowsResult.error;
+  const possibleError =
+    requesterRows.error ||
+    ownerRows.error ||
+    escalatedRows.error ||
+    raisedForRows.error ||
+    participantRowsResult.error;
   if (possibleError) throw possibleError;
 
   const ticketMap = new Map();
-  [requesterRows.data, ownerRows.data, raisedForRows.data].flat().filter(Boolean).forEach((ticket) => {
-    ticketMap.set(ticket.id, ticket);
-  });
+  [requesterRows.data, ownerRows.data, escalatedRows.data, raisedForRows.data]
+    .flat()
+    .filter(Boolean)
+    .forEach((ticket) => {
+      ticketMap.set(ticket.id, withDerivedTicketSla(ticket));
+    });
 
   const participantTicketIds = (participantRowsResult.data || []).map((row) => row.ticket_id).filter(Boolean);
   if (participantTicketIds.length > 0) {
-    const participantTicketsResult = await adminClient.from('hrm_tickets').select('*').in('id', participantTicketIds);
+    const participantTicketsResult = await adminClient
+      .from('hrm_tickets')
+      .select('*')
+      .eq('module_key', normalizedModuleKey)
+      .in('id', participantTicketIds);
     if (participantTicketsResult.error) throw participantTicketsResult.error;
     (participantTicketsResult.data || []).forEach((ticket) => {
-      ticketMap.set(ticket.id, ticket);
+      ticketMap.set(ticket.id, withDerivedTicketSla(ticket));
     });
   }
 
@@ -446,6 +585,19 @@ export async function loadTicketStatusHistory(ticketIds = []) {
   return groupByKey(data || [], 'ticket_id');
 }
 
+export async function loadTicketEscalations(ticketIds = []) {
+  if (!Array.isArray(ticketIds) || ticketIds.length === 0) return {};
+
+  const { data, error } = await adminClient
+    .from('hrm_ticket_escalations')
+    .select('*')
+    .in('ticket_id', ticketIds)
+    .order('created_at', { ascending: true });
+
+  if (error) throw error;
+  return groupByKey(data || [], 'ticket_id');
+}
+
 export function mapTicketHistoryRows(historyRows = [], byAuthUserId) {
   return historyRows.map((row) => ({
     id: row.id,
@@ -454,6 +606,17 @@ export function mapTicketHistoryRows(historyRows = [], byAuthUserId) {
     stepKey: row.step_key,
     createdAt: row.created_at,
     actor: resolveTicketPerson(byAuthUserId, row.acted_by_auth_user_id),
+  }));
+}
+
+export function mapTicketEscalationRows(escalationRows = [], byAuthUserId) {
+  return escalationRows.map((row) => ({
+    id: row.id,
+    createdAt: row.created_at,
+    note: row.escalation_note || '',
+    from: resolveTicketPerson(byAuthUserId, row.from_auth_user_id),
+    to: resolveTicketPerson(byAuthUserId, row.to_auth_user_id),
+    escalatedBy: resolveTicketPerson(byAuthUserId, row.escalated_by_auth_user_id),
   }));
 }
 
@@ -520,6 +683,34 @@ export async function insertTicketHistoryEntry({
   };
 
   const { data, error } = await adminClient.from('hrm_ticket_status_history').insert(payload).select('*').single();
+  if (error) throw error;
+  return data;
+}
+
+export async function insertTicketEscalationEntry({
+  ticketId,
+  fromPerson,
+  toPerson,
+  escalatedBy,
+  note = '',
+  createdAt,
+}) {
+  const payload = {
+    ticket_id: ticketId,
+    from_auth_user_id: fromPerson?.authUserId || null,
+    from_employee_id: fromPerson?.employeeId || null,
+    from_role: fromPerson?.role || null,
+    to_auth_user_id: toPerson.authUserId,
+    to_employee_id: toPerson.employeeId || null,
+    to_role: toPerson.role,
+    escalated_by_auth_user_id: escalatedBy.authUserId,
+    escalated_by_employee_id: escalatedBy.employeeId || null,
+    escalated_by_role: escalatedBy.role,
+    escalation_note: note || null,
+    created_at: createdAt || new Date().toISOString(),
+  };
+
+  const { data, error } = await adminClient.from('hrm_ticket_escalations').insert(payload).select('*').single();
   if (error) throw error;
   return data;
 }
@@ -596,16 +787,20 @@ export function getVisibleTicketGroups(tickets, actor, participantsByTicketId, b
     (ticket) => ticket.requester?.authUserId === actor.authUserId && !isTicketClosedStatus(ticket.status)
   );
   const assignedTickets = visibleSummaries.filter(
-    (ticket) => ticket.owner?.authUserId === actor.authUserId && !isTicketClosedStatus(ticket.status)
+    (ticket) =>
+      (ticket.escalatedTo?.authUserId === actor.authUserId || ticket.owner?.authUserId === actor.authUserId) &&
+      !isTicketClosedStatus(ticket.status)
   );
   const closedTickets = visibleSummaries.filter((ticket) => isTicketClosedStatus(ticket.status));
   const adminOpenTickets = actor.isAdmin ? visibleSummaries.filter((ticket) => !isTicketClosedStatus(ticket.status)) : [];
+  const allTickets = actor.isAdmin ? visibleSummaries : [];
 
   return {
     myTickets,
     assignedTickets,
     closedTickets,
     adminOpenTickets,
+    allTickets,
   };
 }
 

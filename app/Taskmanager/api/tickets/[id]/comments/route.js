@@ -38,10 +38,7 @@ export async function POST(request, context) {
       .eq('id', ticketId)
       .maybeSingle();
     if (ticketError) throw ticketError;
-    if (!ticket) {
-      return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-    }
-    if (normalizeTicketModuleKey(ticket.module_key) !== 'hrm') {
+    if (!ticket || normalizeTicketModuleKey(ticket.module_key) !== 'task_manager') {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
 
@@ -94,14 +91,11 @@ export async function POST(request, context) {
       }
     }
 
-    await adminClient
-      .from('hrm_tickets')
-      .update({ last_activity_at: now })
-      .eq('id', ticketId);
+    await adminClient.from('hrm_tickets').update({ last_activity_at: now }).eq('id', ticketId);
 
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {
-    console.error('Error adding ticket comment:', error);
+    console.error('Error adding task manager ticket comment:', error);
     if (isMissingTicketSchemaError(error)) {
       return NextResponse.json({ error: 'Ticket database setup is pending. Apply the latest migration first.' }, { status: 503 });
     }

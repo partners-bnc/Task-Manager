@@ -24,6 +24,7 @@ export default function Sidebar({
     { label: 'Manage Tasks', icon: ListTodo, view: 'tasks' },
     ...(!isAdminMode ? [{ label: '+ Add Todos', icon: ClipboardList, view: 'todos' }] : []),
     { label: 'Create Task', icon: PlusSquare, view: 'create-task' },
+    { label: 'Task Tickets', icon: ClipboardList, view: 'task-tickets' },
     { label: 'Team Members', icon: Users, view: 'team' },
     { label: 'Chat', icon: MessageSquare, view: 'chat' },
     { label: 'Settings', icon: Settings, view: 'settings' },

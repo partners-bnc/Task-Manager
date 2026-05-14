@@ -193,6 +193,30 @@ function buildStats(tasks = [], ratingRows = []) {
   };
 }
 
+function buildTicketStats(tickets = []) {
+  const openTickets = tickets.filter((ticket) => ticket.status !== 'closed');
+  const closedTickets = tickets.filter((ticket) => ticket.status === 'closed');
+  const resolutionHours = closedTickets
+    .map((ticket) => {
+      const start = ticket?.created_at ? new Date(ticket.created_at).getTime() : NaN;
+      const end = ticket?.closed_at || ticket?.resolved_at ? new Date(ticket.closed_at || ticket.resolved_at).getTime() : NaN;
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+      return (end - start) / (1000 * 60 * 60);
+    })
+    .filter((value) => typeof value === 'number');
+
+  return {
+    total: tickets.length,
+    open: openTickets.length,
+    late: openTickets.filter((ticket) => ticket.is_late && !ticket.is_sla_breached).length,
+    breached: openTickets.filter((ticket) => ticket.is_sla_breached).length,
+    resolved: tickets.filter((ticket) => ticket.status === 'resolved').length,
+    avgResolutionHours: resolutionHours.length > 0
+      ? Math.round((resolutionHours.reduce((sum, value) => sum + value, 0) / resolutionHours.length) * 10) / 10
+      : 0,
+  };
+}
+
 export async function GET(request, { params }) {
   try {
     const auth = await requireAdmin(request);
@@ -206,7 +230,7 @@ export async function GET(request, { params }) {
     const [employeeResult, assignmentResult, activityResult, ratingResult] = await Promise.all([
       adminClient
         .from('hrm_employees')
-        .select('id, employee_id, name, username, email, role, profile_picture_url, created_at, updated_at')
+        .select('id, auth_user_id, employee_id, name, username, email, role, profile_picture_url, created_at, updated_at')
         .eq('id', id)
         .maybeSingle(),
       adminClient
@@ -293,12 +317,43 @@ export async function GET(request, { params }) {
     const tasks = buildTaskPayload(assignmentResult.data || [], rawActivities, ratingMap);
     const stats = buildStats(tasks, ratingRows);
     const assignmentActivity = rawActivities.map(mapActivity);
+    const authUserId = employeeResult.data?.auth_user_id || null;
+
+    let ticketStats = {
+      total: 0,
+      open: 0,
+      late: 0,
+      breached: 0,
+      resolved: 0,
+      avgResolutionHours: 0,
+    };
+
+    if (authUserId) {
+      const [requesterTickets, ownerTickets, escalatedTickets] = await Promise.all([
+        adminClient.from('hrm_tickets').select('id, status, is_late, is_sla_breached, created_at, resolved_at, closed_at').eq('module_key', 'task_manager').eq('requester_auth_user_id', authUserId),
+        adminClient.from('hrm_tickets').select('id, status, is_late, is_sla_breached, created_at, resolved_at, closed_at').eq('module_key', 'task_manager').eq('owner_auth_user_id', authUserId),
+        adminClient.from('hrm_tickets').select('id, status, is_late, is_sla_breached, created_at, resolved_at, closed_at').eq('module_key', 'task_manager').eq('current_escalated_auth_user_id', authUserId),
+      ]);
+
+      const ticketError = requesterTickets.error || ownerTickets.error || escalatedTickets.error;
+      if (ticketError) {
+        return NextResponse.json({ error: ticketError.message || 'Failed to fetch employee ticket analytics' }, { status: 500 });
+      }
+
+      const uniqueTickets = Array.from(
+        new Map(
+          [...(requesterTickets.data || []), ...(ownerTickets.data || []), ...(escalatedTickets.data || [])].map((ticket) => [ticket.id, ticket])
+        ).values()
+      );
+      ticketStats = buildTicketStats(uniqueTickets);
+    }
 
     return NextResponse.json({
       success: true,
       employee: employeeResult.data,
       tasks,
       stats,
+      ticketStats,
       assignmentActivity,
     });
   } catch (error) {

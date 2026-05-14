@@ -6,7 +6,7 @@ export type TicketStatus =
   | 'resolved'
   | 'closed';
 
-export type TicketSection = 'raise' | 'my' | 'assigned' | 'closed';
+export type TicketSection = 'raise' | 'my' | 'assigned' | 'all' | 'closed';
 
 export type TicketPipelineStep =
   | 'ticket_raised'
@@ -34,26 +34,39 @@ export interface TicketPermissions {
   canReopen: boolean;
   canEditMeta: boolean;
   canReassign: boolean;
+  canEscalate: boolean;
+  canClose: boolean;
   canAdvanceFlow: boolean;
 }
 
 export interface TicketSummary {
   id: string;
   ticketNo: string;
+  moduleKey: string;
+  moduleLabel: string;
   subject: string;
   description: string;
   category: string;
+  categoryLabel?: string;
   priority: string;
   priorityLabel: string;
   status: TicketStatus;
   statusLabel: string;
   requester: TicketPerson | null;
   owner: TicketPerson | null;
+  escalatedTo?: TicketPerson | null;
   raisedFor: TicketPerson | null;
   ccPeople: TicketPerson[];
   lastActivityAt: string;
   createdAt: string;
   updatedAt: string;
+  resolvedAt?: string | null;
+  closedAt?: string | null;
+  dueAt?: string | null;
+  lateAt?: string | null;
+  isLate?: boolean;
+  isSlaBreached?: boolean;
+  escalatedAt?: string | null;
   permissions: TicketPermissions;
 }
 
@@ -87,6 +100,15 @@ export interface TicketHistoryEntry {
   actor: TicketPerson | null;
 }
 
+export interface TicketEscalationEntry {
+  id: string;
+  createdAt: string;
+  note: string;
+  from: TicketPerson | null;
+  to: TicketPerson | null;
+  escalatedBy: TicketPerson | null;
+}
+
 export interface TicketFlowNode {
   key: TicketPipelineStep;
   label: string;
@@ -101,11 +123,10 @@ export interface TicketFlowCycle {
 }
 
 export interface TicketDetail extends TicketSummary {
-  resolvedAt?: string | null;
-  closedAt?: string | null;
   attachments: TicketAttachment[];
   comments: TicketComment[];
   statusHistory: TicketHistoryEntry[];
+  escalations: TicketEscalationEntry[];
   flowCycles: TicketFlowCycle[];
   nextAllowedStep: TicketPipelineStep | null;
   currentStepNumber: number;
@@ -124,6 +145,7 @@ export interface TicketListResponse {
   assignedTickets: TicketSummary[];
   closedTickets: TicketSummary[];
   adminOpenTickets: TicketSummary[];
+  allTickets: TicketSummary[];
 }
 
 export const TICKET_PIPELINE_STEPS: TicketPipelineStep[] = [

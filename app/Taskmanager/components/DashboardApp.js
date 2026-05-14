@@ -13,6 +13,7 @@ import Todos from './Todos';
 import AdminSettings from './AdminSettings';
 import EmployeeSettings from './EmployeeSettings';
 import ChatPanel from './ChatPanel';
+import TaskTickets from './TaskTickets';
 import { USERS } from './data';
 import { WorkspaceShellLoader } from '@/app/components-homepage/ExperienceLoaders';
 
@@ -52,6 +53,8 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
         return isAdminMode ? <AdminSettings /> : <EmployeeSettings />;
       case 'chat':
         return <ChatPanel />;
+      case 'task-tickets':
+        return <TaskTickets />;
       default:
         return <Dashboard onNavigate={setCurrentView} />;
     }
@@ -91,6 +94,8 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
               ? 'Team Members'
               : currentView === 'chat'
               ? 'Chat'
+              : currentView === 'task-tickets'
+              ? 'Task Tickets'
               : 'Settings'}
           </p>
         </div>

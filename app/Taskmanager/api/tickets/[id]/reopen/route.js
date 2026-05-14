@@ -30,10 +30,7 @@ export async function POST(_request, context) {
     ]);
 
     if (ticketError) throw ticketError;
-    if (!ticket) {
-      return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-    }
-    if (normalizeTicketModuleKey(ticket.module_key) !== 'hrm') {
+    if (!ticket || normalizeTicketModuleKey(ticket.module_key) !== 'task_manager') {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
 
@@ -85,7 +82,7 @@ export async function POST(_request, context) {
 
     return NextResponse.json({ ticket: updatedTicket }, { status: 200 });
   } catch (error) {
-    console.error('Error reopening ticket:', error);
+    console.error('Error reopening task manager ticket:', error);
     if (isMissingTicketSchemaError(error)) {
       return NextResponse.json({ error: 'Ticket database setup is pending. Apply the latest migration first.' }, { status: 503 });
     }
