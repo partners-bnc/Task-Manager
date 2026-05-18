@@ -1185,6 +1185,37 @@ function PdplSectionLoadingPanel({ title = "Loading section data" }) {
   );
 }
 
+function ProjectDeleteConfirmationModal({ open, projectName, deleting, onClose, onConfirm }) {
+  if (!open) return null;
+
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.34)", zIndex: 1400 }} onClick={() => !deleting && onClose()} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 1401, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ width: "min(480px, 100%)", background: "#fff", border: `1px solid ${COLORS.redBorder}`, borderRadius: 24, boxShadow: "0 24px 60px rgba(15,23,42,0.18)", overflow: "hidden" }}>
+          <div style={{ padding: "22px 24px 18px", background: "linear-gradient(135deg,#fff5f5 0%, #ffffff 100%)", borderBottom: `1px solid ${COLORS.border}` }}>
+            <div style={{ display: "inline-flex", alignItems: "center", padding: "6px 10px", borderRadius: 999, background: COLORS.redBg, color: COLORS.red, border: `1px solid ${COLORS.redBorder}`, fontSize: 11.5, fontWeight: 800, textTransform: "uppercase" }}>
+              Delete Project
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.text, marginTop: 14 }}>Delete entire project?</div>
+            <div style={{ fontSize: 13.5, color: COLORS.textSoft, lineHeight: 1.7, marginTop: 10 }}>
+              This will permanently delete <strong style={{ color: COLORS.text }}>{projectName || "this project"}</strong> and remove its saved data from the database.
+            </div>
+          </div>
+          <div style={{ padding: "18px 24px 24px", display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button onClick={onClose} disabled={deleting} style={{ ...tableInputStyle, width: 110, cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.7 : 1 }}>
+              Cancel
+            </button>
+            <button onClick={onConfirm} disabled={deleting} style={{ border: "none", borderRadius: 12, padding: "10px 18px", background: COLORS.red, color: "#fff", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.8 : 1 }}>
+              {deleting ? "Deleting..." : "Yes, Delete"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function ProjectCard({ project, members, onOpen }) {
   const progress = project.progressPercent ?? getProjectProgress(project);
   const assignedMembers = project.teamMemberIds?.slice(0, 4) || [];
@@ -2323,6 +2354,8 @@ export default function PdplWorkspace({
   const [projectModalInitialValues, setProjectModalInitialValues] = useState(emptyProjectForm);
   const [projectModalProjectId, setProjectModalProjectId] = useState(null);
   const [projectModalSaving, setProjectModalSaving] = useState(false);
+  const [deleteConfirmState, setDeleteConfirmState] = useState({ open: false, projectId: null, projectName: "" });
+  const [projectDeleting, setProjectDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [showControlPivot, setShowControlPivot] = useState(false);
   const [drawerState, setDrawerState] = useState({ open: false, sectionKey: "", key: null });
@@ -2555,6 +2588,16 @@ export default function PdplWorkspace({
     setProjectModalMode("create");
     setProjectModalProjectId(null);
     setProjectModalInitialValues({ ...emptyProjectForm });
+  };
+
+  const openDeleteProjectModal = (project) => {
+    if (!project) return;
+    setDeleteConfirmState({ open: true, projectId: project.id, projectName: project.name || "Untitled project" });
+  };
+
+  const closeDeleteProjectModal = () => {
+    if (projectDeleting) return;
+    setDeleteConfirmState({ open: false, projectId: null, projectName: "" });
   };
 
   const buildProjectRequestPayload = (project) => ({
@@ -2928,6 +2971,39 @@ export default function PdplWorkspace({
       return;
     }
     createProject(form);
+  };
+
+  const confirmDeleteProject = async () => {
+    const targetProject = projects.find((project) => String(project.id) === String(deleteConfirmState.projectId) && project.templateId === "pdpl-template");
+    if (!targetProject) {
+      closeDeleteProjectModal();
+      return;
+    }
+
+    setProjectDeleting(true);
+    try {
+      if (isPersistedProjectId(targetProject.id)) {
+        const response = await fetch(`/Auditing/api/pdpl/projects/${targetProject.id}`, { method: "DELETE" });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Failed to delete PDPL project.");
+      }
+
+      setProjects((current) => current.filter((project) => !(String(project.id) === String(targetProject.id) && project.templateId === "pdpl-template")));
+      setProjectSaveBaseline((current) => {
+        const next = { ...current };
+        delete next[targetProject.id];
+        return next;
+      });
+      setProjectId((current) => (String(current) === String(targetProject.id) ? null : current));
+      setNav("dashboard");
+      setSection("overview");
+      setDeleteConfirmState({ open: false, projectId: null, projectName: "" });
+      showToast("success", `Project "${targetProject.name || "Untitled project"}" deleted.`);
+    } catch (error) {
+      showToast("error", error.message || "Failed to delete PDPL project.");
+    } finally {
+      setProjectDeleting(false);
+    }
   };
 
   const performConfirmedSave = async () => {
@@ -3937,6 +4013,10 @@ export default function PdplWorkspace({
                 <span aria-hidden="true">Edit</span>
                 Details
               </button>
+              <button onClick={() => openDeleteProjectModal(currentProject)} style={{ border: `1px solid ${COLORS.redBorder}`, background: COLORS.redBg, color: COLORS.red, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                <span aria-hidden="true">Delete</span>
+                Project
+              </button>
               <button onClick={() => setImportOpen(true)} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <span aria-hidden="true">⬆</span>
                 Import Workbook
@@ -4085,6 +4165,7 @@ export default function PdplWorkspace({
         onSubmit={submitProjectModal}
         submitting={projectModalSaving}
       />
+      <ProjectDeleteConfirmationModal open={deleteConfirmState.open} projectName={deleteConfirmState.projectName} deleting={projectDeleting} onClose={closeDeleteProjectModal} onConfirm={confirmDeleteProject} />
       <SaveConfirmationModal
         open={saveConfirmState.open}
         title={saveConfirmState.scope === "all" ? "Save All PDPL Data" : `Save ${SECTION_META[saveConfirmState.scope]?.label || "Section"} Data`}

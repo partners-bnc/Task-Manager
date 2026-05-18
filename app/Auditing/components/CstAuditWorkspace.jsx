@@ -504,6 +504,37 @@ function renderRemainingBadge(value) {
   );
 }
 
+function CstProjectDeleteConfirmationModal({ open, projectName, deleting, onClose, onConfirm }) {
+  if (!open) return null;
+
+  return (
+    <>
+      <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.34)", zIndex: 1400 }} onClick={() => !deleting && onClose()} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 1401, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div style={{ width: "min(480px, 100%)", background: "#fff", border: `1px solid ${COLORS.redBorder}`, borderRadius: 24, boxShadow: "0 24px 60px rgba(15,23,42,0.18)", overflow: "hidden" }}>
+          <div style={{ padding: "22px 24px 18px", background: "linear-gradient(135deg,#fff5f5 0%, #ffffff 100%)", borderBottom: `1px solid ${COLORS.border}` }}>
+            <div style={{ display: "inline-flex", alignItems: "center", padding: "6px 10px", borderRadius: 999, background: COLORS.redBg, color: COLORS.red, border: `1px solid ${COLORS.redBorder}`, fontSize: 11.5, fontWeight: 800, textTransform: "uppercase" }}>
+              Delete Project
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.text, marginTop: 14 }}>Delete entire project?</div>
+            <div style={{ fontSize: 13.5, color: COLORS.textSoft, lineHeight: 1.7, marginTop: 10 }}>
+              This will permanently delete <strong style={{ color: COLORS.text }}>{projectName || "this project"}</strong> and remove its saved data from the database.
+            </div>
+          </div>
+          <div style={{ padding: "18px 24px 24px", display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <button onClick={onClose} disabled={deleting} style={{ ...tableInputStyle, width: 110, cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.7 : 1 }}>
+              Cancel
+            </button>
+            <button onClick={onConfirm} disabled={deleting} style={{ border: "none", borderRadius: 12, padding: "10px 18px", background: COLORS.red, color: "#fff", fontSize: 13, fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.8 : 1 }}>
+              {deleting ? "Deleting..." : "Yes, Delete"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function CstProjectCard({ project, members, onOpen }) {
   const progress = project.progressPercent ?? 0;
   const assignedMembers = project.teamMemberIds?.slice(0, 4) || [];
@@ -1318,6 +1349,8 @@ export default function CstAuditWorkspace({
     teamMemberIds: [],
   });
   const [projectModalSaving, setProjectModalSaving] = useState(false);
+  const [deleteConfirmState, setDeleteConfirmState] = useState({ open: false, projectId: null, projectName: "" });
+  const [projectDeleting, setProjectDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [drawerState, setDrawerState] = useState({ open: false, rowId: null });
   const [drawerValues, setDrawerValues] = useState({});
@@ -1605,6 +1638,16 @@ export default function CstAuditWorkspace({
     setProjectModalProjectId(null);
   };
 
+  const openDeleteProjectModal = (project) => {
+    if (!project) return;
+    setDeleteConfirmState({ open: true, projectId: project.id, projectName: project.name || "Untitled project" });
+  };
+
+  const closeDeleteProjectModal = () => {
+    if (projectDeleting) return;
+    setDeleteConfirmState({ open: false, projectId: null, projectName: "" });
+  };
+
   const submitProjectModal = async (form) => {
     if (!form.projectName || !form.clientName || !form.projectLeader) {
       showToast("error", "Project name, client name, and project leader are required.");
@@ -1678,6 +1721,40 @@ export default function CstAuditWorkspace({
       showToast("error", error.message || "Failed to update CST project.");
     } finally {
       setProjectModalSaving(false);
+    }
+  };
+
+  const confirmDeleteProject = async () => {
+    const targetProject = projects.find((project) => String(project.id) === String(deleteConfirmState.projectId) && project.templateId === "cst-audit-template");
+    if (!targetProject) {
+      closeDeleteProjectModal();
+      return;
+    }
+
+    setProjectDeleting(true);
+    try {
+      if (isPersistedProjectId(targetProject.id)) {
+        const response = await fetch(`/Auditing/api/cst/projects/${targetProject.id}`, { method: "DELETE" });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Failed to delete CST project.");
+      }
+
+      setProjects((current) => current.filter((project) => !(String(project.id) === String(targetProject.id) && project.templateId === "cst-audit-template")));
+      setProjectSaveBaseline((current) => {
+        const next = { ...current };
+        delete next[targetProject.id];
+        return next;
+      });
+      setProjectId((current) => (String(current) === String(targetProject.id) ? null : current));
+      setDashboardStats(null);
+      setNav("dashboard");
+      setSection("overview");
+      setDeleteConfirmState({ open: false, projectId: null, projectName: "" });
+      showToast("success", `Project "${targetProject.name || "Untitled project"}" deleted.`);
+    } catch (error) {
+      showToast("error", error.message || "Failed to delete CST project.");
+    } finally {
+      setProjectDeleting(false);
     }
   };
 
@@ -2252,6 +2329,7 @@ export default function CstAuditWorkspace({
                       {hasAnyUnsavedChanges ? "Save Changes" : "Saved"}
                     </button>
                     <button onClick={() => openEditProjectModal(currentProject)} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Edit Details</button>
+                    <button onClick={() => openDeleteProjectModal(currentProject)} style={{ border: `1px solid ${COLORS.redBorder}`, background: COLORS.redBg, color: COLORS.red, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Delete Project</button>
                     <button onClick={() => setImportOpen(true)} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Import Workbook</button>
                     <button onClick={exportAllWorkbook} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Export All</button>
                     <button onClick={() => setNav("dashboard")} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.textSoft, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>Back</button>
@@ -2293,6 +2371,7 @@ export default function CstAuditWorkspace({
         onSubmit={submitProjectModal}
       />
       <ImportWorkbookModal open={importOpen} onClose={() => setImportOpen(false)} onApply={applyImportedData} showToast={showToast} />
+      <CstProjectDeleteConfirmationModal open={deleteConfirmState.open} projectName={deleteConfirmState.projectName} deleting={projectDeleting} onClose={closeDeleteProjectModal} onConfirm={confirmDeleteProject} />
       <CstRowDrawer
         open={drawerState.open}
         values={drawerValues}
