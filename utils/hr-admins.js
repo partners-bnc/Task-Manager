@@ -11,6 +11,7 @@ const EMPLOYEE_DASHBOARD_SELECT_BASE = `
   date_of_birth,
   date_of_joining,
   employee_status,
+  state,
   mobile_phone,
   phone,
   current_company_experience,
@@ -20,8 +21,24 @@ const EMPLOYEE_DASHBOARD_SELECT_BASE = `
   designation:hrm_designations (id, title)
 `;
 
-const EMPLOYEE_DASHBOARD_SELECT_WITH_EMPLOYMENT_FIELDS = `
+const EMPLOYEE_DASHBOARD_SELECT_OPTIONAL_FIELDS = `
   ${EMPLOYEE_DASHBOARD_SELECT_BASE},
+  gender,
+  salary
+`;
+
+const EMPLOYEE_DASHBOARD_SELECT_WITH_SALARY = `
+  ${EMPLOYEE_DASHBOARD_SELECT_BASE},
+  salary
+`;
+
+const EMPLOYEE_DASHBOARD_SELECT_WITH_GENDER = `
+  ${EMPLOYEE_DASHBOARD_SELECT_BASE},
+  gender
+`;
+
+const EMPLOYEE_DASHBOARD_SELECT_WITH_EMPLOYMENT_FIELDS = `
+  ${EMPLOYEE_DASHBOARD_SELECT_OPTIONAL_FIELDS},
   employee_type,
   employment_lifecycle_status,
   current_stage,
@@ -69,29 +86,68 @@ export async function findHrAdminByAuthUserId(authUserId) {
 
 export async function getHrAdminDashboardData() {
   const loadEmployeesForDashboard = async () => {
-    const withEmploymentFields = await adminClient
-      .from('hrm_employees')
-      .select(EMPLOYEE_DASHBOARD_SELECT_WITH_EMPLOYMENT_FIELDS)
-      .order('created_at', { ascending: false });
+    const selectAttempts = [
+      EMPLOYEE_DASHBOARD_SELECT_WITH_EMPLOYMENT_FIELDS,
+      `
+        ${EMPLOYEE_DASHBOARD_SELECT_WITH_SALARY},
+        employee_type,
+        employment_lifecycle_status,
+        current_stage,
+        probation_ends_at,
+        notice_started_at,
+        notice_ends_at,
+        separated_at
+      `,
+      `
+        ${EMPLOYEE_DASHBOARD_SELECT_WITH_GENDER},
+        employee_type,
+        employment_lifecycle_status,
+        current_stage,
+        probation_ends_at,
+        notice_started_at,
+        notice_ends_at,
+        separated_at
+      `,
+      `
+        ${EMPLOYEE_DASHBOARD_SELECT_BASE},
+        employee_type,
+        employment_lifecycle_status,
+        current_stage,
+        probation_ends_at,
+        notice_started_at,
+        notice_ends_at,
+        separated_at
+      `,
+      EMPLOYEE_DASHBOARD_SELECT_OPTIONAL_FIELDS,
+      EMPLOYEE_DASHBOARD_SELECT_WITH_SALARY,
+      EMPLOYEE_DASHBOARD_SELECT_WITH_GENDER,
+      EMPLOYEE_DASHBOARD_SELECT_BASE,
+    ];
 
-    if (!withEmploymentFields.error) {
-      return withEmploymentFields;
+    let lastResult = null;
+
+    for (const selectClause of selectAttempts) {
+      const result = await adminClient
+        .from('hrm_employees')
+        .select(selectClause)
+        .order('created_at', { ascending: false });
+
+      if (!result.error) {
+        return result;
+      }
+
+      lastResult = result;
+      const message = String(result.error.message || '').toLowerCase();
+      const isMissingColumnError =
+        message.includes('could not find the column') ||
+        (message.includes('column') && message.includes('does not exist'));
+
+      if (!isMissingColumnError) {
+        return result;
+      }
     }
 
-    const message = String(withEmploymentFields.error.message || '').toLowerCase();
-    const isMissingNewColumn =
-      message.includes('employee_type') ||
-      message.includes('employment_lifecycle_status') ||
-      message.includes('current_stage');
-
-    if (!isMissingNewColumn) {
-      return withEmploymentFields;
-    }
-
-    return adminClient
-      .from('hrm_employees')
-      .select(EMPLOYEE_DASHBOARD_SELECT_BASE)
-      .order('created_at', { ascending: false });
+    return lastResult;
   };
 
   const [hrAdminsResult, employeesResult, departmentsResult, designationsResult, profilesResult] = await Promise.all([

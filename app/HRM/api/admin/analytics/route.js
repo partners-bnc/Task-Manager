@@ -5,7 +5,7 @@ import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import { getHrAdminDashboardData } from '@/utils/hr-admins';
 import { deriveEmploymentFields } from '@/utils/hrm-employment';
 import { getCurrentDateInTimeZone, getDateRangeForMonth, mapDbStatusToUiStatus } from '@/utils/attendance';
-import { isTicketClosedStatus } from '@/utils/tickets';
+import { isTicketClosedStatus, normalizeTicketStatus } from '@/utils/tickets';
 
 async function requireHrAdminAccess() {
   const supabase = await createClient();
@@ -40,16 +40,53 @@ function normalizeAttendanceStatus(status) {
   return mapDbStatusToUiStatus(status, false);
 }
 
-function formatStatusLabel(status) {
-  const normalized = String(status || '').trim().toLowerCase();
-  if (!normalized) return '--';
-  if (normalized === 'on_leave') return 'On Leave';
-  if (normalized === 'halfday' || normalized === 'half_day') return 'Half Day';
-  if (normalized === 'notice_period') return 'Notice Period';
-  return normalized
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+function toNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function round(value, precision = 1) {
+  const factor = 10 ** precision;
+  return Math.round(toNumber(value) * factor) / factor;
+}
+
+function average(values = [], precision = 1) {
+  if (!values.length) return 0;
+  return round(values.reduce((sum, value) => sum + toNumber(value), 0) / values.length, precision);
+}
+
+function toDateOnly(value) {
+  return value ? String(value).slice(0, 10) : null;
+}
+
+function getEmployeeDepartment(employee) {
+  return Array.isArray(employee?.department)
+    ? employee.department[0]?.name || 'Unassigned'
+    : employee?.department?.name || 'Unassigned';
+}
+
+function getEmployeeDesignation(employee) {
+  if (Array.isArray(employee?.designation)) {
+    return employee.designation[0]?.title || employee?.resolved_designation_title || employee?.role || 'Team Member';
+  }
+
+  return employee?.designation?.title || employee?.resolved_designation_title || employee?.role || 'Team Member';
+}
+
+function yearsBetween(startDate, endDate) {
+  if (!startDate || !endDate) return null;
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return null;
+  }
+
+  const yearMs = 365.25 * 24 * 60 * 60 * 1000;
+  return (end.getTime() - start.getTime()) / yearMs;
+}
+
+function getEmployeeAge(dateOfBirth, nowDate) {
+  return yearsBetween(dateOfBirth, nowDate);
 }
 
 function formatDateLabel(value) {
@@ -60,180 +97,47 @@ function formatDateLabel(value) {
   });
 }
 
-function formatWeekdayLabel(value) {
-  if (!value) return '--';
-  return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', {
-    weekday: 'short',
-  });
+function formatServiceDuration(years) {
+  const safeYears = toNumber(years, 0);
+  const totalMonths = Math.max(0, Math.round(safeYears * 12));
+  const yearPart = Math.floor(totalMonths / 12);
+  const monthPart = totalMonths % 12;
+
+  if (yearPart > 0 && monthPart > 0) {
+    return `${yearPart}y ${monthPart}m`;
+  }
+  if (yearPart > 0) {
+    return `${yearPart}y`;
+  }
+  return `${monthPart}m`;
 }
 
-function formatDateLong(value) {
-  if (!value) return '--';
-  return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+function getTenureBucketLabel(years) {
+  if (years === null || years === undefined) return null;
+  if (years < 1) return '0-1';
+  if (years < 3) return '1-3';
+  if (years < 5) return '3-5';
+  if (years < 7) return '5-7';
+  if (years < 10) return '7-10';
+  return '10+';
 }
 
-function toDateOnly(value) {
-  return value ? String(value).slice(0, 10) : null;
-}
-
-function getEmployeeDepartment(employee) {
-  return Array.isArray(employee?.department)
-    ? employee.department[0]?.name || 'Department not set'
-    : employee?.department?.name || 'Department not set';
-}
-
-function getEmployeeDesignation(employee) {
-  return Array.isArray(employee?.designation)
-    ? employee.designation[0]?.title || 'Designation not set'
-    : employee?.designation?.title || 'Designation not set';
-}
-
-function buildLifecycleDistribution(employees = []) {
-  const bucketMap = new Map([
-    ['active', { key: 'active', label: 'Active' }],
-    ['on_leave', { key: 'on_leave', label: 'On Leave' }],
-    ['probation', { key: 'probation', label: 'Probation' }],
-    ['notice_period', { key: 'notice_period', label: 'Notice Period' }],
-    ['separated', { key: 'separated', label: 'Separated' }],
-    ['other', { key: 'other', label: 'Other' }],
-  ]);
-
-  employees.forEach((employee) => {
-    const employment = deriveEmploymentFields(employee);
-    const currentStage = String(employment.currentStage || '').trim().toLowerCase();
-    const lifecycleStatus = String(employment.employmentLifecycleStatus || '').trim().toLowerCase();
-
-    let bucketKey = 'active';
-    if (lifecycleStatus === 'separated') {
-      bucketKey = 'separated';
-    } else if (currentStage === 'on_leave') {
-      bucketKey = 'on_leave';
-    } else if (currentStage === 'probation') {
-      bucketKey = 'probation';
-    } else if (currentStage === 'notice_period') {
-      bucketKey = 'notice_period';
-    } else if (lifecycleStatus !== 'active') {
-      bucketKey = 'other';
-    }
-
-    const entry = bucketMap.get(bucketKey);
-    entry.count = (entry.count || 0) + 1;
-  });
-
-  const total = employees.length || 1;
-  return Array.from(bucketMap.values())
-    .filter((item) => item.count)
-    .map((item) => ({
-      ...item,
-      share: Math.round(((item.count || 0) / total) * 100),
-    }))
-    .sort((left, right) => right.count - left.count);
-}
-
-function buildDepartmentDistribution(employees = []) {
-  const departmentMap = new Map();
-
-  employees.forEach((employee) => {
-    const department = getEmployeeDepartment(employee);
-    const employment = deriveEmploymentFields(employee);
-    const record = departmentMap.get(department) || {
-      department,
-      count: 0,
-      activeCount: 0,
-      onLeaveCount: 0,
-    };
-
-    record.count += 1;
-    if (employment.employmentLifecycleStatus === 'active') {
-      record.activeCount += 1;
-    }
-    if (employment.currentStage === 'on_leave') {
-      record.onLeaveCount += 1;
-    }
-
-    departmentMap.set(department, record);
-  });
-
-  const total = employees.length || 1;
-  return Array.from(departmentMap.values())
-    .map((item) => ({
-      ...item,
-      share: Math.round((item.count / total) * 100),
-    }))
-    .sort((left, right) => {
-      if (right.count !== left.count) {
-        return right.count - left.count;
-      }
-      return left.department.localeCompare(right.department);
-    })
-    .slice(0, 8);
-}
-
-function buildRecentJoiners(employees = [], selectedMonth) {
-  const today = new Date(`${getCurrentDateInTimeZone()}T00:00:00`);
-  const thirtyDaysAgo = new Date(today);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  const normalizedJoiners = employees
-    .map((employee) => {
-      const joinedOn = toDateOnly(employee.date_of_joining) || toDateOnly(employee.created_at);
-      if (!joinedOn) return null;
-
-      return {
-        id: employee.id,
-        employeeId: employee.employee_id || '--',
-        name: employee.name || 'Employee',
-        department: getEmployeeDepartment(employee),
-        designation: getEmployeeDesignation(employee),
-        joinedOn,
-        profilePictureUrl: employee.profile_picture_url || '',
-      };
-    })
-    .filter(Boolean)
-    .sort((left, right) => String(right.joinedOn).localeCompare(String(left.joinedOn)));
-
-  const joinedThisMonth = normalizedJoiners.filter((item) => String(item.joinedOn).slice(0, 7) === selectedMonth).length;
-  const joinedLast30Days = normalizedJoiners.filter((item) => new Date(`${item.joinedOn}T00:00:00`) >= thirtyDaysAgo).length;
-
-  return {
-    joinedThisMonth,
-    joinedLast30Days,
-    cards: normalizedJoiners.slice(0, 6),
-  };
-}
-
-function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
-  const attendanceCounts = {
+function buildAttendanceInsights(attendanceRows = []) {
+  const summary = {
     present: 0,
     absent: 0,
     halfday: 0,
-    on_leave: 0,
+    onLeave: 0,
+    totalRows: 0,
   };
-  const halfDayByEmployee = new Map();
-  const absentByEmployee = new Map();
   const byDate = new Map();
-  const byWeekday = new Map();
+  const byEmployee = new Map();
 
-  attendanceRows.forEach((row) => {
+  for (const row of attendanceRows) {
     const status = normalizeAttendanceStatus(row.status);
-    if (status in attendanceCounts) {
-      attendanceCounts[status] += 1;
-    }
-
-    if (status === 'halfday' && row.employee_id) {
-      halfDayByEmployee.set(row.employee_id, (halfDayByEmployee.get(row.employee_id) || 0) + 1);
-    }
-
-    if (status === 'absent' && row.employee_id) {
-      absentByEmployee.set(row.employee_id, (absentByEmployee.get(row.employee_id) || 0) + 1);
-    }
-
+    const employeeId = row.employee_id || null;
     const dateKey = String(row.date || '');
-    const dateRecord = byDate.get(dateKey) || {
+    const dateEntry = byDate.get(dateKey) || {
       date: dateKey,
       present: 0,
       absent: 0,
@@ -241,18 +145,7 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
       onLeave: 0,
       total: 0,
     };
-
-    if (status === 'present') dateRecord.present += 1;
-    if (status === 'absent') dateRecord.absent += 1;
-    if (status === 'halfday') dateRecord.halfday += 1;
-    if (status === 'on_leave') dateRecord.onLeave += 1;
-    dateRecord.total += 1;
-    byDate.set(dateKey, dateRecord);
-
-    const weekdayKey = formatWeekdayLabel(dateKey);
-    const weekdayRecord = byWeekday.get(weekdayKey) || {
-      key: weekdayKey,
-      label: weekdayKey,
+    const employeeEntry = byEmployee.get(employeeId) || {
       present: 0,
       absent: 0,
       halfday: 0,
@@ -260,175 +153,413 @@ function buildAttendanceInsights(attendanceRows = [], employeeMap = new Map()) {
       total: 0,
     };
 
-    if (status === 'present') weekdayRecord.present += 1;
-    if (status === 'absent') weekdayRecord.absent += 1;
-    if (status === 'halfday') weekdayRecord.halfday += 1;
-    if (status === 'on_leave') weekdayRecord.onLeave += 1;
-    weekdayRecord.total += 1;
-    byWeekday.set(weekdayKey, weekdayRecord);
-  });
+    if (status === 'present') {
+      summary.present += 1;
+      dateEntry.present += 1;
+      employeeEntry.present += 1;
+    }
+    if (status === 'absent') {
+      summary.absent += 1;
+      dateEntry.absent += 1;
+      employeeEntry.absent += 1;
+    }
+    if (status === 'halfday') {
+      summary.halfday += 1;
+      dateEntry.halfday += 1;
+      employeeEntry.halfday += 1;
+    }
+    if (status === 'on_leave') {
+      summary.onLeave += 1;
+      dateEntry.onLeave += 1;
+      employeeEntry.onLeave += 1;
+    }
 
-  const totalRows = attendanceRows.length;
-  const punctualityScore = totalRows ? Math.round(((attendanceCounts.present + attendanceCounts.halfday) / totalRows) * 100) : 0;
-  const attentionRate = totalRows ? Math.round(((attendanceCounts.halfday + attendanceCounts.absent) / totalRows) * 100) : 0;
+    summary.totalRows += 1;
+    dateEntry.total += 1;
+    employeeEntry.total += 1;
+    byDate.set(dateKey, dateEntry);
+    byEmployee.set(employeeId, employeeEntry);
+  }
 
-  const mapWatchlist = (sourceMap, keyName) =>
-    Array.from(sourceMap.entries())
-      .map(([employeeDbId, count]) => {
-        const employee = employeeMap.get(employeeDbId);
-        if (!employee) return null;
-
-        return {
-          id: employeeDbId,
-          employeeId: employee.employeeId,
-          name: employee.name,
-          department: employee.department,
-          designation: employee.designation,
-          [keyName]: count,
-        };
-      })
-      .filter(Boolean)
-      .sort((left, right) => {
-        if (right[keyName] !== left[keyName]) {
-          return right[keyName] - left[keyName];
-        }
-        return left.name.localeCompare(right.name);
-      })
-      .slice(0, 6);
-
-  const distribution = [
-    { key: 'present', label: 'Present', count: attendanceCounts.present },
-    { key: 'absent', label: 'Absent', count: attendanceCounts.absent },
-    { key: 'halfday', label: 'Half Day', count: attendanceCounts.halfday },
-    { key: 'on_leave', label: 'On Leave', count: attendanceCounts.on_leave },
-  ].map((item) => ({
-    ...item,
-    statusLabel: formatStatusLabel(item.key),
-    percentage: totalRows ? Math.round((item.count / totalRows) * 100) : 0,
-  }));
+  const averageAttendance =
+    summary.totalRows > 0
+      ? round(((summary.present + summary.halfday * 0.5) / summary.totalRows) * 100, 1)
+      : 0;
 
   const dailyTrend = Array.from(byDate.values())
     .sort((left, right) => String(left.date).localeCompare(String(right.date)))
     .map((item) => ({
-      ...item,
       label: formatDateLabel(item.date),
-      punctualityScore: item.total ? Math.round(((item.present + item.halfday) / item.total) * 100) : 0,
+      attendanceRate: item.total ? round(((item.present + item.halfday * 0.5) / item.total) * 100, 1) : 0,
+      present: item.present,
+      absent: item.absent,
+      halfday: item.halfday,
+      onLeave: item.onLeave,
     }));
 
-  const weekdayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const weekdayTrend = Array.from(byWeekday.values()).sort(
-    (left, right) => weekdayOrder.indexOf(left.key) - weekdayOrder.indexOf(right.key)
-  );
-
   return {
-    totalRows,
-    punctualityScore,
-    attentionRate,
-    distribution,
+    averageAttendance,
+    summary,
     dailyTrend,
-    weekdayTrend,
-    topHalfDayEmployees: mapWatchlist(halfDayByEmployee, 'halfDayCount'),
-    topAbsentEmployees: mapWatchlist(absentByEmployee, 'absentCount'),
+    employeeStats: byEmployee,
   };
 }
 
-function buildLeaveInsights(leaveRows = [], employeeMap = new Map()) {
-  const summary = {
-    pendingCount: 0,
-    approvedCount: 0,
-    rejectedCount: 0,
-    lopDaysTotal: 0,
-  };
-  const typeMap = new Map();
+function buildDepartmentComposition(employees = []) {
+  const departmentMap = new Map();
+  const total = employees.length || 1;
 
-  leaveRows.forEach((row) => {
-    const status = String(row.status || '').trim().toLowerCase();
-    if (status === 'pending') summary.pendingCount += 1;
-    if (status === 'approved') {
-      summary.approvedCount += 1;
-      summary.lopDaysTotal += Number(row.lop_days || 0);
-    }
-    if (status === 'rejected') summary.rejectedCount += 1;
-
-    const leaveTypeName = row.leave_type?.name || 'Other';
-    typeMap.set(leaveTypeName, (typeMap.get(leaveTypeName) || 0) + 1);
-  });
-
-  const typeDistribution = Array.from(typeMap.entries())
-    .map(([name, count]) => ({ name, count }))
-    .sort((left, right) => right.count - left.count)
-    .slice(0, 6);
-
-  const today = getCurrentDateInTimeZone();
-  const upcomingApproved = leaveRows
-    .filter((row) => String(row.status || '').trim().toLowerCase() === 'approved')
-    .filter((row) => String(row.end_date || '') >= today)
-    .map((row) => {
-      const employee = employeeMap.get(row.employee_id);
-      if (!employee) return null;
-
-      return {
-        id: row.id,
-        employeeId: employee.employeeId,
-        name: employee.name,
-        department: employee.department,
-        designation: employee.designation,
-        startDate: row.start_date,
-        endDate: row.end_date,
-        session: row.applied_session || row.session || 'full_day',
-        leaveType: row.leave_type?.name || 'Leave',
-      };
-    })
-    .filter(Boolean)
-    .sort((left, right) => String(left.startDate).localeCompare(String(right.startDate)))
-    .slice(0, 6);
-
-  return {
-    ...summary,
-    typeDistribution,
-    upcomingApproved,
-  };
-}
-
-function buildNarratives({ attendance, workforce, queue }) {
-  const narratives = [];
-
-  if (workforce.departmentDistribution[0]) {
-    const leadDepartment = workforce.departmentDistribution[0];
-    narratives.push({
-      id: 'department-footprint',
-      eyebrow: 'Workforce Shape',
-      title: `${leadDepartment.department} is the largest team footprint`,
-      body: `${leadDepartment.count} employees sit in this department, which is ${leadDepartment.share}% of the visible workforce.`,
-    });
+  for (const employee of employees) {
+    const department = getEmployeeDepartment(employee);
+    const current = departmentMap.get(department) || { department, count: 0, share: 0 };
+    current.count += 1;
+    departmentMap.set(department, current);
   }
 
-  narratives.push({
-    id: 'attendance-quality',
-    eyebrow: 'Attendance Quality',
-    title: `${attendance.punctualityScore}% of monthly attendance is on-time or workable`,
-    body: `${attendance.attentionRate}% of attendance rows need extra attention through half day or absent marks.`,
-  });
+  return Array.from(departmentMap.values())
+    .map((item) => ({
+      ...item,
+      share: round((item.count / total) * 100, 1),
+    }))
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 8);
+}
 
-  const queueLabel =
-    queue.pendingTaskCount >= 16 ? 'High focus workload'
-    : queue.pendingTaskCount >= 8 ? 'Steady review workload'
-    : 'Controlled review workload';
-  narratives.push({
-    id: 'queue-pressure',
-    eyebrow: 'Operations Pulse',
-    title: queueLabel,
-    body: `${queue.pendingTaskCount} live HR action items are open across leave, regularization, expenses, and tickets.`,
-  });
+function buildLifecycleSpread(employees = []) {
+  const bucketMap = new Map([
+    ['active', { key: 'active', label: 'Active', count: 0 }],
+    ['on_leave', { key: 'on_leave', label: 'On Leave', count: 0 }],
+    ['probation', { key: 'probation', label: 'Probation', count: 0 }],
+    ['notice_period', { key: 'notice_period', label: 'Notice Period', count: 0 }],
+    ['separated', { key: 'separated', label: 'Separated', count: 0 }],
+    ['other', { key: 'other', label: 'Other', count: 0 }],
+  ]);
 
-  narratives.push({
-    id: 'hiring-momentum',
-    eyebrow: 'Movement',
-    title: `${workforce.joinedThisMonth} new joiners landed this month`,
-    body: `${workforce.joinedLast30Days} people have joined in the last 30 days, which helps show current hiring momentum.`,
-  });
+  for (const employee of employees) {
+    const employment = deriveEmploymentFields(employee);
+    const lifecycle = employment.employmentLifecycleStatus;
+    const stage = employment.currentStage;
 
-  return narratives;
+    let key = 'active';
+    if (lifecycle === 'separated') {
+      key = 'separated';
+    } else if (stage === 'on_leave') {
+      key = 'on_leave';
+    } else if (stage === 'probation') {
+      key = 'probation';
+    } else if (stage === 'notice_period') {
+      key = 'notice_period';
+    } else if (lifecycle !== 'active') {
+      key = 'other';
+    }
+
+    bucketMap.get(key).count += 1;
+  }
+
+  const total = employees.length || 1;
+  return Array.from(bucketMap.values())
+    .filter((item) => item.count > 0)
+    .map((item) => ({
+      ...item,
+      share: round((item.count / total) * 100, 1),
+    }))
+    .sort((left, right) => right.count - left.count);
+}
+
+function buildGenderDistribution(employees = []) {
+  const counts = {
+    Male: 0,
+    Female: 0,
+    Others: 0,
+  };
+
+  for (const employee of employees) {
+    const gender = String(employee?.gender || '').trim().toLowerCase();
+    if (gender === 'male') counts.Male += 1;
+    else if (gender === 'female') counts.Female += 1;
+    else if (gender === 'others' || gender === 'other') counts.Others += 1;
+  }
+
+  return [
+    { name: 'Male', value: counts.Male },
+    { name: 'Female', value: counts.Female },
+    { name: 'Others', value: counts.Others },
+  ].filter((item) => item.value > 0);
+}
+
+function normalizeEmployeeState(value) {
+  const state = String(value || '').trim();
+  if (!state) return null;
+
+  const normalizedKey = state
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[().,-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const stateMap = {
+    'andaman and nicobar islands': 'Andaman and Nicobar Islands',
+    'andhra pradesh': 'Andhra Pradesh',
+    'arunachal pradesh': 'Arunachal Pradesh',
+    assam: 'Assam',
+    bihar: 'Bihar',
+    chandigarh: 'Chandigarh',
+    chhattisgarh: 'Chhattisgarh',
+    'dadra and nagar haveli and daman and diu': 'Dadra and Nagar Haveli and Daman and Diu',
+    delhi: 'Delhi',
+    'new delhi': 'Delhi',
+    'nct of delhi': 'Delhi',
+    goa: 'Goa',
+    gujarat: 'Gujarat',
+    haryana: 'Haryana',
+    'himachal pradesh': 'Himachal Pradesh',
+    'jammu and kashmir': 'Jammu and Kashmir',
+    jharkhand: 'Jharkhand',
+    karnataka: 'Karnataka',
+    kerala: 'Kerala',
+    ladakh: 'Ladakh',
+    lakshadweep: 'Lakshadweep',
+    'madhya pradesh': 'Madhya Pradesh',
+    maharashtra: 'Maharashtra',
+    manipur: 'Manipur',
+    meghalaya: 'Meghalaya',
+    mizoram: 'Mizoram',
+    nagaland: 'Nagaland',
+    odisha: 'Odisha',
+    orissa: 'Odisha',
+    puducherry: 'Puducherry',
+    pondicherry: 'Puducherry',
+    punjab: 'Punjab',
+    rajasthan: 'Rajasthan',
+    sikkim: 'Sikkim',
+    'tamil nadu': 'Tamil Nadu',
+    telangana: 'Telangana',
+    tripura: 'Tripura',
+    'uttar pradesh': 'Uttar Pradesh',
+    uttarakhand: 'Uttarakhand',
+    uttaranchal: 'Uttarakhand',
+    'west bengal': 'West Bengal',
+  };
+
+  return stateMap[normalizedKey] || state.replace(/\s+/g, ' ');
+}
+
+function buildStateDistribution(employees = []) {
+  const stateMap = new Map();
+
+  for (const employee of employees) {
+    const state = normalizeEmployeeState(employee?.state);
+    if (!state) continue;
+
+    stateMap.set(state, (stateMap.get(state) || 0) + 1);
+  }
+
+  return Array.from(stateMap.entries())
+    .map(([state, count]) => ({ state, count }))
+    .sort((left, right) => {
+      if (right.count !== left.count) return right.count - left.count;
+      return left.state.localeCompare(right.state);
+    });
+}
+
+function buildAttritionByDepartment(employees = []) {
+  const separatedEmployees = employees.filter(
+    (employee) => deriveEmploymentFields(employee).employmentLifecycleStatus === 'separated'
+  );
+  const map = new Map();
+
+  for (const employee of separatedEmployees) {
+    const department = getEmployeeDepartment(employee);
+    map.set(department, (map.get(department) || 0) + 1);
+  }
+
+  return Array.from(map.entries())
+    .map(([department, terminated]) => ({ department, terminated }))
+    .sort((left, right) => right.terminated - left.terminated)
+    .slice(0, 8);
+}
+
+function buildAttritionByTenure(employees = [], today) {
+  const buckets = ['0-1', '1-3', '3-5', '5-7', '7-10', '10+'].map((label) => ({
+    tenure: label,
+    terminated: 0,
+  }));
+  const bucketMap = new Map(buckets.map((item) => [item.tenure, item]));
+
+  for (const employee of employees) {
+    const employment = deriveEmploymentFields(employee);
+    if (employment.employmentLifecycleStatus !== 'separated') continue;
+
+    const start = toDateOnly(employee.date_of_joining) || toDateOnly(employee.created_at);
+    const end = toDateOnly(employee.separated_at) || today;
+    const years = yearsBetween(start, end);
+    const bucketLabel = getTenureBucketLabel(years);
+    if (!bucketLabel) continue;
+    bucketMap.get(bucketLabel).terminated += 1;
+  }
+
+  return buckets;
+}
+
+function buildRatingMap(ratingRows = []) {
+  const ratingsByEmployee = new Map();
+
+  for (const row of ratingRows) {
+    const employeeId = row.employee_id;
+    if (!employeeId) continue;
+
+    const current = ratingsByEmployee.get(employeeId) || {
+      count: 0,
+      total: 0,
+      average: 0,
+    };
+    current.count += 1;
+    current.total += toNumber(row.rating);
+    current.average = current.count ? round(current.total / current.count, 1) : 0;
+    ratingsByEmployee.set(employeeId, current);
+  }
+
+  return ratingsByEmployee;
+}
+
+function buildTopPerformers(employees = [], ratingRows = [], attendanceStats = new Map(), today) {
+  const ratingsByEmployee = buildRatingMap(ratingRows);
+
+  const rows = employees
+    .filter((employee) => deriveEmploymentFields(employee).employmentLifecycleStatus !== 'separated')
+    .map((employee) => {
+      const rating = ratingsByEmployee.get(employee.id);
+      const attendance = attendanceStats.get(employee.id) || {
+        present: 0,
+        absent: 0,
+        halfday: 0,
+        onLeave: 0,
+        total: 0,
+      };
+      const start = toDateOnly(employee.date_of_joining) || toDateOnly(employee.created_at);
+      const tenureYears = yearsBetween(start, today) || 0;
+      const attendancePercent = attendance.total
+        ? round(((attendance.present + attendance.halfday * 0.5) / attendance.total) * 100, 1)
+        : 0;
+      const nonWorkingDays = attendance.absent + attendance.halfday + attendance.onLeave;
+      const ratingValue = rating?.average || 0;
+
+      return {
+        id: employee.id,
+        employeeId: employee.employee_id || '--',
+        name: employee.name || 'Employee',
+        department: getEmployeeDepartment(employee),
+        jobTitle: getEmployeeDesignation(employee),
+        rating: ratingValue,
+        attendancePercent,
+        nonWorkingDays,
+        salary: toNumber(employee.salary),
+        promotion: ratingValue >= 4.8 && attendancePercent >= 92 && tenureYears >= 1.5 ? 'Yes' : 'No',
+        ratingCount: rating?.count || 0,
+      };
+    })
+    .sort((left, right) => {
+      if (right.rating !== left.rating) return right.rating - left.rating;
+      if (right.attendancePercent !== left.attendancePercent) return right.attendancePercent - left.attendancePercent;
+      if (right.ratingCount !== left.ratingCount) return right.ratingCount - left.ratingCount;
+      return right.salary - left.salary;
+    });
+
+  return rows.slice(0, 10);
+}
+
+function buildServiceDurationTable(employees = [], today) {
+  return [...employees]
+    .filter((employee) => deriveEmploymentFields(employee).employmentLifecycleStatus !== 'separated')
+    .map((employee) => {
+      const start = toDateOnly(employee.date_of_joining) || toDateOnly(employee.created_at);
+      const years = yearsBetween(start, today) || 0;
+      return {
+        id: employee.id,
+        employeeId: employee.employee_id || '--',
+        name: employee.name || 'Employee',
+        department: getEmployeeDepartment(employee),
+        jobTitle: getEmployeeDesignation(employee),
+        serviceDuration: formatServiceDuration(years),
+        tenureYears: round(years, 2),
+      };
+    })
+    .sort((left, right) => {
+      if (right.tenureYears !== left.tenureYears) return right.tenureYears - left.tenureYears;
+      return left.name.localeCompare(right.name);
+    });
+}
+
+function buildExecutiveSummary(employees = [], attendance, today) {
+  const totalEmployees = employees.length;
+  const activeEmployees = employees.filter(
+    (employee) => deriveEmploymentFields(employee).employmentLifecycleStatus === 'active'
+  ).length;
+  const terminatedEmployees = employees.filter(
+    (employee) => deriveEmploymentFields(employee).employmentLifecycleStatus === 'separated'
+  ).length;
+
+  const tenureValues = employees
+    .map((employee) => {
+      const start = toDateOnly(employee.date_of_joining) || toDateOnly(employee.created_at);
+      const end =
+        deriveEmploymentFields(employee).employmentLifecycleStatus === 'separated'
+          ? toDateOnly(employee.separated_at) || today
+          : today;
+      return yearsBetween(start, end);
+    })
+    .filter((value) => value !== null);
+
+  const ageValues = employees
+    .map((employee) => getEmployeeAge(toDateOnly(employee.date_of_birth), today))
+    .filter((value) => value !== null);
+
+  const salaryValues = employees
+    .map((employee) => toNumber(employee.salary, null))
+    .filter((value) => value !== null);
+
+  return {
+    totalEmployees,
+    activeEmployees,
+    terminatedEmployees,
+    attritionRate: totalEmployees ? round((terminatedEmployees / totalEmployees) * 100, 1) : 0,
+    averageTenure: average(tenureValues, 2),
+    averageAttendance: attendance.averageAttendance,
+    averageAge: average(ageValues, 2),
+    averageSalary: average(salaryValues, 0),
+  };
+}
+
+function buildTicketStatusSummary(tickets = []) {
+  const summary = {
+    total: tickets.length,
+    open: 0,
+    inProgress: 0,
+    waiting: 0,
+    completed: 0,
+  };
+
+  for (const ticket of tickets) {
+    const status = normalizeTicketStatus(ticket?.status);
+    if (status === 'ticket_raised' || status === 'open') {
+      summary.open += 1;
+      continue;
+    }
+    if (status === 'in_progress') {
+      summary.inProgress += 1;
+      continue;
+    }
+    if (status === 'waiting_on_requester') {
+      summary.waiting += 1;
+      continue;
+    }
+    if (isTicketClosedStatus(status)) {
+      summary.completed += 1;
+    }
+  }
+
+  return summary;
 }
 
 export async function GET(request) {
@@ -440,17 +571,10 @@ export async function GET(request) {
 
     const url = new URL(request.url);
     const month = url.searchParams.get('month') || getCurrentDateInTimeZone().slice(0, 7);
+    const today = getCurrentDateInTimeZone();
     const { start, end, startAt, endAt } = buildMonthTimestampRange(month);
 
-    const [
-      dashboardData,
-      attendanceResult,
-      leaveMonthResult,
-      leavePendingResult,
-      regularizationResult,
-      expensesResult,
-      ticketsResult,
-    ] = await Promise.all([
+    const [dashboardData, attendanceResult, ratingResult, ticketsResult] = await Promise.all([
       getHrAdminDashboardData(),
       adminClient
         .from('hrm_attendance')
@@ -458,106 +582,36 @@ export async function GET(request) {
         .gte('date', start)
         .lte('date', end),
       adminClient
-        .from('hrm_leave_requests')
-        .select(`
-          id,
-          employee_id,
-          start_date,
-          end_date,
-          status,
-          lop_days,
-          session,
-          applied_session,
-          reviewed_at,
-          leave_type:hrm_leave_types (name)
-        `)
-        .lte('start_date', end)
-        .gte('end_date', start),
-      adminClient
-        .from('hrm_leave_requests')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'pending'),
-      adminClient
-        .from('hrm_regularization_request_recipients')
-        .select('id, request:hrm_regularization_requests!inner(id, status)', { count: 'exact' })
-        .eq('recipient_type', 'approver')
-        .eq('recipient_role', 'hr_admin')
-        .eq('recipient_auth_user_id', auth.authContext.userId)
-        .eq('decision_status', 'pending')
-        .eq('request.status', 'pending'),
-      adminClient
-        .from('hrm_expense_claims')
-        .select('id', { count: 'exact', head: true })
-        .eq('reviewer_auth_user_id', auth.authContext.userId)
-        .eq('status', 'submitted'),
+        .from('task_employee_ratings')
+        .select('id, employee_id, task_id, rating, created_at, updated_at'),
       adminClient
         .from('hrm_tickets')
         .select('id, status')
-        .eq('owner_auth_user_id', auth.authContext.userId),
+        .eq('module_key', 'hrm'),
     ]);
 
     if (attendanceResult.error) {
       throw new Error(attendanceResult.error.message || 'Failed to load attendance analytics');
     }
-    if (leaveMonthResult.error) {
-      throw new Error(leaveMonthResult.error.message || 'Failed to load leave analytics');
-    }
-    if (leavePendingResult.error) {
-      throw new Error(leavePendingResult.error.message || 'Failed to load pending leave analytics');
-    }
-    if (regularizationResult.error) {
-      throw new Error(regularizationResult.error.message || 'Failed to load regularization analytics');
-    }
-    if (expensesResult.error) {
-      throw new Error(expensesResult.error.message || 'Failed to load expense analytics');
+    if (ratingResult.error) {
+      throw new Error(ratingResult.error.message || 'Failed to load performance analytics');
     }
     if (ticketsResult.error) {
-      throw new Error(ticketsResult.error.message || 'Failed to load ticket analytics');
+      throw new Error(ticketsResult.error.message || 'Failed to load ticketing analytics');
     }
 
     const employees = dashboardData.employees || [];
-    const employeeMap = new Map(
-      employees.map((employee) => [
-        employee.id,
-        {
-          id: employee.id,
-          employeeId: employee.employee_id || '--',
-          name: employee.name || 'Employee',
-          department: getEmployeeDepartment(employee),
-          designation: getEmployeeDesignation(employee),
-          profilePictureUrl: employee.profile_picture_url || '',
-        },
-      ])
-    );
-
-    const attendance = buildAttendanceInsights(attendanceResult.data || [], employeeMap);
-    const leave = buildLeaveInsights(leaveMonthResult.data || [], employeeMap);
-    const workforce = {
-      departmentDistribution: buildDepartmentDistribution(employees),
-      lifecycleDistribution: buildLifecycleDistribution(employees),
-      ...buildRecentJoiners(employees, month),
-    };
-
-    const openTicketCount = (ticketsResult.data || []).filter((ticket) => !isTicketClosedStatus(ticket.status)).length;
-    const queue = {
-      pendingRegularizationCount: regularizationResult.count || 0,
-      pendingExpenseReviewCount: expensesResult.count || 0,
-      openTicketCount,
-      pendingLeaveCount: leavePendingResult.count || 0,
-      pendingTaskCount:
-        (leavePendingResult.count || 0) +
-        (regularizationResult.count || 0) +
-        (expensesResult.count || 0) +
-        openTicketCount,
-      pressureLabel:
-        (leavePendingResult.count || 0) + (regularizationResult.count || 0) + (expensesResult.count || 0) + openTicketCount >= 16
-          ? 'High focus'
-          : (leavePendingResult.count || 0) + (regularizationResult.count || 0) + (expensesResult.count || 0) + openTicketCount >= 8
-            ? 'Steady'
-            : 'Calm',
-    };
-
-    const narratives = buildNarratives({ attendance, workforce, queue });
+    const attendance = buildAttendanceInsights(attendanceResult.data || []);
+    const departmentComposition = buildDepartmentComposition(employees);
+    const lifecycleSpread = buildLifecycleSpread(employees);
+    const genderDistribution = buildGenderDistribution(employees);
+    const executiveSummary = buildExecutiveSummary(employees, attendance, today);
+    const attritionByTenure = buildAttritionByTenure(employees, today);
+    const attritionByDepartment = buildAttritionByDepartment(employees);
+    const stateDistribution = buildStateDistribution(employees);
+    const ticketStatusSummary = buildTicketStatusSummary(ticketsResult.data || []);
+    const topPerformers = buildTopPerformers(employees, ratingResult.data || [], attendance.employeeStats, today);
+    const serviceDurationTable = buildServiceDurationTable(employees, today);
 
     return NextResponse.json(
       {
@@ -569,11 +623,20 @@ export async function GET(request) {
           startAt,
           endAt,
         },
-        attendance,
-        leave,
-        workforce,
-        queue,
-        narratives,
+        recordsCount: employees.length,
+        dashboard: {
+          executiveSummary,
+          attritionByTenure,
+          attritionByDepartment,
+          genderDistribution,
+          attendanceTrend: attendance.dailyTrend,
+          departmentComposition,
+          lifecycleSpread,
+          stateDistribution,
+          ticketStatusSummary,
+          topPerformers,
+          serviceDurationTable,
+        },
       },
       { status: 200 }
     );

@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
+import { BarChart3, Clock3, Map as MapIcon, PieChart as PieChartIcon, Trophy, Users } from 'lucide-react';
 import {
   Area,
   AreaChart,
@@ -20,143 +20,124 @@ import {
 import HrmEmptyState from '../../ui/HrmEmptyState';
 import { LoadingPanel } from '../../ui/Skeleton';
 
-type TrendDay = {
-  date: string;
-  label: string;
-  present: number;
-  absent: number;
-  halfday: number;
-  onLeave: number;
-  total: number;
-  punctualityScore: number;
+type KpiSummary = {
+  totalEmployees: number;
+  activeEmployees: number;
+  terminatedEmployees: number;
+  attritionRate: number;
+  averageTenure: number;
+  averageAttendance: number;
+  averageAge: number;
+  averageSalary: number;
 };
 
-type DistributionItem = {
-  key: string;
-  label: string;
-  count: number;
-  statusLabel: string;
-  percentage: number;
-};
-
-type PersonHalfDay = {
+type PerformanceRow = {
   id: string;
   employeeId: string;
   name: string;
   department: string;
-  designation: string;
-  halfDayCount: number;
+  jobTitle: string;
+  rating: number;
+  attendancePercent: number;
+  nonWorkingDays: number;
+  salary: number;
+  promotion: 'Yes' | 'No';
 };
 
-type PersonAbsent = {
+type ServiceRow = {
   id: string;
   employeeId: string;
   name: string;
   department: string;
-  designation: string;
-  absentCount: number;
-};
-
-type JoinerCard = {
-  id: string;
-  employeeId: string;
-  name: string;
-  department: string;
-  designation: string;
-  joinedOn: string;
-  profilePictureUrl: string;
-};
-
-type LeaveCard = {
-  id: string;
-  employeeId: string;
-  name: string;
-  department: string;
-  designation: string;
-  startDate: string;
-  endDate: string;
-  session: string;
-  leaveType: string;
+  jobTitle: string;
+  serviceDuration: string;
+  tenureYears: number;
 };
 
 type AnalyticsResponse = {
   success: boolean;
+  recordsCount: number;
   filters: {
     month: string;
     start: string;
     end: string;
-    startAt: string;
-    endAt: string;
   };
-  attendance: {
-    totalRows: number;
-    punctualityScore: number;
-    attentionRate: number;
-    distribution: DistributionItem[];
-    dailyTrend: TrendDay[];
-    weekdayTrend: Array<{
-      key: string;
+  dashboard: {
+    executiveSummary: KpiSummary;
+    attritionByTenure: Array<{ tenure: string; terminated: number }>;
+    attritionByDepartment: Array<{ department: string; terminated: number }>;
+    genderDistribution: Array<{ name: string; value: number }>;
+    attendanceTrend: Array<{
       label: string;
       present: number;
       absent: number;
       halfday: number;
       onLeave: number;
+    }>;
+    departmentComposition: Array<{ department: string; count: number; share: number }>;
+    lifecycleSpread: Array<{ key: string; label: string; count: number; share: number }>;
+    stateDistribution: Array<{ state: string; count: number }>;
+    ticketStatusSummary: {
       total: number;
-    }>;
-    topHalfDayEmployees: PersonHalfDay[];
-    topAbsentEmployees: PersonAbsent[];
-  };
-  leave: {
-    pendingCount: number;
-    approvedCount: number;
-    rejectedCount: number;
-    lopDaysTotal: number;
-    typeDistribution: Array<{
-      name: string;
-      count: number;
-    }>;
-    upcomingApproved: LeaveCard[];
-  };
-  workforce: {
-    departmentDistribution: Array<{
-      department: string;
-      count: number;
-      activeCount: number;
-      onLeaveCount: number;
-      share: number;
-    }>;
-    lifecycleDistribution: Array<{
-      key: string;
-      label: string;
-      count: number;
-      share: number;
-    }>;
-    joinedThisMonth: number;
-    joinedLast30Days: number;
-    cards: JoinerCard[];
-  };
-  queue: {
-    pendingRegularizationCount: number;
-    pendingExpenseReviewCount: number;
-    openTicketCount: number;
-    pendingLeaveCount: number;
-    pendingTaskCount: number;
-    pressureLabel: string;
+      open: number;
+      inProgress: number;
+      waiting: number;
+      completed: number;
+    };
+    topPerformers: PerformanceRow[];
+    serviceDurationTable: ServiceRow[];
   };
 };
 
-const COLORS = {
-  ink: '#243447',
-  text: '#607285',
-  line: '#D9E4EE',
-  surface: '#FFFFFF',
-  shell: '#F4F8FB',
-  present: '#9BD3AE',
-  absent: '#ABC3EE',
-  halfday: '#E8D5AF',
-  onLeave: '#A6D7DE',
-  accent: '#8FA8BF',
+const CHART_COLORS = ['#9ec5ff', '#c7b9ff', '#b6e3ff', '#ddd4ff', '#8fb2f5', '#d9c8ff'];
+const ATTENDANCE_SERIES = [
+  { key: 'present', label: 'Present', color: '#8ecfa3' },
+  { key: 'absent', label: 'Absent', color: '#9ebbf4' },
+  { key: 'halfday', label: 'Half Day', color: '#e8d2a0' },
+  { key: 'onLeave', label: 'On Leave', color: '#9fd7e4' },
+] as const;
+
+const INDIA_MAP_POINTS: Record<string, { x: number; y: number }> = {
+  'Andaman and Nicobar Islands': { x: 299, y: 344 },
+  'Andhra Pradesh': { x: 216, y: 258 },
+  'Arunachal Pradesh': { x: 283, y: 76 },
+  Assam: { x: 266, y: 102 },
+  Bihar: { x: 219, y: 120 },
+  Chandigarh: { x: 160, y: 82 },
+  Chhattisgarh: { x: 201, y: 193 },
+  'Dadra and Nagar Haveli and Daman and Diu': { x: 114, y: 177 },
+  Delhi: { x: 170, y: 100 },
+  Goa: { x: 118, y: 255 },
+  Gujarat: { x: 98, y: 164 },
+  Haryana: { x: 158, y: 99 },
+  'Himachal Pradesh': { x: 169, y: 72 },
+  'Jammu and Kashmir': { x: 145, y: 42 },
+  Jharkhand: { x: 223, y: 149 },
+  Karnataka: { x: 142, y: 268 },
+  Kerala: { x: 146, y: 333 },
+  Ladakh: { x: 182, y: 29 },
+  Lakshadweep: { x: 84, y: 317 },
+  'Madhya Pradesh': { x: 171, y: 170 },
+  Maharashtra: { x: 141, y: 220 },
+  Manipur: { x: 286, y: 126 },
+  Meghalaya: { x: 264, y: 117 },
+  Mizoram: { x: 272, y: 143 },
+  Nagaland: { x: 288, y: 105 },
+  Odisha: { x: 226, y: 189 },
+  Puducherry: { x: 190, y: 319 },
+  Punjab: { x: 145, y: 85 },
+  Rajasthan: { x: 119, y: 118 },
+  Sikkim: { x: 239, y: 102 },
+  'Tamil Nadu': { x: 183, y: 331 },
+  Telangana: { x: 196, y: 229 },
+  Tripura: { x: 258, y: 136 },
+  'Uttar Pradesh': { x: 194, y: 105 },
+  Uttarakhand: { x: 186, y: 78 },
+  'West Bengal': { x: 238, y: 150 },
 };
+
+const INDIA_DOT_MAP_PATH =
+  'M146 22c10-5 26-6 39 0 14 6 22 17 20 29l-6 18 10 12 28 6 28 22-1 30 18 24-2 28-22 9-4 26-13 10 3 18-12 17-10 18-6 22-14 20-7 33-18 27 3 34-18 23 7 40-20 17-12 35-22 30-34-9-31-37-14-48 3-42-12-41-19-18-26-49-15-54 8-47 27-29 17-36 5-31 17-12 26 2c11 1 22-1 31-6z';
 
 function formatMonthLabel(value: string) {
   if (!value) return 'Current Month';
@@ -168,143 +149,146 @@ function formatMonthLabel(value: string) {
   });
 }
 
-function formatDate(value: string) {
-  if (!value) return '--';
-  return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-function formatShortDate(value: string) {
-  if (!value) return '--';
-  return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-  });
-}
-
-function formatSessionLabel(value: string) {
-  return String(value || 'full_day')
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (part) => part.toUpperCase());
-}
-
-function getInitials(name = '') {
-  return String(name)
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('') || 'HR';
-}
-
-function getStatusColor(key: string) {
-  switch (key) {
-    case 'present':
-      return COLORS.present;
-    case 'absent':
-      return COLORS.absent;
-    case 'halfday':
-      return COLORS.halfday;
-    case 'on_leave':
-      return COLORS.onLeave;
-    default:
-      return COLORS.accent;
+function formatCompactNumber(value: number) {
+  if (!Number.isFinite(value)) return '--';
+  if (value >= 1000) {
+    return new Intl.NumberFormat('en-IN', {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(value);
   }
+  return new Intl.NumberFormat('en-IN').format(value);
 }
 
-function SectionCard({
+function formatCurrencyCompact(value: number) {
+  if (!Number.isFinite(value)) return '--';
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function formatCurrency(value: number) {
+  if (!Number.isFinite(value)) return '--';
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDecimal(value: number, digits = 1) {
+  if (!Number.isFinite(value)) return '--';
+  return value.toFixed(digits);
+}
+
+function formatPercent(value: number) {
+  if (!Number.isFinite(value)) return '--';
+  return `${value.toFixed(1)}%`;
+}
+
+function formatAxisDateLabel(value: string) {
+  const [day, month] = String(value || '').split(' ');
+  return `${day} ${month || ''}`.trim();
+}
+
+function formatTenureAxisLabel(value: string) {
+  if (!value) return value;
+  return value.endsWith('+') ? `${value}y` : `${value}y`;
+}
+
+function Card({
   title,
-  subtitle,
+  icon,
   children,
+  right,
   className = '',
-  right = null,
 }: {
   title: string;
-  subtitle: string;
+  icon?: React.ReactNode;
   children: React.ReactNode;
-  className?: string;
   right?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className={`rounded-[1.9rem] border border-[#DCE6EF] bg-white p-6 shadow-[0_18px_40px_rgba(36,52,71,0.06)] ${className}`}>
-      <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-[1.85rem] font-headline font-extrabold tracking-tight text-[#243447]">{title}</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[#647689]">{subtitle}</p>
+    <section className={`rounded-[28px] border border-[#ddd3c6] bg-white p-5 shadow-[0_10px_30px_rgba(58,45,30,0.05)] ${className}`}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {icon}
+          <h2 className="text-[1rem] font-medium text-[#5f5448]">{title}</h2>
         </div>
         {right}
       </div>
       {children}
-    </div>
+    </section>
   );
 }
 
-function MiniMetric({
+function KpiTile({
+  icon,
   label,
   value,
-  note,
+  tone,
 }: {
+  icon: string;
   label: string;
-  value: number | string;
-  note: string;
+  value: string;
+  tone: 'cream' | 'blue' | 'purple';
 }) {
-  return (
-    <div className="rounded-[1.35rem] border border-[#E1E9F0] bg-[#F8FBFD] px-4 py-4">
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7B8C9D]">{label}</p>
-      <p className="mt-2 text-3xl font-headline font-extrabold text-[#243447]">{value}</p>
-      <p className="mt-1 text-sm text-[#6A7B8D]">{note}</p>
-    </div>
-  );
-}
+  const [transform, setTransform] = useState('perspective(1400px) rotateX(0deg) rotateY(0deg) translateY(0px)');
 
-function Avatar({ src, name }: { src?: string; name: string }) {
-  if (src) {
-    return (
-      <Image
-        src={src}
-        alt={name}
-        width={44}
-        height={44}
-        className="h-11 w-11 rounded-full object-cover"
-        unoptimized
-      />
-    );
+  const toneMap = {
+    cream: 'bg-[#fbf6ed]',
+    blue: 'bg-[#eef5ff]',
+    purple: 'bg-[#f4efff]',
+  };
+
+  function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const rotateY = ((x / rect.width) - 0.5) * 12;
+    const rotateX = (0.5 - (y / rect.height)) * 10;
+    setTransform(`perspective(1400px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`);
+  }
+
+  function handleMouseLeave() {
+    setTransform('perspective(1400px) rotateX(0deg) rotateY(0deg) translateY(0px)');
   }
 
   return (
-    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#E7EEF7] text-sm font-bold text-[#4E6177]">
-      {getInitials(name)}
-    </div>
-  );
-}
-
-function StatusLegend() {
-  const items = [
-    { key: 'present', label: 'Present' },
-    { key: 'absent', label: 'Absent' },
-    { key: 'halfday', label: 'Half Day' },
-    { key: 'on_leave', label: 'On Leave' },
-  ];
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((item) => (
-        <div
-          key={item.key}
-          className="inline-flex items-center gap-2 rounded-full border border-[#E0E8F0] bg-[#FAFCFD] px-3 py-1.5 text-xs font-semibold text-[#627487]"
-        >
-          <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: getStatusColor(item.key) }} />
-          {item.label}
+    <div
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      className={`relative overflow-hidden rounded-[20px] px-3.5 py-3.5 transition-transform duration-200 ease-out ${toneMap[tone]}`}
+      style={{
+        transform,
+        transformStyle: 'preserve-3d',
+        boxShadow:
+          '0 20px 30px rgba(58,45,30,0.08), inset 0 1px 0 rgba(255,255,255,0.92), inset 0 -10px 18px rgba(214,190,155,0.12)',
+      }}
+    >
+      <div className="grid grid-cols-[68px_minmax(0,1fr)] items-center gap-2.5">
+        <div className="flex h-[60px] w-[60px] items-center justify-center">
+          <span
+            className="material-symbols-outlined text-[#d39d24]"
+            style={{ fontSize: '44px', lineHeight: 1, fontVariationSettings: '"FILL" 0, "wght" 300, "GRAD" 0, "opsz" 48' }}
+          >
+            {icon}
+          </span>
         </div>
-      ))}
+        <div className="min-w-0 flex-1 text-left">
+          <p className="text-[0.92rem] font-medium leading-none text-[#7b6f63]">{label}</p>
+          <p className="mt-1 text-[1.28rem] font-headline font-semibold leading-none text-[#18120d]">{value}</p>
+        </div>
+      </div>
     </div>
   );
 }
 
-function RechartTooltip({
+function ChartTooltip({
   active,
   payload,
   label,
@@ -316,16 +300,13 @@ function RechartTooltip({
   if (!active || !payload?.length) return null;
 
   return (
-    <div className="rounded-2xl border border-[#DCE6EF] bg-white px-4 py-3 shadow-[0_14px_32px_rgba(36,52,71,0.1)]">
-      {label ? <div className="mb-2 text-sm font-bold text-[#243447]">{label}</div> : null}
-      <div className="space-y-1.5">
+    <div className="rounded-2xl border border-[#e0d7ca] bg-white px-4 py-3 shadow-[0_12px_24px_rgba(58,45,30,0.08)]">
+      {label ? <p className="mb-1 text-sm font-semibold text-[#5d5348]">{label}</p> : null}
+      <div className="space-y-1">
         {payload.map((item) => (
-          <div key={`${item.name}-${item.value}`} className="flex items-center justify-between gap-4 text-xs">
-            <div className="flex items-center gap-2 text-[#647689]">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color || COLORS.accent }} />
-              {item.name}
-            </div>
-            <span className="font-bold text-[#243447]">{item.value ?? 0}</span>
+          <div key={`${item.name}-${item.value}`} className="flex items-center justify-between gap-5 text-xs">
+            <span className="text-[#6e6459]">{item.name}</span>
+            <span className="font-bold text-[#211a14]">{item.value ?? 0}</span>
           </div>
         ))}
       </div>
@@ -333,48 +314,173 @@ function RechartTooltip({
   );
 }
 
-function WatchTable({
+function SectionTable({
   title,
-  people,
-  countKey,
-  emptyTitle,
+  icon,
+  columns,
+  children,
 }: {
   title: string;
-  people: Array<PersonHalfDay | PersonAbsent>;
-  countKey: 'halfDayCount' | 'absentCount';
-  emptyTitle: string;
+  icon?: React.ReactNode;
+  columns: React.ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[1.45rem] border border-[#E2EAF1] bg-[#FBFCFD] p-4">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-[#75889A]">{title}</h3>
-        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#647689] shadow-sm">
-          {people.length} people
-        </span>
+    <Card title="" right={null}>
+      <div className="mb-4 flex items-center gap-2 text-[1rem] font-headline font-medium text-black">
+        {icon}
+        <span>{title}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-separate border-spacing-0">
+          <thead>
+            <tr className="text-left text-[0.95rem] font-semibold text-[#7b6f63]">{columns}</tr>
+          </thead>
+          <tbody>{children}</tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function IndiaEmployeeMap({ data }: { data: Array<{ state: string; count: number }> }) {
+  const maxCount = Math.max(...data.map((item) => item.count), 1);
+  const plottedStates = data.filter((item) => INDIA_MAP_POINTS[item.state]);
+  const listedStates = [...data].sort((left, right) => right.count - left.count || left.state.localeCompare(right.state));
+  const mapDots = useMemo(() => {
+    const dots: Array<{ x: number; y: number }> = [];
+    for (let y = 18; y <= 385; y += 9.5) {
+      for (let x = 58; x <= 292; x += 9.5) {
+        const offsetX = Math.round(y / 19) % 2 ? 4.75 : 0;
+        dots.push({ x: x + offsetX, y });
+      }
+    }
+    return dots;
+  }, []);
+
+  return (
+    <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="mx-auto w-full max-w-[210px]">
+        <svg viewBox="0 0 320 420" className="h-[300px] w-full" aria-label="India employee state distribution map" role="img">
+            <defs>
+              <filter id="stateDotGlow" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <clipPath id="indiaDotClip">
+                <path d={INDIA_DOT_MAP_PATH} />
+              </clipPath>
+            </defs>
+            <g clipPath="url(#indiaDotClip)">
+              {mapDots.map((dot) => (
+                <circle key={`${dot.x}-${dot.y}`} cx={dot.x} cy={dot.y} r="2.55" fill="#d9d4cb" />
+              ))}
+            </g>
+            <path d={INDIA_DOT_MAP_PATH} fill="none" stroke="#d9cdbf" strokeWidth="1.2" strokeLinejoin="round" opacity="0.6" />
+            <path
+              d="M235 364c11 8 23 24 28 40M248 383c7 4 15 13 18 24"
+              fill="none"
+              stroke="#d9cdbf"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              opacity="0.6"
+            />
+            {plottedStates.map((item) => {
+              const point = INDIA_MAP_POINTS[item.state];
+              const radius = 5 + (item.count / maxCount) * 8;
+              const outerRadius = radius + 6;
+              return (
+                <g key={item.state} transform={`translate(${point.x}, ${point.y})`}>
+                  <circle r={outerRadius + 4} fill="rgba(91, 142, 244, 0.10)" />
+                  <circle r={outerRadius} fill="rgba(91, 142, 244, 0.16)" />
+                  <circle r={radius} fill="#7ca4f8" fillOpacity={0.28} filter="url(#stateDotGlow)" />
+                  <circle r={Math.max(3.8, radius * 0.44)} fill="#5b8ef4" stroke="#ffffff" strokeWidth="2" />
+                </g>
+              );
+            })}
+        </svg>
       </div>
 
-      {people.length === 0 ? (
-        <div className="rounded-[1rem] border border-dashed border-[#DCE6EF] bg-white px-4 py-5 text-sm text-[#6B7C8D]">
-          {emptyTitle}
+      <div className="min-w-0">
+        {listedStates.length === 0 ? (
+          <div className="flex min-h-[220px] items-center justify-center text-sm text-[#8a7f74]">
+            No state data available
+          </div>
+        ) : (
+          <div>
+            <div className="grid grid-cols-[minmax(0,1fr)_64px] gap-2 border-b border-[#e9dece] px-1 pb-2 text-[0.88rem] font-semibold text-[#4f453b]">
+              <span>State</span>
+              <span className="text-right">Employees</span>
+            </div>
+            <div className="pt-1">
+              {listedStates.map((item) => (
+                <div
+                  key={item.state}
+                  className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-2 border-b border-[#f1e7d9] px-1 py-2 text-[0.88rem] last:border-b-0"
+                >
+                  <span className="truncate font-medium text-[#473d33]" title={item.state}>
+                    {item.state}
+                  </span>
+                  <span className="text-right font-semibold text-[#1f1914]">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TicketingStatusCard({
+  summary,
+}: {
+  summary?: {
+    total: number;
+    open: number;
+    inProgress: number;
+    waiting: number;
+    completed: number;
+  };
+}) {
+  const safeSummary = {
+    total: summary?.total ?? 0,
+    open: summary?.open ?? 0,
+    inProgress: summary?.inProgress ?? 0,
+    waiting: summary?.waiting ?? 0,
+    completed: summary?.completed ?? 0,
+  };
+
+  const rows = [
+    { label: 'Open', value: safeSummary.open, color: '#8fb5ff' },
+    { label: 'In Progress', value: safeSummary.inProgress, color: '#c7b9ff' },
+    { label: 'Waiting', value: safeSummary.waiting, color: '#e8d2a0' },
+    { label: 'Completed', value: safeSummary.completed, color: '#8ecfa3' },
+  ];
+
+  return (
+    <Card title="Ticketing Status" icon={<BarChart3 className="h-4 w-4 text-[#8fb5ff]" />} className="h-full">
+      <div className="space-y-4">
+        <div className="rounded-[20px] bg-[#faf6f0] px-4 py-4">
+          <p className="text-[0.8rem] font-medium uppercase tracking-[0.08em] text-[#8a7f74]">Total Tickets</p>
+          <p className="mt-2 text-[2rem] font-headline font-semibold leading-none text-[#1f1914]">{safeSummary.total}</p>
         </div>
-      ) : (
         <div className="space-y-3">
-          {people.map((person) => (
-            <div key={person.id} className="flex items-center justify-between gap-3 rounded-[1rem] border border-[#E5ECF2] bg-white px-4 py-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-[#243447]">{person.name}</p>
-                <p className="truncate text-xs text-[#6A7B8D]">
-                  {person.employeeId} · {person.designation} · {person.department}
-                </p>
+          {rows.map((row) => (
+            <div key={row.label} className="flex items-center justify-between gap-3 rounded-[18px] border border-[#ece2d6] px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: row.color }} />
+                <span className="text-sm font-medium text-[#4f453b]">{row.label}</span>
               </div>
-              <div className="rounded-full bg-[#EEF3F8] px-3 py-1.5 text-sm font-extrabold text-[#314457]">
-                {person[countKey]}
-              </div>
+              <span className="text-lg font-semibold text-[#1f1914]">{row.value}</span>
             </div>
           ))}
         </div>
-      )}
-    </div>
+      </div>
+    </Card>
   );
 }
 
@@ -383,6 +489,7 @@ export default function EmployeeAnalytics() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAllServiceRows, setShowAllServiceRows] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -420,395 +527,412 @@ export default function EmployeeAnalytics() {
     };
   }, [selectedMonth]);
 
-  const attendanceTrendData = useMemo(
-    () =>
-      (analytics?.attendance.dailyTrend || []).map((item) => ({
-        label: item.label,
-        Present: item.present,
-        Absent: item.absent,
-        'Half Day': item.halfday,
-        'On Leave': item.onLeave,
-      })),
-    [analytics?.attendance.dailyTrend]
-  );
+  const summary = analytics?.dashboard.executiveSummary;
+  const kpis = summary
+    ? [
+        { label: 'Total Employees', value: formatCompactNumber(summary.totalEmployees), icon: 'groups', tone: 'cream' as const },
+        { label: 'Active Employees', value: formatCompactNumber(summary.activeEmployees), icon: 'person_check', tone: 'blue' as const },
+        { label: 'Terminated', value: formatCompactNumber(summary.terminatedEmployees), icon: 'person_off', tone: 'cream' as const },
+        { label: 'Attrition Rate', value: formatPercent(summary.attritionRate), icon: 'trending_down', tone: 'cream' as const },
+        { label: 'Average Tenure', value: formatDecimal(summary.averageTenure, 2), icon: 'schedule', tone: 'cream' as const },
+        { label: 'Average Attendance', value: formatPercent(summary.averageAttendance), icon: 'calendar_month', tone: 'blue' as const },
+        { label: 'Average Age', value: formatDecimal(summary.averageAge, 2), icon: 'cake', tone: 'cream' as const },
+        { label: 'Average Salary', value: formatCurrencyCompact(summary.averageSalary), icon: 'payments', tone: 'purple' as const },
+      ]
+    : [];
 
-  const departmentData = useMemo(
-    () =>
-      (analytics?.workforce.departmentDistribution || []).map((item) => ({
-        name: item.department.length > 18 ? `${item.department.slice(0, 18)}…` : item.department,
-        fullName: item.department,
-        employees: item.count,
-      })),
-    [analytics?.workforce.departmentDistribution]
-  );
+  const topPerformers = useMemo(() => {
+    return [...(analytics?.dashboard.topPerformers || [])]
+      .sort((a, b) => {
+        if (b.rating !== a.rating) return b.rating - a.rating;
+        if (b.attendancePercent !== a.attendancePercent) return b.attendancePercent - a.attendancePercent;
+        return a.nonWorkingDays - b.nonWorkingDays;
+      })
+      .slice(0, 10);
+  }, [analytics?.dashboard.topPerformers]);
 
-  const lifecycleData = useMemo(
-    () =>
-      (analytics?.workforce.lifecycleDistribution || []).map((item) => ({
-        name: item.label,
-        value: item.count,
-        share: item.share,
-      })),
-    [analytics?.workforce.lifecycleDistribution]
-  );
-
-  const leaveTypeData = useMemo(
-    () =>
-      (analytics?.leave.typeDistribution || []).map((item) => ({
-        name: item.name.length > 16 ? `${item.name.slice(0, 16)}…` : item.name,
-        fullName: item.name,
-        requests: item.count,
-      })),
-    [analytics?.leave.typeDistribution]
-  );
-
-  const lifecycleColors = ['#9BD3AE', '#C6B8F2', '#ABC3EE', '#A6D7DE', '#E8D5AF', '#D8E2EA'];
+  const serviceDurationRows = analytics?.dashboard.serviceDurationTable || [];
+  const visibleServiceDurationRows = showAllServiceRows ? serviceDurationRows : serviceDurationRows.slice(0, 10);
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#F4F8FB_0%,#F8FBFD_100%)] px-6 py-6">
-      <div className="mx-auto max-w-[1480px] space-y-6">
+    <div className="min-h-screen bg-white px-4 py-5 sm:px-6">
+      <div className="mx-auto max-w-[1520px] space-y-6">
         <motion.section
-          initial={{ opacity: 0, y: 14 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-          className="rounded-[2rem] border border-[#DBE6EE] bg-white px-7 py-6 shadow-[0_16px_36px_rgba(36,52,71,0.05)]"
+          transition={{ duration: 0.3 }}
+          className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"
         >
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#7B8D9F]">Page Header</div>
-              <h1 className="mt-2 text-4xl font-headline font-extrabold tracking-tight text-[#243447]">
-                HR Analytics
-              </h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-[#66798C]">
-                A cleaner monthly analytics page for HRM with focused charts for attendance, workforce structure,
-                leave behaviour, review queue, and people watchlists.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="rounded-[1.2rem] border border-[#DFE8F0] bg-[#F8FBFD] px-4 py-3">
-                <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8092A4]">Period</div>
-                <div className="mt-1 text-sm font-semibold text-[#243447]">
-                  {analytics ? `${formatDate(analytics.filters.start)} to ${formatDate(analytics.filters.end)}` : 'Selected month'}
-                </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100/90 text-violet-700 shadow-sm">
+                <span className="material-symbols-outlined text-[22px]">monitoring</span>
               </div>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(event) => setSelectedMonth(event.target.value)}
-                className="rounded-[1.2rem] border border-[#DFE8F0] bg-white px-4 py-3 text-sm font-medium text-[#243447] outline-none"
-              />
+              <h1 className="text-[1.95rem] font-headline font-semibold tracking-tight text-[#2a2119]">HR Dashboard</h1>
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#dde9d7] px-4 py-2 text-[#26934d]">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#26934d]" />
+              <span className="text-[1.05rem] font-semibold">Live Data</span>
+            </div>
+            <div className="text-[1.05rem] text-[#7b6f63]">{new Intl.NumberFormat('en-IN').format(analytics?.recordsCount || 0)} records</div>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(event) => setSelectedMonth(event.target.value)}
+              className="rounded-full border border-[#d9cfc3] bg-white px-4 py-2 text-sm font-medium text-[#2a221a] outline-none"
+              aria-label="Select analytics month"
+            />
           </div>
         </motion.section>
 
         {loading ? (
           <LoadingPanel
             title="Loading HR analytics"
-            message="Preparing the simplified analytics layout and chart data for the selected month."
+            message="Preparing the redesigned dashboard for the selected month."
           />
         ) : error ? (
-          <div className="rounded-[1.5rem] border border-[#E9D8DE] bg-[#FBF5F7] px-5 py-4 text-sm font-medium text-[#8A6470]">
+          <div className="rounded-[24px] border border-[#e5c7cb] bg-[#fff8f8] px-5 py-4 text-sm font-medium text-[#8c4b58]">
             {error}
           </div>
         ) : analytics ? (
           <>
             <motion.section
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.05 }}
-              className="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_360px]"
+              transition={{ duration: 0.32, delay: 0.04 }}
+              className="mx-auto grid max-w-[1280px] gap-3 md:grid-cols-2 xl:grid-cols-4"
             >
-              <SectionCard
-                title="Attendance Trend"
-                subtitle={`Daily attendance flow across ${formatMonthLabel(selectedMonth)}. The chart keeps the page simple and shows how each status is distributed over time.`}
-                right={<StatusLegend />}
-              >
-                {attendanceTrendData.length === 0 ? (
-                  <HrmEmptyState
-                    compact
-                    icon="monitoring"
-                    title="No attendance trend available"
-                    message="Attendance records for the selected month will appear here as soon as they are available."
-                  />
-                ) : (
-                  <div className="h-[360px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={attendanceTrendData} margin={{ top: 18, right: 12, left: -16, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="presentFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.present} stopOpacity={0.65} />
-                            <stop offset="95%" stopColor={COLORS.present} stopOpacity={0.12} />
-                          </linearGradient>
-                          <linearGradient id="halfDayFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={COLORS.halfday} stopOpacity={0.55} />
-                            <stop offset="95%" stopColor={COLORS.halfday} stopOpacity={0.08} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.line} vertical={false} />
-                        <XAxis dataKey="label" tick={{ fill: COLORS.text, fontSize: 12 }} tickLine={false} axisLine={false} />
-                        <YAxis tick={{ fill: COLORS.text, fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                        <Tooltip content={<RechartTooltip />} />
-                        <Area type="monotone" dataKey="Present" stackId="1" stroke={COLORS.present} fill="url(#presentFill)" strokeWidth={2} />
-                        <Area type="monotone" dataKey="Absent" stackId="1" stroke={COLORS.absent} fill={COLORS.absent} fillOpacity={0.22} strokeWidth={2} />
-                        <Area type="monotone" dataKey="Half Day" stackId="1" stroke={COLORS.halfday} fill="url(#halfDayFill)" strokeWidth={2} />
-                        <Area type="monotone" dataKey="On Leave" stackId="1" stroke={COLORS.onLeave} fill={COLORS.onLeave} fillOpacity={0.18} strokeWidth={2} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </SectionCard>
-
-              <SectionCard
-                title="Queue Overview"
-                subtitle="Simple live workload snapshot for HR review operations."
-              >
-                <div className="space-y-4">
-                  <MiniMetric
-                    label="Pending Review Items"
-                    value={analytics.queue.pendingTaskCount}
-                    note={`${analytics.queue.pressureLabel} workload`}
-                  />
-                  <div className="grid grid-cols-2 gap-3">
-                    <MiniMetric label="Leave" value={analytics.queue.pendingLeaveCount} note="Pending approvals" />
-                    <MiniMetric label="Regularization" value={analytics.queue.pendingRegularizationCount} note="Needs decision" />
-                    <MiniMetric label="Expense" value={analytics.queue.pendingExpenseReviewCount} note="Awaiting review" />
-                    <MiniMetric label="Tickets" value={analytics.queue.openTicketCount} note="Open support items" />
-                  </div>
-                </div>
-              </SectionCard>
+              {kpis.map((item, index) => (
+                <KpiTile key={item.label} icon={item.icon} label={item.label} value={item.value} tone={index % 3 === 1 ? 'blue' : index === 7 ? 'purple' : 'cream'} />
+              ))}
             </motion.section>
 
             <motion.section
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.09 }}
-              className="grid gap-6 xl:grid-cols-2"
+              transition={{ duration: 0.32, delay: 0.08 }}
+              className="grid gap-5 xl:grid-cols-3"
             >
-              <SectionCard
-                title="Department Composition"
-                subtitle="Current department mix based on visible employee records."
-              >
-                {departmentData.length === 0 ? (
-                  <HrmEmptyState
-                    compact
-                    icon="apartment"
-                    title="No department composition available"
-                    message="Department-based composition will appear here once employee department records are present."
-                  />
-                ) : (
-                  <div className="h-[340px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={departmentData} margin={{ top: 10, right: 16, left: 0, bottom: 8 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.line} vertical={false} />
-                        <XAxis dataKey="name" tick={{ fill: COLORS.text, fontSize: 12 }} tickLine={false} axisLine={false} />
-                        <YAxis tick={{ fill: COLORS.text, fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                        <Tooltip content={<RechartTooltip />} />
-                        <Bar dataKey="employees" radius={[12, 12, 0, 0]} fill={COLORS.accent} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </SectionCard>
+              <Card title="Attrition by Tenure" icon={<BarChart3 className="h-4 w-4 text-[#8fb5ff]" />}>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analytics.dashboard.attritionByTenure} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
+                      <CartesianGrid stroke="#ddd2c5" strokeDasharray="4 4" vertical={false} />
+                      <XAxis dataKey="tenure" tickFormatter={formatTenureAxisLabel} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tickCount={5} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="terminated" name="Terminated Employees" radius={[4, 4, 0, 0]} fill="#8fb5ff" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
 
-              <SectionCard
-                title="Lifecycle Spread"
-                subtitle="A simple stage view across active, probation, leave, notice period, and separated workforce states."
-              >
-                {lifecycleData.length === 0 ? (
-                  <HrmEmptyState
-                    compact
-                    icon="donut_large"
-                    title="No lifecycle data available"
-                    message="Lifecycle stage distribution will appear here when employee stage data is available."
-                  />
-                ) : (
-                  <div className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-                    <div className="h-[280px]">
+              <Card title="Attrition by Department" icon={<BarChart3 className="h-4 w-4 text-[#bca9ff]" />}>
+                <div className="h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analytics.dashboard.attritionByDepartment} layout="vertical" margin={{ top: 6, right: 10, left: 20, bottom: 0 }}>
+                      <CartesianGrid stroke="#ddd2c5" strokeDasharray="4 4" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis dataKey="department" type="category" width={92} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="terminated" name="Terminated Employees" radius={[0, 4, 4, 0]} fill="#bca9ff" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card title="Gender Distribution" icon={<PieChartIcon className="h-4 w-4 text-[#8fb2f5]" />}>
+                <div className="flex flex-col items-center">
+                  <div className="h-[280px] w-full max-w-[360px]">
+                    {analytics.dashboard.genderDistribution.length === 0 ? (
+                      <div className="flex h-full items-center justify-center rounded-[20px] border border-dashed border-[#e5ddd0] text-sm text-[#8a7f74]">
+                        No gender data available
+                      </div>
+                    ) : (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie
-                            data={lifecycleData}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius={62}
-                            outerRadius={96}
-                            paddingAngle={2}
-                            stroke="none"
-                          >
-                            {lifecycleData.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={lifecycleColors[index % lifecycleColors.length]} />
+                          <Pie data={analytics.dashboard.genderDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} paddingAngle={2} stroke="#ffffff" strokeWidth={2}>
+                            {analytics.dashboard.genderDistribution.map((entry, index) => (
+                              <Cell key={`${entry.name}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                             ))}
                           </Pie>
-                          <Tooltip content={<RechartTooltip />} />
+                          <Tooltip content={<ChartTooltip />} />
                         </PieChart>
                       </ResponsiveContainer>
-                    </div>
-
-                    <div className="space-y-3">
-                      {lifecycleData.map((item, index) => (
-                        <div key={item.name} className="flex items-center justify-between rounded-[1.1rem] border border-[#E3EAF1] bg-[#FBFCFD] px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <span
-                              className="h-3 w-3 rounded-full"
-                              style={{ backgroundColor: lifecycleColors[index % lifecycleColors.length] }}
-                            />
-                            <div>
-                              <p className="text-sm font-bold text-[#243447]">{item.name}</p>
-                              <p className="text-xs text-[#6B7C8D]">{item.share}% of visible workforce</p>
-                            </div>
-                          </div>
-                          <span className="text-sm font-extrabold text-[#314457]">{item.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </SectionCard>
-            </motion.section>
-
-            <motion.section
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.13 }}
-              className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]"
-            >
-              <SectionCard
-                title="Leave Patterns"
-                subtitle="Leave type demand for the selected month, followed by approved leave windows that are still upcoming."
-              >
-                <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                  <div>
-                    {leaveTypeData.length === 0 ? (
-                      <HrmEmptyState
-                        compact
-                        icon="event_busy"
-                        title="No leave pattern available"
-                        message="Leave type trends will appear here when leave requests exist in the selected month."
-                      />
-                    ) : (
-                      <div className="h-[300px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={leaveTypeData} layout="vertical" margin={{ top: 10, right: 16, left: 10, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={COLORS.line} horizontal={false} />
-                            <XAxis type="number" tick={{ fill: COLORS.text, fontSize: 12 }} tickLine={false} axisLine={false} allowDecimals={false} />
-                            <YAxis type="category" dataKey="name" tick={{ fill: COLORS.text, fontSize: 12 }} tickLine={false} axisLine={false} width={120} />
-                            <Tooltip content={<RechartTooltip />} />
-                            <Bar dataKey="requests" radius={[0, 12, 12, 0]} fill={COLORS.onLeave} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
                     )}
                   </div>
-
-                  <div className="space-y-3">
-                    <MiniMetric label="Pending Leave" value={analytics.leave.pendingCount} note="Pending requests" />
-                    <MiniMetric label="Approved Leave" value={analytics.leave.approvedCount} note="Approved in range" />
-                    <MiniMetric label="Rejected Leave" value={analytics.leave.rejectedCount} note="Rejected in range" />
-                    <MiniMetric label="LOP Days" value={analytics.leave.lopDaysTotal} note="Loss of pay total" />
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <h3 className="text-sm font-bold uppercase tracking-[0.18em] text-[#7B8C9D]">Upcoming Approved Leave</h3>
-                  <div className="mt-3 space-y-3">
-                    {analytics.leave.upcomingApproved.length === 0 ? (
-                      <div className="rounded-[1rem] border border-dashed border-[#DCE6EF] bg-[#FBFCFD] px-4 py-5 text-sm text-[#6B7C8D]">
-                        No upcoming approved leave windows were found for this selected period.
-                      </div>
-                    ) : (
-                      analytics.leave.upcomingApproved.slice(0, 4).map((item) => (
-                        <div key={item.id} className="flex flex-col gap-3 rounded-[1.1rem] border border-[#E4EBF2] bg-[#FBFCFD] px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-[#243447]">{item.name}</p>
-                            <p className="truncate text-xs text-[#6A7B8D]">
-                              {item.employeeId} · {item.designation} · {item.department}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2 text-xs text-[#627487]">
-                            <span className="rounded-full bg-white px-3 py-1.5">{item.leaveType}</span>
-                            <span className="rounded-full bg-white px-3 py-1.5">
-                              {formatShortDate(item.startDate)} to {formatShortDate(item.endDate)}
-                            </span>
-                            <span className="rounded-full bg-white px-3 py-1.5">{formatSessionLabel(item.session)}</span>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </SectionCard>
-
-              <SectionCard
-                title="Recent Joiners"
-                subtitle="Simple hiring movement list using employee join date."
-                right={
-                  <div className="rounded-[1.2rem] border border-[#DFE8F0] bg-[#F8FBFD] px-4 py-3 text-right">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8092A4]">This Month</div>
-                    <div className="mt-1 text-3xl font-headline font-extrabold text-[#243447]">
-                      {analytics.workforce.joinedThisMonth}
-                    </div>
-                  </div>
-                }
-              >
-                {analytics.workforce.cards.length === 0 ? (
-                  <HrmEmptyState
-                    compact
-                    icon="person_add"
-                    title="No recent joiners found"
-                    message="Recent joiners will appear here as employee join dates are captured in HRM."
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {analytics.workforce.cards.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between gap-4 rounded-[1.2rem] border border-[#E4EBF2] bg-[#FBFCFD] px-4 py-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar src={item.profilePictureUrl} name={item.name} />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-bold text-[#243447]">{item.name}</p>
-                            <p className="truncate text-xs text-[#6A7B8D]">
-                              {item.employeeId} · {item.designation} · {item.department}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="rounded-[1rem] border border-[#E1E9F0] bg-white px-3 py-2 text-right">
-                          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8293A3]">Joined</div>
-                          <div className="mt-1 text-sm font-bold text-[#314457]">{formatDate(item.joinedOn)}</div>
-                        </div>
+                  <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                    {analytics.dashboard.genderDistribution.map((item, index) => (
+                      <div key={item.name} className="inline-flex items-center gap-2 rounded-full border border-[#e0d8cc] bg-[#faf6f0] px-4 py-2">
+                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                        <span className="text-sm font-medium text-[#5e5348]">{item.name}</span>
+                        <span className="text-sm font-bold text-[#1f1914]">{item.value}</span>
                       </div>
                     ))}
                   </div>
-                )}
-              </SectionCard>
+                </div>
+              </Card>
             </motion.section>
 
             <motion.section
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.17 }}
+              transition={{ duration: 0.32, delay: 0.12 }}
             >
-              <SectionCard
-                title="Attendance Watchlist"
-                subtitle="Simple follow-up lists for repeated half day and absent patterns."
+              <Card
+                title="Attendance Trend"
+                icon={<BarChart3 className="h-4 w-4 text-[#9fd7e4]" />}
+                right={
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {ATTENDANCE_SERIES.map((item) => (
+                      <div key={item.key} className="inline-flex items-center gap-2 rounded-full border border-[#e0d8cc] bg-white px-3 py-1.5 text-sm font-medium text-[#5e5348]">
+                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
+                        {item.label}
+                      </div>
+                    ))}
+                  </div>
+                }
               >
-                <div className="grid gap-5 xl:grid-cols-2">
-                  <WatchTable
-                    title="Half Day Pattern"
-                    people={analytics.attendance.topHalfDayEmployees}
-                    countKey="halfDayCount"
-                    emptyTitle="No repeated half day pattern is visible for this month."
-                  />
-                  <WatchTable
-                    title="Absence Pattern"
-                    people={analytics.attendance.topAbsentEmployees}
-                    countKey="absentCount"
-                    emptyTitle="No repeated absence pattern is visible for this month."
-                  />
+                <div className="h-[360px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={analytics.dashboard.attendanceTrend} margin={{ top: 10, right: 10, left: -12, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="presentFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8ecfa3" stopOpacity={0.28} />
+                          <stop offset="95%" stopColor="#8ecfa3" stopOpacity={0.03} />
+                        </linearGradient>
+                        <linearGradient id="absentFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#9ebbf4" stopOpacity={0.22} />
+                          <stop offset="95%" stopColor="#9ebbf4" stopOpacity={0.03} />
+                        </linearGradient>
+                        <linearGradient id="halfdayFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#e8d2a0" stopOpacity={0.24} />
+                          <stop offset="95%" stopColor="#e8d2a0" stopOpacity={0.03} />
+                        </linearGradient>
+                        <linearGradient id="onLeaveFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#9fd7e4" stopOpacity={0.24} />
+                          <stop offset="95%" stopColor="#9fd7e4" stopOpacity={0.03} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#ddd2c5" strokeDasharray="4 4" vertical={false} />
+                      <XAxis dataKey="label" tickFormatter={formatAxisDateLabel} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      {ATTENDANCE_SERIES.map((series) => (
+                        <Area
+                          key={series.key}
+                          type="monotone"
+                          dataKey={series.key}
+                          name={series.label}
+                          stroke={series.color}
+                          fill={
+                            series.key === 'present'
+                              ? 'url(#presentFill)'
+                              : series.key === 'absent'
+                                ? 'url(#absentFill)'
+                                : series.key === 'halfday'
+                                  ? 'url(#halfdayFill)'
+                                  : 'url(#onLeaveFill)'
+                          }
+                          fillOpacity={1}
+                          strokeWidth={2.6}
+                          dot={{ r: 0 }}
+                          activeDot={{ r: 5, fill: series.color, stroke: '#ffffff', strokeWidth: 2 }}
+                        />
+                      ))}
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-              </SectionCard>
+              </Card>
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.32, delay: 0.16 }}
+              className="grid gap-5 xl:grid-cols-2"
+            >
+              <Card title="Department Composition" icon={<Users className="h-4 w-4 text-[#8fb2f5]" />}>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={analytics.dashboard.departmentComposition} margin={{ top: 8, right: 10, left: -16, bottom: 0 }}>
+                      <CartesianGrid stroke="#ddd2c5" strokeDasharray="4 4" vertical={false} />
+                      <XAxis dataKey="department" tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="count" name="Employees" radius={[4, 4, 0, 0]}>
+                        {analytics.dashboard.departmentComposition.map((entry, index) => (
+                          <Cell key={`${entry.department}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              <Card title="Lifecycle Spread" icon={<PieChartIcon className="h-4 w-4 text-[#c7b9ff]" />}>
+                <div className="grid items-center gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={analytics.dashboard.lifecycleSpread} dataKey="count" nameKey="label" innerRadius={68} outerRadius={104} paddingAngle={2} stroke="#ffffff" strokeWidth={2}>
+                          {analytics.dashboard.lifecycleSpread.map((entry, index) => (
+                            <Cell key={`${entry.key}-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip content={<ChartTooltip />} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="space-y-3">
+                    {analytics.dashboard.lifecycleSpread.map((item, index) => (
+                      <div key={item.key} className="rounded-[18px] bg-[#faf6f0] px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }} />
+                            <span className="text-sm font-medium text-[#5e5348]">{item.label}</span>
+                          </div>
+                          <span className="text-sm font-bold text-[#1f1914]">{item.count}</span>
+                        </div>
+                        <p className="mt-2 text-xs font-medium text-[#8a7f74]">{item.share}% of workforce</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.32, delay: 0.2 }}
+              className="grid gap-5 xl:grid-cols-[1.55fr_1fr]"
+            >
+              <Card title="Employees by State" icon={<MapIcon className="h-4 w-4 text-[#8fb2f5]" />}>
+                <IndiaEmployeeMap data={analytics.dashboard.stateDistribution} />
+              </Card>
+              <TicketingStatusCard summary={analytics.dashboard.ticketStatusSummary} />
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.32, delay: 0.22 }}
+            >
+              <SectionTable
+                title="Top Performing Employees"
+                icon={<Trophy className="h-6 w-6 text-yellow-500" />}
+                columns={
+                  <>
+                    <th className="w-12 border-b border-[#e4d8ca] px-5 py-4">#</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4">Employee ID</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4">Name</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4">Department</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4">Job Title</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4 text-center">Rating</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4 text-center">Attendance %</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4 text-center">Non-Working Days</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4 text-right">Salary</th>
+                    <th className="border-b border-[#e4d8ca] px-5 py-4 text-center">Promotion</th>
+                  </>
+                }
+              >
+                {topPerformers.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-0 py-2">
+                      <HrmEmptyState title="No performance records yet" message="Employee ratings will appear here once task reviews start coming in." />
+                    </td>
+                  </tr>
+                ) : (
+                  topPerformers.map((row, index) => (
+                    <tr key={row.id} className="text-[0.95rem] text-[#2a221a]">
+                      <td className="border-b border-[#efe4d7] px-5 py-4 font-semibold">{index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}</td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4 font-mono text-sm">{row.employeeId}</td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4 font-semibold">{row.name}</td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4">{row.department}</td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4">{row.jobTitle}</td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4 text-center">
+                        <span className="font-semibold text-[#d39d24]">{row.rating.toFixed(1)}</span>
+                      </td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4 text-center">{row.attendancePercent.toFixed(1)}%</td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4 text-center">{row.nonWorkingDays}</td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4 text-right font-medium">{formatCurrency(row.salary)}</td>
+                      <td className="border-b border-[#efe4d7] px-5 py-4 text-center">
+                        <span
+                          className={`inline-flex min-w-[70px] justify-center rounded-full px-3 py-1 text-xs font-semibold ${
+                            row.promotion === 'Yes' ? 'bg-[#f5be34] text-[#22170a]' : 'bg-[#e8e3dc] text-[#5f5348]'
+                          }`}
+                        >
+                          {row.promotion}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </SectionTable>
+            </motion.section>
+
+            <motion.section
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.32, delay: 0.26 }}
+            >
+              <Card title="" right={null}>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-[1rem] font-headline font-medium text-black">
+                    <Clock3 className="h-6 w-6 text-[#8fb2f5]" />
+                    <span>Employee Service Duration</span>
+                  </div>
+                  {serviceDurationRows.length > 10 ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllServiceRows((current) => !current)}
+                      className="text-sm font-semibold text-black underline underline-offset-4 transition hover:opacity-70"
+                    >
+                      {showAllServiceRows ? 'View less' : 'View more'}
+                    </button>
+                  ) : null}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-separate border-spacing-0">
+                    <thead>
+                      <tr className="text-left text-[0.95rem] font-semibold text-[#7b6f63]">
+                        <th className="w-12 border-b border-[#e4d8ca] px-5 py-4">#</th>
+                        <th className="border-b border-[#e4d8ca] px-5 py-4">Employee ID</th>
+                        <th className="border-b border-[#e4d8ca] px-5 py-4">Name</th>
+                        <th className="border-b border-[#e4d8ca] px-5 py-4">Department</th>
+                        <th className="w-[220px] border-b border-[#e4d8ca] px-5 py-4">Designation</th>
+                        <th className="border-b border-[#e4d8ca] px-5 py-4 text-center">Service Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleServiceDurationRows.map((row, index) => (
+                        <tr key={row.id} className="text-[0.95rem] text-[#2a221a]">
+                          <td className="border-b border-[#efe4d7] px-5 py-4 font-semibold">{index + 1}</td>
+                          <td className="border-b border-[#efe4d7] px-5 py-4 font-mono text-sm">{row.employeeId}</td>
+                          <td className="border-b border-[#efe4d7] px-5 py-4 font-semibold">{row.name}</td>
+                          <td className="border-b border-[#efe4d7] px-5 py-4">{row.department}</td>
+                          <td className="border-b border-[#efe4d7] px-5 py-4">
+                            <span className="block max-w-[220px] truncate" title={row.jobTitle || '--'}>
+                              {row.jobTitle || '--'}
+                            </span>
+                          </td>
+                          <td className="border-b border-[#efe4d7] px-5 py-4 text-center">{row.serviceDuration}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
             </motion.section>
           </>
-        ) : null}
+        ) : (
+          <HrmEmptyState title="No analytics available" message="Try a different month after employee records and attendance entries are available." />
+        )}
       </div>
     </div>
   );
