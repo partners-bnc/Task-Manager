@@ -56,7 +56,7 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
             <span className="inline-flex rounded-full border border-white/60 bg-white/70 px-4 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-slate-600 backdrop-blur">
               Other Modules
             </span>
-            <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 md:text-5xl">
+            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl">
               Open the workspace your team needs next
             </h2>
             <p className="mt-3 text-base text-slate-600 md:text-lg">
@@ -118,7 +118,7 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
                     </div>
 
                     <div className="relative [transform:translateZ(14px)]">
-                      <h3 className="text-2xl font-bold tracking-tight">{module.title}</h3>
+                      <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{module.title}</h3>
                       <p className="mt-3 text-sm leading-6 text-slate-600">{module.description}</p>
                     </div>
                   </Link>

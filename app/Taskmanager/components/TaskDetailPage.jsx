@@ -3,7 +3,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Star, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRightLeft,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Circle,
+  Clock3,
+  Download,
+  ExternalLink,
+  File,
+  FileImage,
+  FileText,
+  Paperclip,
+  Star,
+  Upload,
+  UserRound,
+  X,
+} from 'lucide-react';
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
@@ -72,6 +90,95 @@ const buildDueDateIso = (dateValue, timeValue = '') => {
   return Number.isNaN(parsedDate.getTime()) ? null : parsedDate.toISOString();
 };
 
+const getAttachmentExtension = (attachment) => {
+  const fileName = String(attachment?.file_name || attachment?.file_path || '');
+  const match = fileName.toLowerCase().match(/\.([a-z0-9]+)$/i);
+  return match?.[1] || '';
+};
+
+const getAttachmentPresenter = (attachment) => {
+  const extension = getAttachmentExtension(attachment);
+
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(extension)) {
+    return {
+      label: extension.toUpperCase(),
+      Icon: FileImage,
+      iconClassName: 'bg-sky-100 text-sky-700',
+    };
+  }
+
+  if (['pdf', 'doc', 'docx', 'txt', 'rtf'].includes(extension)) {
+    return {
+      label: extension ? extension.toUpperCase() : 'DOC',
+      Icon: FileText,
+      iconClassName: 'bg-violet-100 text-violet-700',
+    };
+  }
+
+  return {
+    label: extension ? extension.toUpperCase() : 'FILE',
+    Icon: File,
+    iconClassName: 'bg-slate-100 text-slate-700',
+  };
+};
+
+const getAttachmentUploaderLabel = (attachment) =>
+  attachment?.uploaded_by_employee?.name ||
+  attachment?.uploaded_by_profile?.full_name ||
+  attachment?.uploaded_by_employee?.email ||
+  attachment?.uploaded_by_profile?.email ||
+  'Unknown';
+
+const getCompletionTiming = (task) => {
+  if (!task?.due_date) {
+    if (task?.status === 'completed') {
+      return {
+        label: 'Completed',
+        tone: 'neutral',
+        note: task?.completed_at ? `Completed ${formatDate(task.completed_at)}` : 'Task completed',
+      };
+    }
+    return null;
+  }
+
+  const dueAt = new Date(task.due_date);
+  if (Number.isNaN(dueAt.getTime())) return null;
+
+  if (task?.status === 'completed') {
+    if (!task?.completed_at) {
+      return {
+        label: 'Completed',
+        tone: 'neutral',
+        note: 'Task completed',
+      };
+    }
+
+    const completedAt = new Date(task.completed_at);
+    if (Number.isNaN(completedAt.getTime())) return null;
+
+    const withinTimeline = completedAt.getTime() <= dueAt.getTime();
+    return {
+      label: withinTimeline ? 'Completed Within Deadline' : 'Completed Late',
+      tone: withinTimeline ? 'success' : 'warning',
+      note: `Completed ${formatDate(task.completed_at)}`,
+    };
+  }
+
+  if (Date.now() > dueAt.getTime()) {
+    return {
+      label: 'Late',
+      tone: 'danger',
+      note: `Due ${formatDate(task.due_date)}`,
+    };
+  }
+
+  return {
+    label: 'Within Timeline',
+    tone: 'neutral',
+    note: `Due ${formatDate(task.due_date)}`,
+  };
+};
+
 const getDisplayName = (person, fallback = 'Unknown user') => {
   if (!person) return fallback;
   return person.name || person.full_name || person.email || fallback;
@@ -86,11 +193,13 @@ const getPersonKey = (person, fallbackPrefix = 'person') => {
 
 const buildTreeNode = (person, overrides = {}) => ({
   id: overrides.id || getPersonKey(person, overrides.fallbackPrefix),
+  personId: overrides.personId || person?.id || null,
   name: overrides.name || getDisplayName(person, 'Unknown'),
   email: overrides.email ?? person?.email ?? '',
   avatarUrl: overrides.avatarUrl ?? person?.profile_picture_url ?? person?.avatar ?? null,
   role: overrides.role || person?.role || 'employee',
   meta: overrides.meta || '',
+  relationType: overrides.relationType || 'direct',
 });
 
 const dedupeTreeChildren = (children = []) => {
@@ -235,7 +344,7 @@ function AssigneePicker({
   );
 }
 
-function AssignmentTreeNode({ node }) {
+function LegacyAssignmentTreeNode({ node }) {
   const children = dedupeTreeChildren(node.children || []);
 
   return (
@@ -266,6 +375,146 @@ function AssignmentTreeNode({ node }) {
           </div>
         </>
       ) : null}
+    </div>
+  );
+}
+
+void LegacyAssignmentTreeNode;
+
+function AssignmentTreeNode({ node }) {
+  const children = dedupeTreeChildren(node.children || []);
+  const isReassignedNode = node.relationType === 'reassigned';
+  const isReferenceNode = node.relationType === 'reassigned_reference';
+  const isCreatorNode = node.meta === 'Task Creator';
+  const nodeIcon = isReassignedNode || isReferenceNode ? ArrowRightLeft : isCreatorNode ? Star : UserRound;
+  const pillToneClassName = isReassignedNode || isReferenceNode
+    ? 'bg-emerald-50 text-emerald-700'
+    : isCreatorNode
+      ? 'bg-amber-50 text-amber-700'
+      : 'bg-slate-100 text-slate-600';
+  const NodeIcon = nodeIcon;
+
+  return (
+    <div className='flex flex-col items-center'>
+      <div className='flex min-w-[118px] max-w-[170px] flex-col items-center text-center'>
+        <Avatar
+          name={node.name}
+          src={node.avatarUrl}
+          size={isReferenceNode ? 'h-9 w-9' : 'h-12 w-12'}
+        />
+        <span className={`mt-2 inline-flex max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${pillToneClassName}`}>
+          <NodeIcon size={11} />
+          <span className='truncate'>{node.name}</span>
+        </span>
+      </div>
+
+      {children.length > 0 ? (
+        <>
+          <div className='h-5 w-px bg-slate-300'></div>
+          <div className='flex w-full flex-col items-center'>
+            {children.length > 1 ? (
+              <div className='hidden h-px w-full bg-slate-300 sm:block'></div>
+            ) : null}
+            <div className='mt-0 flex w-max min-w-full flex-nowrap items-start justify-center gap-x-3 gap-y-5 sm:gap-x-5'>
+              {children.map((child) => (
+                <div key={child.id} className='flex min-w-[96px] flex-col items-center'>
+                  <div className='hidden h-4 w-px bg-slate-300 sm:block'></div>
+                  <div className='mb-2 text-slate-300'>
+                    <span className='text-lg leading-none'>↓</span>
+                  </div>
+                  <AssignmentTreeNode node={child} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function TaskDetailLoadingSkeleton() {
+  return (
+    <div className='min-h-screen bg-slate-50 p-8'>
+      <div className='mx-auto flex max-w-[1380px] justify-center'>
+        <div className='w-full max-w-6xl space-y-6 rounded-[32px] border border-slate-200 bg-white/90 p-6 shadow-sm'>
+          <div className='flex items-start justify-between gap-6'>
+            <div className='flex items-start gap-4'>
+              <div className='h-10 w-10 animate-pulse rounded-2xl bg-slate-200' />
+              <div className='space-y-3'>
+                <div className='h-5 w-24 animate-pulse rounded-full bg-slate-200' />
+                <div className='h-12 w-[320px] animate-pulse rounded-2xl bg-slate-200' />
+                <div className='h-4 w-40 animate-pulse rounded-full bg-slate-100' />
+              </div>
+            </div>
+            <div className='h-10 w-28 animate-pulse rounded-2xl bg-slate-200' />
+          </div>
+          <div className='grid gap-8 lg:grid-cols-[minmax(0,0.86fr)_minmax(320px,0.54fr)]'>
+            <div className='space-y-5 rounded-[28px] border border-slate-200 bg-slate-50/70 p-6'>
+              <div className='flex flex-wrap gap-3'>
+                <div className='h-8 w-28 animate-pulse rounded-full bg-slate-200' />
+                <div className='h-8 w-32 animate-pulse rounded-full bg-slate-200' />
+                <div className='h-8 w-24 animate-pulse rounded-full bg-slate-200' />
+              </div>
+              <div className='space-y-2'>
+                <div className='h-4 w-28 animate-pulse rounded-full bg-slate-200' />
+                <div className='h-4 w-full animate-pulse rounded-full bg-slate-100' />
+                <div className='h-4 w-5/6 animate-pulse rounded-full bg-slate-100' />
+              </div>
+              <div className='space-y-3'>
+                {[1, 2, 3].map((item) => (
+                  <div key={item} className='flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4'>
+                    <div className='h-6 w-6 animate-pulse rounded-full bg-slate-200' />
+                    <div className='flex-1 space-y-2'>
+                      <div className='h-4 w-3/4 animate-pulse rounded-full bg-slate-200' />
+                      <div className='h-3 w-1/3 animate-pulse rounded-full bg-slate-100' />
+                    </div>
+                    <div className='h-8 w-28 animate-pulse rounded-full bg-slate-100' />
+                  </div>
+                ))}
+              </div>
+              <div className='space-y-3'>
+                {[1, 2].map((item) => (
+                  <div key={item} className='rounded-2xl border border-slate-200 bg-white px-4 py-4'>
+                    <div className='flex items-center gap-3'>
+                      <div className='h-12 w-12 animate-pulse rounded-2xl bg-slate-200' />
+                      <div className='flex-1 space-y-2'>
+                        <div className='h-4 w-2/3 animate-pulse rounded-full bg-slate-200' />
+                        <div className='h-3 w-1/2 animate-pulse rounded-full bg-slate-100' />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className='space-y-5'>
+              <div className='rounded-[28px] border border-slate-200 bg-slate-50/70 p-5'>
+                <div className='space-y-3'>
+                  {[1, 2, 3].map((item) => (
+                    <div key={item} className='flex items-center gap-3'>
+                      <div className='h-10 w-10 animate-pulse rounded-full bg-slate-200' />
+                      <div className='flex-1 space-y-2'>
+                        <div className='h-4 w-28 animate-pulse rounded-full bg-slate-200' />
+                        <div className='h-3 w-36 animate-pulse rounded-full bg-slate-100' />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className='rounded-[28px] border border-slate-200 bg-slate-50/70 p-5'>
+                <div className='flex justify-center gap-5'>
+                  {[1, 2].map((item) => (
+                    <div key={item} className='space-y-3 text-center'>
+                      <div className='mx-auto h-12 w-12 animate-pulse rounded-full bg-slate-200' />
+                      <div className='h-3 w-20 animate-pulse rounded-full bg-slate-200' />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -363,6 +612,7 @@ function EmployeeReviewModal({
 
 export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [task, setTask] = useState(null);
+  const [taskCreator, setTaskCreator] = useState(null);
   const [viewer, setViewer] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [assignmentActivity, setAssignmentActivity] = useState([]);
@@ -373,8 +623,12 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [error, setError] = useState('');
   const [pendingSubtaskIds, setPendingSubtaskIds] = useState([]);
   const [pendingSubtaskTitleIds, setPendingSubtaskTitleIds] = useState([]);
+  const [pendingSubtaskAttachmentIds, setPendingSubtaskAttachmentIds] = useState([]);
   const [editingSubtaskId, setEditingSubtaskId] = useState(null);
   const [editingSubtaskTitle, setEditingSubtaskTitle] = useState('');
+  const [openReassignSubtaskId, setOpenReassignSubtaskId] = useState(null);
+  const [expandedSubtaskId, setExpandedSubtaskId] = useState(null);
+  const [uploadingTaskAttachments, setUploadingTaskAttachments] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState('');
   const [progressDraft, setProgressDraft] = useState(0);
@@ -436,143 +690,144 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     return mapped;
   }, [taskRatings]);
 
+  const completionTiming = useMemo(() => getCompletionTiming(task), [task]);
+
+  const latestSubtaskReassignmentById = useMemo(() => {
+    const mapped = new Map();
+
+    for (const item of assignmentActivity) {
+      if (item?.entityType !== 'subtask' || item?.action !== 'reassigned' || !item?.subtaskId) continue;
+      if (!mapped.has(item.subtaskId)) {
+        mapped.set(item.subtaskId, item);
+      }
+    }
+
+    return mapped;
+  }, [assignmentActivity]);
+
+  const allVisibleAttachments = useMemo(() => {
+    const taskAttachments = (task?.task_attachments || []).map((attachment) => ({
+      ...attachment,
+      scope: 'task',
+      scopeLabel: 'Task Attachment',
+      sortDate: attachment.uploaded_at || attachment.created_at || null,
+    }));
+
+    const subtaskAttachments = (task?.task_subtasks || []).flatMap((subtask, index) =>
+      (subtask?.task_subtask_attachments || []).map((attachment) => ({
+        ...attachment,
+        scope: 'subtask',
+        scopeLabel: `Subtask ${index + 1}`,
+        subtaskTitle: subtask.title || 'Subtask',
+        sortDate: attachment.uploaded_at || attachment.created_at || null,
+      }))
+    );
+
+    return [...taskAttachments, ...subtaskAttachments].sort(
+      (left, right) => new Date(right.sortDate || 0).getTime() - new Date(left.sortDate || 0).getTime()
+    );
+  }, [task]);
+
   const assignmentTree = useMemo(() => {
     const taskAssignments = Array.isArray(task?.task_assignments) ? task.task_assignments : [];
     const subtasks = Array.isArray(task?.task_subtasks) ? task.task_subtasks : [];
 
-    if (taskAssignments.length === 0 && subtasks.length === 0 && assignmentActivity.length === 0) {
+    if (!taskCreator && taskAssignments.length === 0 && subtasks.length === 0 && assignmentActivity.length === 0) {
       return [];
     }
 
-    const latestAssignmentByEmployeeId = new Map();
+    const creatorNode = {
+      ...buildTreeNode(taskCreator, {
+        id: taskCreator?.id ? `creator:${taskCreator.id}` : 'creator:task',
+        name: getDisplayName(taskCreator, 'Task Creator'),
+        email: taskCreator?.email || '',
+        avatarUrl: taskCreator?.profile_picture_url || null,
+        role: taskCreator?.role || 'admin',
+        meta: 'Task Creator',
+      }),
+      children: [],
+    };
 
+    const directAssigneeById = new Map();
+
+    const ensureDirectAssigneeNode = (person, meta = 'Assigned Member') => {
+      if (!person?.id) return null;
+      if (directAssigneeById.has(person.id)) return directAssigneeById.get(person.id);
+
+      const node = {
+        ...buildTreeNode(person, {
+          id: `assignee:${person.id}`,
+          personId: person.id,
+          meta,
+        }),
+        children: [],
+      };
+
+      directAssigneeById.set(person.id, node);
+      creatorNode.children = [...creatorNode.children, node];
+      return node;
+    };
+
+    for (const assignment of taskAssignments) {
+      if (assignment?.employee?.id) {
+        ensureDirectAssigneeNode(assignment.employee, 'Assigned Member');
+      }
+    }
+
+    const activityBySubtaskId = new Map();
     for (const item of assignmentActivity) {
-      if (!item?.toEmployee?.id || item.action === 'unassigned') continue;
-      if (!latestAssignmentByEmployeeId.has(item.toEmployee.id)) {
-        latestAssignmentByEmployeeId.set(item.toEmployee.id, item);
+      if (item?.entityType !== 'subtask' || !item?.subtaskId) continue;
+      if (!activityBySubtaskId.has(item.subtaskId)) {
+        activityBySubtaskId.set(item.subtaskId, []);
       }
-    }
-
-    const nodes = new Map();
-    const childIds = new Set();
-    const parentByChildId = new Map();
-
-    const getRoleMeta = (person, fallback = '') => {
-      if (!person) return fallback;
-      if (person.role === 'admin') return 'Admin';
-      return 'Employee';
-    };
-
-    const getOrCreateNode = (person, overrides = {}) => {
-      const nodeId = overrides.id || getPersonKey(person, overrides.fallbackPrefix);
-      const existing = nodes.get(nodeId);
-      if (existing) {
-        if (!existing.avatarUrl && (overrides.avatarUrl || person?.profile_picture_url || person?.avatar)) {
-          existing.avatarUrl = overrides.avatarUrl || person?.profile_picture_url || person?.avatar;
-        }
-        if (!existing.email && (overrides.email || person?.email)) {
-          existing.email = overrides.email || person?.email || '';
-        }
-        if (!existing.meta && overrides.meta) {
-          existing.meta = overrides.meta;
-        }
-        return existing;
-      }
-
-      const created = { ...buildTreeNode(person, overrides), children: [] };
-      nodes.set(nodeId, created);
-      return created;
-    };
-
-    const linkNodes = (parentNode, childNode) => {
-      if (!parentNode || !childNode || parentNode.id === childNode.id) return;
-      const previousParentId = parentByChildId.get(childNode.id);
-      if (previousParentId && previousParentId !== parentNode.id) {
-        const previousParent = nodes.get(previousParentId);
-        if (previousParent) {
-          previousParent.children = previousParent.children.filter((item) => item.id !== childNode.id);
-        }
-      }
-      if (!parentNode.children.some((item) => item.id === childNode.id)) {
-        parentNode.children = [...parentNode.children, childNode];
-      }
-      parentByChildId.set(childNode.id, parentNode.id);
-      childIds.add(childNode.id);
-    };
-
-    const fallbackTaskRoot = getOrCreateNode(null, {
-      id: 'system:task-root',
-      name: 'Task',
-      role: 'system',
-      meta: 'Direct Assignment',
-      fallbackPrefix: 'system',
-    });
-
-    const currentTaskAssigneeIds = new Set();
-
-    for (const assignment of taskAssignments) {
-      const employee = assignment?.employee;
-      if (!employee?.id) continue;
-
-      currentTaskAssigneeIds.add(employee.id);
-      getOrCreateNode(employee, { meta: 'Task Member' });
+      activityBySubtaskId.get(item.subtaskId).push(item);
     }
 
     for (const subtask of subtasks) {
-      if (!subtask?.assigned_employee_id) continue;
-      const assignedEmployee = employeeDirectoryById.get(subtask.assigned_employee_id);
-      if (!assignedEmployee?.id) continue;
-      getOrCreateNode(assignedEmployee, { meta: currentTaskAssigneeIds.has(assignedEmployee.id) ? 'Task Member' : 'Subtask Owner' });
-    }
+      const history = (activityBySubtaskId.get(subtask.id) || [])
+        .filter((item) => item?.toEmployee?.id && item.action !== 'unassigned')
+        .sort((left, right) => new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime());
 
-    for (const assignment of taskAssignments) {
-      const employee = assignment?.employee;
-      if (!employee?.id) continue;
+      const chain = [];
+      const seenEmployeeIds = new Set();
 
-      const childNode = getOrCreateNode(employee, { meta: 'Task Member' });
-      const activity = latestAssignmentByEmployeeId.get(employee.id);
-      const actorNode = activity?.actor
-        ? getOrCreateNode(activity.actor, { meta: getRoleMeta(activity.actor, 'Assigner') })
-        : fallbackTaskRoot;
-
-      linkNodes(actorNode, childNode);
-    }
-
-    for (const subtask of subtasks) {
-      if (!subtask?.assigned_employee_id) continue;
-
-      const assignedEmployee = employeeDirectoryById.get(subtask.assigned_employee_id);
-      if (!assignedEmployee) continue;
-
-      const childNode = getOrCreateNode(assignedEmployee, { meta: currentTaskAssigneeIds.has(assignedEmployee.id) ? 'Task Member' : 'Subtask Owner' });
-      const activity = latestAssignmentByEmployeeId.get(assignedEmployee.id);
-
-      let parentNode = null;
-      if (activity?.actor) {
-        parentNode = getOrCreateNode(activity.actor, { meta: getRoleMeta(activity.actor, 'Assigner') });
-      } else {
-        parentNode = fallbackTaskRoot;
+      for (const event of history) {
+        const employee = event?.toEmployee;
+        if (!employee?.id || seenEmployeeIds.has(employee.id)) continue;
+        seenEmployeeIds.add(employee.id);
+        chain.push(employee);
       }
 
-      linkNodes(parentNode, childNode);
+      if (chain.length === 0 && subtask?.assigned_employee_id) {
+        const currentAssignee = employeeDirectoryById.get(subtask.assigned_employee_id);
+        if (currentAssignee?.id) {
+          chain.push(currentAssignee);
+        }
+      }
+
+      if (chain.length === 0) continue;
+
+      let currentNode = ensureDirectAssigneeNode(chain[0], 'Assigned Member');
+      if (!currentNode) continue;
+
+      for (let index = 1; index < chain.length; index += 1) {
+        const employee = chain[index];
+        const childNode = {
+          ...buildTreeNode(employee, {
+            id: `subtask:${subtask.id}:step:${index}:reference:${employee.id}`,
+            personId: employee.id,
+            meta: 'Reassigned',
+            relationType: 'reassigned_reference',
+          }),
+          children: [],
+        };
+        currentNode.children = [...currentNode.children, childNode];
+        currentNode = childNode;
+      }
     }
 
-    const rootNodes = Array.from(nodes.values()).filter((node) => !childIds.has(node.id));
-    return rootNodes.filter((node) => node.id !== 'system:task-root' || node.children.length > 0);
-  }, [assignmentActivity, employeeDirectoryById, task]);
-
-  const visibleAssignmentMemberCount = useMemo(() => {
-    const seen = new Set();
-
-    const visit = (node) => {
-      if (!node || seen.has(node.id) || node.role === 'system') return;
-      seen.add(node.id);
-      (node.children || []).forEach(visit);
-    };
-
-    assignmentTree.forEach(visit);
-    return seen.size;
-  }, [assignmentTree]);
+    return [creatorNode];
+  }, [assignmentActivity, employeeDirectoryById, task, taskCreator]);
 
   const loadTaskData = async () => {
     setLoading(true);
@@ -597,6 +852,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       }
 
       setTask(fetchedTask);
+      setTaskCreator(taskJson.taskCreator || null);
       setProgressDraft(
         Number.isFinite(Number(fetchedTask?.progress_percentage))
           ? Math.min(100, Math.max(0, Math.round(Number(fetchedTask.progress_percentage))))
@@ -664,7 +920,8 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   };
 
   const toggleSubtask = async (subtaskId, isCompleted) => {
-    if (!canManageSubtasks) return;
+    const subtask = (task?.task_subtasks || []).find((item) => item.id === subtaskId);
+    if (!canToggleSubtask(subtask)) return;
 
     if (pendingSubtaskIds.includes(subtaskId)) return;
 
@@ -712,9 +969,13 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     if (!canManageStatus || !task || task.status === nextStatus) return;
 
     const previousStatus = task.status;
+    const previousCompletedAt = task.completed_at || null;
+    const nextCompletedAt = nextStatus === 'completed'
+      ? previousCompletedAt || new Date().toISOString()
+      : null;
     setSaving(true);
     setError('');
-    setTask((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+    setTask((prev) => (prev ? { ...prev, status: nextStatus, completed_at: nextCompletedAt } : prev));
 
     try {
       const response = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
@@ -728,7 +989,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
         throw new Error(result.error || 'Failed to update task status');
       }
     } catch (err) {
-      setTask((prev) => (prev ? { ...prev, status: previousStatus } : prev));
+      setTask((prev) => (prev ? { ...prev, status: previousStatus, completed_at: previousCompletedAt } : prev));
       setError(err.message || 'Failed to update task status');
     } finally {
       setSaving(false);
@@ -901,6 +1162,22 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     return !subtask.assigned_employee_id || subtask.assigned_employee_id === viewer?.employeeId;
   };
 
+  const canToggleSubtask = (subtask) => {
+    if (!canManageSubtasks || !subtask) return false;
+    if (viewer?.type === 'admin') return true;
+    if (viewer?.type !== 'employee') return false;
+    return !subtask.assigned_employee_id || subtask.assigned_employee_id === viewer.employeeId;
+  };
+
+  const canReassignSubtask = (subtask) => {
+    if (!canManageSubtasks || !subtask || !viewer) return false;
+    if (viewer?.isTaskCreator) return true;
+    if (viewer?.type === 'employee') {
+      return subtask.assigned_employee_id === viewer.employeeId;
+    }
+    return false;
+  };
+
   const startSubtaskTitleEdit = (subtask) => {
     if (!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)) return;
     setEditingSubtaskId(subtask.id);
@@ -975,10 +1252,11 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     }
   };
 
-  const updateSubtaskAssignee = async (subtaskId, assignedEmployeeId) => {
-    if (!canManageSubtasks) return;
+  const updateSubtaskAssignee = async (subtask, assignedEmployeeId) => {
+    if (!canManageSubtasks || !subtask || !canReassignSubtask(subtask)) return;
 
     const nextAssignee = assignedEmployeeId || null;
+    const subtaskId = subtask.id;
     const previousSubtasks = task?.task_subtasks || [];
 
     setTask((prev) => {
@@ -1005,10 +1283,85 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
         throw new Error(result.error || 'Failed to assign subtask');
       }
 
+      setOpenReassignSubtaskId(null);
       await loadTaskData();
     } catch (err) {
       setTask((prev) => (prev ? { ...prev, task_subtasks: previousSubtasks } : prev));
       setError(err.message || 'Failed to assign subtask');
+    }
+  };
+
+  const uploadAttachmentsToStorage = async (files) => {
+    const payload = new FormData();
+    files.forEach((file) => payload.append('files', file));
+
+    const response = await fetch('/Taskmanager/api/tasks/files', {
+      method: 'POST',
+      body: payload,
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to upload files');
+    }
+
+    return Array.isArray(result.attachments) ? result.attachments : [];
+  };
+
+  const handleTaskAttachmentUpload = async (fileList) => {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (files.length === 0) return;
+
+    setUploadingTaskAttachments(true);
+    setError('');
+
+    try {
+      const attachments = await uploadAttachmentsToStorage(files);
+      const response = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newTaskAttachments: attachments }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save task attachments');
+      }
+
+      await loadTaskData();
+    } catch (err) {
+      setError(err.message || 'Failed to upload attachments');
+    } finally {
+      setUploadingTaskAttachments(false);
+    }
+  };
+
+  const handleSubtaskAttachmentUpload = async (subtask, fileList) => {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (!subtask?.id || files.length === 0) return;
+
+    setPendingSubtaskAttachmentIds((prev) => [...prev, subtask.id]);
+    setError('');
+
+    try {
+      const attachments = await uploadAttachmentsToStorage(files);
+      const response = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          subtaskId: subtask.id,
+          newSubtaskAttachments: attachments,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to save subtask attachments');
+      }
+
+      await loadTaskData();
+    } catch (err) {
+      setError(err.message || 'Failed to upload subtask attachments');
+    } finally {
+      setPendingSubtaskAttachmentIds((prev) => prev.filter((id) => id !== subtask.id));
     }
   };
 
@@ -1094,13 +1447,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   };
 
   if (loading) {
-    return (
-      <div className='min-h-screen bg-slate-50 p-8'>
-        <div className='mx-auto max-w-5xl rounded-xl border border-slate-200 bg-white p-6 text-slate-500'>
-          Loading task details...
-        </div>
-      </div>
-    );
+    return <TaskDetailLoadingSkeleton />;
   }
 
   if (!task) {
@@ -1185,6 +1532,19 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                 <span className='rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold uppercase text-orange-700'>
                   {task.priority} priority
                 </span>
+                {completionTiming && (
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${
+                    completionTiming.tone === 'success'
+                      ? 'bg-emerald-100 text-emerald-700'
+                    : completionTiming.tone === 'warning'
+                        ? 'bg-amber-100 text-amber-700'
+                      : completionTiming.tone === 'danger'
+                        ? 'bg-rose-100 text-rose-700'
+                        : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {completionTiming.label}
+                  </span>
+                )}
                 {task.frequency && (
                   <span className='rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold uppercase text-blue-700'>
                     Repeats {task.frequency}
@@ -1200,6 +1560,9 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                 <span className='font-headline text-[2rem] font-light tracking-[0.02em] text-slate-800'>{completion.done}/{completion.total}</span>
               </div>
             </div>
+            {completionTiming?.note && (
+              <p className='text-sm font-medium text-slate-500'>{completionTiming.note}</p>
+            )}
 
             {canManageStatus && (
               <div className='space-y-1'>
@@ -1328,81 +1691,208 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                 </div>
               )}
               <div className='space-y-2'>
-                {(task.task_subtasks || []).map((subtask) => (
-                  <div key={subtask.id} className='flex items-center gap-3 rounded-lg border border-slate-100 px-3 py-2'>
-                    <input
-                      type='checkbox'
-                      checked={!!subtask.is_completed}
-                      disabled={
-                        !canManageSubtasks ||
-                        saving ||
-                        pendingSubtaskIds.includes(subtask.id) ||
-                        pendingSubtaskTitleIds.includes(subtask.id)
-                      }
-                      onChange={() => toggleSubtask(subtask.id, subtask.is_completed)}
-                      aria-label={`Toggle subtask ${subtask.title}`}
-                    />
-                    {editingSubtaskId === subtask.id ? (
-                      <input
-                        value={editingSubtaskTitle}
-                        onChange={(event) => setEditingSubtaskTitle(event.target.value)}
-                        onBlur={() => saveSubtaskTitle(subtask)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter') {
-                            event.preventDefault();
-                            saveSubtaskTitle(subtask);
-                            return;
+                {(task.task_subtasks || []).map((subtask, subtaskIndex) => {
+                  const latestReassignment = latestSubtaskReassignmentById.get(subtask.id);
+                  const reassignedBy = latestReassignment?.actor?.name || latestReassignment?.actor?.email || 'Task creator';
+                  const fromName = latestReassignment?.fromEmployee?.name || latestReassignment?.fromEmployee?.email || 'Unknown';
+                  const toName = latestReassignment?.toEmployee?.name || latestReassignment?.toEmployee?.email || 'Unknown';
+                  const assigned = employeeDirectoryById.get(subtask.assigned_employee_id);
+                  const isExpanded = expandedSubtaskId === subtask.id;
+
+                  return (
+                    <div
+                      key={subtask.id}
+                      className={`rounded-2xl border px-4 py-3 transition ${
+                        subtask.is_completed
+                          ? 'border-emerald-200 bg-emerald-50'
+                          : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <div className='flex items-start gap-3'>
+                        <button
+                          type='button'
+                          disabled={
+                            !canToggleSubtask(subtask) ||
+                            saving ||
+                            pendingSubtaskIds.includes(subtask.id) ||
+                            pendingSubtaskTitleIds.includes(subtask.id)
                           }
-                          if (event.key === 'Escape') {
-                            event.preventDefault();
-                            cancelSubtaskTitleEdit();
-                          }
-                        }}
-                        autoFocus
-                        className='flex-1 min-w-0 rounded-md border border-slate-300 px-2 py-1 text-sm text-slate-700'
-                        disabled={pendingSubtaskTitleIds.includes(subtask.id)}
-                        aria-label='Edit subtask title'
-                      />
-                    ) : (
-                      <button
-                        type='button'
-                        onClick={() => startSubtaskTitleEdit(subtask)}
-                        disabled={!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)}
-                        className={`flex-1 min-w-0 text-left break-words ${subtask.is_completed ? 'text-slate-400 line-through' : 'text-slate-700'
-                          } ${canEditSubtaskTitle(subtask) ? 'cursor-text' : 'cursor-default'
-                          } disabled:opacity-70`}
-                        title={canEditSubtaskTitle(subtask) ? 'Click to edit subtask title' : subtask.title}
-                      >
-                        {subtask.title}
-                      </button>
-                    )}
-                    {canManageSubtasks ? (
-                      <AssigneePicker
-                        value={subtask.assigned_employee_id || ''}
-                        onChange={(value) => updateSubtaskAssignee(subtask.id, value)}
-                        disabled={saving || pendingSubtaskTitleIds.includes(subtask.id)}
-                        options={subtaskAssignees}
-                        compact
-                      />
-                    ) : (
-                      (() => {
-                        const assigned = employeeDirectoryById.get(subtask.assigned_employee_id);
-                        return assigned ? (
-                          <div className='flex items-center gap-2 rounded-full bg-slate-50 px-2 py-1'>
-                            <Avatar
-                              name={assigned.name}
-                              src={assigned.profile_picture_url || assigned.avatar}
-                              size='w-6 h-6'
-                            />
-                            <span className='text-xs font-medium text-slate-600'>{assigned.name}</span>
+                          onClick={() => toggleSubtask(subtask.id, subtask.is_completed)}
+                          aria-label={`Toggle subtask ${subtask.title}`}
+                          className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full border transition ${
+                            subtask.is_completed
+                              ? 'border-emerald-500 bg-emerald-500 text-white'
+                              : 'border-slate-300 bg-white text-transparent hover:border-[#7F40EE] hover:text-[#7F40EE]'
+                          } disabled:cursor-not-allowed disabled:opacity-60`}
+                        >
+                          {subtask.is_completed ? <Check size={14} /> : <Circle size={14} />}
+                        </button>
+
+                        <div className='min-w-0 flex-1'>
+                          <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                            <div className='min-w-0'>
+                              <p className={`truncate text-sm font-medium ${subtask.is_completed ? 'text-emerald-800' : 'text-slate-800'}`}>
+                                <span className='mr-2 text-slate-400'>{subtaskIndex + 1}.</span>
+                                {subtask.title}
+                              </p>
+                            </div>
+                            <div className='flex flex-wrap items-center gap-2'>
+                              {assigned ? (
+                                <div className='inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1'>
+                                  <Avatar
+                                    name={assigned.name}
+                                    src={assigned.profile_picture_url || assigned.avatar}
+                                    size='w-6 h-6'
+                                  />
+                                  <span className='text-xs font-medium text-slate-600'>{assigned.name}</span>
+                                </div>
+                              ) : (
+                                <span className='rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500'>Unassigned</span>
+                              )}
+                              <button
+                                type='button'
+                                onClick={() => setExpandedSubtaskId((prev) => (prev === subtask.id ? null : subtask.id))}
+                                className='inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:text-slate-900'
+                                aria-label={isExpanded ? 'Hide subtask details' : 'Show subtask details'}
+                              >
+                                {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                              </button>
+                            </div>
                           </div>
-                        ) : (
-                          <span className='text-xs text-slate-500'>Unassigned</span>
-                        );
-                      })()
-                    )}
-                  </div>
-                ))}
+
+                          {isExpanded && (
+                            <div className='mt-4 space-y-3 border-t border-slate-100 pt-4'>
+                              {editingSubtaskId === subtask.id ? (
+                                <input
+                                  value={editingSubtaskTitle}
+                                  onChange={(event) => setEditingSubtaskTitle(event.target.value)}
+                                  onBlur={() => saveSubtaskTitle(subtask)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault();
+                                      saveSubtaskTitle(subtask);
+                                      return;
+                                    }
+                                    if (event.key === 'Escape') {
+                                      event.preventDefault();
+                                      cancelSubtaskTitleEdit();
+                                    }
+                                  }}
+                                  autoFocus
+                                  className='w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700'
+                                  disabled={pendingSubtaskTitleIds.includes(subtask.id)}
+                                  aria-label='Edit subtask title'
+                                />
+                              ) : (
+                                <button
+                                  type='button'
+                                  onClick={() => startSubtaskTitleEdit(subtask)}
+                                  disabled={!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)}
+                                  className={`text-left text-sm font-medium ${canEditSubtaskTitle(subtask) ? 'cursor-text text-slate-700' : 'cursor-default text-slate-500'} disabled:opacity-70`}
+                                >
+                                  Edit title
+                                </button>
+                              )}
+
+                              <div className='flex flex-wrap items-center gap-2'>
+                                {canReassignSubtask(subtask) && (
+                                  <button
+                                    type='button'
+                                    onClick={() => setOpenReassignSubtaskId((prev) => (prev === subtask.id ? null : subtask.id))}
+                                    disabled={saving || pendingSubtaskTitleIds.includes(subtask.id)}
+                                    className='inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60'
+                                  >
+                                    <ArrowRightLeft size={12} />
+                                    Reassign
+                                  </button>
+                                )}
+                                <label className='inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900'>
+                                  <Upload size={12} />
+                                  Upload file
+                                  <input
+                                    type='file'
+                                    multiple
+                                    className='hidden'
+                                    onChange={(event) => {
+                                      handleSubtaskAttachmentUpload(subtask, event.target.files);
+                                      event.target.value = '';
+                                    }}
+                                    disabled={pendingSubtaskAttachmentIds.includes(subtask.id)}
+                                  />
+                                </label>
+                              </div>
+
+                              {latestReassignment?.fromEmployee?.id && latestReassignment?.toEmployee?.id && (
+                                <div className='flex flex-wrap items-center gap-2 text-xs text-slate-500'>
+                                  <span className='inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1'>
+                                    <ArrowRightLeft size={11} />
+                                    <span>{fromName}</span>
+                                    <span className='text-slate-400'>to</span>
+                                    <span>{toName}</span>
+                                  </span>
+                                  <span className='text-[11px] text-slate-400'>by {reassignedBy}</span>
+                                </div>
+                              )}
+
+                              {openReassignSubtaskId === subtask.id && canReassignSubtask(subtask) && (
+                                <div className='pt-1'>
+                                  <AssigneePicker
+                                    value={subtask.assigned_employee_id || ''}
+                                    onChange={(value) => updateSubtaskAssignee(subtask, value)}
+                                    disabled={saving || pendingSubtaskTitleIds.includes(subtask.id)}
+                                    options={subtaskAssignees}
+                                    placeholder='Select reassignee'
+                                  />
+                                </div>
+                              )}
+
+                              <div className='space-y-2'>
+                                <div className='flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500'>
+                                  <Paperclip size={12} />
+                                  Documents
+                                </div>
+                                {(subtask.task_subtask_attachments || []).length > 0 ? (
+                                  <div className='space-y-2'>
+                                    {(subtask.task_subtask_attachments || []).map((attachment) => {
+                                      const presenter = getAttachmentPresenter(attachment);
+                                      const AttachmentIcon = presenter.Icon;
+                                      return (
+                                        <div key={attachment.id} className='flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-3'>
+                                          <div className='flex min-w-0 items-center gap-3'>
+                                            <div className={`flex h-10 w-10 items-center justify-center rounded-2xl ${presenter.iconClassName}`}>
+                                              <AttachmentIcon size={16} />
+                                            </div>
+                                            <div className='min-w-0'>
+                                              <p className='truncate text-sm font-medium text-slate-800'>{attachment.file_name}</p>
+                                              <p className='text-xs text-slate-500'>
+                                                Uploaded by {getAttachmentUploaderLabel(attachment)} • {formatDate(attachment.uploaded_at || attachment.created_at)}
+                                              </p>
+                                            </div>
+                                          </div>
+                                          <a
+                                            href={attachment.file_url}
+                                            target='_blank'
+                                            rel='noreferrer'
+                                            className='inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900'
+                                          >
+                                            <ExternalLink size={12} />
+                                            View
+                                          </a>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className='text-sm text-slate-500'>No subtask documents yet.</p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
                 {(!task.task_subtasks || task.task_subtasks.length === 0) && (
                   <p className='text-sm text-slate-500'>No subtasks.</p>
                 )}
@@ -1410,20 +1900,97 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
             </div>
 
             <div>
-              <h2 className='mb-3 text-sm font-semibold text-slate-600'>Attachments</h2>
+              <div className='mb-3'>
+                <h2 className='text-sm font-semibold text-slate-600'>Attachments</h2>
+              </div>
+              <label className='mb-4 flex w-full cursor-pointer flex-col items-center justify-center rounded-[28px] border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-9 text-center transition hover:border-slate-400 hover:bg-slate-100/70'>
+                <span className='mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-200 text-slate-700'>
+                  <Upload size={24} />
+                </span>
+                <span className='text-lg font-semibold text-slate-800'>
+                  {uploadingTaskAttachments ? 'Uploading documents...' : 'Drop documents here or click to browse'}
+                </span>
+                <span className='mt-2 text-sm text-slate-500'>PDF, DOC, DOCX</span>
+                <input
+                  type='file'
+                  multiple
+                  className='hidden'
+                  onChange={(event) => {
+                    handleTaskAttachmentUpload(event.target.files);
+                    event.target.value = '';
+                  }}
+                  disabled={uploadingTaskAttachments}
+                />
+              </label>
               <div className='space-y-2'>
-                {(task.task_attachments || []).map((attachment) => (
-                  <a
-                    key={attachment.id}
-                    href={attachment.file_url}
-                    target='_blank'
-                    rel='noreferrer'
-                    className='block rounded-lg border border-slate-100 px-3 py-2 text-sm text-[#7F40EE] hover:bg-slate-50'
-                  >
-                    {attachment.file_name || 'Attachment'}
-                  </a>
+                {allVisibleAttachments.map((attachment) => (
+                  (() => {
+                    const presenter = getAttachmentPresenter(attachment);
+                    const uploaderLabel = getAttachmentUploaderLabel(attachment);
+                    const AttachmentIcon = presenter.Icon;
+
+                    return (
+                      <div
+                        key={attachment.id}
+                        className='rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 transition hover:border-slate-300'
+                      >
+                        <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+                          <div className='flex min-w-0 items-start gap-3'>
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${presenter.iconClassName}`}>
+                              <AttachmentIcon size={20} />
+                            </div>
+                            <div className='min-w-0'>
+                              <p className='truncate text-sm font-semibold text-slate-800'>
+                                {attachment.file_name || 'Attachment'}
+                              </p>
+                              <div className='mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500'>
+                                <span className='inline-flex items-center gap-1'>
+                                  <UserRound size={12} />
+                                  Uploaded by {uploaderLabel}
+                                </span>
+                                <span className='inline-flex items-center gap-1'>
+                                  <Clock3 size={12} />
+                                  {formatDate(attachment.uploaded_at || attachment.created_at)}
+                                </span>
+                                <span className='rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500'>
+                                  {presenter.label}
+                                </span>
+                                <span className='rounded-full bg-white px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500'>
+                                  {attachment.scopeLabel}
+                                </span>
+                                {attachment.scope === 'subtask' && attachment.subtaskTitle ? (
+                                  <span className='text-xs font-medium text-slate-500'>
+                                    {attachment.subtaskTitle}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                          <div className='flex shrink-0 items-center gap-2'>
+                            <a
+                              href={attachment.file_url}
+                              target='_blank'
+                              rel='noreferrer'
+                              className='inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900'
+                            >
+                              <ExternalLink size={13} />
+                              Open
+                            </a>
+                            <a
+                              href={attachment.file_url}
+                              download
+                              className='inline-flex items-center gap-2 rounded-full bg-[#7F40EE] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#6A31D1]'
+                            >
+                              <Download size={13} />
+                              Download
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()
                 ))}
-                {(!task.task_attachments || task.task_attachments.length === 0) && (
+                {allVisibleAttachments.length === 0 && (
                   <p className='text-sm text-slate-500'>No attachments.</p>
                 )}
               </div>
@@ -1455,13 +2022,8 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
             </section>
 
             <section className='w-full rounded-[24px] bg-slate-100/80 px-5 py-5'>
-              <div className='mb-4 flex items-start justify-between gap-3'>
-                <div>
-                  <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Assignment Tree</h3>
-                </div>
-                <div className='rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white'>
-                  {visibleAssignmentMemberCount}
-                </div>
+              <div className='mb-4'>
+                <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Assignment Tree</h3>
               </div>
               <div className='w-full px-1 py-2'>
                 {assignmentTree.length === 0 ? (
@@ -1469,8 +2031,11 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                     <p className='text-sm font-medium text-slate-700'>No assignment map yet.</p>
                   </div>
                 ) : (
-                  <div className='overflow-x-auto pb-1'>
-                    <div className='flex min-w-[240px] flex-wrap items-start justify-center gap-6'>
+                  <div
+                    className='max-h-[640px] overflow-auto pb-2 pr-1 [scrollbar-color:#94a3b8_#e2e8f0] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-200 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-slate-400 [&::-webkit-scrollbar-thumb]:border [&::-webkit-scrollbar-thumb]:border-slate-200'
+                    style={{ scrollbarWidth: 'auto' }}
+                  >
+                    <div className='flex min-w-max flex-col items-center gap-8'>
                       {assignmentTree.map((node) => (
                         <AssignmentTreeNode key={node.id} node={node} />
                       ))}

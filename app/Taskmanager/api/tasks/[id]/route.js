@@ -127,6 +127,7 @@ async function fetchTaskById(taskId) {
       status,
       progress_percentage,
       due_date,
+      completed_at,
       frequency,
       last_cycle_reset,
       created_by,
@@ -148,7 +149,21 @@ async function fetchTaskById(taskId) {
         file_name,
         file_url,
         file_path,
-        uploaded_at
+        uploaded_at,
+        uploaded_by_employee_id,
+        uploaded_by_profile_id,
+        uploaded_by_employee:hrm_employees!task_attachments_uploaded_by_employee_id_fkey (
+          id,
+          name,
+          email,
+          role,
+          profile_picture_url
+        ),
+        uploaded_by_profile:hrm_profiles!task_attachments_uploaded_by_profile_id_fkey (
+          id,
+          full_name,
+          email
+        )
       ),
       task_subtasks (
         id,
@@ -156,7 +171,28 @@ async function fetchTaskById(taskId) {
         is_completed,
         assigned_employee_id,
         created_at,
-        updated_at
+        updated_at,
+        task_subtask_attachments (
+          id,
+          file_name,
+          file_url,
+          file_path,
+          uploaded_at,
+          uploaded_by_employee_id,
+          uploaded_by_profile_id,
+          uploaded_by_employee:hrm_employees!task_subtask_attachments_uploaded_by_employee_id_fkey (
+            id,
+            name,
+            email,
+            role,
+            profile_picture_url
+          ),
+          uploaded_by_profile:hrm_profiles!task_subtask_attachments_uploaded_by_profile_id_fkey (
+            id,
+            full_name,
+            email
+          )
+        )
       )
     `;
   const legacyTaskSelect = taskSelect.replace(/\s*created_by_employee_id,\n/, '\n');
@@ -200,7 +236,12 @@ async function fetchTaskById(taskId) {
   return {
     ...task,
     task_attachments: mergedAttachments,
-    task_subtasks: Array.isArray(task.task_subtasks) ? task.task_subtasks : [],
+    task_subtasks: Array.isArray(task.task_subtasks)
+      ? task.task_subtasks.map((subtask) => ({
+          ...subtask,
+          task_subtask_attachments: Array.isArray(subtask.task_subtask_attachments) ? subtask.task_subtask_attachments : [],
+        }))
+      : [],
   };
 }
 
@@ -235,6 +276,58 @@ async function fetchTaskEmployeeRatings(taskId) {
   }));
 }
 
+async function fetchTaskCreator(task, employees = []) {
+  if (!task) return null;
+
+  if (task.created_by_employee_id) {
+    const fromDirectory = (employees || []).find((employee) => employee?.id === task.created_by_employee_id);
+    if (fromDirectory) {
+      return {
+        id: fromDirectory.id,
+        name: fromDirectory.name,
+        email: fromDirectory.email,
+        role: fromDirectory.role || 'employee',
+        profile_picture_url: fromDirectory.profile_picture_url || null,
+        type: 'employee',
+      };
+    }
+
+    const { data: employee } = await adminClient
+      .from('hrm_employees')
+      .select('id, name, email, role, profile_picture_url')
+      .eq('id', task.created_by_employee_id)
+      .maybeSingle();
+
+    if (employee) {
+      return {
+        ...employee,
+        type: 'employee',
+      };
+    }
+  }
+
+  if (task.created_by) {
+    const { data: profile } = await adminClient
+      .from('hrm_profiles')
+      .select('id, full_name, email')
+      .eq('id', task.created_by)
+      .maybeSingle();
+
+    if (profile) {
+      return {
+        id: profile.id,
+        name: profile.full_name || profile.email || 'Task Creator',
+        email: profile.email || '',
+        role: 'admin',
+        profile_picture_url: null,
+        type: 'admin',
+      };
+    }
+  }
+
+  return null;
+}
+
 async function taskHasIncompleteSubtasks(taskId) {
   const { count, error } = await adminClient
     .from('task_subtasks')
@@ -247,6 +340,18 @@ async function taskHasIncompleteSubtasks(taskId) {
   }
 
   return (count || 0) > 0;
+}
+
+function getCompletionTimestamp(currentStatus, nextStatus, existingCompletedAt, timestamp) {
+  if (nextStatus === 'completed') {
+    return existingCompletedAt || timestamp;
+  }
+
+  if (currentStatus === 'completed' && nextStatus !== 'completed') {
+    return null;
+  }
+
+  return existingCompletedAt || null;
 }
 
 export async function GET(request, { params }) {
@@ -299,14 +404,17 @@ export async function GET(request, { params }) {
     const taskLabels = (labelsResult.data || []).map((item) => item.name).filter(Boolean);
     const employeeDirectoryById = new Map((employees || []).map((employee) => [employee.id, employee]));
     const reviewAssignees = getTaskReviewAssignees(task, employeeDirectoryById);
+    const taskCreator = await fetchTaskCreator(task, employees);
 
-    const canManageTask = actor.type === 'admin' || isTaskCreator(task, actor);
+    const isCreator = isTaskCreator(task, actor);
+    const canManageTask = actor.type === 'admin' || isCreator;
     const canReviewAssignees = task.status === 'completed' && (isTaskCreator(task, actor) || actor.isSuperAdmin);
 
     const viewer = {
       type: actor.type,
       employeeId: actor.type === 'employee' ? actor.employeeId : null,
       canManageTask,
+      isTaskCreator: isCreator,
       canManageSubtasks: actor.type === 'admin' || actor.type === 'employee',
       canComment: actor.type === 'admin' || actor.type === 'employee',
       canReviewAssignees,
@@ -315,6 +423,7 @@ export async function GET(request, { params }) {
     return NextResponse.json({
       success: true,
       task,
+      taskCreator,
       viewer,
       employees,
       assignmentActivity,
@@ -348,6 +457,11 @@ export async function PATCH(request, { params }) {
 
     const body = await request.json();
     const actorPayload = getAssignmentActivityActorPayload(actor);
+    const currentTask = await fetchTaskById(taskId);
+
+    if (!currentTask) {
+      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+    }
 
     if (Array.isArray(body?.employeeRatings)) {
       const { data: taskToCheck, error: fetchError } = await adminClient
@@ -510,6 +624,14 @@ export async function PATCH(request, { params }) {
         return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
       }
 
+      const canReassignSubtask =
+        isTaskCreator(currentTask, actor) ||
+        (actor.type === 'employee' && existingSubtask.data.assigned_employee_id === actor.employeeId);
+
+      if (!canReassignSubtask) {
+        return NextResponse.json({ error: 'Only the task creator or current subtask assignee can reassign this subtask' }, { status: 403 });
+      }
+
       const previousAssigneeId = existingSubtask.data.assigned_employee_id || null;
       const action = getAssignmentActivityAction(previousAssigneeId, assignedEmployeeId);
       if (!action) {
@@ -548,6 +670,76 @@ export async function PATCH(request, { params }) {
       ], adminClient);
 
       return NextResponse.json({ success: true, message: 'Subtask assignee updated' });
+    }
+
+    if (Array.isArray(body?.newTaskAttachments) && body.newTaskAttachments.length > 0) {
+      const attachmentRecords = body.newTaskAttachments
+        .filter((attachment) => attachment?.file_url && attachment?.file_name)
+        .map((attachment) => ({
+          task_id: taskId,
+          file_name: attachment.file_name,
+          file_url: attachment.file_url,
+          file_path: attachment.file_path || null,
+          uploaded_by_employee_id: actor.type === 'employee' ? actor.employeeId : null,
+          uploaded_by_profile_id: actor.type === 'admin' ? actor.userId : null,
+        }));
+
+      if (attachmentRecords.length === 0) {
+        return NextResponse.json({ error: 'No valid attachments provided' }, { status: 400 });
+      }
+
+      const { error: attachmentError } = await adminClient
+        .from('task_attachments')
+        .insert(attachmentRecords);
+
+      if (attachmentError) {
+        return NextResponse.json({ error: attachmentError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Task attachments uploaded' });
+    }
+
+    if (body?.subtaskId && Array.isArray(body?.newSubtaskAttachments) && body.newSubtaskAttachments.length > 0) {
+      const { data: existingSubtask, error: subtaskError } = await adminClient
+        .from('task_subtasks')
+        .select('id')
+        .eq('id', body.subtaskId)
+        .eq('task_id', taskId)
+        .maybeSingle();
+
+      if (subtaskError) {
+        return NextResponse.json({ error: subtaskError.message }, { status: 500 });
+      }
+
+      if (!existingSubtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+
+      const attachmentRecords = body.newSubtaskAttachments
+        .filter((attachment) => attachment?.file_url && attachment?.file_name)
+        .map((attachment) => ({
+          task_id: taskId,
+          subtask_id: body.subtaskId,
+          file_name: attachment.file_name,
+          file_url: attachment.file_url,
+          file_path: attachment.file_path || null,
+          uploaded_by_employee_id: actor.type === 'employee' ? actor.employeeId : null,
+          uploaded_by_profile_id: actor.type === 'admin' ? actor.userId : null,
+        }));
+
+      if (attachmentRecords.length === 0) {
+        return NextResponse.json({ error: 'No valid attachments provided' }, { status: 400 });
+      }
+
+      const { error: attachmentError } = await adminClient
+        .from('task_subtask_attachments')
+        .insert(attachmentRecords);
+
+      if (attachmentError) {
+        return NextResponse.json({ error: attachmentError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask attachments uploaded' });
     }
 
     if (body?.subtaskId && typeof body?.subtaskTitle === 'string') {
@@ -650,11 +842,14 @@ export async function PATCH(request, { params }) {
         }
       }
 
+      const nextUpdatedAt = new Date().toISOString();
+
       const { error: updateError } = await adminClient
         .from('tasks')
         .update({
           status: normalizedStatus,
-          updated_at: new Date().toISOString(),
+          completed_at: getCompletionTimestamp(currentTask.status, normalizedStatus, currentTask.completed_at, nextUpdatedAt),
+          updated_at: nextUpdatedAt,
         })
         .eq('id', taskId);
 
@@ -738,6 +933,7 @@ export async function PATCH(request, { params }) {
           }
         }
         updatePayload.status = normalizedStatus;
+        updatePayload.completed_at = getCompletionTimestamp(currentTask.status, normalizedStatus, currentTask.completed_at, new Date().toISOString());
       }
 
       if (Object.keys(updatePayload).length === 0) {

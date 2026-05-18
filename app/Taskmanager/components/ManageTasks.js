@@ -14,6 +14,7 @@ export default function ManageTasks() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [labelFilter, setLabelFilter] = useState('All');
+  const [createdByFilter, setCreatedByFilter] = useState('All');
 
   const mergedLabelOptions = Array.from(
     new Map(
@@ -28,12 +29,26 @@ export default function ManageTasks() {
     return tasks.filter((task) => normalizeLabelValue(task.label) === normalized).length;
   };
 
+  const createdByOptions = Array.from(
+    new Map(
+      tasks
+        .map((task) => String(task.createdBy || '').trim())
+        .filter(Boolean)
+        .map((name) => [name.toLowerCase(), name])
+    ).values()
+  ).sort((left, right) => left.localeCompare(right));
+
+  const getCreatedByCount = (createdBy) =>
+    tasks.filter((task) => String(task.createdBy || '').trim().toLowerCase() === String(createdBy || '').trim().toLowerCase()).length;
+
   const displayTasks = tasks.filter((task) => {
     const matchesStatus = statusFilter === 'All' || task.status === statusFilter;
     const matchesPriority = priorityFilter === 'All' || task.priority === priorityFilter;
     const matchesLabel =
       labelFilter === 'All' || normalizeLabelValue(task.label) === normalizeLabelValue(labelFilter);
-    return matchesStatus && matchesPriority && matchesLabel;
+    const matchesCreatedBy =
+      createdByFilter === 'All' || String(task.createdBy || '').trim().toLowerCase() === String(createdByFilter).trim().toLowerCase();
+    return matchesStatus && matchesPriority && matchesLabel && matchesCreatedBy;
   });
 
   const getPriorityColor = (p) => {
@@ -59,6 +74,19 @@ export default function ManageTasks() {
         return 'bg-green-100 text-green-600';
       default:
         return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const getDeadlineBadgeClasses = (deadlineState) => {
+    switch (deadlineState?.tone) {
+      case 'success':
+        return 'bg-emerald-100 text-emerald-700';
+      case 'warning':
+        return 'bg-amber-100 text-amber-700';
+      case 'danger':
+        return 'bg-rose-100 text-rose-700';
+      default:
+        return 'bg-slate-100 text-slate-600';
     }
   };
 
@@ -132,13 +160,28 @@ export default function ManageTasks() {
                 ))}
               </select>
             </div>
+
+            <div className="w-[170px] shrink-0 rounded-lg bg-white p-1 shadow-sm xl:w-[200px]">
+              <select
+                value={createdByFilter}
+                onChange={(event) => setCreatedByFilter(event.target.value)}
+                className="w-full rounded-md border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-700 outline-none"
+              >
+                <option value="All">All Creators ({tasks.length})</option>
+                {createdByOptions.map((createdBy) => (
+                  <option key={createdBy} value={createdBy}>
+                    {createdBy} ({getCreatedByCount(createdBy)})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
       {displayTasks.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
-          No tasks match the selected status, priority, and label filters.
+          No tasks match the selected status, priority, label, and creator filters.
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -167,6 +210,11 @@ export default function ManageTasks() {
                 {task.label && (
                   <span className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-700">
                     {task.label}
+                  </span>
+                )}
+                {task.deadlineState?.label && (
+                  <span className={`px-3 py-1 rounded text-[10px] uppercase font-bold tracking-wider ${getDeadlineBadgeClasses(task.deadlineState)}`}>
+                    {task.deadlineState.label}
                   </span>
                 )}
               </div>

@@ -59,6 +59,40 @@ const deriveDueDate = (task) => {
   return created.toISOString();
 };
 
+const getDeadlineState = (task) => {
+  const dueDate = deriveDueDate(task);
+  if (!dueDate) return null;
+
+  const dueAt = new Date(dueDate);
+  if (Number.isNaN(dueAt.getTime())) return null;
+
+  const completedAt = task?.completed_at ? new Date(task.completed_at) : null;
+  const hasValidCompletedAt = completedAt && !Number.isNaN(completedAt.getTime());
+
+  if (task?.status === 'completed' && hasValidCompletedAt) {
+    const withinDeadline = completedAt.getTime() <= dueAt.getTime();
+    return {
+      key: withinDeadline ? 'within_deadline' : 'completed_late',
+      label: withinDeadline ? 'Within Deadline' : 'Completed Late',
+      tone: withinDeadline ? 'success' : 'warning',
+    };
+  }
+
+  if (task?.status !== 'completed' && Date.now() > dueAt.getTime()) {
+    return {
+      key: 'overdue',
+      label: 'Late',
+      tone: 'danger',
+    };
+  }
+
+  return {
+    key: 'within_timeline',
+    label: 'Within Timeline',
+    tone: 'neutral',
+  };
+};
+
 const normalizeUsers = (rows = []) =>
   rows.map((row) => ({
     id: row.id,
@@ -113,6 +147,7 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     ? 'You'
     : task?.creator_name ||
       (task?.created_by ? 'Admin' : 'Employee');
+  const deadlineState = getDeadlineState(task);
 
   return {
     id: task.id,
@@ -136,6 +171,7 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     })),
     attachments: Array.isArray(task.task_attachments) ? task.task_attachments.length : 0,
     createdBy: createdByLabel,
+    deadlineState,
     rawStatus: task.status,
     rawPriority: task.priority,
     createdAt: task.created_at,

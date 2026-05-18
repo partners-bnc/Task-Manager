@@ -266,12 +266,22 @@ export async function hasTaskAccess(taskId, actor) {
   if (!actor) return false;
   if (actor.type === 'admin') return true;
 
-  const [{ data: assignment, error: assignmentError }, { data: createdTask, error: createdTaskError }] = await Promise.all([
+  const [
+    { data: assignment, error: assignmentError },
+    { data: subtaskAssignment, error: subtaskAssignmentError },
+    { data: createdTask, error: createdTaskError },
+  ] = await Promise.all([
     adminClient
-    .from('task_assignments')
-    .select('task_id')
-    .eq('task_id', taskId)
-    .eq('employee_id', actor.employeeId)
+      .from('task_assignments')
+      .select('task_id')
+      .eq('task_id', taskId)
+      .eq('employee_id', actor.employeeId)
+      .maybeSingle(),
+    adminClient
+      .from('task_subtasks')
+      .select('task_id')
+      .eq('task_id', taskId)
+      .eq('assigned_employee_id', actor.employeeId)
       .maybeSingle(),
     adminClient
       .from('tasks')
@@ -283,6 +293,7 @@ export async function hasTaskAccess(taskId, actor) {
 
   return (
     (!assignmentError && !!assignment) ||
+    (!subtaskAssignmentError && !!subtaskAssignment) ||
     (!isMissingTaskCreatorEmployeeColumn(createdTaskError) && !createdTaskError && !!createdTask)
   );
 }

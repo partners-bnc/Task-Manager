@@ -43,7 +43,7 @@ export function Hero({ taskManagerHref = '/login' }) {
             Reduce your workload by 70%
           </Badge>
 
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-slate-900 max-w-4xl mx-auto mb-6">
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-semibold tracking-tight text-slate-900 max-w-4xl mx-auto mb-6">
             Simplify Internal Work at BNC Global
           </h1>
 

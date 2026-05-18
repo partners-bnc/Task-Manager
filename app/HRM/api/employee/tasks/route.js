@@ -20,6 +20,7 @@ const EMPLOYEE_TASK_SELECT = `
   created_by_employee_id,
   created_at,
   due_date,
+  completed_at,
   task_attachments (
     id
   ),
@@ -103,12 +104,22 @@ async function attachTaskCreatorNames(tasks = []) {
 }
 
 async function employeeCanAccessTask(taskId, employeeId) {
-  const [{ data: assignment, error: assignmentError }, { data: createdTask, error: createdTaskError }] = await Promise.all([
+  const [
+    { data: assignment, error: assignmentError },
+    { data: subtaskAssignment, error: subtaskAssignmentError },
+    { data: createdTask, error: createdTaskError },
+  ] = await Promise.all([
     adminClient
       .from('task_assignments')
       .select('task_id')
       .eq('task_id', taskId)
       .eq('employee_id', employeeId)
+      .maybeSingle(),
+    adminClient
+      .from('task_subtasks')
+      .select('task_id')
+      .eq('task_id', taskId)
+      .eq('assigned_employee_id', employeeId)
       .maybeSingle(),
     adminClient
       .from('tasks')
@@ -120,8 +131,23 @@ async function employeeCanAccessTask(taskId, employeeId) {
 
   return (
     (!assignmentError && !!assignment) ||
+    (!subtaskAssignmentError && !!subtaskAssignment) ||
     (!isMissingTaskCreatorEmployeeColumn(createdTaskError) && !createdTaskError && !!createdTask)
   );
+}
+
+async function taskHasIncompleteSubtasks(taskId) {
+  const { count, error } = await adminClient
+    .from('task_subtasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('task_id', taskId)
+    .eq('is_completed', false);
+
+  if (error) {
+    throw error;
+  }
+
+  return (count || 0) > 0;
 }
 
 async function findTaskManagerMembers() {
@@ -223,16 +249,29 @@ export async function GET(request) {
 
     const employee = actorData.employee;
 
-    let [{ data: assignmentRows, error: tasksError }, { data: createdTasks, error: createdTasksError }] = await Promise.all([
+    let [
+      { data: assignmentRows, error: tasksError },
+      { data: subtaskRows, error: subtaskTasksError },
+      { data: createdTasks, error: createdTasksError },
+    ] = await Promise.all([
       adminClient
-      .from('task_assignments')
-      .select(`
-        task:tasks (
-          ${EMPLOYEE_TASK_SELECT}
-        )
-      `)
-      .eq('employee_id', employee.id)
+        .from('task_assignments')
+        .select(`
+          task:tasks (
+            ${EMPLOYEE_TASK_SELECT}
+          )
+        `)
+        .eq('employee_id', employee.id)
         .order('assigned_at', { ascending: false }),
+      adminClient
+        .from('task_subtasks')
+        .select(`
+          task:tasks (
+            ${EMPLOYEE_TASK_SELECT}
+          )
+        `)
+        .eq('assigned_employee_id', employee.id)
+        .order('updated_at', { ascending: false }),
       adminClient
         .from('tasks')
         .select(EMPLOYEE_TASK_SELECT)
@@ -240,19 +279,32 @@ export async function GET(request) {
         .order('created_at', { ascending: false }),
     ]);
 
-    if (isMissingTaskCreatorEmployeeColumn(tasksError) || isMissingTaskCreatorEmployeeColumn(createdTasksError)) {
-      const legacyResult = await adminClient
-        .from('task_assignments')
-        .select(`
-          task:tasks (
-            ${EMPLOYEE_TASK_SELECT_LEGACY}
-          )
-        `)
-        .eq('employee_id', employee.id)
-        .order('assigned_at', { ascending: false });
+    if (isMissingTaskCreatorEmployeeColumn(tasksError) || isMissingTaskCreatorEmployeeColumn(subtaskTasksError) || isMissingTaskCreatorEmployeeColumn(createdTasksError)) {
+      const [legacyAssignmentResult, legacySubtaskResult] = await Promise.all([
+        adminClient
+          .from('task_assignments')
+          .select(`
+            task:tasks (
+              ${EMPLOYEE_TASK_SELECT_LEGACY}
+            )
+          `)
+          .eq('employee_id', employee.id)
+          .order('assigned_at', { ascending: false }),
+        adminClient
+          .from('task_subtasks')
+          .select(`
+            task:tasks (
+              ${EMPLOYEE_TASK_SELECT_LEGACY}
+            )
+          `)
+          .eq('assigned_employee_id', employee.id)
+          .order('updated_at', { ascending: false }),
+      ]);
 
-      assignmentRows = legacyResult.data || [];
-      tasksError = legacyResult.error;
+      assignmentRows = legacyAssignmentResult.data || [];
+      subtaskRows = legacySubtaskResult.data || [];
+      tasksError = legacyAssignmentResult.error;
+      subtaskTasksError = legacySubtaskResult.error;
       createdTasks = [];
       createdTasksError = null;
     }
@@ -261,12 +313,19 @@ export async function GET(request) {
       return NextResponse.json({ error: tasksError.message }, { status: 500 });
     }
 
+    if (subtaskTasksError) {
+      return NextResponse.json({ error: subtaskTasksError.message }, { status: 500 });
+    }
+
     if (createdTasksError) {
       return NextResponse.json({ error: createdTasksError.message }, { status: 500 });
     }
 
     const tasksById = new Map();
     for (const task of (assignmentRows || []).map((row) => row.task).filter(Boolean)) {
+      tasksById.set(task.id, task);
+    }
+    for (const task of (subtaskRows || []).map((row) => row.task).filter(Boolean)) {
       tasksById.set(task.id, task);
     }
     for (const task of createdTasks || []) {
@@ -415,9 +474,21 @@ export async function PATCH(request) {
       return NextResponse.json({ error: 'Task is not assigned to you or created by you' }, { status: 403 });
     }
 
+    if (status === 'completed') {
+      const hasIncompleteSubtasks = await taskHasIncompleteSubtasks(taskId);
+      if (hasIncompleteSubtasks) {
+        return NextResponse.json({ error: 'Complete all subtasks before marking the task as completed' }, { status: 400 });
+      }
+    }
+
+    const nextUpdatedAt = new Date().toISOString();
     const { data: updatedTasks, error: updateTaskError } = await adminClient
       .from('tasks')
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({
+        status,
+        completed_at: status === 'completed' ? nextUpdatedAt : null,
+        updated_at: nextUpdatedAt,
+      })
       .eq('id', taskId)
       .neq('status', status)
       .select('id');

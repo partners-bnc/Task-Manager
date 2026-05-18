@@ -90,6 +90,20 @@ async function attachTaskCreatorNames(tasks = [], supabase) {
   });
 }
 
+async function taskHasIncompleteSubtasks(taskId, supabase) {
+  const { count, error } = await supabase
+    .from('task_subtasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('task_id', taskId)
+    .eq('is_completed', false);
+
+  if (error) {
+    throw error;
+  }
+
+  return (count || 0) > 0;
+}
+
 
 export async function GET() {
   const supabase = await createClient();
@@ -200,7 +214,9 @@ export async function POST(request) {
         task_id: task.id,
         file_name: attachment.file_name,
         file_url: attachment.file_url,
-        file_path: attachment.file_path
+        file_path: attachment.file_path,
+        uploaded_by_employee_id: actor.type === 'employee' ? actor.employeeId : null,
+        uploaded_by_profile_id: actor.type === 'admin' ? actor.userId : null,
       }));
 
       const { error: attachmentError } = await supabase
@@ -336,7 +352,15 @@ export async function PUT(request) {
       .eq('id', taskId)
       .single();
 
+    if (status === 'completed') {
+      const hasIncompleteSubtasks = await taskHasIncompleteSubtasks(taskId, supabase);
+      if (hasIncompleteSubtasks) {
+        return NextResponse.json({ error: 'Complete all subtasks before marking the task as completed' }, { status: 400 });
+      }
+    }
+
     // Update task
+    const nextUpdatedAt = new Date().toISOString();
     const { error: taskError } = await supabase
       .from('tasks')
       .update({
@@ -346,7 +370,8 @@ export async function PUT(request) {
         priority,
         status,
         due_date: normalizedDueDate,
-        updated_at: new Date().toISOString()
+        completed_at: status === 'completed' ? nextUpdatedAt : null,
+        updated_at: nextUpdatedAt
       })
       .eq('id', taskId);
 
@@ -422,7 +447,9 @@ export async function PUT(request) {
         task_id: taskId,
         file_name: attachment.file_name,
         file_url: attachment.file_url,
-        file_path: attachment.file_path
+        file_path: attachment.file_path,
+        uploaded_by_employee_id: actor.type === 'employee' ? actor.employeeId : null,
+        uploaded_by_profile_id: actor.type === 'admin' ? actor.userId : null,
       }));
 
       const { error: attachmentError } = await supabase
