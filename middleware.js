@@ -10,6 +10,7 @@ export async function middleware(request) {
   const isTaskDashboardPath = pathname.startsWith('/Taskmanager/dashboard')
   const isHRMAdminPath = pathname.startsWith('/HRM/hrm/admin')
   const isHRMEmployeePath = pathname.startsWith('/HRM/hrm') && !isHRMAdminPath
+  const isEmployeeIntakePath = pathname.startsWith('/employee-intake')
   const isAuditingPath = pathname.startsWith('/Auditing/auditing')
   const isSuperAdminPath = pathname.startsWith('/superadmin')
   const isProtectedPath =
@@ -17,6 +18,7 @@ export async function middleware(request) {
     isTaskDashboardPath ||
     isHRMAdminPath ||
     isHRMEmployeePath ||
+    isEmployeeIntakePath ||
     isAuditingPath ||
     isSuperAdminPath
 
@@ -76,7 +78,7 @@ export async function middleware(request) {
       return NextResponse.redirect(url)
     }
 
-    if (isHRMAdminPath && !authContext.isHrAdmin) {
+    if ((isHRMAdminPath || isEmployeeIntakePath) && !authContext.isHrAdmin) {
       const url = request.nextUrl.clone()
       url.pathname = authContext.destination
       return NextResponse.redirect(url)
@@ -111,5 +113,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/Taskmanager/admin/:path*', '/Taskmanager/dashboard/:path*', '/HRM/hrm/:path*', '/Auditing/auditing/:path*', '/superadmin/:path*', '/login'],
+  matcher: ['/Taskmanager/admin/:path*', '/Taskmanager/dashboard/:path*', '/HRM/hrm/:path*', '/Auditing/auditing/:path*', '/superadmin/:path*', '/employee-intake/:path*', '/login'],
 }

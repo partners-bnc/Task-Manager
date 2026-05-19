@@ -286,6 +286,75 @@ function fileButtonClassName(hasError = false) {
   return `inline-flex w-full cursor-pointer items-center justify-between gap-3 rounded-2xl border ${hasError ? 'border-rose-400 bg-rose-50 text-rose-700 hover:border-rose-500 hover:bg-rose-100/70' : 'border-slate-300 bg-slate-50 text-slate-800 hover:border-slate-500 hover:bg-slate-100'} px-4 py-3 text-sm font-semibold transition`;
 }
 
+function compactUploadCardClassName(hasError = false, hasFile = false) {
+  if (hasError) {
+    return 'group flex min-h-[188px] w-full cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-rose-300 bg-rose-50/70 px-5 py-6 text-center transition hover:border-rose-400 hover:bg-rose-100/70';
+  }
+
+  if (hasFile) {
+    return 'group flex min-h-[188px] w-full cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-emerald-300 bg-emerald-50/70 px-5 py-6 text-center transition hover:border-emerald-400 hover:bg-emerald-100/70';
+  }
+
+  return 'group flex min-h-[188px] w-full cursor-pointer flex-col items-center justify-center rounded-[1.5rem] border border-dashed border-slate-300 bg-slate-50/80 px-5 py-6 text-center transition hover:border-slate-400 hover:bg-white';
+}
+
+function UploadArrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6">
+      <path
+        d="M12 16V8m0 0-3 3m3-3 3 3M6 16.5v.75A1.75 1.75 0 0 0 7.75 19h8.5A1.75 1.75 0 0 0 18 17.25v-.75"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function CompactUploadField({
+  id,
+  name,
+  accept,
+  title,
+  helperText,
+  file,
+  error,
+  onChange,
+}: {
+  id: string;
+  name?: string;
+  accept: string;
+  title: string;
+  helperText: string;
+  file: File | null;
+  error?: string;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+}) {
+  const hasFile = Boolean(file);
+
+  return (
+    <label htmlFor={id} className={compactUploadCardClassName(!!error, hasFile)}>
+      <span className={`mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl ${error ? 'bg-rose-100 text-rose-700' : hasFile ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'} transition group-hover:scale-[1.02]`}>
+        <UploadArrowIcon />
+      </span>
+      <span className="text-sm font-semibold text-slate-900">
+        {hasFile ? file?.name : title}
+      </span>
+      <span className="mt-2 text-xs text-slate-500">{helperText}</span>
+      <input
+        id={id}
+        name={name}
+        type="file"
+        className="hidden"
+        accept={accept}
+        onChange={onChange}
+      />
+    </label>
+  );
+}
+
 function SectionError({ message }: { message?: string }) {
   if (!message) return null;
   return <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">{message}</div>;
@@ -1628,15 +1697,15 @@ export default function AddEmployee({
             <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
               {DOCUMENT_TYPES.map((document) => (
                 <Field key={document.key} label={document.label} error={uploadErrors[`document_${document.key}`]}>
-                  <label className={fileButtonClassName(!!uploadErrors[`document_${document.key}`])}>
-                    <span>{documents[document.key] ? documents[document.key]?.name : 'Choose File'}</span>
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
-                      onChange={(event) => handleDocumentChange(document.key, event.target.files?.[0] || null)}
-                    />
-                  </label>
+                  <CompactUploadField
+                    id={`document-${document.key}`}
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    title="Drop file here or click to browse"
+                    helperText={`PDF, JPG, PNG, WebP • Max ${formatMaxSize(EMPLOYEE_FILE_MAX_SIZE_BYTES)}`}
+                    file={documents[document.key]}
+                    error={uploadErrors[`document_${document.key}`]}
+                    onChange={(event) => handleDocumentChange(document.key, event.target.files?.[0] || null)}
+                  />
                 </Field>
               ))}
             </div>

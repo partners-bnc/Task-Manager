@@ -84,11 +84,6 @@ function buildFriendlyErrorResponse(error, fallbackMessage = 'We could not save 
   );
 }
 
-function isPublicEmployeeIntakeRequest(request) {
-  const { searchParams } = new URL(request.url);
-  return searchParams.get('public') === '1';
-}
-
 async function requireHrAdminAccess() {
   const supabase = await createClient();
   const {
@@ -109,11 +104,7 @@ async function requireHrAdminAccess() {
   return { user, authContext };
 }
 
-async function requireEmployeeFormAccess(request) {
-  if (isPublicEmployeeIntakeRequest(request)) {
-    return { isPublic: true, authContext: null, user: null };
-  }
-
+async function requireEmployeeFormAccess() {
   const auth = await requireHrAdminAccess();
   if (auth.error) {
     return auth;
@@ -963,130 +954,6 @@ async function fetchEmployeeFormMeta() {
   };
 }
 
-async function fetchPublicEmployeeFormMeta() {
-  const [employeesResult, superAdminsResult, departmentsResult, designationsResult] = await Promise.all([
-    adminClient
-      .from('hrm_employees')
-      .select('id, employee_id, name')
-      .order('name', { ascending: true }),
-    adminClient
-      .from('super_admins')
-      .select('id, name')
-      .eq('status', 'Active')
-      .order('name', { ascending: true }),
-    adminClient
-      .from('hrm_departments')
-      .select('id, name')
-      .eq('is_active', true)
-      .order('name', { ascending: true }),
-    adminClient
-      .from('hrm_designations')
-      .select('id, title, department_id')
-      .eq('is_active', true)
-      .order('title', { ascending: true }),
-  ]);
-
-  if (employeesResult.error) throw new Error(employeesResult.error.message || 'Failed to load employees');
-  if (superAdminsResult.error) throw new Error(superAdminsResult.error.message || 'Failed to load super admins');
-  if (departmentsResult.error) throw new Error(departmentsResult.error.message || 'Failed to load departments');
-  if (designationsResult.error) throw new Error(designationsResult.error.message || 'Failed to load designations');
-
-  return {
-    employeeOptions: employeesResult.data || [],
-    superAdminOptions: superAdminsResult.data || [],
-    departments: departmentsResult.data || [],
-    designations: designationsResult.data || [],
-  };
-}
-
-async function findExistingEmployeeByField(column, value) {
-  const normalizedValue = cleanText(value);
-  if (!normalizedValue) return null;
-
-  const query = adminClient
-    .from('hrm_employees')
-    .select('id, employee_id, name, email, phone, mobile_phone, alternate_phone')
-    .limit(1);
-
-  const { data, error } =
-    column === 'email'
-      ? await query.eq(column, normalizedValue.toLowerCase()).maybeSingle()
-      : column === 'employee_id'
-        ? await query.ilike(column, normalizedValue).maybeSingle()
-        : await query.eq(column, normalizedValue).maybeSingle();
-
-  if (error) {
-    throw new Error(error.message || `Failed to verify duplicate ${column}`);
-  }
-
-  return data || null;
-}
-
-async function findExistingEmployeeByAnyPhone(value) {
-  const normalizedValue = cleanText(value);
-  if (!normalizedValue) return null;
-
-  for (const column of ['phone', 'mobile_phone', 'alternate_phone']) {
-    const existing = await findExistingEmployeeByField(column, normalizedValue);
-    if (existing) {
-      return existing;
-    }
-  }
-
-  return null;
-}
-
-async function assertPublicEmployeeSubmissionIsUnique({ employeeId, email, phone, mobile }) {
-  const existingEmployeeId = await findExistingEmployeeByField('employee_id', employeeId);
-  if (existingEmployeeId) {
-    throw new IntakeFormError({
-      message: 'Please fix the highlighted fields and try again.',
-      fieldErrors: {
-        employeeId: 'This employee ID is already registered.',
-      },
-      sectionErrors: {
-        accountAccess: 'Some account details need attention.',
-      },
-      details: ['This employee ID is already registered.'],
-      status: 409,
-    });
-  }
-
-  const existingEmail = await findExistingEmployeeByField('email', email);
-  if (existingEmail) {
-    throw new IntakeFormError({
-      message: 'Please fix the highlighted fields and try again.',
-      fieldErrors: {
-        email: 'This work email is already registered.',
-      },
-      sectionErrors: {
-        accountAccess: 'Some account details need attention.',
-      },
-      details: ['This work email is already registered.'],
-      status: 409,
-    });
-  }
-
-  const phoneCandidates = [...new Set([cleanText(phone), cleanText(mobile)].filter(Boolean))];
-  for (const phoneValue of phoneCandidates) {
-    const existingPhone = await findExistingEmployeeByAnyPhone(phoneValue);
-    if (existingPhone) {
-      throw new IntakeFormError({
-        message: 'Please fix the highlighted fields and try again.',
-        fieldErrors: {
-          phone: 'This phone number is already registered.',
-          mobile: 'This phone number is already registered.',
-        },
-        sectionErrors: {
-          accountAccess: 'Some account details need attention.',
-        },
-        details: ['This phone number is already registered.'],
-        status: 409,
-      });
-    }
-  }
-}
-
 function pickRelationRecord(value) {
   if (Array.isArray(value)) {
     return value[0] || null;
@@ -1243,16 +1110,6 @@ export async function GET(request) {
     const id = searchParams.get('id');
     const includeMeta = searchParams.get('includeMeta') === '1';
     const taskManagerOnly = searchParams.get('taskManagerOnly') === '1';
-    const isPublic = isPublicEmployeeIntakeRequest(request);
-
-    if (isPublic) {
-      if (!includeMeta || id || taskManagerOnly) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-
-      const meta = await fetchPublicEmployeeFormMeta();
-      return NextResponse.json(meta, { status: 200 });
-    }
 
     const auth = await requireHrAdminAccess();
     if (auth.error) {
@@ -1349,12 +1206,12 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const auth = await requireEmployeeFormAccess(request);
+    const auth = await requireEmployeeFormAccess();
     if (auth.error) {
       return auth.error;
     }
 
-    const { authContext, isPublic } = auth;
+    const { authContext } = auth;
     const formData = await request.formData();
 
     const employeeId = cleanText(formData.get('employeeId'));
@@ -1366,8 +1223,6 @@ export async function POST(request) {
     const workingDays = normalizeWorkingDays(formData.get('workingDays'));
     const educationEntries = parseJsonArray(formData.get('educationEntries'));
     const certificationEntries = parseJsonArray(formData.get('certificationEntries'));
-    const phone = cleanText(formData.get('phone'));
-    const mobilePhone = cleanText(formData.get('mobile'));
 
     if (!employeeId || !name || !email || !password || !departmentName || !designationTitle) {
       const fieldErrors = {};
@@ -1390,15 +1245,6 @@ export async function POST(request) {
           status: 400,
         })
       );
-    }
-
-    if (isPublic) {
-      await assertPublicEmployeeSubmissionIsUnique({
-        employeeId,
-        email,
-        phone,
-        mobile: mobilePhone,
-      });
     }
 
     const reportingSuperAdminSupported = await supportsReportingSuperAdminColumn();
