@@ -7,6 +7,41 @@ import EmployeePageHeader from '../ui/EmployeePageHeader';
 import { useHrmFeedback } from '../ui/HrmFeedback';
 import HrmEmptyState from '../ui/HrmEmptyState';
 
+const PROFILE_PICTURE_MAX_SIZE_BYTES = 4 * 1024 * 1024;
+
+function extractPlainErrorText(rawText: string) {
+  const normalized = String(rawText || '').trim();
+  if (!normalized) return '';
+  if (normalized.startsWith('<!DOCTYPE') || normalized.startsWith('<html')) {
+    return '';
+  }
+  return normalized;
+}
+
+async function parseApiResponse(response: Response) {
+  const rawText = await response.text();
+  const contentType = response.headers.get('content-type') || '';
+  const plainText = extractPlainErrorText(rawText);
+
+  if (!rawText) {
+    return { data: null as Record<string, unknown> | null, plainText: '' };
+  }
+
+  if (contentType.includes('application/json')) {
+    try {
+      return { data: JSON.parse(rawText) as Record<string, unknown>, plainText };
+    } catch {
+      return { data: null, plainText };
+    }
+  }
+
+  try {
+    return { data: JSON.parse(rawText) as Record<string, unknown>, plainText };
+  } catch {
+    return { data: null, plainText };
+  }
+}
+
 function InfoRow({
   label,
   value,
@@ -146,6 +181,24 @@ export default function Profile({
 
     if (!file) return;
 
+    if (!String(file.type || '').startsWith('image/')) {
+      showFeedback({
+        type: 'error',
+        title: 'Profile picture not updated',
+        message: 'Please upload a valid image file.',
+      });
+      return;
+    }
+
+    if (file.size > PROFILE_PICTURE_MAX_SIZE_BYTES) {
+      showFeedback({
+        type: 'error',
+        title: 'Profile picture not updated',
+        message: 'Profile picture must be 4 MB or smaller.',
+      });
+      return;
+    }
+
     try {
       setAvatarUploading(true);
       const formData = new FormData();
@@ -155,10 +208,14 @@ export default function Profile({
         method: 'POST',
         body: formData,
       });
-      const result = await response.json();
+      const { data: result, plainText } = await parseApiResponse(response);
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to update profile picture');
+        throw new Error(
+          (typeof result?.error === 'string' && result.error) ||
+          plainText ||
+          'Failed to update profile picture'
+        );
       }
 
       let nextEmployee = employee ? { ...employee, profile_picture_url: result.avatarUrl } : employee;

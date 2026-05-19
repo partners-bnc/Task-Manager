@@ -74,6 +74,39 @@ const BLOOD_GROUP_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 const RELIGION_OPTIONS = ['Hindu', 'Muslim', 'Sikh', 'Christian', 'Buddhist', 'Jain', 'Parsi', 'Other'];
 const MARITAL_STATUS_OPTIONS = ['Single', 'Married', 'Divorced', 'Widowed'];
 
+function extractPlainErrorText(rawText) {
+  const normalized = String(rawText || '').trim();
+  if (!normalized) return '';
+  if (normalized.startsWith('<!DOCTYPE') || normalized.startsWith('<html')) {
+    return '';
+  }
+  return normalized;
+}
+
+async function parseApiResponse(response) {
+  const rawText = await response.text();
+  const contentType = response.headers.get('content-type') || '';
+  const plainText = extractPlainErrorText(rawText);
+
+  if (!rawText) {
+    return { data: null, plainText: '' };
+  }
+
+  if (contentType.includes('application/json')) {
+    try {
+      return { data: JSON.parse(rawText), plainText };
+    } catch {
+      return { data: null, plainText };
+    }
+  }
+
+  try {
+    return { data: JSON.parse(rawText), plainText };
+  } catch {
+    return { data: null, plainText };
+  }
+}
+
 function inputClass(multiline = false, readOnly = false) {
   return `w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm text-slate-900 outline-none transition ${readOnly ? 'bg-slate-100 text-slate-600' : 'bg-white'} ${multiline ? 'min-h-[120px] resize-y' : ''}`;
 }
@@ -358,12 +391,7 @@ export default function OnboardingFormClient({ token }) {
     setModal({ type, title, text });
   }
 
-  async function submitForm(action) {
-    setSaving(true);
-    setError('');
-    setMessage('');
-
-    try {
+  function buildPayload(action, uploadTargets = []) {
       const payload = new FormData();
       payload.set('action', action);
       Object.entries(form).forEach(([key, value]) => {
@@ -373,13 +401,15 @@ export default function OnboardingFormClient({ token }) {
           payload.set(key, value || '');
         }
       });
-      if (profilePicture) {
+      const targetSet = new Set(uploadTargets);
+
+      if (profilePicture && targetSet.has('profilePicture')) {
         payload.append('profilePicture', profilePicture);
       }
 
       const educationPayload = educationEntries.map((entry, index) => {
         const fileKey = `education_file_${index}`;
-        if (entry.file) {
+        if (entry.file && targetSet.has(fileKey)) {
           payload.append(fileKey, entry.file);
         }
         return {
@@ -397,7 +427,7 @@ export default function OnboardingFormClient({ token }) {
 
       const certificationPayload = certificationEntries.map((entry, index) => {
         const fileKey = `certification_file_${index}`;
-        if (entry.file) {
+        if (entry.file && targetSet.has(fileKey)) {
           payload.append(fileKey, entry.file);
         }
         return {
@@ -411,19 +441,92 @@ export default function OnboardingFormClient({ token }) {
       payload.set('certificationEntries', JSON.stringify(certificationPayload));
 
       Object.entries(documents).forEach(([key, value]) => {
-        if (value.file) {
+        if (value.file && targetSet.has(`document_${key}`)) {
           payload.append(`document_${key}`, value.file);
         }
       });
 
-      const response = await fetch(`/api/onboarding/${token}`, {
-        method: 'POST',
-        body: payload,
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result?.error || 'Failed to save onboarding form');
+      return payload;
+  }
+
+  function getPendingUploadTargets() {
+    const targets = [];
+
+    if (profilePicture) {
+      targets.push('profilePicture');
+    }
+
+    educationEntries.forEach((entry, index) => {
+      if (entry.file) {
+        targets.push(`education_file_${index}`);
       }
+    });
+
+    certificationEntries.forEach((entry, index) => {
+      if (entry.file) {
+        targets.push(`certification_file_${index}`);
+      }
+    });
+
+    Object.entries(documents).forEach(([key, value]) => {
+      if (value.file) {
+        targets.push(`document_${key}`);
+      }
+    });
+
+    return targets;
+  }
+
+  async function sendOnboardingRequest(action, uploadTargets = []) {
+    const response = await fetch(`/api/onboarding/${token}`, {
+      method: 'POST',
+      body: buildPayload(action, uploadTargets),
+    });
+    const { data: result, plainText } = await parseApiResponse(response);
+
+    if (!response.ok) {
+      throw new Error(
+        (typeof result?.error === 'string' && result.error) ||
+        plainText ||
+        'Failed to save onboarding form'
+      );
+    }
+
+    return result;
+  }
+
+  async function uploadPendingFilesInChunks() {
+    const pendingTargets = getPendingUploadTargets();
+    if (!pendingTargets.length) {
+      return null;
+    }
+
+    let latestResult = null;
+    for (const target of pendingTargets) {
+      latestResult = await sendOnboardingRequest('save_draft', [target]);
+    }
+
+    return latestResult;
+  }
+
+  async function submitForm(action) {
+    setSaving(true);
+    setError('');
+    setMessage('');
+
+    try {
+      const stagedUploadResult = await uploadPendingFilesInChunks();
+      if (stagedUploadResult && action === 'save_draft') {
+        hydrateFromBundle(stagedUploadResult);
+        setMessage(stagedUploadResult?.message || 'Draft saved successfully.');
+        return;
+      }
+
+      if (stagedUploadResult && action === 'submit') {
+        hydrateFromBundle(stagedUploadResult);
+      }
+
+      const result = await sendOnboardingRequest(action, []);
 
       setMessage(result?.message || (action === 'submit' ? 'Submitted successfully.' : 'Draft saved successfully.'));
       if (action === 'submit') {

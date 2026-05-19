@@ -3,7 +3,7 @@ import { adminClient } from '@/utils/supabase/admin';
 import { getActor } from '@/utils/api-helpers';
 
 const AVATAR_BUCKET = 'employee-avatars';
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const MAX_AVATAR_BYTES = 4 * 1024 * 1024;
 
 function getFileExtension(fileName = '') {
   const parts = String(fileName).split('.');
@@ -71,7 +71,7 @@ export async function POST(request) {
     }
 
     if (avatar.size > MAX_AVATAR_BYTES) {
-      return NextResponse.json({ error: 'Avatar must be 5MB or smaller' }, { status: 400 });
+      return NextResponse.json({ error: 'Avatar must be 4 MB or smaller' }, { status: 400 });
     }
 
     const ext = getFileExtension(avatar.name);
