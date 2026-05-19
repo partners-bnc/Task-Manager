@@ -9,7 +9,7 @@ const EMAIL_NOTIFICATIONS_ENABLED = (Deno.env.get('EMAIL_NOTIFICATIONS_ENABLED')
 
 type OutboxRow = {
   id: string;
-  event_type: 'employee_created' | 'task_assigned' | 'task_due' | 'task_repeat_assigned';
+  event_type: 'employee_created' | 'task_assigned' | 'task_due' | 'task_repeat_assigned' | 'onboarding_invite';
   recipient_email: string;
   payload: Record<string, unknown>;
 };
@@ -40,6 +40,18 @@ function buildTaskUrl(taskId: string | null): string {
 }
 
 function renderEmail(row: OutboxRow) {
+  if (row.event_type === 'onboarding_invite') {
+    const candidateName = String(row.payload?.candidate_name ?? 'Candidate');
+    const onboardingLink = String(row.payload?.onboarding_link ?? '');
+    const expiresAt = String(row.payload?.expires_at ?? '');
+    const expiryCopy = expiresAt ? new Date(expiresAt).toLocaleString('en-IN') : '';
+    return {
+      subject: 'Complete your onboarding form',
+      text: `Hi ${candidateName},\nPlease complete your onboarding form using this secure link:\n${onboardingLink}\n${expiryCopy ? `This link expires on ${expiryCopy}.\n` : ''}You can submit the form only once.`,
+      html: `<p>Hi ${candidateName},</p><p>Please complete your onboarding form using this secure link:</p><p><a href="${onboardingLink}">${onboardingLink}</a></p><p>${expiryCopy ? `This link expires on <strong>${expiryCopy}</strong>. ` : ''}You can submit the form only once.</p>`,
+    };
+  }
+
   if (row.event_type === 'employee_created') {
     const employeeName = String(row.payload?.employee_name ?? 'Employee');
     const username = String(row.payload?.username ?? '');

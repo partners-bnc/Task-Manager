@@ -1,6 +1,7 @@
 'use client';
 
 import React, { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import {
   EMPLOYEE_TYPE_OPTIONS,
 } from '@/utils/hrm-employment';
@@ -37,6 +38,11 @@ type CertificationEntry = {
 };
 
 type DocumentState = Record<string, File | null>;
+type ExistingUploadState = Record<string, {
+  fileName: string;
+  fileUrl: string;
+  filePath: string;
+} | null>;
 type ErrorMap = Record<string, string>;
 type SectionErrorMap = Record<string, string>;
 
@@ -82,9 +88,8 @@ type FormState = {
   probationPeriodDays: string;
   noticePeriodDays: string;
   referredBy: string;
-  currentCompanyExperience: string;
+  experienceCompanyName: string;
   salary: string;
-  previousExperience: string;
   totalExperience: string;
   department: string;
   division: string;
@@ -199,9 +204,8 @@ const defaultFormState: FormState = {
   probationPeriodDays: String(DEFAULT_PROBATION_PERIOD_DAYS),
   noticePeriodDays: '',
   referredBy: '',
-  currentCompanyExperience: '',
+  experienceCompanyName: '',
   salary: '',
-  previousExperience: '',
   totalExperience: '',
   department: '',
   division: '',
@@ -320,6 +324,8 @@ function CompactUploadField({
   title,
   helperText,
   file,
+  existingFileName,
+  existingFileUrl,
   error,
   onChange,
 }: {
@@ -329,10 +335,14 @@ function CompactUploadField({
   title: string;
   helperText: string;
   file: File | null;
+  existingFileName?: string;
+  existingFileUrl?: string;
   error?: string;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 }) {
-  const hasFile = Boolean(file);
+  const hasFile = Boolean(file || existingFileName);
+  const displayName = file?.name || existingFileName || title;
+  const isPrefilledOnly = !file && !!existingFileName;
 
   return (
     <label htmlFor={id} className={compactUploadCardClassName(!!error, hasFile)}>
@@ -340,9 +350,25 @@ function CompactUploadField({
         <UploadArrowIcon />
       </span>
       <span className="text-sm font-semibold text-slate-900">
-        {hasFile ? file?.name : title}
+        {displayName}
       </span>
+      {isPrefilledOnly ? (
+        <span className="mt-2 text-xs font-medium text-emerald-700">
+          Uploaded in onboarding{existingFileUrl ? ' • click to replace' : ''}
+        </span>
+      ) : null}
       <span className="mt-2 text-xs text-slate-500">{helperText}</span>
+      {isPrefilledOnly && existingFileUrl ? (
+        <a
+          href={existingFileUrl}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          className="mt-3 text-xs font-semibold text-slate-700 underline underline-offset-2 hover:text-slate-900"
+        >
+          View uploaded file
+        </a>
+      ) : null}
       <input
         id={id}
         name={name}
@@ -513,6 +539,9 @@ type AddEmployeeProps = {
   submitUrl?: string;
   publicMode?: boolean;
   embedded?: boolean;
+  onboardingRequestId?: string | null;
+  onConvertedOnboarding?: () => void;
+  cancelTab?: string;
 };
 
 export default function AddEmployee({
@@ -521,6 +550,9 @@ export default function AddEmployee({
   submitUrl = '/HRM/api/employees',
   publicMode = false,
   embedded = false,
+  onboardingRequestId = null,
+  onConvertedOnboarding,
+  cancelTab = 'admin-employee-list',
 }: AddEmployeeProps) {
   const { showFeedback } = useHrmFeedback();
   const [form, setForm] = useState<FormState>(defaultFormState);
@@ -536,6 +568,18 @@ export default function AddEmployee({
     experience_letter: null,
     salary_slip: null,
   });
+  const [existingDocuments, setExistingDocuments] = useState<ExistingUploadState>({
+    aadhaar_card: null,
+    pan_card: null,
+    passport: null,
+    appointment_letter: null,
+    experience_letter: null,
+    salary_slip: null,
+  });
+  const [existingProfilePicture, setExistingProfilePicture] = useState<null | {
+    fileName: string;
+    fileUrl: string;
+  }>(null);
   const [departments, setDepartments] = useState<Option[]>([]);
   const [designations, setDesignations] = useState<Option[]>([]);
   const [employees, setEmployees] = useState<Option[]>([]);
@@ -545,6 +589,13 @@ export default function AddEmployee({
   const [fieldErrors, setFieldErrors] = useState<ErrorMap>({});
   const [uploadErrors, setUploadErrors] = useState<ErrorMap>({});
   const [sectionErrors, setSectionErrors] = useState<SectionErrorMap>({});
+  const [onboardingSummary, setOnboardingSummary] = useState<null | {
+    requestId: string;
+    candidateName: string;
+    educationCount: number;
+    certificationCount: number;
+    documentCount: number;
+  }>(null);
 
   useEffect(() => {
     let active = true;
@@ -600,6 +651,106 @@ export default function AddEmployee({
       active = false;
     };
   }, [metaUrl, showFeedback]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadOnboardingPrefill() {
+      if (!onboardingRequestId) {
+        setOnboardingSummary(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/HRM/api/admin/onboarding/${onboardingRequestId}/prefill`);
+        const { data: result, plainText } = await parseApiResponse(response);
+
+        if (!response.ok) {
+          throw new Error((typeof result?.error === 'string' && result.error) || plainText || 'Failed to load onboarding prefill');
+        }
+
+        if (!active) return;
+
+        const rawFormPatch = (result?.form as Record<string, string>) || {};
+        const {
+          onboardingProfilePictureUrl = '',
+          onboardingProfilePictureName = '',
+          ...nextFormPatch
+        } = rawFormPatch;
+        setForm((current) => ({ ...current, ...(nextFormPatch as Partial<FormState>) }));
+        setExistingProfilePicture(
+          onboardingProfilePictureUrl
+            ? {
+                fileName: onboardingProfilePictureName || 'Uploaded onboarding photo',
+                fileUrl: onboardingProfilePictureUrl,
+              }
+            : null
+        );
+
+        const prefilledEducation = Array.isArray(result?.educationEntries) ? result.educationEntries as Array<Record<string, string>> : [];
+        if (prefilledEducation.length) {
+          const mergedEducation = defaultEducation().map((entry) => {
+            const matching = prefilledEducation.find((item) => item.educationLevel === entry.educationLevel);
+            return matching ? { ...entry, ...matching, file: null } : entry;
+          });
+          setEducationEntries(mergedEducation);
+        }
+
+        const prefilledCertifications = Array.isArray(result?.certificationEntries)
+          ? (result.certificationEntries as Array<Record<string, string>>).map((entry) => ({
+              id: crypto.randomUUID(),
+              certificationName: entry.certificationName || '',
+              issuer: entry.issuer || '',
+              issuedYear: entry.issuedYear || '',
+              file: null,
+            }))
+          : [];
+        setCertificationEntries(prefilledCertifications);
+
+        const prefilledDocuments = Array.isArray(result?.documents) ? result.documents as Array<Record<string, string>> : [];
+        const nextExistingDocuments = DOCUMENT_TYPES.reduce<ExistingUploadState>((accumulator, document) => {
+          const match = prefilledDocuments.find((entry) => entry?.key === document.key);
+          accumulator[document.key] = match?.fileName
+            ? {
+                fileName: String(match.fileName || ''),
+                fileUrl: String(match.fileUrl || ''),
+                filePath: String(match.filePath || ''),
+              }
+            : null;
+          return accumulator;
+        }, {
+          aadhaar_card: null,
+          pan_card: null,
+          passport: null,
+          appointment_letter: null,
+          experience_letter: null,
+          salary_slip: null,
+        });
+        setExistingDocuments(nextExistingDocuments);
+
+        const documentCount = Array.isArray(result?.documents)
+          ? result.documents.filter((entry: any) => entry?.filePath || entry?.fileName).length
+          : 0;
+
+        setOnboardingSummary({
+          requestId: String(result?.onboardingRequestId || onboardingRequestId),
+          candidateName: String(nextFormPatch.name || ''),
+          educationCount: prefilledEducation.length,
+          certificationCount: prefilledCertifications.length,
+          documentCount,
+        });
+      } catch (error) {
+        if (!active) return;
+        const message = error instanceof Error ? error.message : 'Failed to load onboarding prefill';
+        showFeedback({ type: 'error', title: 'Prefill Failed', message });
+      }
+    }
+
+    loadOnboardingPrefill();
+    return () => {
+      active = false;
+    };
+  }, [onboardingRequestId, showFeedback]);
 
   const filteredDesignations = useMemo(() => {
     const selectedDepartment = departments.find((department) => department.name === form.department);
@@ -992,6 +1143,7 @@ export default function AddEmployee({
     setFieldErrors({});
     setUploadErrors({});
     setSectionErrors({});
+    setOnboardingSummary(null);
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -1068,6 +1220,10 @@ export default function AddEmployee({
         }
       });
 
+      if (onboardingSummary?.requestId) {
+        payload.set('onboardingRequestId', onboardingSummary.requestId);
+      }
+
       const response = await fetch(submitUrl, {
         method: 'POST',
         body: payload,
@@ -1115,6 +1271,7 @@ export default function AddEmployee({
           : ((typeof result?.message === 'string' && result.message) || 'Employee added successfully.'),
       });
       resetForm();
+      onConvertedOnboarding?.();
     } catch (requestError) {
       const nextError = requestError instanceof Error ? requestError.message : 'We could not save the employee form right now. Please try again or contact HR.';
       applyStructuredErrors({
@@ -1144,7 +1301,7 @@ export default function AddEmployee({
               {setCurrentTab ? (
                 <button
                   type="button"
-                  onClick={() => setCurrentTab('admin-employee-list')}
+                  onClick={() => setCurrentTab(cancelTab)}
                   className="rounded-2xl border border-outline-variant/15 bg-surface px-6 py-3 text-sm font-bold text-on-surface"
                 >
                   Cancel
@@ -1180,7 +1337,7 @@ export default function AddEmployee({
               {setCurrentTab ? (
                 <button
                   type="button"
-                  onClick={() => setCurrentTab('admin-employee-list')}
+                  onClick={() => setCurrentTab(cancelTab)}
                   className="rounded-2xl border border-outline-variant/15 bg-surface px-6 py-3 text-sm font-bold text-on-surface"
                 >
                   Cancel
@@ -1203,6 +1360,16 @@ export default function AddEmployee({
             Loading employee form options...
           </div>
         )}
+
+        {onboardingSummary ? (
+          <div className="rounded-[1.6rem] border border-violet-200 bg-violet-50 px-5 py-4 text-sm text-violet-950">
+            <p className="font-bold">Converting Approved Onboarding</p>
+            <p className="mt-1">
+              Candidate details for <span className="font-semibold">{onboardingSummary.candidateName || 'this request'}</span> are prefilled.
+              Candidate education, certification, and document files from onboarding will be carried into the final employee record on save.
+            </p>
+          </div>
+        ) : null}
 
         <form id="add-employee-form" className="space-y-8" onSubmit={handleSubmit}>
           <Section title="Account & Access" subtitle="Create the login credentials and primary employee access.">
@@ -1238,8 +1405,46 @@ export default function AddEmployee({
               </Field>
               <Field label="Profile Picture" error={uploadErrors.profilePicture}>
                 <div className="space-y-2">
+                  {existingProfilePicture && !form.profilePicture ? (
+                    <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3">
+                      {existingProfilePicture.fileUrl ? (
+                        <Image
+                          src={existingProfilePicture.fileUrl}
+                          alt="Candidate onboarding profile"
+                          width={48}
+                          height={48}
+                          className="h-12 w-12 rounded-2xl object-cover"
+                          unoptimized
+                        />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-xs font-bold text-emerald-700">
+                          IMG
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">{existingProfilePicture.fileName}</p>
+                        <p className="text-xs text-emerald-700">Uploaded in onboarding. Choose a new image only if you want to replace it.</p>
+                      </div>
+                      {existingProfilePicture.fileUrl ? (
+                        <a
+                          href={existingProfilePicture.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs font-semibold text-slate-700 underline underline-offset-2 hover:text-slate-900"
+                        >
+                          View
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <label className={fileButtonClassName(!!uploadErrors.profilePicture)}>
-                    <span>{form.profilePicture ? form.profilePicture.name : 'Choose Profile Image'}</span>
+                    <span>
+                      {form.profilePicture
+                        ? form.profilePicture.name
+                        : existingProfilePicture
+                          ? 'Replace Profile Image'
+                          : 'Choose Profile Image'}
+                    </span>
                     <input className="hidden" name="profilePicture" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={handleInputChange} />
                   </label>
                   <p className="text-xs text-on-surface-variant">Supported formats: JPG, PNG, WebP up to {formatMaxSize(PROFILE_PICTURE_MAX_SIZE_BYTES)}.</p>
@@ -1625,16 +1830,13 @@ export default function AddEmployee({
             </div>
           </Section>
 
-          <Section title="Experience" subtitle="Track current company experience, total prior experience, and overall experience.">
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-              <Field label="Current Company Experience">
-                <input className={inputClassName()} name="currentCompanyExperience" placeholder="e.g. 1 year 8 months" value={form.currentCompanyExperience} onChange={handleInputChange} />
+          <Section title="Experience" subtitle="Capture the experience company name and the employee's total years of experience.">
+            <div className="grid gap-6 md:grid-cols-2">
+              <Field label="Company Name">
+                <input className={inputClassName()} name="experienceCompanyName" placeholder="e.g. ABC Technologies Pvt. Ltd." value={form.experienceCompanyName} onChange={handleInputChange} />
               </Field>
-              <Field label="Previous Experience">
-                <input className={inputClassName()} name="previousExperience" placeholder="e.g. 2 years 4 months" value={form.previousExperience} onChange={handleInputChange} />
-              </Field>
-              <Field label="Total Experience">
-                <input className={inputClassName()} name="totalExperience" placeholder="e.g. 4 years" value={form.totalExperience} onChange={handleInputChange} />
+              <Field label="Total Years Of Experience">
+                <input className={inputClassName()} name="totalExperience" type="number" min="0" step="0.1" placeholder="e.g. 4" value={form.totalExperience} onChange={handleInputChange} />
               </Field>
             </div>
           </Section>
@@ -1703,6 +1905,8 @@ export default function AddEmployee({
                     title="Drop file here or click to browse"
                     helperText={`PDF, JPG, PNG, WebP • Max ${formatMaxSize(EMPLOYEE_FILE_MAX_SIZE_BYTES)}`}
                     file={documents[document.key]}
+                    existingFileName={existingDocuments[document.key]?.fileName || ''}
+                    existingFileUrl={existingDocuments[document.key]?.fileUrl || ''}
                     error={uploadErrors[`document_${document.key}`]}
                     onChange={(event) => handleDocumentChange(document.key, event.target.files?.[0] || null)}
                   />
@@ -1715,7 +1919,7 @@ export default function AddEmployee({
             {setCurrentTab ? (
               <button
                 type="button"
-                onClick={() => setCurrentTab('admin-employee-list')}
+                onClick={() => setCurrentTab(cancelTab)}
                 className="rounded-2xl border border-outline-variant/15 bg-surface px-6 py-3 text-sm font-bold text-on-surface"
               >
                 Cancel

@@ -6,6 +6,12 @@ import { ensureEmployeeAuthUser } from '@/utils/employee-auth';
 import { adminClient } from '@/utils/supabase/admin';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import {
+  fetchOnboardingBundleById,
+  logOnboardingEvent,
+  ONBOARDING_FILES_BUCKET,
+  ONBOARDING_STATUSES,
+} from '@/utils/onboarding';
+import {
   deriveEmploymentFields,
   normalizeEmployeeType,
 } from '@/utils/hrm-employment';
@@ -22,14 +28,7 @@ const PROFILE_PICTURE_ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const PROFILE_PICTURE_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const EMPLOYEE_FILE_ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'pdf'];
 const EMPLOYEE_FILE_ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
-const DOCUMENT_TYPES = [
-  'aadhaar_card',
-  'pan_card',
-  'passport',
-  'appointment_letter',
-  'experience_letter',
-  'salary_slip',
-];
+const DOCUMENT_TYPES = ['aadhaar_card', 'pan_card', 'passport', 'appointment_letter', 'experience_letter', 'salary_slip'];
 
 const hrmEmployeeColumnSupportPromises = new Map();
 
@@ -489,6 +488,82 @@ async function removeEmployeeFiles(filePaths = []) {
   if (!normalizedPaths.length) return;
 
   await adminClient.storage.from(EMPLOYEE_FILES_BUCKET).remove(normalizedPaths);
+}
+
+async function promoteOnboardingFileToEmployeeStorage(sourcePath, employeeId, folder) {
+  const normalizedSourcePath = cleanText(sourcePath);
+  if (!normalizedSourcePath) return null;
+
+  await ensureEmployeeFilesBucket();
+
+  const fileExt = getFileExtension(normalizedSourcePath) || 'bin';
+  const sanitizedFolder = String(folder || 'misc').replace(/[^a-z0-9/_-]+/gi, '-');
+  const safeEmployeeId = sanitizeStorageSegment(employeeId, 'employee');
+  const targetPath = `${safeEmployeeId}/${sanitizedFolder}/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+
+  const { data: sourceFile, error: downloadError } = await adminClient.storage
+    .from(ONBOARDING_FILES_BUCKET)
+    .download(normalizedSourcePath);
+
+  if (downloadError || !sourceFile) {
+    throw new Error(downloadError?.message || 'Failed to download onboarding file for employee conversion');
+  }
+
+  const bytes = await sourceFile.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const contentType = sourceFile.type || 'application/octet-stream';
+
+  const { error: uploadError } = await adminClient.storage
+    .from(EMPLOYEE_FILES_BUCKET)
+    .upload(targetPath, buffer, {
+      contentType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || 'Failed to promote onboarding file into employee storage');
+  }
+
+  const { data } = adminClient.storage.from(EMPLOYEE_FILES_BUCKET).getPublicUrl(targetPath);
+  return {
+    file_path: targetPath,
+    file_url: data?.publicUrl || '',
+  };
+}
+
+async function promoteOnboardingProfilePictureToEmployeeAvatar(sourcePath, employeeId) {
+  const normalizedSourcePath = cleanText(sourcePath);
+  if (!normalizedSourcePath) return null;
+
+  const fileExt = getFileExtension(normalizedSourcePath) || 'jpg';
+  const safeEmployeeId = sanitizeStorageSegment(employeeId, 'employee');
+  const fileName = `${safeEmployeeId}-${Date.now()}-onboarding.${fileExt}`;
+
+  const { data: sourceFile, error: downloadError } = await adminClient.storage
+    .from(ONBOARDING_FILES_BUCKET)
+    .download(normalizedSourcePath);
+
+  if (downloadError || !sourceFile) {
+    throw new Error(downloadError?.message || 'Failed to download onboarding profile picture for employee conversion');
+  }
+
+  const bytes = await sourceFile.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const contentType = sourceFile.type || 'application/octet-stream';
+
+  const { error: uploadError } = await adminClient.storage
+    .from('employee-avatars')
+    .upload(fileName, buffer, {
+      contentType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || 'Failed to promote onboarding profile picture into employee avatars');
+  }
+
+  const { data } = adminClient.storage.from('employee-avatars').getPublicUrl(fileName);
+  return data?.publicUrl || null;
 }
 
 async function ensureEmployeeFilesBucket() {
@@ -1223,6 +1298,9 @@ export async function POST(request) {
     const workingDays = normalizeWorkingDays(formData.get('workingDays'));
     const educationEntries = parseJsonArray(formData.get('educationEntries'));
     const certificationEntries = parseJsonArray(formData.get('certificationEntries'));
+    const phone = cleanText(formData.get('phone'));
+    const mobilePhone = cleanText(formData.get('mobile'));
+    const onboardingRequestId = cleanText(formData.get('onboardingRequestId'));
 
     if (!employeeId || !name || !email || !password || !departmentName || !designationTitle) {
       const fieldErrors = {};
@@ -1271,7 +1349,13 @@ export async function POST(request) {
     const taskManagerEnabled = parseBoolean(formData.get('taskManagerAccess'));
     const providedPassword = password || generateTempPassword();
     const passwordHash = await bcrypt.hash(providedPassword, 10);
-    const profilePictureUrl = await uploadProfilePicture(formData.get('profilePicture'), employeeId);
+    let profilePictureUrl = await uploadProfilePicture(formData.get('profilePicture'), employeeId);
+    if (!profilePictureUrl && onboardingBundle?.request?.profile_picture_path) {
+      profilePictureUrl = await promoteOnboardingProfilePictureToEmployeeAvatar(
+        onboardingBundle.request.profile_picture_path,
+        employeeId
+      );
+    }
     const aadhaarNumber = cleanText(formData.get('aadhaarNumber'));
     const panNumber = cleanText(formData.get('panNumber'))?.toUpperCase() || null;
 
@@ -1334,8 +1418,7 @@ export async function POST(request) {
       employee_status: employmentColumns.employee_status,
       probation_period_days: DEFAULT_PROBATION_PERIOD_DAYS,
       notice_period_days: parseIntegerValue(formData.get('noticePeriodDays')),
-      current_company_experience: cleanText(formData.get('currentCompanyExperience')),
-      previous_experience: cleanText(formData.get('previousExperience')),
+      experience_company_name: cleanText(formData.get('experienceCompanyName')),
       total_experience: cleanText(formData.get('totalExperience')),
       referred_by: cleanText(formData.get('referredBy')),
       department_id: departmentId,
@@ -1391,6 +1474,8 @@ export async function POST(request) {
       );
     }
 
+    let promotedEmployeeFilePaths = [];
+
     try {
       const authUserId = await ensureEmployeeAuthUser(employeeRow, providedPassword);
 
@@ -1421,7 +1506,7 @@ export async function POST(request) {
         if (!level) continue;
 
         const file = formData.get(entry?.fileKey || '');
-        const uploaded = await uploadEmployeeFile(
+        let uploaded = await uploadEmployeeFile(
           file,
           employeeId,
           `education/${level}`,
@@ -1429,6 +1514,15 @@ export async function POST(request) {
           `${level.replace(/_/g, ' ')} education file`,
           'education'
         );
+        if (!uploaded && onboardingBundle?.education?.[educationRows.length]?.degree_file_path) {
+          const promoted = await promoteOnboardingFileToEmployeeStorage(
+            onboardingBundle.education[educationRows.length].degree_file_path,
+            employeeId,
+            `education/${level}`
+          );
+          if (promoted?.file_path) promotedEmployeeFilePaths.push(promoted.file_path);
+          uploaded = promoted;
+        }
         educationRows.push({
           education_level: level,
           institution_name: cleanText(entry?.institutionName),
@@ -1448,7 +1542,7 @@ export async function POST(request) {
         if (!certificationName) continue;
 
         const file = formData.get(entry?.fileKey || '');
-        const uploaded = await uploadEmployeeFile(
+        let uploaded = await uploadEmployeeFile(
           file,
           employeeId,
           'certifications',
@@ -1456,6 +1550,15 @@ export async function POST(request) {
           `${certificationName} certificate`,
           'certifications'
         );
+        if (!uploaded && onboardingBundle?.certifications?.[certificationRows.length]?.certificate_file_path) {
+          const promoted = await promoteOnboardingFileToEmployeeStorage(
+            onboardingBundle.certifications[certificationRows.length].certificate_file_path,
+            employeeId,
+            'certifications'
+          );
+          if (promoted?.file_path) promotedEmployeeFilePaths.push(promoted.file_path);
+          uploaded = promoted;
+        }
         certificationRows.push({
           certification_name: certificationName,
           issuer: cleanText(entry?.issuer),
@@ -1473,7 +1576,7 @@ export async function POST(request) {
           .split('_')
           .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
           .join(' ');
-        const uploaded = await uploadEmployeeFile(
+        let uploaded = await uploadEmployeeFile(
           file,
           employeeId,
           `documents/${documentType}`,
@@ -1481,6 +1584,20 @@ export async function POST(request) {
           documentLabel,
           'documents'
         );
+        const onboardingDocument = onboardingBundle?.documents?.find((entry) => entry.document_type === documentType);
+        if (!uploaded && onboardingDocument?.file_path) {
+          const promoted = await promoteOnboardingFileToEmployeeStorage(
+            onboardingDocument.file_path,
+            employeeId,
+            `documents/${documentType}`
+          );
+          if (promoted?.file_path) promotedEmployeeFilePaths.push(promoted.file_path);
+          uploaded = {
+            ...promoted,
+            file_name: onboardingDocument.file_name,
+            file_size: onboardingDocument.file_size,
+          };
+        }
         if (uploaded) {
           documentRows.push({
             document_type: documentType,
@@ -1489,6 +1606,28 @@ export async function POST(request) {
         }
       }
       await replaceEmployeeDocuments(employeeRow.id, documentRows);
+
+      if (onboardingBundle?.request?.id) {
+        await adminClient
+          .from('hrm_onboarding_requests')
+          .update({
+            status: ONBOARDING_STATUSES.converted,
+            converted_employee_id: employeeRow.id,
+            archived_at: new Date().toISOString(),
+          })
+          .eq('id', onboardingBundle.request.id);
+
+        await logOnboardingEvent({
+          onboardingRequestId: onboardingBundle.request.id,
+          action: 'converted',
+          actorProfileId: authContext?.userId || null,
+          note: `Converted into employee ${employeeId}.`,
+          metadata: {
+            employeeId: employeeRow.id,
+            employeeCode: employeeId,
+          },
+        });
+      }
 
       await upsertModuleAccess(employeeRow.id, {
         task_manager: taskManagerEnabled,
@@ -1516,11 +1655,9 @@ export async function POST(request) {
 
       return NextResponse.json(
         {
-          message: isPublic
-            ? 'Employee information submitted successfully.'
-            : EMAIL_NOTIFICATIONS_ENABLED
-              ? 'Employee added successfully. Credentials email has been queued.'
-              : 'Employee added successfully. Credentials email is currently paused.',
+          message: EMAIL_NOTIFICATIONS_ENABLED
+            ? 'Employee added successfully. Credentials email has been queued.'
+            : 'Employee added successfully. Credentials email is currently paused.',
           employee: { ...employeeRow, auth_user_id: authUserId },
         },
         { status: 201 }
@@ -1535,6 +1672,21 @@ export async function POST(request) {
 
       if (profilePictureUrl) {
         await removeProfilePicture(profilePictureUrl);
+      }
+
+      if (promotedEmployeeFilePaths.length) {
+        await removeEmployeeFiles(promotedEmployeeFilePaths);
+      }
+
+      if (onboardingBundle?.request?.id) {
+        await adminClient
+          .from('hrm_onboarding_requests')
+          .update({
+            status: ONBOARDING_STATUSES.approved,
+            converted_employee_id: null,
+            archived_at: null,
+          })
+          .eq('id', onboardingBundle.request.id);
       }
 
       return buildFriendlyErrorResponse(error);
@@ -1727,8 +1879,7 @@ export async function PATCH(request) {
       ['separationReasonCode', 'separation_reason_code', cleanText],
       ['accessDisabledAt', 'access_disabled_at', cleanText],
       ['referredBy', 'referred_by', cleanText],
-      ['currentCompanyExperience', 'current_company_experience', cleanText],
-      ['previousExperience', 'previous_experience', cleanText],
+      ['experienceCompanyName', 'experience_company_name', cleanText],
       ['totalExperience', 'total_experience', cleanText],
       ['division', 'division', cleanText],
       ['company', 'company', cleanText],
@@ -1778,6 +1929,29 @@ export async function PATCH(request) {
         },
         { status: 400 }
       );
+    }
+
+    const onboardingBundle = onboardingRequestId ? await fetchOnboardingBundleById(onboardingRequestId) : null;
+    if (onboardingRequestId) {
+      if (!onboardingBundle?.request) {
+        return buildFriendlyErrorResponse(
+          new IntakeFormError({
+            message: 'The onboarding request could not be found.',
+            details: ['The onboarding request could not be found.'],
+            status: 404,
+          })
+        );
+      }
+
+      if (onboardingBundle.request.status !== ONBOARDING_STATUSES.approved) {
+        return buildFriendlyErrorResponse(
+          new IntakeFormError({
+            message: 'Only approved onboarding requests can be converted into employees.',
+            details: ['Only approved onboarding requests can be converted into employees.'],
+            status: 400,
+          })
+        );
+      }
     }
 
     if (

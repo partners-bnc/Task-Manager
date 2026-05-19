@@ -84,9 +84,8 @@ const defaultForm = {
   separationReason: '',
   accessDisabledAt: '',
   referredBy: '',
-  currentCompanyExperience: '',
+  experienceCompanyName: '',
   salary: '',
-  previousExperience: '',
   totalExperience: '',
   department: '',
   division: '',
@@ -350,9 +349,8 @@ function normalizeEmployeeToForm(employee: any) {
     separationReason: employee?.separation_reason || employee?.termination_reason || '',
     accessDisabledAt: toInputDate(employee?.access_disabled_at),
     referredBy: employee?.referred_by || '',
-    currentCompanyExperience: employee?.current_company_experience || '',
+    experienceCompanyName: employee?.experience_company_name || '',
     salary: employee?.salary !== undefined && employee?.salary !== null ? String(employee.salary) : '',
-    previousExperience: employee?.previous_experience || '',
     totalExperience: employee?.total_experience || '',
     department: employee?.department?.name || employee?.resolved_department_name || '',
     division: employee?.division || '',
@@ -1180,13 +1178,10 @@ export default function DetailedEmployeeProfile({
           <Field label="Referred By">
             <input name="referredBy" value={form.referredBy} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
           </Field>
-          <Field label="Company Experience">
-            <input name="currentCompanyExperience" value={form.currentCompanyExperience} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
+          <Field label="Experience Company Name">
+            <input name="experienceCompanyName" value={form.experienceCompanyName} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
           </Field>
-          <Field label="Previous Experience">
-            <input name="previousExperience" value={form.previousExperience} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="Total Experience">
+          <Field label="Total Years Of Experience">
             <input name="totalExperience" value={form.totalExperience} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
           </Field>
           <Field label="Working Schedule">

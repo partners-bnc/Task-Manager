@@ -13,6 +13,7 @@ import RegularizationInbox from './views/admin/RegularizationInbox';
 import HolidayManager from './views/admin/HolidayManager';
 import LeaveManagement from './views/admin/LeaveManagement';
 import EmployeeDirectoryWorkspace from './views/admin/EmployeeDirectoryWorkspace';
+import EmployeeOnboarding from './views/admin/EmployeeOnboarding';
 import OrganizationChart from './views/admin/OrganizationChart';
 import ModuleAccessManager from './views/admin/ModuleAccessManager';
 import AdminAttendance from './views/admin/AdminAttendance';
@@ -27,6 +28,7 @@ export default function AdminApp() {
   const normalizedRequestedTab = requestedTab || 'admin-dashboard';
   const [currentTab, setCurrentTab] = useState(normalizedRequestedTab);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [pendingOnboardingRequestId, setPendingOnboardingRequestId] = useState<string | null>(null);
   const [admin, setAdmin] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
@@ -97,10 +99,22 @@ export default function AdminApp() {
     'admin-analytics': <EmployeeAnalytics />,
     'admin-employee-list': (
       <EmployeeDirectoryWorkspace
-        currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         selectedEmployeeId={selectedEmployeeId}
         setSelectedEmployeeId={setSelectedEmployeeId}
+        setOnboardingRequestId={setPendingOnboardingRequestId}
+      />
+    ),
+    'admin-onboarding': (
+      <EmployeeOnboarding
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTab}
+        onboardingRequestId={pendingOnboardingRequestId}
+        setOnboardingRequestId={setPendingOnboardingRequestId}
+        onConvertOnboarding={(requestId) => {
+          setPendingOnboardingRequestId(requestId);
+          setCurrentTab('admin-add-employee');
+        }}
       />
     ),
     'admin-payouts': <PayoutsPayroll />,
@@ -114,18 +128,22 @@ export default function AdminApp() {
     'admin-holidays': <HolidayManager />,
     'admin-employee-profile': (
       <EmployeeDirectoryWorkspace
-        currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         selectedEmployeeId={selectedEmployeeId}
         setSelectedEmployeeId={setSelectedEmployeeId}
+        setOnboardingRequestId={setPendingOnboardingRequestId}
       />
     ),
     'admin-add-employee': (
-      <EmployeeDirectoryWorkspace
+      <EmployeeOnboarding
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
-        selectedEmployeeId={selectedEmployeeId}
-        setSelectedEmployeeId={setSelectedEmployeeId}
+        onboardingRequestId={pendingOnboardingRequestId}
+        setOnboardingRequestId={setPendingOnboardingRequestId}
+        onConvertOnboarding={(requestId) => {
+          setPendingOnboardingRequestId(requestId);
+          setCurrentTab('admin-add-employee');
+        }}
       />
     ),
   };
@@ -141,6 +159,10 @@ export default function AdminApp() {
       ? 'Analytics'
       : currentTab === 'admin-employee-list'
       ? 'Employee Directory'
+      : currentTab === 'admin-onboarding'
+      ? 'Employee Onboarding'
+      : currentTab === 'admin-add-employee'
+      ? 'Employee Onboarding'
       : currentTab === 'admin-payouts'
       ? 'Payouts & Payroll'
       : currentTab === 'admin-organization-chart'

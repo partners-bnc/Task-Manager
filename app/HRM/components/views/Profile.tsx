@@ -294,9 +294,8 @@ export default function Profile({
             <InfoRow label="Access Disabled At" value={employee?.access_disabled_at ? accessDisabledAt : 'Active access'} />
             <InfoRow label="Confirmation Date" value={formatDate(employee?.confirmation_date)} />
             <InfoRow label="Salary" value={formatSalary(employee?.salary)} />
-            <InfoRow label="Current Company Experience" value={employee?.current_company_experience} />
-            <InfoRow label="Total Experience" value={employee?.total_experience} />
-            <InfoRow label="Previous Experience" value={employee?.previous_experience} />
+            <InfoRow label="Experience Company Name" value={employee?.experience_company_name} />
+            <InfoRow label="Total Years Of Experience" value={employee?.total_experience} />
             <InfoRow label="Working Schedule" value={employee?.working_schedule_label} />
             <InfoRow label="Second Saturday Off" value={employee?.second_saturday_off ? 'Yes' : 'No'} />
             <InfoRow label="Task Manager Access" value={moduleAccess?.task_manager ? 'Enabled' : 'Not enabled'} />
@@ -593,8 +592,10 @@ export default function Profile({
               <span className="material-symbols-outlined text-xl">work_history</span>
             </div>
             <div>
-              <p className="text-sm font-bold text-on-surface">{employee?.current_company_experience || 'Not available'}</p>
-              <p className="text-[10px] text-on-surface-variant mt-0.5">Experience</p>
+              <p className="text-sm font-bold text-on-surface">{employee?.experience_company_name || 'Not available'}</p>
+              <p className="text-[10px] text-on-surface-variant mt-0.5">
+                {employee?.total_experience ? `${employee.total_experience} years experience` : 'Experience'}
+              </p>
             </div>
           </div>
         </div>

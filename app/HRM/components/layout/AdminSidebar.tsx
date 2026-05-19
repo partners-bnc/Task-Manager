@@ -33,6 +33,7 @@ export default function AdminSidebar({
   const navItems = [
     { id: 'admin-dashboard', label: 'Admin Dashboard', icon: 'admin_panel_settings' },
     { id: 'admin-employee-list', label: 'Employee Directory', icon: 'groups' },
+    { id: 'admin-onboarding', label: 'Employee Onboarding', icon: 'how_to_reg' },
     { id: 'admin-payouts', label: 'Payouts & Payroll', icon: 'account_balance_wallet' },
     { id: 'admin-organization-chart', label: 'Organization Chart', icon: 'account_tree' },
     { id: 'admin-module-access', label: 'Module Access', icon: 'verified_user' },
