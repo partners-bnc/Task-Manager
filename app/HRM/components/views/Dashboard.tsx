@@ -780,7 +780,13 @@ export default function Dashboard({
                   <span className="material-symbols-outlined text-lg text-slate-500">menu_book</span>
                   <h4 className="text-base font-bold font-headline text-slate-700">Policy Manual</h4>
                 </div>
-                <button className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all">View</button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentTab?.('policy-manual')}
+                  className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all"
+                >
+                  View
+                </button>
               </div>
               <p className="text-xs text-slate-500 mt-1">Access company policies, HR guidelines, and workplace rules.</p>
             </div>

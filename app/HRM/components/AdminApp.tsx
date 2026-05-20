@@ -19,6 +19,7 @@ import ModuleAccessManager from './views/admin/ModuleAccessManager';
 import AdminAttendance from './views/admin/AdminAttendance';
 import Tickets from './views/Tickets';
 import Expenses from './views/Expenses';
+import PolicyManualManager from './views/admin/PolicyManualManager';
 import { ShellSkeleton } from './ui/Skeleton';
 import { HrmFeedbackProvider } from './ui/HrmFeedback';
 
@@ -121,6 +122,7 @@ export default function AdminApp() {
     'admin-organization-chart': <OrganizationChart />,
     'admin-module-access': <ModuleAccessManager />,
     'admin-attendance': <AdminAttendance />,
+    'admin-policy-manual': <PolicyManualManager />,
     'admin-regularization': <RegularizationInbox />,
     'admin-tickets': <Tickets variant="admin" />,
     'admin-expenses': <Expenses variant="admin" />,
@@ -171,6 +173,8 @@ export default function AdminApp() {
       ? 'Module Access'
       : currentTab === 'admin-attendance'
       ? 'Attendance'
+      : currentTab === 'admin-policy-manual'
+      ? 'Policy Manual'
       : currentTab === 'admin-regularization'
       ? 'Regularization'
       : currentTab === 'admin-tickets'

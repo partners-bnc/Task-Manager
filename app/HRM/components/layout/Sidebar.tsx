@@ -42,12 +42,13 @@ export default function Sidebar({
     { id: 'home', label: 'Home', icon: 'dashboard' },
     { id: 'attendance', label: 'Attendance', icon: 'calendar_today' },
     { id: 'regularize-attendance', label: 'Regularization', icon: 'edit_calendar' },
-    { id: 'tickets', label: 'Tickets', icon: 'support_agent' },
-    { id: 'expenses', label: 'Expenses', icon: 'receipt_long' },
+    { id: 'policy-manual', label: 'Policy Manual', icon: 'menu_book' },
+    { id: 'tickets', label: 'Tickets & Requests', icon: 'support_agent' },
+    { id: 'expenses', label: 'Expense Claims', icon: 'receipt_long' },
     { id: 'organization-chart', label: 'Organization Chart', icon: 'account_tree' },
-    { id: 'leave', label: 'Leave', icon: 'event_busy' },
-    { id: 'salary', label: 'Salary', icon: 'payments' },
-    { id: 'profile', label: 'Profile', icon: 'person' },
+    { id: 'leave', label: 'Leave Management', icon: 'event_busy' },
+    { id: 'salary', label: 'Payroll', icon: 'payments' },
+    { id: 'profile', label: 'My Profile', icon: 'person' },
   ];
 
   const handleModulesRedirect = () => {

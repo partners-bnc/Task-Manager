@@ -11,6 +11,7 @@ import Salary from './views/Salary';
 import Tickets from './views/Tickets';
 import Expenses from './views/Expenses';
 import OrganizationChart from './views/admin/OrganizationChart';
+import PolicyManual from './views/PolicyManual';
 import { ShellSkeleton } from './ui/Skeleton';
 import { HrmFeedbackProvider } from './ui/HrmFeedback';
 import { createClient } from '@/utils/supabase/client';
@@ -96,6 +97,7 @@ export default function App() {
     home: <Dashboard employee={employee} setCurrentTab={setCurrentTab} onLogout={handleLogout} isLoggingOut={isLoggingOut} />,
     attendance: <Attendance onOpenRegularizeAttendance={() => setCurrentTab('regularize-attendance')} />,
     'regularize-attendance': <RegularizeAttendance />,
+    'policy-manual': <PolicyManual />,
     tickets: <Tickets variant="employee" />,
     expenses: <Expenses variant="employee" />,
     'organization-chart': <OrganizationChart apiPath="/HRM/api/employee/organization-chart" />,
@@ -115,18 +117,20 @@ export default function App() {
       ? 'Attendance'
       : currentTab === 'regularize-attendance'
       ? 'Regularization'
+      : currentTab === 'policy-manual'
+      ? 'Policy Manual'
       : currentTab === 'tickets'
-      ? 'Tickets'
+      ? 'Tickets & Requests'
       : currentTab === 'expenses'
-      ? 'Expenses'
+      ? 'Expense Claims'
       : currentTab === 'organization-chart'
       ? 'Organization Chart'
       : currentTab === 'leave'
-      ? 'Leave'
+      ? 'Leave Management'
       : currentTab === 'salary'
-      ? 'Salary'
+      ? 'Payroll'
       : currentTab === 'profile'
-      ? 'Profile'
+      ? 'My Profile'
       : 'Workspace';
 
   return (

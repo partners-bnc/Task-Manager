@@ -1729,22 +1729,24 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                         </button>
 
                         <div className='min-w-0 flex-1'>
-                          <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+                          <div className='flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-4'>
                             <div className='min-w-0'>
-                              <p className={`truncate text-sm font-medium ${subtask.is_completed ? 'text-emerald-800' : 'text-slate-800'}`}>
+                              <p className={`text-sm font-medium leading-6 break-words ${subtask.is_completed ? 'text-emerald-800' : 'text-slate-800'}`}>
                                 <span className='mr-2 text-slate-400'>{subtaskIndex + 1}.</span>
                                 {subtask.title}
                               </p>
                             </div>
-                            <div className='flex flex-wrap items-center gap-2'>
+                            <div className='flex flex-nowrap items-start gap-2 sm:justify-self-end'>
                               {assigned ? (
-                                <div className='inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1'>
+                                <div className='inline-flex max-w-[220px] items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1'>
                                   <Avatar
                                     name={assigned.name}
                                     src={assigned.profile_picture_url || assigned.avatar}
                                     size='w-6 h-6'
                                   />
-                                  <span className='text-xs font-medium text-slate-600'>{assigned.name}</span>
+                                  <span className='text-xs font-medium leading-4 text-slate-600 whitespace-normal break-words'>
+                                    {assigned.name}
+                                  </span>
                                 </div>
                               ) : (
                                 <span className='rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500'>Unassigned</span>
