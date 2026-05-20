@@ -1,12 +1,14 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
 import HrmEmptyState from '../ui/HrmEmptyState';
 import { LoadingPanel } from '../ui/Skeleton';
 import { useHrmFeedback } from '../ui/HrmFeedback';
 
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+const PolicyPdfPreview = dynamic(() => import('./PolicyPdfPreview'), {
+  ssr: false,
+});
 
 type PolicyDocument = {
   id: string;
@@ -89,7 +91,6 @@ export default function PolicyManual() {
   const [search, setSearch] = useState('');
   const [selectedPolicyId, setSelectedPolicyId] = useState('');
   const [selectedDocumentId, setSelectedDocumentId] = useState('');
-  const [pdfPageCount, setPdfPageCount] = useState(0);
   const [pdfWidth, setPdfWidth] = useState(980);
   const [pdfObjectUrl, setPdfObjectUrl] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -175,7 +176,6 @@ export default function PolicyManual() {
     async function loadPdfData() {
       if (!selectedDocument || !isPdfDocument(selectedDocument)) {
         setPdfObjectUrl('');
-        setPdfPageCount(0);
         setPdfError('');
         setPdfLoading(false);
         return;
@@ -183,7 +183,6 @@ export default function PolicyManual() {
 
       setPdfLoading(true);
       setPdfError('');
-      setPdfPageCount(0);
 
       try {
         const response = await fetch(selectedDocument.viewUrl);
@@ -447,41 +446,14 @@ export default function PolicyManual() {
                       {pdfError || 'This PDF preview could not be rendered here. Please use Download to open it directly.'}
                     </div>
                   ) : pdfObjectUrl ? (
-                    <Document
-                      file={pdfObjectUrl}
-                      loading={null}
-                      error={
-                        <div className="flex min-h-[420px] items-center justify-center rounded-[0.8rem] border border-slate-200 bg-white px-6 text-center text-sm text-slate-500">
-                          {pdfError || 'This PDF preview could not be rendered here. Please use Download to open it directly.'}
-                        </div>
-                      }
-                      onLoadSuccess={({ numPages }) => setPdfPageCount(numPages)}
-                      onLoadError={(error) => {
-                        const message =
-                          typeof error?.message === 'string' && error.message.trim()
-                            ? error.message
-                            : String(error || 'Failed to render PDF document.');
+                    <PolicyPdfPreview
+                      fileUrl={pdfObjectUrl}
+                      width={pdfWidth}
+                      onError={(message, error) => {
                         setPdfError(message);
-                        console.error('Policy PDF render error:', error);
+                        console.error('Policy PDF render error:', error || message);
                       }}
-                    >
-                      <div className="space-y-4">
-                        {Array.from({ length: pdfPageCount }, (_, index) => (
-                          <div
-                            key={`pdf-page-${index + 1}`}
-                            className="overflow-hidden rounded-[0.8rem] border border-slate-200 bg-white"
-                          >
-                            <Page
-                              pageNumber={index + 1}
-                              width={pdfWidth}
-                              renderTextLayer={false}
-                              renderAnnotationLayer={false}
-                              className="bg-white"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </Document>
+                    />
                   ) : null}
                 </div>
               ) : isImageDocument(selectedDocument) ? (
