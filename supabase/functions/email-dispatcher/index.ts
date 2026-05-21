@@ -36,7 +36,7 @@ function buildTaskUrl(taskId: string | null): string {
   const appRootUrl = getAppRootUrl();
   if (!taskId) return appRootUrl;
   if (!appRootUrl) return '';
-  return `${appRootUrl}/dashboard/tasks/${taskId}`;
+  return `${appRootUrl}/Taskmanager/dashboard/tasks/${taskId}`;
 }
 
 function renderEmail(row: OutboxRow) {
