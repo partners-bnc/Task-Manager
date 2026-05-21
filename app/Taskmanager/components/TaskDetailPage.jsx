@@ -17,6 +17,7 @@ import {
   FileImage,
   FileText,
   Paperclip,
+  Plus,
   Star,
   Upload,
   UserRound,
@@ -158,8 +159,8 @@ const getCompletionTiming = (task) => {
 
     const withinTimeline = completedAt.getTime() <= dueAt.getTime();
     return {
-      label: withinTimeline ? 'Completed Within Deadline' : 'Completed Late',
-      tone: withinTimeline ? 'success' : 'warning',
+      label: withinTimeline ? 'Timely' : 'Late',
+      tone: withinTimeline ? 'success' : 'danger',
       note: `Completed ${formatDate(task.completed_at)}`,
     };
   }
@@ -172,11 +173,7 @@ const getCompletionTiming = (task) => {
     };
   }
 
-  return {
-    label: 'Within Timeline',
-    tone: 'neutral',
-    note: `Due ${formatDate(task.due_date)}`,
-  };
+  return null;
 };
 
 const getDisplayName = (person, fallback = 'Unknown user') => {
@@ -224,6 +221,13 @@ const getCommentAuthorLabel = (comment, viewer) => {
 
   return 'Team Member';
 };
+
+const getInstructionAuthorLabel = (instruction) =>
+  instruction?.created_by_employee?.name ||
+  instruction?.created_by_profile?.full_name ||
+  instruction?.created_by_employee?.email ||
+  instruction?.created_by_profile?.email ||
+  'Unknown';
 
 function StarRating({ rating, hoverRating, setHoverRating, onRate, canRate, size = 20 }) {
   return (
@@ -618,6 +622,8 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [assignmentActivity, setAssignmentActivity] = useState([]);
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState('');
+  const [subtaskCommentDrafts, setSubtaskCommentDrafts] = useState({});
+  const [subtaskInstructionDrafts, setSubtaskInstructionDrafts] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -640,6 +646,8 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewRatingsDraft, setReviewRatingsDraft] = useState({});
   const [reviewHoverRatings, setReviewHoverRatings] = useState({});
+  const [pendingSubtaskCommentIds, setPendingSubtaskCommentIds] = useState([]);
+  const [pendingInstructionIds, setPendingInstructionIds] = useState([]);
 
   const [editForm, setEditForm] = useState({
     taskName: '',
@@ -691,6 +699,25 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   }, [taskRatings]);
 
   const completionTiming = useMemo(() => getCompletionTiming(task), [task]);
+
+  const taskComments = useMemo(
+    () => comments.filter((comment) => !comment?.subtask_id),
+    [comments]
+  );
+
+  const subtaskCommentsById = useMemo(() => {
+    const mapped = new Map();
+
+    for (const comment of comments) {
+      if (!comment?.subtask_id) continue;
+      if (!mapped.has(comment.subtask_id)) {
+        mapped.set(comment.subtask_id, []);
+      }
+      mapped.get(comment.subtask_id).push(comment);
+    }
+
+    return mapped;
+  }, [comments]);
 
   const latestSubtaskReassignmentById = useMemo(() => {
     const mapped = new Map();
@@ -867,6 +894,8 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       setReviewAssignees(fetchedReviewAssignees);
       setReviewRatingsDraft(nextReviewDraft);
       setReviewHoverRatings({});
+      setSubtaskCommentDrafts({});
+      setSubtaskInstructionDrafts({});
       setEditForm({
         taskName: fetchedTask.task_name || '',
         description: fetchedTask.description || '',
@@ -1015,14 +1044,14 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
 
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to add checklist item');
+        throw new Error(result.error || 'Failed to add subtask');
       }
 
       setNewSubtaskTitle('');
       setNewSubtaskAssigneeId('');
       await loadTaskData();
     } catch (err) {
-      setError(err.message || 'Failed to add checklist item');
+      setError(err.message || 'Failed to add subtask');
     } finally {
       setSaving(false);
     }
@@ -1365,18 +1394,24 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     }
   };
 
-  const postComment = async () => {
-    const text = commentText.trim();
+  const postComment = async (subtaskId = null) => {
+    const text = subtaskId
+      ? String(subtaskCommentDrafts[subtaskId] || '').trim()
+      : commentText.trim();
     if (!text || !canComment) return;
 
-    setSaving(true);
+    if (subtaskId) {
+      setPendingSubtaskCommentIds((prev) => [...prev, subtaskId]);
+    } else {
+      setSaving(true);
+    }
     setError('');
 
     try {
       const response = await fetch(`/Taskmanager/api/tasks/${taskId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ commentText: text }),
+        body: JSON.stringify({ commentText: text, subtaskId }),
       });
 
       const result = await response.json();
@@ -1385,20 +1420,31 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       }
 
       setComments((prev) => [...prev, result.comment]);
-      setCommentText('');
+      if (subtaskId) {
+        setSubtaskCommentDrafts((prev) => ({ ...prev, [subtaskId]: '' }));
+      } else {
+        setCommentText('');
+      }
     } catch (err) {
       setError(err.message || 'Failed to post comment');
     } finally {
-      setSaving(false);
+      if (subtaskId) {
+        setPendingSubtaskCommentIds((prev) => prev.filter((id) => id !== subtaskId));
+      } else {
+        setSaving(false);
+      }
     }
   };
 
-  const removeComment = async (commentId) => {
+  const removeComment = async (commentId, subtaskId = null) => {
     setSaving(true);
     setError('');
 
     try {
-      const response = await fetch(`/Taskmanager/api/tasks/${taskId}/comments?commentId=${commentId}`, {
+      const query = subtaskId
+        ? `?commentId=${commentId}&subtaskId=${subtaskId}`
+        : `?commentId=${commentId}`;
+      const response = await fetch(`/Taskmanager/api/tasks/${taskId}/comments${query}`, {
         method: 'DELETE',
       });
 
@@ -1412,6 +1458,60 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
       setError(err.message || 'Failed to delete comment');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const addSubtaskInstruction = async (subtaskId) => {
+    const instructionText = String(subtaskInstructionDrafts[subtaskId] || '').trim();
+    if (!instructionText || !subtaskId) return;
+
+    setPendingInstructionIds((prev) => [...prev, subtaskId]);
+    setError('');
+
+    try {
+      const response = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtaskId, instructionText }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to add instruction');
+      }
+
+      setSubtaskInstructionDrafts((prev) => ({ ...prev, [subtaskId]: '' }));
+      await loadTaskData();
+    } catch (err) {
+      setError(err.message || 'Failed to add instruction');
+    } finally {
+      setPendingInstructionIds((prev) => prev.filter((id) => id !== subtaskId));
+    }
+  };
+
+  const removeSubtaskInstruction = async (subtaskId, instructionId) => {
+    if (!subtaskId || !instructionId) return;
+
+    setPendingInstructionIds((prev) => [...prev, subtaskId]);
+    setError('');
+
+    try {
+      const response = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtaskId, removeInstructionId: instructionId }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to remove instruction');
+      }
+
+      await loadTaskData();
+    } catch (err) {
+      setError(err.message || 'Failed to remove instruction');
+    } finally {
+      setPendingInstructionIds((prev) => prev.filter((id) => id !== subtaskId));
     }
   };
 
@@ -1664,7 +1764,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                   <input
                     value={newSubtaskTitle}
                     onChange={(event) => setNewSubtaskTitle(event.target.value)}
-                    placeholder='Add checklist item...'
+                    placeholder='Add subtask...'
                     className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm'
                     onKeyDown={(event) => {
                       if (event.key === 'Enter') {
@@ -1698,6 +1798,10 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                   const toName = latestReassignment?.toEmployee?.name || latestReassignment?.toEmployee?.email || 'Unknown';
                   const assigned = employeeDirectoryById.get(subtask.assigned_employee_id);
                   const isExpanded = expandedSubtaskId === subtask.id;
+                  const subtaskComments = subtaskCommentsById.get(subtask.id) || [];
+                  const instructionItems = subtask.task_subtask_instructions || [];
+                  const isInstructionPending = pendingInstructionIds.includes(subtask.id);
+                  const isCommentPending = pendingSubtaskCommentIds.includes(subtask.id);
 
                   return (
                     <div
@@ -1735,6 +1839,14 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                 <span className='mr-2 text-slate-400'>{subtaskIndex + 1}.</span>
                                 {subtask.title}
                               </p>
+                              <div className='mt-2 flex flex-wrap items-center gap-2'>
+                                <span className='rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600'>
+                                  {instructionItems.length} instruction{instructionItems.length === 1 ? '' : 's'}
+                                </span>
+                                <span className='rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600'>
+                                  {subtaskComments.length} update{subtaskComments.length === 1 ? '' : 's'}
+                                </span>
+                              </div>
                             </div>
                             <div className='flex flex-nowrap items-start gap-2 sm:justify-self-end'>
                               {assigned ? (
@@ -1763,65 +1875,71 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                           </div>
 
                           {isExpanded && (
-                            <div className='mt-4 space-y-3 border-t border-slate-100 pt-4'>
-                              {editingSubtaskId === subtask.id ? (
-                                <input
-                                  value={editingSubtaskTitle}
-                                  onChange={(event) => setEditingSubtaskTitle(event.target.value)}
-                                  onBlur={() => saveSubtaskTitle(subtask)}
-                                  onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
-                                      event.preventDefault();
-                                      saveSubtaskTitle(subtask);
-                                      return;
-                                    }
-                                    if (event.key === 'Escape') {
-                                      event.preventDefault();
-                                      cancelSubtaskTitleEdit();
-                                    }
-                                  }}
-                                  autoFocus
-                                  className='w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700'
-                                  disabled={pendingSubtaskTitleIds.includes(subtask.id)}
-                                  aria-label='Edit subtask title'
-                                />
-                              ) : (
-                                <button
-                                  type='button'
-                                  onClick={() => startSubtaskTitleEdit(subtask)}
-                                  disabled={!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)}
-                                  className={`text-left text-sm font-medium ${canEditSubtaskTitle(subtask) ? 'cursor-text text-slate-700' : 'cursor-default text-slate-500'} disabled:opacity-70`}
-                                >
-                                  Edit title
-                                </button>
-                              )}
-
-                              <div className='flex flex-wrap items-center gap-2'>
-                                {canReassignSubtask(subtask) && (
+                            <div className='mt-4 space-y-4 border-t border-slate-100 pt-4'>
+                              <div className='flex flex-wrap items-center justify-between gap-3'>
+                                {editingSubtaskId === subtask.id ? (
+                                  <input
+                                    value={editingSubtaskTitle}
+                                    onChange={(event) => setEditingSubtaskTitle(event.target.value)}
+                                    onBlur={() => saveSubtaskTitle(subtask)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        saveSubtaskTitle(subtask);
+                                        return;
+                                      }
+                                      if (event.key === 'Escape') {
+                                        event.preventDefault();
+                                        cancelSubtaskTitleEdit();
+                                      }
+                                    }}
+                                    autoFocus
+                                    className='min-w-[240px] flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700'
+                                    disabled={pendingSubtaskTitleIds.includes(subtask.id)}
+                                    aria-label='Edit subtask title'
+                                  />
+                                ) : (
                                   <button
                                     type='button'
-                                    onClick={() => setOpenReassignSubtaskId((prev) => (prev === subtask.id ? null : subtask.id))}
-                                    disabled={saving || pendingSubtaskTitleIds.includes(subtask.id)}
-                                    className='inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60'
+                                    onClick={() => startSubtaskTitleEdit(subtask)}
+                                    disabled={!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)}
+                                    className={`rounded-full border px-3 py-1.5 text-left text-xs font-semibold transition ${
+                                      canEditSubtaskTitle(subtask)
+                                        ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900'
+                                        : 'border-transparent bg-slate-100 text-slate-500'
+                                    } disabled:opacity-70`}
                                   >
-                                    <ArrowRightLeft size={12} />
-                                    Reassign
+                                    Edit subtask title
                                   </button>
                                 )}
-                                <label className='inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900'>
-                                  <Upload size={12} />
-                                  Upload file
-                                  <input
-                                    type='file'
-                                    multiple
-                                    className='hidden'
-                                    onChange={(event) => {
-                                      handleSubtaskAttachmentUpload(subtask, event.target.files);
-                                      event.target.value = '';
-                                    }}
-                                    disabled={pendingSubtaskAttachmentIds.includes(subtask.id)}
-                                  />
-                                </label>
+
+                                <div className='flex flex-wrap items-center gap-2'>
+                                  {canReassignSubtask(subtask) && (
+                                    <button
+                                      type='button'
+                                      onClick={() => setOpenReassignSubtaskId((prev) => (prev === subtask.id ? null : subtask.id))}
+                                      disabled={saving || pendingSubtaskTitleIds.includes(subtask.id)}
+                                      className='inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:opacity-60'
+                                    >
+                                      <ArrowRightLeft size={12} />
+                                      Reassign
+                                    </button>
+                                  )}
+                                  <label className='inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900'>
+                                    <Upload size={12} />
+                                    Upload file
+                                    <input
+                                      type='file'
+                                      multiple
+                                      className='hidden'
+                                      onChange={(event) => {
+                                        handleSubtaskAttachmentUpload(subtask, event.target.files);
+                                        event.target.value = '';
+                                      }}
+                                      disabled={pendingSubtaskAttachmentIds.includes(subtask.id)}
+                                    />
+                                  </label>
+                                </div>
                               </div>
 
                               {latestReassignment?.fromEmployee?.id && latestReassignment?.toEmployee?.id && (
@@ -1847,6 +1965,163 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                   />
                                 </div>
                               )}
+
+                              <div className='grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(320px,1.1fr)]'>
+                                <div className='rounded-[24px] border border-slate-200 bg-slate-50/80 p-4'>
+                                  <div className='mb-4 flex items-center justify-between gap-3'>
+                                    <div>
+                                      <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Instructions</h3>
+                                      <p className='mt-1 text-xs text-slate-500'>Keep direction crisp and broken into small steps.</p>
+                                    </div>
+                                    <span className='rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600'>
+                                      {instructionItems.length}
+                                    </span>
+                                  </div>
+
+                                  <div className='space-y-2'>
+                                    {instructionItems.map((instruction, instructionIndex) => (
+                                      <div key={instruction.id} className='rounded-2xl border border-slate-200 bg-white px-3 py-3'>
+                                        <div className='flex items-start justify-between gap-3'>
+                                          <div className='min-w-0'>
+                                            <div className='flex items-start gap-2'>
+                                              <span className='mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-100 px-1 text-[11px] font-bold text-violet-700'>
+                                                {instructionIndex + 1}
+                                              </span>
+                                              <p className='text-sm leading-6 text-slate-700'>{instruction.instruction_text}</p>
+                                            </div>
+                                            <p className='mt-2 pl-7 text-[11px] text-slate-400'>
+                                              Added by {getInstructionAuthorLabel(instruction)} • {formatDate(instruction.created_at)}
+                                            </p>
+                                          </div>
+                                          {canManageSubtasks ? (
+                                            <button
+                                              type='button'
+                                              onClick={() => removeSubtaskInstruction(subtask.id, instruction.id)}
+                                              disabled={isInstructionPending}
+                                              className='text-xs font-semibold text-rose-600 transition hover:text-rose-700 disabled:opacity-60'
+                                            >
+                                              Remove
+                                            </button>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {instructionItems.length === 0 ? (
+                                      <div className='rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500'>
+                                        No instructions added yet.
+                                      </div>
+                                    ) : null}
+                                  </div>
+
+                                  {canManageSubtasks ? (
+                                    <div className='mt-4 flex gap-2'>
+                                      <input
+                                        value={subtaskInstructionDrafts[subtask.id] || ''}
+                                        onChange={(event) =>
+                                          setSubtaskInstructionDrafts((prev) => ({ ...prev, [subtask.id]: event.target.value }))
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                            addSubtaskInstruction(subtask.id);
+                                          }
+                                        }}
+                                        placeholder='Add a small instruction...'
+                                        className='flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700'
+                                      />
+                                      <button
+                                        type='button'
+                                        onClick={() => addSubtaskInstruction(subtask.id)}
+                                        disabled={isInstructionPending || !String(subtaskInstructionDrafts[subtask.id] || '').trim()}
+                                        className='inline-flex items-center gap-2 rounded-xl bg-[#7F40EE] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#6A31D1] disabled:opacity-60'
+                                      >
+                                        <Plus size={14} />
+                                        Add
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+
+                                <div className='rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm'>
+                                  <div className='mb-4 flex items-center justify-between gap-3'>
+                                    <div>
+                                      <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Subtask Discussion</h3>
+                                      <p className='mt-1 text-xs text-slate-500'>A focused pipeline for clarifications, updates, and replies.</p>
+                                    </div>
+                                    <span className='rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600'>
+                                      {subtaskComments.length}
+                                    </span>
+                                  </div>
+
+                                  <div className='space-y-4'>
+                                    {subtaskComments.length === 0 ? (
+                                      <div className='rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500'>
+                                        No subtask discussion yet.
+                                      </div>
+                                    ) : (
+                                      subtaskComments.map((comment, index) => (
+                                        <div key={comment.id} className='relative pl-12'>
+                                          {index < subtaskComments.length - 1 ? (
+                                            <div className='absolute left-[15px] top-9 bottom-[-18px] w-px bg-slate-200' />
+                                          ) : null}
+                                          <div className='absolute left-0 top-0'>
+                                            <Avatar
+                                              name={getCommentAuthorLabel(comment, viewer)}
+                                              src={comment.author_avatar_url}
+                                              size='w-8 h-8'
+                                            />
+                                          </div>
+                                          <div className='rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3'>
+                                            <div className='flex items-start justify-between gap-3'>
+                                              <div>
+                                                <p className='text-sm font-semibold text-slate-800'>{getCommentAuthorLabel(comment, viewer)}</p>
+                                                <p className='text-[11px] text-slate-400'>{formatDate(comment.created_at)}</p>
+                                              </div>
+                                              {comment.can_delete ? (
+                                                <button
+                                                  type='button'
+                                                  onClick={() => removeComment(comment.id, subtask.id)}
+                                                  className='text-xs font-semibold text-rose-600 transition hover:text-rose-700'
+                                                >
+                                                  Delete
+                                                </button>
+                                              ) : null}
+                                            </div>
+                                            <p className='mt-2 text-sm leading-6 text-slate-700'>{comment.comment_text}</p>
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+
+                                  {canComment ? (
+                                    <div className='mt-4 flex gap-2'>
+                                      <input
+                                        value={subtaskCommentDrafts[subtask.id] || ''}
+                                        onChange={(event) =>
+                                          setSubtaskCommentDrafts((prev) => ({ ...prev, [subtask.id]: event.target.value }))
+                                        }
+                                        onKeyDown={(event) => {
+                                          if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                            postComment(subtask.id);
+                                          }
+                                        }}
+                                        placeholder='Post a subtask update...'
+                                        className='flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm'
+                                      />
+                                      <button
+                                        type='button'
+                                        disabled={isCommentPending || !String(subtaskCommentDrafts[subtask.id] || '').trim()}
+                                        onClick={() => postComment(subtask.id)}
+                                        className='rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60'
+                                      >
+                                        Post
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
 
                               <div className='space-y-2'>
                                 <div className='flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500'>
@@ -2163,10 +2438,10 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
         </div>
 
         <section className='rounded-xl bg-white p-6 shadow-sm'>
-          <h2 className='mb-4 text-lg font-semibold text-slate-800'>Comments</h2>
+          <h2 className='mb-4 text-lg font-semibold text-slate-800'>Task Discussion</h2>
 
           <div className='space-y-5'>
-            {comments.map((comment) => (
+            {taskComments.map((comment) => (
               <div key={comment.id} className='relative pl-14'>
                 <div className='absolute left-[15px] top-10 bottom-[-18px] w-px bg-slate-200 last:hidden'></div>
                 <div className='absolute left-0 top-0'>
@@ -2200,7 +2475,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                 </div>
               </div>
             ))}
-            {comments.length === 0 && <p className='text-sm text-slate-500'>No comments yet.</p>}
+            {taskComments.length === 0 && <p className='text-sm text-slate-500'>No task discussion yet.</p>}
           </div>
 
           {canComment && (

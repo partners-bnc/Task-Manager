@@ -17,12 +17,14 @@ interface AdminSidebarProps {
     designation?: string;
     avatar?: string;
   } | null;
+  requestCounts?: Partial<Record<string, number>>;
 }
 
 export default function AdminSidebar({
   currentTab,
   setCurrentTab,
   admin,
+  requestCounts = {},
   onLogout,
   isLoggingOut = false,
   isCollapsed = false,
@@ -111,6 +113,7 @@ export default function AdminSidebar({
       <nav className="flex-grow space-y-2 pr-3">
         {navItems.map((item) => {
           const isActive = currentTab === item.id;
+          const count = Number(requestCounts[item.id] || 0);
           return (
             <button
               key={item.id}
@@ -118,7 +121,7 @@ export default function AdminSidebar({
                 setCurrentTab(item.id);
                 onMobileClose?.();
               }}
-              className={`w-full flex items-center transition-colors ${
+              className={`group relative w-full flex items-center transition-colors ${
                 isActive
                   ? 'rounded-r-2xl border-y border-r border-outline-variant/10 bg-surface-container-lowest font-bold text-primary shadow-sm'
                   : 'text-on-surface-variant hover:bg-surface-container-lowest/50 hover:text-primary'
@@ -132,12 +135,35 @@ export default function AdminSidebar({
                 {item.icon}
               </span>
               {!isCollapsed ? (
+                <>
+                  <span
+                    className={`min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left font-body text-sm ${
+                      isActive ? 'font-bold' : 'font-medium'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                  {count > 0 ? (
+                    <span
+                      className={`inline-flex min-w-6 shrink-0 items-center justify-center rounded-full px-2 py-1 text-[11px] font-bold leading-none transition-colors ${
+                        isActive
+                          ? 'bg-primary text-on-primary'
+                          : 'bg-slate-200 text-slate-700 group-hover:bg-violet-100 group-hover:text-violet-700'
+                      }`}
+                    >
+                      {count > 99 ? '99+' : count}
+                    </span>
+                  ) : null}
+                </>
+              ) : count > 0 ? (
                 <span
-                  className={`min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-left font-body text-sm ${
-                    isActive ? 'font-bold' : 'font-medium'
+                  className={`absolute right-2 top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors ${
+                    isActive
+                      ? 'bg-primary text-on-primary'
+                      : 'bg-slate-300 text-slate-800 group-hover:bg-violet-100 group-hover:text-violet-700'
                   }`}
                 >
-                  {item.label}
+                  {count > 9 ? '9+' : count}
                 </span>
               ) : null}
             </button>

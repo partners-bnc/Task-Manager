@@ -15,6 +15,7 @@ export default function ManageTasks() {
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [labelFilter, setLabelFilter] = useState('All');
   const [createdByFilter, setCreatedByFilter] = useState('All');
+  const [ownershipFilter, setOwnershipFilter] = useState('all');
 
   const mergedLabelOptions = Array.from(
     new Map(
@@ -41,7 +42,13 @@ export default function ManageTasks() {
   const getCreatedByCount = (createdBy) =>
     tasks.filter((task) => String(task.createdBy || '').trim().toLowerCase() === String(createdBy || '').trim().toLowerCase()).length;
 
-  const displayTasks = tasks.filter((task) => {
+  const ownershipFilteredTasks = tasks.filter((task) => {
+    if (ownershipFilter === 'assigned_to_me') return task.isAssignedToCurrentUser;
+    if (ownershipFilter === 'assigned_by_me') return task.isAssignedByCurrentUser;
+    return true;
+  });
+
+  const displayTasks = ownershipFilteredTasks.filter((task) => {
     const matchesStatus = statusFilter === 'All' || task.status === statusFilter;
     const matchesPriority = priorityFilter === 'All' || task.priority === priorityFilter;
     const matchesLabel =
@@ -91,6 +98,14 @@ export default function ManageTasks() {
   };
 
   const getUserById = (id) => users.find((u) => u.id === id);
+
+  const ownershipTabs = [
+    { key: 'all', label: 'All', count: tasks.length },
+    { key: 'assigned_to_me', label: 'Assigned To Me', count: tasks.filter((task) => task.isAssignedToCurrentUser).length },
+    { key: 'assigned_by_me', label: 'Assigned By Me', count: tasks.filter((task) => task.isAssignedByCurrentUser).length },
+  ];
+
+  const activeOwnershipIndex = ownershipTabs.findIndex((tab) => tab.key === ownershipFilter);
 
   const openTaskDetail = (taskId) => {
     const path = isAdminMode ? `/Taskmanager/admin/tasks/${taskId}` : `/Taskmanager/dashboard/tasks/${taskId}`;
@@ -179,9 +194,37 @@ export default function ManageTasks() {
         </div>
       </div>
 
+      <div className="mb-6 overflow-x-auto">
+        <div className="relative inline-grid min-w-[360px] grid-cols-3 items-center overflow-hidden rounded-2xl bg-white p-1 shadow-sm">
+          <div
+            className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-[0.9rem] bg-[#7F40EE] shadow-md transition-transform duration-300 ease-out"
+            style={{ transform: `translateX(calc(${activeOwnershipIndex} * 100%))` }}
+          />
+          {ownershipTabs.map((tab) => {
+            const isActive = ownershipFilter === tab.key;
+
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setOwnershipFilter(tab.key)}
+                className={`relative z-10 inline-flex items-center justify-center gap-2 rounded-[0.9rem] px-4 py-2.5 text-sm font-semibold transition-colors ${
+                  isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`rounded-full px-2 py-0.5 text-xs ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {displayTasks.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
-          No tasks match the selected status, priority, label, and creator filters.
+          No tasks match the selected task view and filters.
         </div>
       ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

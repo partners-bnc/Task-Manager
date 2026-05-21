@@ -697,11 +697,12 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
         throw new Error(result.error || 'Failed to review expense claim.');
       }
 
-      resetDetail();
-      showFeedback({ type: 'success', title: 'Expense Claim Reviewed', message: 'Expense claim review submitted successfully.' });
-    } catch (requestError) {
-      showFeedback({ type: 'error', title: 'Expense Review Failed', message: requestError instanceof Error ? requestError.message : 'Failed to review expense claim.' });
-    } finally {
+        resetDetail();
+        window.dispatchEvent(new CustomEvent('hrm-admin-sidebar-counts-refresh'));
+        showFeedback({ type: 'success', title: 'Expense Claim Reviewed', message: 'Expense claim review submitted successfully.' });
+      } catch (requestError) {
+        showFeedback({ type: 'error', title: 'Expense Review Failed', message: requestError instanceof Error ? requestError.message : 'Failed to review expense claim.' });
+      } finally {
       setIsReviewSubmitting(false);
     }
   };

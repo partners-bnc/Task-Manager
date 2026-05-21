@@ -221,6 +221,7 @@ export default function EmployeeOnboarding({
       }
       setInviteForm({ candidateName: '', candidateEmail: '', sendEmail: true });
       await loadRequests();
+      window.dispatchEvent(new CustomEvent('hrm-admin-sidebar-counts-refresh'));
       if (result?.request?.id) {
         setSelectedId(result.request.id);
       }
@@ -256,6 +257,7 @@ export default function EmployeeOnboarding({
 
       setDetail(result);
       await loadRequests();
+      window.dispatchEvent(new CustomEvent('hrm-admin-sidebar-counts-refresh'));
       if (result?.inviteLink) {
         showInviteLinkCard(action === 'regenerate_link' ? 'Link Regenerated' : 'Invite Link Ready', result.inviteLink, result?.request?.token_expires_at);
       } else {

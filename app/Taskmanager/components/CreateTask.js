@@ -18,7 +18,7 @@ export default function CreateTask({ onCancel }) {
   const [dueTime, setDueTime] = useState('');
   const [assignees, setAssignees] = useState([]);
 
-  const [checklist, setChecklist] = useState([{ title: '', assignedEmployeeId: '' }]);
+  const [subtasks, setSubtasks] = useState([{ title: '', assignedEmployeeId: '' }]);
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [tempAssignees, setTempAssignees] = useState([]);
@@ -117,26 +117,26 @@ export default function CreateTask({ onCancel }) {
     );
   };
 
-  const handleAddChecklistItem = () => {
-    setChecklist([...checklist, { title: '', assignedEmployeeId: '' }]);
+  const handleAddSubtask = () => {
+    setSubtasks([...subtasks, { title: '', assignedEmployeeId: '' }]);
   };
 
-  const handleRemoveChecklistItem = (index) => {
-    const newList = [...checklist];
+  const handleRemoveSubtask = (index) => {
+    const newList = [...subtasks];
     newList.splice(index, 1);
-    setChecklist(newList);
+    setSubtasks(newList);
   };
 
-  const handleChecklistChange = (index, value) => {
-    const newList = [...checklist];
+  const handleSubtaskChange = (index, value) => {
+    const newList = [...subtasks];
     newList[index] = { ...newList[index], title: value };
-    setChecklist(newList);
+    setSubtasks(newList);
   };
 
-  const handleChecklistAssigneeChange = (index, assignedEmployeeId) => {
-    const newList = [...checklist];
+  const handleSubtaskAssigneeChange = (index, assignedEmployeeId) => {
+    const newList = [...subtasks];
     newList[index] = { ...newList[index], assignedEmployeeId };
-    setChecklist(newList);
+    setSubtasks(newList);
   };
 
   const openUserModal = () => {
@@ -156,7 +156,7 @@ export default function CreateTask({ onCancel }) {
   const confirmAssignees = () => {
     setAssignees(tempAssignees);
     const selected = new Set(tempAssignees);
-    setChecklist((prev) =>
+    setSubtasks((prev) =>
       prev.map((item) =>
         item.assignedEmployeeId && !selected.has(item.assignedEmployeeId)
           ? { ...item, assignedEmployeeId: '' }
@@ -192,7 +192,7 @@ export default function CreateTask({ onCancel }) {
         uploadedAttachments = uploadResult.attachments || [];
       }
 
-      const cleanedChecklist = checklist
+      const cleanedSubtasks = subtasks
         .map((item) => ({
           title: String(item?.title || '').trim(),
           assignedEmployeeId: item?.assignedEmployeeId || '',
@@ -214,9 +214,9 @@ export default function CreateTask({ onCancel }) {
         dueDate,
         dueTime,
         completedSubtasks: 0,
-        totalSubtasks: cleanedChecklist.length,
+        totalSubtasks: cleanedSubtasks.length,
         assignees,
-        subtasks: cleanedChecklist.map((item, i) => ({
+        subtasks: cleanedSubtasks.map((item, i) => ({
           id: `st${i}`,
           title: item.title,
           completed: false,
@@ -424,35 +424,35 @@ export default function CreateTask({ onCancel }) {
         </div>
 
         <div>
-          <label className="block text-sm font-semibold text-slate-700 mb-2">TODO Checklist</label>
+          <label className="block text-sm font-semibold text-slate-700 mb-2">Subtasks</label>
           <div className="space-y-3">
-            {checklist.map((item, index) => (
+            {subtasks.map((item, index) => (
               <div key={index} className="flex flex-wrap gap-2 md:flex-nowrap">
                 <input
                   type="text"
                   value={item.title}
-                  onChange={(e) => handleChecklistChange(index, e.target.value)}
-                  placeholder={index === 0 ? 'Create Product Card' : 'Add item...'}
+                  onChange={(e) => handleSubtaskChange(index, e.target.value)}
+                  placeholder={index === 0 ? 'Create Product Card' : 'Add subtask...'}
                   className="min-w-[220px] flex-1 px-4 py-2 rounded-lg bg-gray-50 border-none focus:ring-1 focus:ring-[#7F40EE] outline-none text-sm"
                 />
                 {renderAssigneePicker({
                   value: item.assignedEmployeeId,
-                  onChange: (nextValue) => handleChecklistAssigneeChange(index, nextValue),
+                  onChange: (nextValue) => handleSubtaskAssigneeChange(index, nextValue),
                   options: assignees
                     .map((uid) => users.find((user) => user.id === uid))
                     .filter(Boolean),
                 })}
-                <button onClick={() => handleRemoveChecklistItem(index)} className="text-red-400 hover:text-red-600 p-2">
+                <button onClick={() => handleRemoveSubtask(index)} className="text-red-400 hover:text-red-600 p-2">
                   <Trash2 size={18} />
                 </button>
               </div>
             ))}
           </div>
           <button
-            onClick={handleAddChecklistItem}
+            onClick={handleAddSubtask}
             className="mt-3 text-sm font-medium text-slate-500 hover:text-[#7F40EE] flex items-center gap-1 transition-colors"
           >
-            <Plus size={16} /> Add Item
+            <Plus size={16} /> Add Subtask
           </button>
         </div>
 

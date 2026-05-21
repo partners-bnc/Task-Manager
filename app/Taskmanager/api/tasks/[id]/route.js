@@ -172,6 +172,29 @@ async function fetchTaskById(taskId) {
         assigned_employee_id,
         created_at,
         updated_at,
+        task_subtask_instructions (
+          id,
+          task_id,
+          subtask_id,
+          instruction_text,
+          sort_order,
+          created_at,
+          updated_at,
+          created_by_employee_id,
+          created_by_profile_id,
+          created_by_employee:hrm_employees!task_subtask_instructions_created_by_employee_id_fkey (
+            id,
+            name,
+            email,
+            role,
+            profile_picture_url
+          ),
+          created_by_profile:hrm_profiles!task_subtask_instructions_created_by_profile_id_fkey (
+            id,
+            full_name,
+            email
+          )
+        ),
         task_subtask_attachments (
           id,
           file_name,
@@ -239,6 +262,14 @@ async function fetchTaskById(taskId) {
     task_subtasks: Array.isArray(task.task_subtasks)
       ? task.task_subtasks.map((subtask) => ({
           ...subtask,
+          task_subtask_instructions: Array.isArray(subtask.task_subtask_instructions)
+            ? [...subtask.task_subtask_instructions].sort((left, right) => {
+                const leftSort = Number(left?.sort_order || 0);
+                const rightSort = Number(right?.sort_order || 0);
+                if (leftSort !== rightSort) return leftSort - rightSort;
+                return new Date(left?.created_at || 0).getTime() - new Date(right?.created_at || 0).getTime();
+              })
+            : [],
           task_subtask_attachments: Array.isArray(subtask.task_subtask_attachments) ? subtask.task_subtask_attachments : [],
         }))
       : [],
@@ -384,7 +415,7 @@ export async function GET(request, { params }) {
       fetchAssignmentActivity(taskId, adminClient),
       adminClient
         .from('task_comments')
-        .select('id, task_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
+        .select('id, task_id, subtask_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
         .eq('task_id', taskId)
         .order('created_at', { ascending: true }),
       adminClient
@@ -782,6 +813,89 @@ export async function PATCH(request, { params }) {
       }
 
       return NextResponse.json({ success: true, message: 'Subtask title updated' });
+    }
+
+    if (body?.subtaskId && typeof body?.instructionText === 'string') {
+      const instructionText = String(body.instructionText || '').trim();
+      if (!instructionText) {
+        return NextResponse.json({ error: 'Instruction text is required' }, { status: 400 });
+      }
+
+      const { data: existingSubtask, error: fetchError } = await adminClient
+        .from('task_subtasks')
+        .select('id')
+        .eq('id', body.subtaskId)
+        .eq('task_id', taskId)
+        .maybeSingle();
+
+      if (fetchError) {
+        return NextResponse.json({ error: fetchError.message }, { status: 500 });
+      }
+
+      if (!existingSubtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+
+      const { data: latestInstruction, error: latestInstructionError } = await adminClient
+        .from('task_subtask_instructions')
+        .select('sort_order')
+        .eq('task_id', taskId)
+        .eq('subtask_id', body.subtaskId)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestInstructionError) {
+        return NextResponse.json({ error: latestInstructionError.message }, { status: 500 });
+      }
+
+      const { error: insertInstructionError } = await adminClient
+        .from('task_subtask_instructions')
+        .insert({
+          task_id: taskId,
+          subtask_id: body.subtaskId,
+          instruction_text: instructionText,
+          sort_order: Number(latestInstruction?.sort_order || 0) + 1,
+          created_by_employee_id: actor.type === 'employee' ? actor.employeeId : null,
+          created_by_profile_id: actor.type === 'admin' ? actor.userId : null,
+        });
+
+      if (insertInstructionError) {
+        return NextResponse.json({ error: insertInstructionError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask instruction added' });
+    }
+
+    if (body?.subtaskId && body?.removeInstructionId) {
+      const { data: existingInstruction, error: fetchInstructionError } = await adminClient
+        .from('task_subtask_instructions')
+        .select('id')
+        .eq('id', body.removeInstructionId)
+        .eq('task_id', taskId)
+        .eq('subtask_id', body.subtaskId)
+        .maybeSingle();
+
+      if (fetchInstructionError) {
+        return NextResponse.json({ error: fetchInstructionError.message }, { status: 500 });
+      }
+
+      if (!existingInstruction) {
+        return NextResponse.json({ error: 'Instruction not found' }, { status: 404 });
+      }
+
+      const { error: deleteInstructionError } = await adminClient
+        .from('task_subtask_instructions')
+        .delete()
+        .eq('id', body.removeInstructionId)
+        .eq('task_id', taskId)
+        .eq('subtask_id', body.subtaskId);
+
+      if (deleteInstructionError) {
+        return NextResponse.json({ error: deleteInstructionError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask instruction removed' });
     }
 
     if (body?.subtaskTitle && !body?.subtaskId) {

@@ -72,9 +72,9 @@ const getDeadlineState = (task) => {
   if (task?.status === 'completed' && hasValidCompletedAt) {
     const withinDeadline = completedAt.getTime() <= dueAt.getTime();
     return {
-      key: withinDeadline ? 'within_deadline' : 'completed_late',
-      label: withinDeadline ? 'Within Deadline' : 'Completed Late',
-      tone: withinDeadline ? 'success' : 'warning',
+      key: withinDeadline ? 'timely' : 'late',
+      label: withinDeadline ? 'Timely' : 'Late',
+      tone: withinDeadline ? 'success' : 'danger',
     };
   }
 
@@ -86,11 +86,7 @@ const getDeadlineState = (task) => {
     };
   }
 
-  return {
-    key: 'within_timeline',
-    label: 'Within Timeline',
-    tone: 'neutral',
-  };
+  return null;
 };
 
 const normalizeUsers = (rows = []) =>
@@ -171,7 +167,10 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     })),
     attachments: Array.isArray(task.task_attachments) ? task.task_attachments.length : 0,
     createdBy: createdByLabel,
+    createdById: task?.created_by || task?.created_by_employee_id || null,
     deadlineState,
+    isAssignedToCurrentUser: Boolean(currentUserId) && assignees.includes(currentUserId),
+    isAssignedByCurrentUser: Boolean(currentUserId) && (task?.created_by === currentUserId || task?.created_by_employee_id === currentUserId),
     rawStatus: task.status,
     rawPriority: task.priority,
     createdAt: task.created_at,

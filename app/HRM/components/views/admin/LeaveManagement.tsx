@@ -149,6 +149,7 @@ export default function LeaveManagement() {
         return;
       }
       showFeedback({ type: 'success', title: 'Leave Request Updated', message: result.message || 'Leave request updated.' });
+      window.dispatchEvent(new CustomEvent('hrm-admin-sidebar-counts-refresh'));
       await loadData();
     } catch {
       showFeedback({ type: 'error', title: 'Leave Review Failed', message: 'Failed to review leave request.' });

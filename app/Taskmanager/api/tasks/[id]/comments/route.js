@@ -12,6 +12,23 @@ function canDeleteComment(comment, actor) {
   return false;
 }
 
+async function validateSubtask(taskId, subtaskId) {
+  if (!subtaskId) return null;
+
+  const { data: subtask, error } = await adminClient
+    .from('task_subtasks')
+    .select('id, task_id')
+    .eq('id', subtaskId)
+    .eq('task_id', taskId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return subtask || null;
+}
+
 export async function GET(request, { params }) {
   try {
     const { id: taskId } = await params;
@@ -29,11 +46,27 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const { data: comments, error } = await adminClient
+    const { searchParams } = new URL(request.url);
+    const subtaskId = searchParams.get('subtaskId');
+
+    if (subtaskId) {
+      const subtask = await validateSubtask(taskId, subtaskId);
+      if (!subtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+    }
+
+    let query = adminClient
       .from('task_comments')
-      .select('id, task_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
+      .select('id, task_id, subtask_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
       .eq('task_id', taskId)
       .order('created_at', { ascending: true });
+
+    if (subtaskId) {
+      query = query.eq('subtask_id', subtaskId);
+    }
+
+    const { data: comments, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -70,17 +103,26 @@ export async function POST(request, { params }) {
 
     const body = await request.json();
     const commentText = String(body?.commentText || '').trim();
+    const subtaskId = String(body?.subtaskId || '').trim() || null;
 
     if (!commentText) {
       return NextResponse.json({ error: 'Comment text is required' }, { status: 400 });
     }
 
+    if (subtaskId) {
+      const subtask = await validateSubtask(taskId, subtaskId);
+      if (!subtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+    }
+
     const insertData = {
       task_id: taskId,
+      subtask_id: subtaskId,
       comment_text: commentText,
       author_type: actor.type,
-      author_name: actor.user?.name || actor.user?.full_name || actor.user?.email || 'Unknown',
-      author_avatar_url: actor.user?.avatarUrl || actor.user?.avatar_url || null,
+      author_name: actor.name || actor.email || 'Unknown',
+      author_avatar_url: actor.avatarUrl || null,
     };
 
     if (actor.type === 'employee') {
@@ -93,7 +135,7 @@ export async function POST(request, { params }) {
     const { data: comment, error } = await adminClient
       .from('task_comments')
       .insert(insertData)
-      .select('id, task_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
+      .select('id, task_id, subtask_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
       .single();
 
     if (error) {
@@ -126,17 +168,30 @@ export async function DELETE(request, { params }) {
 
     const { searchParams } = new URL(request.url);
     const commentId = searchParams.get('commentId');
+    const subtaskId = searchParams.get('subtaskId');
 
     if (!commentId) {
       return NextResponse.json({ error: 'Comment ID is required' }, { status: 400 });
     }
 
-    const { data: existingComment, error: fetchError } = await adminClient
+    if (subtaskId) {
+      const subtask = await validateSubtask(taskId, subtaskId);
+      if (!subtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+    }
+
+    let fetchQuery = adminClient
       .from('task_comments')
-      .select('id, task_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
+      .select('id, task_id, subtask_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
       .eq('id', commentId)
-      .eq('task_id', taskId)
-      .maybeSingle();
+      .eq('task_id', taskId);
+
+    if (subtaskId) {
+      fetchQuery = fetchQuery.eq('subtask_id', subtaskId);
+    }
+
+    const { data: existingComment, error: fetchError } = await fetchQuery.maybeSingle();
 
     if (fetchError) {
       return NextResponse.json({ error: fetchError.message }, { status: 500 });
@@ -150,11 +205,17 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'You are not authorized to delete this comment' }, { status: 403 });
     }
 
-    const { error: deleteError } = await adminClient
+    let deleteQuery = adminClient
       .from('task_comments')
       .delete()
       .eq('id', commentId)
       .eq('task_id', taskId);
+
+    if (subtaskId) {
+      deleteQuery = deleteQuery.eq('subtask_id', subtaskId);
+    }
+
+    const { error: deleteError } = await deleteQuery;
 
     if (deleteError) {
       return NextResponse.json({ error: deleteError.message }, { status: 500 });

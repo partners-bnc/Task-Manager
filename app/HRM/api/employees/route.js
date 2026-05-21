@@ -1301,6 +1301,7 @@ export async function POST(request) {
     const phone = cleanText(formData.get('phone'));
     const mobilePhone = cleanText(formData.get('mobile'));
     const onboardingRequestId = cleanText(formData.get('onboardingRequestId'));
+    const onboardingBundle = onboardingRequestId ? await fetchOnboardingBundleById(onboardingRequestId) : null;
 
     if (!employeeId || !name || !email || !password || !departmentName || !designationTitle) {
       const fieldErrors = {};
@@ -1323,6 +1324,28 @@ export async function POST(request) {
           status: 400,
         })
       );
+    }
+
+    if (onboardingRequestId) {
+      if (!onboardingBundle?.request) {
+        return buildFriendlyErrorResponse(
+          new IntakeFormError({
+            message: 'The onboarding request could not be found.',
+            details: ['The onboarding request could not be found.'],
+            status: 404,
+          })
+        );
+      }
+
+      if (onboardingBundle.request.status !== ONBOARDING_STATUSES.approved) {
+        return buildFriendlyErrorResponse(
+          new IntakeFormError({
+            message: 'Only approved onboarding requests can be converted into employees.',
+            details: ['Only approved onboarding requests can be converted into employees.'],
+            status: 400,
+          })
+        );
+      }
     }
 
     const reportingSuperAdminSupported = await supportsReportingSuperAdminColumn();
@@ -1929,29 +1952,6 @@ export async function PATCH(request) {
         },
         { status: 400 }
       );
-    }
-
-    const onboardingBundle = onboardingRequestId ? await fetchOnboardingBundleById(onboardingRequestId) : null;
-    if (onboardingRequestId) {
-      if (!onboardingBundle?.request) {
-        return buildFriendlyErrorResponse(
-          new IntakeFormError({
-            message: 'The onboarding request could not be found.',
-            details: ['The onboarding request could not be found.'],
-            status: 404,
-          })
-        );
-      }
-
-      if (onboardingBundle.request.status !== ONBOARDING_STATUSES.approved) {
-        return buildFriendlyErrorResponse(
-          new IntakeFormError({
-            message: 'Only approved onboarding requests can be converted into employees.',
-            details: ['Only approved onboarding requests can be converted into employees.'],
-            status: 400,
-          })
-        );
-      }
     }
 
     if (

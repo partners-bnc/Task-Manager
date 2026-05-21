@@ -35,6 +35,7 @@ export default function AdminApp() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [sidebarRequestCounts, setSidebarRequestCounts] = useState<Record<string, number>>({});
   const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({
     [normalizedRequestedTab]: true,
   });
@@ -72,6 +73,74 @@ export default function AdminApp() {
   useEffect(() => {
     setVisitedTabs((current) => (current[currentTab] ? current : { ...current, [currentTab]: true }));
   }, [currentTab]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadSidebarRequestCounts() {
+      try {
+        const [
+          leavesResponse,
+          regularizationResponse,
+          ticketsResponse,
+          expensesResponse,
+          onboardingResponse,
+        ] = await Promise.all([
+          fetch('/HRM/api/admin/leaves', { method: 'GET' }),
+          fetch('/HRM/api/admin/regularization', { method: 'GET' }),
+          fetch('/HRM/api/tickets', { method: 'GET' }),
+          fetch('/HRM/api/expenses/review', { method: 'GET' }),
+          fetch('/HRM/api/admin/onboarding', { method: 'GET' }),
+        ]);
+
+        const [
+          leavesResult,
+          regularizationResult,
+          ticketsResult,
+          expensesResult,
+          onboardingResult,
+        ] = await Promise.all([
+          leavesResponse.json().catch(() => ({})),
+          regularizationResponse.json().catch(() => ({})),
+          ticketsResponse.json().catch(() => ({})),
+          expensesResponse.json().catch(() => ({})),
+          onboardingResponse.json().catch(() => ({})),
+        ]);
+
+        if (!active) return;
+
+        setSidebarRequestCounts({
+          'admin-leaves': leavesResponse.ok ? (leavesResult.pending || []).length : 0,
+          'admin-regularization': regularizationResponse.ok ? (regularizationResult.pendingForMe || []).length : 0,
+          'admin-tickets': ticketsResponse.ok ? (ticketsResult.assignedTickets || []).length : 0,
+          'admin-expenses': expensesResponse.ok ? (expensesResult.pendingReview || []).length : 0,
+          'admin-onboarding': onboardingResponse.ok
+            ? (onboardingResult.requests || []).filter((item: { status?: string | null }) => item?.status === 'submitted').length
+            : 0,
+        });
+      } catch {
+        if (active) {
+          setSidebarRequestCounts({});
+        }
+      }
+    }
+
+    function handleRefreshEvent() {
+      loadSidebarRequestCounts();
+    }
+
+    loadSidebarRequestCounts();
+    const intervalId = window.setInterval(loadSidebarRequestCounts, 30000);
+    window.addEventListener('focus', handleRefreshEvent);
+    window.addEventListener('hrm-admin-sidebar-counts-refresh', handleRefreshEvent);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleRefreshEvent);
+      window.removeEventListener('hrm-admin-sidebar-counts-refresh', handleRefreshEvent);
+    };
+  }, []);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -194,6 +263,7 @@ export default function AdminApp() {
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
         admin={admin}
+        requestCounts={sidebarRequestCounts}
         onLogout={handleLogout}
         isLoggingOut={isLoggingOut}
         isCollapsed={isSidebarCollapsed}

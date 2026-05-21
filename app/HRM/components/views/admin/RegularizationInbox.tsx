@@ -97,6 +97,7 @@ export default function RegularizationInbox() {
 
       await loadInbox();
       window.dispatchEvent(new CustomEvent('hrm-attendance-updated'));
+      window.dispatchEvent(new CustomEvent('hrm-admin-sidebar-counts-refresh'));
       showFeedback({ type: 'success', title: 'Request Reviewed', message: 'Regularization request reviewed successfully.' });
     } catch (requestError) {
       showFeedback({ type: 'error', title: 'Review Failed', message: requestError instanceof Error ? requestError.message : 'Failed to review request' });
