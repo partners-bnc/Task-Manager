@@ -44,3 +44,5 @@ next-env.d.ts
 .log
 next-dev-latency.err.log
 next-dev-latency.log
+
+scripts/add-attendance-swipes.mjs
