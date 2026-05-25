@@ -17,6 +17,7 @@ import {
   FileImage,
   FileText,
   Paperclip,
+  Pencil,
   Plus,
   Star,
   Upload,
@@ -1835,18 +1836,57 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                         <div className='min-w-0 flex-1'>
                           <div className='flex flex-col gap-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-4'>
                             <div className='min-w-0'>
-                              <p className={`text-sm font-medium leading-6 break-words ${subtask.is_completed ? 'text-emerald-800' : 'text-slate-800'}`}>
-                                <span className='mr-2 text-slate-400'>{subtaskIndex + 1}.</span>
-                                {subtask.title}
-                              </p>
-                              <div className='mt-2 flex flex-wrap items-center gap-2'>
-                                <span className='rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600'>
-                                  {instructionItems.length} instruction{instructionItems.length === 1 ? '' : 's'}
-                                </span>
-                                <span className='rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600'>
-                                  {subtaskComments.length} update{subtaskComments.length === 1 ? '' : 's'}
-                                </span>
-                              </div>
+                              {editingSubtaskId === subtask.id ? (
+                                <div className='flex items-start gap-2'>
+                                  <span className='mt-2 text-slate-400'>{subtaskIndex + 1}.</span>
+                                  <input
+                                    value={editingSubtaskTitle}
+                                    onChange={(event) => setEditingSubtaskTitle(event.target.value)}
+                                    onBlur={() => saveSubtaskTitle(subtask)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        saveSubtaskTitle(subtask);
+                                        return;
+                                      }
+                                      if (event.key === 'Escape') {
+                                        event.preventDefault();
+                                        cancelSubtaskTitleEdit();
+                                      }
+                                    }}
+                                    autoFocus
+                                    className='min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700'
+                                    disabled={pendingSubtaskTitleIds.includes(subtask.id)}
+                                    aria-label='Edit subtask title'
+                                  />
+                                </div>
+                              ) : (
+                                <div className='flex items-start gap-2'>
+                                  <p className={`min-w-0 flex-1 text-sm font-medium leading-6 break-words ${subtask.is_completed ? 'text-emerald-800' : 'text-slate-800'}`}>
+                                    <span className='mr-2 text-slate-400'>{subtaskIndex + 1}.</span>
+                                    {subtask.title}
+                                  </p>
+                                  {canEditSubtaskTitle(subtask) ? (
+                                    <button
+                                      type='button'
+                                      onClick={() => startSubtaskTitleEdit(subtask)}
+                                      disabled={pendingSubtaskTitleIds.includes(subtask.id)}
+                                      className='mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-700 disabled:opacity-60'
+                                      aria-label='Edit subtask title'
+                                    >
+                                      <Pencil size={13} />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              )}
+                              {instructionItems.length > 0 ? (
+                                <div className='mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-slate-500'>
+                                  <span className='shrink-0'>📝</span>
+                                  <span className='truncate'>
+                                    {instructionItems.map((instruction) => instruction.instruction_text).filter(Boolean).join(' • ')}
+                                  </span>
+                                </div>
+                              ) : null}
                             </div>
                             <div className='flex flex-nowrap items-start gap-2 sm:justify-self-end'>
                               {assigned ? (
@@ -1877,41 +1917,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                           {isExpanded && (
                             <div className='mt-4 space-y-4 border-t border-slate-100 pt-4'>
                               <div className='flex flex-wrap items-center justify-between gap-3'>
-                                {editingSubtaskId === subtask.id ? (
-                                  <input
-                                    value={editingSubtaskTitle}
-                                    onChange={(event) => setEditingSubtaskTitle(event.target.value)}
-                                    onBlur={() => saveSubtaskTitle(subtask)}
-                                    onKeyDown={(event) => {
-                                      if (event.key === 'Enter') {
-                                        event.preventDefault();
-                                        saveSubtaskTitle(subtask);
-                                        return;
-                                      }
-                                      if (event.key === 'Escape') {
-                                        event.preventDefault();
-                                        cancelSubtaskTitleEdit();
-                                      }
-                                    }}
-                                    autoFocus
-                                    className='min-w-[240px] flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700'
-                                    disabled={pendingSubtaskTitleIds.includes(subtask.id)}
-                                    aria-label='Edit subtask title'
-                                  />
-                                ) : (
-                                  <button
-                                    type='button'
-                                    onClick={() => startSubtaskTitleEdit(subtask)}
-                                    disabled={!canEditSubtaskTitle(subtask) || pendingSubtaskTitleIds.includes(subtask.id)}
-                                    className={`rounded-full border px-3 py-1.5 text-left text-xs font-semibold transition ${
-                                      canEditSubtaskTitle(subtask)
-                                        ? 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:text-slate-900'
-                                        : 'border-transparent bg-slate-100 text-slate-500'
-                                    } disabled:opacity-70`}
-                                  >
-                                    Edit subtask title
-                                  </button>
-                                )}
+                                <div className='flex-1' />
 
                                 <div className='flex flex-wrap items-center gap-2'>
                                   {canReassignSubtask(subtask) && (
@@ -1966,45 +1972,28 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                 </div>
                               )}
 
-                              <div className='grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(320px,1.1fr)]'>
-                                <div className='rounded-[24px] border border-slate-200 bg-slate-50/80 p-4'>
-                                  <div className='mb-4 flex items-center justify-between gap-3'>
-                                    <div>
-                                      <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Instructions</h3>
-                                      <p className='mt-1 text-xs text-slate-500'>Keep direction crisp and broken into small steps.</p>
-                                    </div>
-                                    <span className='rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600'>
-                                      {instructionItems.length}
-                                    </span>
-                                  </div>
+                              <div className='space-y-3'>
+                                <div className='space-y-2'>
 
-                                  <div className='space-y-2'>
-                                    {instructionItems.map((instruction, instructionIndex) => (
-                                      <div key={instruction.id} className='rounded-2xl border border-slate-200 bg-white px-3 py-3'>
-                                        <div className='flex items-start justify-between gap-3'>
-                                          <div className='min-w-0'>
-                                            <div className='flex items-start gap-2'>
-                                              <span className='mt-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-100 px-1 text-[11px] font-bold text-violet-700'>
-                                                {instructionIndex + 1}
-                                              </span>
-                                              <p className='text-sm leading-6 text-slate-700'>{instruction.instruction_text}</p>
-                                            </div>
-                                            <p className='mt-2 pl-7 text-[11px] text-slate-400'>
+                                  <div className='flex flex-wrap gap-2'>
+                                    {instructionItems.map((instruction) => (
+                                      <div key={instruction.id} className='inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1'>
+                                          <span className='shrink-0 text-[11px]'>📝</span>
+                                              <p className='truncate max-w-[240px] text-[11px] leading-4 text-slate-600'>{instruction.instruction_text}</p>
+                                              <span className='hidden'>
                                               Added by {getInstructionAuthorLabel(instruction)} • {formatDate(instruction.created_at)}
-                                            </p>
-                                          </div>
+                                              </span>
                                           {canManageSubtasks ? (
                                             <button
                                               type='button'
                                               onClick={() => removeSubtaskInstruction(subtask.id, instruction.id)}
                                               disabled={isInstructionPending}
-                                              className='text-xs font-semibold text-rose-600 transition hover:text-rose-700 disabled:opacity-60'
+                                              className='text-[10px] font-semibold text-rose-500 transition hover:text-rose-600 disabled:opacity-60'
                                             >
-                                              Remove
+                                              x
                                             </button>
                                           ) : null}
                                         </div>
-                                      </div>
                                     ))}
                                     {instructionItems.length === 0 ? (
                                       <div className='rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-5 text-sm text-slate-500'>
@@ -2014,7 +2003,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                   </div>
 
                                   {canManageSubtasks ? (
-                                    <div className='mt-4 flex gap-2'>
+                                    <div className='mt-2 flex gap-2'>
                                       <input
                                         value={subtaskInstructionDrafts[subtask.id] || ''}
                                         onChange={(event) =>
@@ -2026,68 +2015,56 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                             addSubtaskInstruction(subtask.id);
                                           }
                                         }}
-                                        placeholder='Add a small instruction...'
-                                        className='flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700'
+                                        placeholder='Add instruction'
+                                        className='flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700'
                                       />
                                       <button
                                         type='button'
                                         onClick={() => addSubtaskInstruction(subtask.id)}
                                         disabled={isInstructionPending || !String(subtaskInstructionDrafts[subtask.id] || '').trim()}
-                                        className='inline-flex items-center gap-2 rounded-xl bg-[#7F40EE] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#6A31D1] disabled:opacity-60'
+                                        className='inline-flex items-center gap-1 rounded-lg bg-[#7F40EE] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#6A31D1] disabled:opacity-60'
                                       >
-                                        <Plus size={14} />
+                                        <Plus size={12} />
                                         Add
                                       </button>
                                     </div>
                                   ) : null}
                                 </div>
 
-                                <div className='rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm'>
-                                  <div className='mb-4 flex items-center justify-between gap-3'>
-                                    <div>
-                                      <h3 className='text-sm font-semibold uppercase tracking-[0.18em] text-slate-500'>Subtask Discussion</h3>
-                                      <p className='mt-1 text-xs text-slate-500'>A focused pipeline for clarifications, updates, and replies.</p>
-                                    </div>
-                                    <span className='rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600'>
-                                      {subtaskComments.length}
-                                    </span>
-                                  </div>
+                                <div className='rounded-2xl border border-slate-200 bg-slate-50/60 p-3'>
 
-                                  <div className='space-y-4'>
+                                  <div className='space-y-2'>
                                     {subtaskComments.length === 0 ? (
-                                      <div className='rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500'>
-                                        No subtask discussion yet.
+                                      <div className='text-xs text-slate-400'>
+                                        Write comment / message
                                       </div>
                                     ) : (
                                       subtaskComments.map((comment, index) => (
-                                        <div key={comment.id} className='relative pl-12'>
-                                          {index < subtaskComments.length - 1 ? (
-                                            <div className='absolute left-[15px] top-9 bottom-[-18px] w-px bg-slate-200' />
-                                          ) : null}
-                                          <div className='absolute left-0 top-0'>
+                                        <div key={comment.id} className='flex items-start gap-2'>
+                                          <div>
                                             <Avatar
                                               name={getCommentAuthorLabel(comment, viewer)}
                                               src={comment.author_avatar_url}
-                                              size='w-8 h-8'
+                                              size='w-7 h-7'
                                             />
                                           </div>
-                                          <div className='rounded-[20px] border border-slate-200 bg-slate-50/80 px-4 py-3'>
-                                            <div className='flex items-start justify-between gap-3'>
-                                              <div>
-                                                <p className='text-sm font-semibold text-slate-800'>{getCommentAuthorLabel(comment, viewer)}</p>
-                                                <p className='text-[11px] text-slate-400'>{formatDate(comment.created_at)}</p>
+                                          <div className='min-w-0 flex-1 rounded-2xl bg-white px-3 py-2'>
+                                            <div className='flex items-center justify-between gap-2'>
+                                              <div className='min-w-0'>
+                                                <p className='truncate text-[11px] font-semibold text-slate-700'>{getCommentAuthorLabel(comment, viewer)}</p>
                                               </div>
+                                              <p className='text-[10px] text-slate-400'>{formatDate(comment.created_at)}</p>
                                               {comment.can_delete ? (
                                                 <button
                                                   type='button'
                                                   onClick={() => removeComment(comment.id, subtask.id)}
-                                                  className='text-xs font-semibold text-rose-600 transition hover:text-rose-700'
+                                                  className='text-[10px] font-semibold text-rose-500 transition hover:text-rose-600'
                                                 >
                                                   Delete
                                                 </button>
                                               ) : null}
                                             </div>
-                                            <p className='mt-2 text-sm leading-6 text-slate-700'>{comment.comment_text}</p>
+                                            <p className='mt-1 text-xs leading-5 text-slate-600'>{comment.comment_text}</p>
                                           </div>
                                         </div>
                                       ))
@@ -2095,7 +2072,7 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                   </div>
 
                                   {canComment ? (
-                                    <div className='mt-4 flex gap-2'>
+                                    <div className='mt-3 flex gap-2'>
                                       <input
                                         value={subtaskCommentDrafts[subtask.id] || ''}
                                         onChange={(event) =>
@@ -2107,14 +2084,14 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                             postComment(subtask.id);
                                           }
                                         }}
-                                        placeholder='Post a subtask update...'
-                                        className='flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm'
+                                        placeholder='Write comment / message'
+                                        className='flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs'
                                       />
                                       <button
                                         type='button'
                                         disabled={isCommentPending || !String(subtaskCommentDrafts[subtask.id] || '').trim()}
                                         onClick={() => postComment(subtask.id)}
-                                        className='rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60'
+                                        className='rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60'
                                       >
                                         Post
                                       </button>

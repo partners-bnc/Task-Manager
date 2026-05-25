@@ -10,6 +10,7 @@ import {
   logOnboardingEvent,
   ONBOARDING_FILES_BUCKET,
   ONBOARDING_STATUSES,
+  removeOnboardingFiles,
 } from '@/utils/onboarding';
 import {
   deriveEmploymentFields,
@@ -564,6 +565,17 @@ async function promoteOnboardingProfilePictureToEmployeeAvatar(sourcePath, emplo
 
   const { data } = adminClient.storage.from('employee-avatars').getPublicUrl(fileName);
   return data?.publicUrl || null;
+}
+
+function buildOnboardingEducationLookup(rows = []) {
+  const lookup = new Map();
+  for (const row of rows || []) {
+    const level = cleanText(row?.education_level);
+    if (level && !lookup.has(level)) {
+      lookup.set(level, row);
+    }
+  }
+  return lookup;
 }
 
 async function ensureEmployeeFilesBucket() {
@@ -1372,12 +1384,16 @@ export async function POST(request) {
     const taskManagerEnabled = parseBoolean(formData.get('taskManagerAccess'));
     const providedPassword = password || generateTempPassword();
     const passwordHash = await bcrypt.hash(providedPassword, 10);
+    const promotedOnboardingSourcePaths = [];
     let profilePictureUrl = await uploadProfilePicture(formData.get('profilePicture'), employeeId);
     if (!profilePictureUrl && onboardingBundle?.request?.profile_picture_path) {
       profilePictureUrl = await promoteOnboardingProfilePictureToEmployeeAvatar(
         onboardingBundle.request.profile_picture_path,
         employeeId
       );
+      if (profilePictureUrl) {
+        promotedOnboardingSourcePaths.push(onboardingBundle.request.profile_picture_path);
+      }
     }
     const aadhaarNumber = cleanText(formData.get('aadhaarNumber'));
     const panNumber = cleanText(formData.get('panNumber'))?.toUpperCase() || null;
@@ -1523,6 +1539,7 @@ export async function POST(request) {
         email,
       });
 
+      const onboardingEducationByLevel = buildOnboardingEducationLookup(onboardingBundle?.education);
       const educationRows = [];
       for (const entry of educationEntries) {
         const level = cleanText(entry?.educationLevel);
@@ -1537,13 +1554,15 @@ export async function POST(request) {
           `${level.replace(/_/g, ' ')} education file`,
           'education'
         );
-        if (!uploaded && onboardingBundle?.education?.[educationRows.length]?.degree_file_path) {
+        const onboardingEducationEntry = onboardingEducationByLevel.get(level);
+        if (!uploaded && onboardingEducationEntry?.degree_file_path) {
           const promoted = await promoteOnboardingFileToEmployeeStorage(
-            onboardingBundle.education[educationRows.length].degree_file_path,
+            onboardingEducationEntry.degree_file_path,
             employeeId,
             `education/${level}`
           );
           if (promoted?.file_path) promotedEmployeeFilePaths.push(promoted.file_path);
+          promotedOnboardingSourcePaths.push(onboardingEducationEntry.degree_file_path);
           uploaded = promoted;
         }
         educationRows.push({
@@ -1580,6 +1599,7 @@ export async function POST(request) {
             'certifications'
           );
           if (promoted?.file_path) promotedEmployeeFilePaths.push(promoted.file_path);
+          promotedOnboardingSourcePaths.push(onboardingBundle.certifications[certificationRows.length].certificate_file_path);
           uploaded = promoted;
         }
         certificationRows.push({
@@ -1615,6 +1635,7 @@ export async function POST(request) {
             `documents/${documentType}`
           );
           if (promoted?.file_path) promotedEmployeeFilePaths.push(promoted.file_path);
+          promotedOnboardingSourcePaths.push(onboardingDocument.file_path);
           uploaded = {
             ...promoted,
             file_name: onboardingDocument.file_name,
@@ -1674,6 +1695,14 @@ export async function POST(request) {
         });
       } catch (emailError) {
         console.error('Failed to enqueue employee onboarding email:', emailError);
+      }
+
+      if (promotedOnboardingSourcePaths.length) {
+        try {
+          await removeOnboardingFiles(promotedOnboardingSourcePaths);
+        } catch (cleanupError) {
+          console.error('Failed to remove onboarding source files after employee conversion:', cleanupError);
+        }
       }
 
       return NextResponse.json(
@@ -1753,6 +1782,105 @@ export async function PATCH(request) {
     }
 
     if (isMultipart) {
+      const educationRecordId = cleanText(formData?.get('educationRecordId'));
+      const educationLevel = cleanText(formData?.get('educationLevel'));
+      const educationDocument = formData?.get('educationDocument');
+
+      if (
+        educationRecordId &&
+        educationDocument &&
+        typeof educationDocument !== 'string' &&
+        educationDocument.size > 0
+      ) {
+        const { data: educationRecord, error: educationRecordError } = await adminClient
+          .from('hrm_employee_education')
+          .select('*')
+          .eq('id', educationRecordId)
+          .eq('employee_id', existingEmployee.id)
+          .maybeSingle();
+
+        if (educationRecordError) {
+          return NextResponse.json({ error: educationRecordError.message }, { status: 500 });
+        }
+
+        if (!educationRecord) {
+          return NextResponse.json({ error: 'Education record not found' }, { status: 404 });
+        }
+
+        const resolvedEducationLevel =
+          educationLevel || cleanText(educationRecord.education_level) || 'general';
+
+        const uploaded = await uploadEmployeeFile(
+          educationDocument,
+          existingEmployee.employee_id || existingEmployee.id,
+          `education/${resolvedEducationLevel}`,
+          'educationDocument',
+          `${resolvedEducationLevel.replace(/_/g, ' ')} education file`,
+          'education'
+        );
+
+        if (!uploaded) {
+          return NextResponse.json({ error: 'No education document was selected for upload' }, { status: 400 });
+        }
+
+        const previousFilePath = cleanText(educationRecord.degree_file_path);
+
+        const { error: updateEducationError } = await adminClient
+          .from('hrm_employee_education')
+          .update({
+            degree_file_url: uploaded.file_url || null,
+            degree_file_path: uploaded.file_path || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', educationRecord.id)
+          .eq('employee_id', existingEmployee.id);
+
+        if (updateEducationError) {
+          if (uploaded.file_path) {
+            await removeEmployeeFiles([uploaded.file_path]);
+          }
+          return NextResponse.json({ error: updateEducationError.message }, { status: 500 });
+        }
+
+        if (previousFilePath && previousFilePath !== uploaded.file_path) {
+          await removeEmployeeFiles([previousFilePath]);
+        }
+
+        const { data: refreshedEmployee, error: refreshedEmployeeError } = await adminClient
+          .from('hrm_employees')
+          .select(`
+            *,
+            department:hrm_departments (
+              id,
+              name
+            ),
+            designation:hrm_designations (
+              id,
+              title
+            ),
+            module_access:hrm_module_access!module_access_employee_id_fkey (*),
+            education:hrm_employee_education (*),
+            certifications:hrm_employee_certifications (*),
+            documents:hrm_employee_documents (*)
+          `)
+          .eq('id', existingEmployee.id)
+          .single();
+
+        if (refreshedEmployeeError) {
+          return NextResponse.json({ error: refreshedEmployeeError.message }, { status: 500 });
+        }
+
+        const [enrichedEmployee] = await attachCreatorNames([refreshedEmployee]);
+
+        return NextResponse.json(
+          {
+            message: 'Education document uploaded successfully',
+            employee: enrichedEmployee,
+          },
+          { status: 200 }
+        );
+      }
+
       const documentEntries = DOCUMENT_TYPES.map((documentType) => ({
         document_type: documentType,
         file: formData?.get(`document_${documentType}`),

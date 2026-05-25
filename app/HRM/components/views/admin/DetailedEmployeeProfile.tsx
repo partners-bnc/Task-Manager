@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { supabaseUrl } from '@/utils/supabase/config';
 import {
   EMPLOYEE_TYPE_OPTIONS,
   formatEmploymentValue,
@@ -282,6 +283,28 @@ function formatEducationLevelLabel(value?: string | null) {
     .join(' ');
 }
 
+function getEducationDocumentLabel(entry: any) {
+  const rawName = entry?.degree_file_name || entry?.file_name;
+  if (rawName) return String(rawName);
+
+  const rawPath = entry?.degree_file_path || entry?.file_path || entry?.degree_file_url || entry?.file_url;
+  if (!rawPath) return 'Uploaded education document';
+
+  const normalized = String(rawPath).split('?')[0].split('#')[0];
+  const fileName = normalized.split('/').pop();
+  return fileName ? decodeURIComponent(fileName) : 'Uploaded education document';
+}
+
+function getEducationDocumentUrl(entry: any) {
+  const directUrl = entry?.degree_file_url || entry?.file_url;
+  if (directUrl) return String(directUrl);
+
+  const filePath = entry?.degree_file_path || entry?.file_path;
+  if (!filePath || !supabaseUrl) return '';
+
+  return `${supabaseUrl}/storage/v1/object/public/employee-files/${filePath}`;
+}
+
 function formatWorkingDays(workingDays: unknown) {
   if (!Array.isArray(workingDays) || workingDays.length === 0) {
     return '--';
@@ -439,7 +462,9 @@ export default function DetailedEmployeeProfile({
   const [sameAsCurrentAddress, setSameAsCurrentAddress] = useState(false);
   const [saving, setSaving] = useState(false);
   const [documentFiles, setDocumentFiles] = useState<Record<string, File | null>>({});
+  const [educationFiles, setEducationFiles] = useState<Record<string, File | null>>({});
   const [activeDocumentType, setActiveDocumentType] = useState<string | null>(null);
+  const [activeEducationId, setActiveEducationId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [activeSection, setActiveSection] = useState('personal');
@@ -874,6 +899,58 @@ export default function DetailedEmployeeProfile({
     }
   }
 
+  function handleEducationFileChange(educationId: string, file: File | null) {
+    setEducationFiles((current) => ({
+      ...current,
+      [educationId]: file,
+    }));
+    setMessage('');
+    setError('');
+  }
+
+  async function handleEducationUpload(entry: any) {
+    if (!employee?.id || !entry?.id) return;
+
+    const selectedFile = educationFiles[entry.id];
+    if (!selectedFile) {
+      setError('Select a file before uploading.');
+      return;
+    }
+
+    try {
+      setActiveEducationId(entry.id);
+      setError('');
+      setMessage('');
+
+      const payload = new FormData();
+      payload.append('id', employee.id);
+      payload.append('educationRecordId', entry.id);
+      payload.append('educationLevel', entry.education_level || '');
+      payload.append('educationDocument', selectedFile);
+
+      const response = await fetch('/HRM/api/employees', {
+        method: 'PATCH',
+        body: payload,
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to upload education document');
+      }
+
+      setEmployee(result.employee || employee);
+      setEducationFiles((current) => ({
+        ...current,
+        [entry.id]: null,
+      }));
+      setMessage(result.message || 'Education document uploaded successfully.');
+    } catch (requestError: any) {
+      setError(requestError?.message || 'Failed to upload education document');
+    } finally {
+      setActiveEducationId(null);
+    }
+  }
+
   async function handleDocumentDelete(documentType: string) {
     if (!employee?.id) return;
 
@@ -1256,9 +1333,30 @@ export default function DetailedEmployeeProfile({
             {educationRows.map((entry: any, index: number) => (
               <div
                 key={entry.id || `${entry.education_level || 'education'}-${index}`}
-                className="rounded-[1.4rem] border border-slate-200 bg-white p-6"
+                className="relative rounded-[1.4rem] border border-slate-200 bg-white p-6"
               >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                {(() => {
+                  const educationDocumentUrl = getEducationDocumentUrl(entry);
+                  const educationKey = String(entry.id || `${entry.education_level || 'education'}-${index}`);
+                  const selectedEducationFile = educationFiles[educationKey] || null;
+                  const isEducationUploading = activeEducationId === educationKey;
+
+                  return (
+                    <>
+                {educationDocumentUrl ? (
+                  <a
+                    href={educationDocumentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="absolute right-6 top-6 inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-[#7c3aed] hover:text-[#7c3aed]"
+                    title="View education document"
+                    aria-label="View education document"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">description</span>
+                  </a>
+                ) : null}
+
+                <div className="flex flex-col gap-4 pr-12 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
                       {formatEducationLevelLabel(entry.education_level)}
@@ -1270,18 +1368,6 @@ export default function DetailedEmployeeProfile({
                       {entry.board_university || 'Board / University not provided'}
                     </p>
                   </div>
-
-                  {entry.file_url ? (
-                    <a
-                      href={entry.file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-md border border-black bg-white px-3 py-1.5 text-[11px] font-semibold text-black transition hover:bg-slate-50"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                      View File
-                    </a>
-                  ) : null}
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1304,6 +1390,67 @@ export default function DetailedEmployeeProfile({
                     </p>
                   </div>
                 </div>
+
+                {educationDocumentUrl ? (
+                  <div className="mt-5 rounded-[1rem] border border-slate-200 bg-slate-50/70 px-4 py-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-on-surface-variant">
+                          Education Document
+                        </p>
+                        <p className="mt-1 truncate text-sm font-semibold text-on-surface">
+                          {getEducationDocumentLabel(entry)}
+                        </p>
+                      </div>
+                      <a
+                        href={educationDocumentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex shrink-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 transition hover:border-[#7c3aed] hover:text-[#7c3aed]"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                        View Document
+                      </a>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-5 rounded-[1rem] border border-dashed border-slate-300 bg-slate-50/70 px-4 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-700">
+                          Education Document Missing
+                        </p>
+                        <p className="mt-1 text-sm text-on-surface-variant">
+                          Upload the education document for this qualification.
+                        </p>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:items-end">
+                        <label className="flex min-w-0 max-w-[260px] cursor-pointer items-center justify-between gap-3 rounded-md border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-on-surface">
+                          <span className="truncate">
+                            {selectedEducationFile?.name || 'Choose file to upload'}
+                          </span>
+                          <span className="material-symbols-outlined text-base">upload_file</span>
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={(event) => handleEducationFileChange(educationKey, event.target.files?.[0] || null)}
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => handleEducationUpload(entry)}
+                          disabled={isEducationUploading || !selectedEducationFile}
+                          className="rounded-md border border-black bg-white px-3 py-1.5 text-[11px] font-semibold text-black transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {isEducationUploading ? 'Uploading...' : 'Upload Document'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                    </>
+                  );
+                })()}
               </div>
             ))}
           </div>

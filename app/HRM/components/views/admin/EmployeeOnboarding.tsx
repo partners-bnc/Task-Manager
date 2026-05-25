@@ -6,6 +6,7 @@ import HrmEmptyState from '../../ui/HrmEmptyState';
 import { LoadingPanel } from '../../ui/Skeleton';
 import { useHrmFeedback } from '../../ui/HrmFeedback';
 import AddEmployee from './AddEmployee';
+import { supabaseUrl } from '@/utils/supabase/config';
 
 const FILTERS = [
   { key: 'all', label: 'All Active' },
@@ -59,6 +60,20 @@ function humanizeText(value?: string | null) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ') || '--';
+}
+
+function getStoredFileUrl(
+  fileUrl?: string | null,
+  filePath?: string | null,
+  bucket = 'hrm-onboarding-files'
+) {
+  const directUrl = String(fileUrl || '').trim();
+  if (directUrl) return directUrl;
+
+  const normalizedPath = String(filePath || '').trim();
+  if (!normalizedPath || !supabaseUrl) return '';
+
+  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${normalizedPath}`;
 }
 
 function DetailField({
@@ -156,7 +171,7 @@ export default function EmployeeOnboarding({
   const loadRequests = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/HRM/api/admin/onboarding');
+      const response = await fetch('/HRM/api/admin/onboarding?includeArchived=1');
       const result = await response.json();
       if (!response.ok) {
         throw new Error(result?.error || 'Failed to load onboarding requests');
@@ -551,25 +566,56 @@ export default function EmployeeOnboarding({
                 </div>
               </ReviewSection>
 
+              {detail.request.review_note ? (
+                <ReviewSection title="Current Review Note" subtitle="The latest saved HR note for this onboarding request.">
+                  <div className="rounded-[1.4rem] border border-slate-200 bg-white px-5 py-4">
+                    <p className="text-sm leading-6 text-slate-800">{detail.request.review_note}</p>
+                    <div className="mt-4 flex flex-wrap gap-4 text-xs font-medium text-slate-500">
+                      <span>Reviewed: {formatDateTime(detail.request.reviewed_at)}</span>
+                      <span>Approved: {formatDateTime(detail.request.approved_at)}</span>
+                    </div>
+                  </div>
+                </ReviewSection>
+              ) : null}
+
               <div className="grid gap-6 xl:grid-cols-2">
                 <ReviewSection title="Education" subtitle="Education records and uploaded supporting files.">
                   <div className="space-y-3">
                     {(detail.education || []).length === 0 ? (
                       <p className="text-sm text-slate-500">No education records submitted yet.</p>
                     ) : (
-                      detail.education.map((entry: any) => (
-                        <div key={entry.id} className="border-b border-slate-100 py-3 last:border-b-0">
-                          <p className="font-semibold text-slate-900">{humanizeText(entry.education_level)}</p>
-                          <div className="mt-3 space-y-1">
-                            <DetailField label="Institution" value={entry.institution_name} />
-                            <DetailField label="Board / University" value={entry.board_university} />
-                            <DetailField label="Specialization" value={entry.specialization || 'No specialization'} />
-                            <DetailField label="Passing Year" value={entry.passing_year ? String(entry.passing_year) : '--'} />
-                            <DetailField label="Score" value={entry.score} />
-                            <DetailField label="File" value={entry.degree_file_name || 'No file uploaded'} />
+                      detail.education.map((entry: any) => {
+                        const educationFileUrl = getStoredFileUrl(entry.degree_file_url, entry.degree_file_path);
+                        return (
+                          <div key={entry.id} className="border-b border-slate-100 py-3 last:border-b-0">
+                            <p className="font-semibold text-slate-900">{humanizeText(entry.education_level)}</p>
+                            <div className="mt-3 space-y-1">
+                              <DetailField label="Institution" value={entry.institution_name} />
+                              <DetailField label="Board / University" value={entry.board_university} />
+                              <DetailField label="Specialization" value={entry.specialization || 'No specialization'} />
+                              <DetailField label="Passing Year" value={entry.passing_year ? String(entry.passing_year) : '--'} />
+                              <DetailField label="Score" value={entry.score} />
+                              <div className="border-b border-slate-100 py-3 last:border-b-0">
+                                <div className="flex items-start gap-4">
+                                  <p className="w-[180px] shrink-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">File</p>
+                                  {educationFileUrl ? (
+                                    <a
+                                      href={educationFileUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="min-w-0 text-sm font-medium text-sky-700 hover:text-sky-800 hover:underline"
+                                    >
+                                      {entry.degree_file_name || 'View uploaded education file'}
+                                    </a>
+                                  ) : (
+                                    <p className="min-w-0 text-sm font-medium text-slate-900">No file uploaded</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </ReviewSection>
@@ -579,18 +625,21 @@ export default function EmployeeOnboarding({
                     {(detail.documents || []).length === 0 ? (
                       <p className="text-sm text-slate-500">No documents uploaded yet.</p>
                     ) : (
-                      detail.documents.map((entry: any) => (
-                        <a
-                          key={entry.id}
-                          href={entry.file_url || '#'}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center justify-between gap-3 border-b border-slate-100 py-3 text-sm text-slate-800 transition hover:text-slate-950 last:border-b-0"
-                        >
-                          <span className="font-medium text-slate-600">{humanizeText(entry.document_type)}</span>
-                          <span className="truncate text-right font-semibold text-slate-900">{entry.file_name}</span>
-                        </a>
-                      ))
+                      detail.documents.map((entry: any) => {
+                        const documentFileUrl = getStoredFileUrl(entry.file_url, entry.file_path);
+                        return (
+                          <a
+                            key={entry.id}
+                            href={documentFileUrl || '#'}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center justify-between gap-3 border-b border-slate-100 py-3 text-sm text-slate-800 transition hover:text-slate-950 last:border-b-0"
+                          >
+                            <span className="font-medium text-slate-600">{humanizeText(entry.document_type)}</span>
+                            <span className="truncate text-right font-semibold text-slate-900">{entry.file_name}</span>
+                          </a>
+                        );
+                      })
                     )}
                   </div>
                 </ReviewSection>
