@@ -681,16 +681,26 @@ function buildControlPivot(rows) {
 
 function openAttachmentFile(file) {
   if (!file) return;
-  const fileUrl = typeof file === "string" ? file : URL.createObjectURL(file);
+  const fileUrl = file.viewUrl || (typeof file === "string" ? file : URL.createObjectURL(file));
   window.open(fileUrl, "_blank", "noopener,noreferrer");
+}
+
+async function readResponsePayload(response) {
+  const rawText = await response.text();
+  if (!rawText) return {};
+  try {
+    return JSON.parse(rawText);
+  } catch {
+    return { error: rawText };
+  }
 }
 
 function downloadAttachmentFile(file) {
   if (!file) return;
-  const fileUrl = typeof file === "string" ? file : URL.createObjectURL(file);
+  const fileUrl = file.viewUrl || (typeof file === "string" ? file : URL.createObjectURL(file));
   const anchor = document.createElement("a");
   anchor.href = fileUrl;
-  anchor.download = typeof file === "string" ? "attachment" : file.name || "attachment";
+  anchor.download = file.fileName || file.name || (typeof file === "string" ? "attachment" : "attachment");
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
@@ -1271,6 +1281,12 @@ function ProjectCard({ project, members, onOpen }) {
   const progress = project.progressPercent ?? getProjectProgress(project);
   const assignedMembers = project.teamMemberIds?.slice(0, 4) || [];
   const stepCount = project.pdplData?.ganttRows?.length || project.ganttCount || 0;
+  const projectBadgeLabel = String(project.clientName || project.name || "PD")
+    .split(" ")
+    .map((part) => part.trim()[0] || "")
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "PD";
   return (
     <button
       type="button"
@@ -1312,12 +1328,14 @@ function ProjectCard({ project, members, onOpen }) {
             alignItems: "center",
             justifyContent: "center",
             color: COLORS.teal,
-            fontSize: 28,
+            fontSize: 22,
+            fontWeight: 800,
+            letterSpacing: "0.06em",
             boxShadow: "0 10px 24px rgba(13,148,136,0.08)",
             flexShrink: 0,
           }}
         >
-          TEAM
+          {projectBadgeLabel}
         </div>
         <Pill bg={COLORS.tealBg} color={COLORS.teal} border={COLORS.tealBorder}>
           {project.status === "active" ? "Active" : project.status || "Draft"}
@@ -3286,7 +3304,7 @@ export default function PdplWorkspace({
             `/Auditing/api/pdpl/projects/${persistedProjectId}/documents/${persistedRowId}/attachments/${attachment.id}`,
             { method: "DELETE" }
           );
-          const result = await response.json();
+          const result = await readResponsePayload(response);
           if (!response.ok) {
             throw new Error(result.error || "Failed to delete PDPL attachment.");
           }
@@ -3299,7 +3317,7 @@ export default function PdplWorkspace({
             method: "POST",
             body: formData,
           });
-          const result = await response.json();
+          const result = await readResponsePayload(response);
           if (!response.ok) {
             throw new Error(result.error || "Failed to upload PDPL attachments.");
           }
@@ -3939,18 +3957,21 @@ export default function PdplWorkspace({
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 360, fontSize: 13, color: COLORS.text }}>{row.documentName || "-"}</td>
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 180 }}>{renderStatusBadge(row.status || "Incomplete", COLORS.green)}</td>
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 180 }}>{renderStatusBadge(row.documentStatus || "Not Received", COLORS.teal)}</td>
-                <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 150 }}>
+                <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 190 }}>
                   {Array.isArray(row.attachments) && row.attachments.length ? (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 18 }}>ATT</span>
-                      <span style={{ fontSize: 12.5, color: COLORS.textSoft }}>{row.attachments.length}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, width: "fit-content", padding: "6px 12px", borderRadius: 999, border: `1px solid ${COLORS.tealBorder}`, background: COLORS.tealBg, flexShrink: 0 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.tealDark }}>
+                          {row.attachments.length} {row.attachments.length === 1 ? "file" : "files"}
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={(event) => {
                           event.stopPropagation();
-                          openAttachmentFile(row.attachments[0]);
+                          openRowDrawer("documents", row.id);
                         }}
-                        style={{ border: "none", background: "transparent", color: COLORS.teal, cursor: "pointer", fontSize: 12.5, fontWeight: 700, padding: 0 }}
+                        style={{ border: "none", background: "transparent", color: COLORS.teal, cursor: "pointer", fontSize: 12.5, fontWeight: 700, padding: 0, flexShrink: 0 }}
                       >
                         View
                       </button>
