@@ -665,6 +665,31 @@ function CstRowDrawer({
 
   const files = Array.isArray(values.attachments) ? values.attachments : [];
   const selectedMembers = normalizeMemberAssign(values.memberAssign);
+  const uploadCardStyle = {
+    border: `2px dashed ${COLORS.borderStrong}`,
+    borderRadius: 24,
+    padding: "26px 20px",
+    cursor: "pointer",
+    background: "linear-gradient(180deg,#ffffff 0%,#f8fbff 100%)",
+    display: "grid",
+    justifyItems: "center",
+    gap: 12,
+    textAlign: "center",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
+  };
+  const confirmAttachmentRemoval = (index) => {
+    const attachment = files[index];
+    if (!attachment) return;
+    const attachmentLabel = attachment.fileName || attachment.name || "this attachment";
+    const isPersistedAttachment = !(attachment instanceof File);
+    const confirmed = window.confirm(
+      isPersistedAttachment
+        ? `Delete "${attachmentLabel}"? Click OK to remove it from this row. When you save, it will also be deleted from the database.`
+        : `Delete "${attachmentLabel}" from this row?`
+    );
+    if (!confirmed) return;
+    onChange("attachments", files.filter((_, currentIndex) => currentIndex !== index));
+  };
 
   return (
     <>
@@ -674,25 +699,27 @@ function CstRowDrawer({
           position: "fixed",
           top: 0,
           right: 0,
-          width: "min(560px, 92vw)",
+          width: "min(620px, 92vw)",
           height: "100vh",
           background: "#fff",
-          borderLeft: `1px solid ${COLORS.border}`,
-          boxShadow: "-18px 0 45px rgba(15,23,42,0.12)",
+          borderLeft: `1px solid ${COLORS.borderStrong}`,
+          boxShadow: "-30px 0 70px rgba(15,23,42,0.18)",
           zIndex: 1201,
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
         }}
       >
-        <div style={{ padding: "20px 22px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 10, background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,1) 100%)" }} />
+        <div style={{ padding: "22px 24px", borderBottom: `1px solid ${COLORS.border}`, background: "linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 19, fontWeight: 800, color: COLORS.text }}>Gantt Task Details</div>
-            <div style={{ fontSize: 12.5, color: COLORS.textSoft, marginTop: 6 }}>Apply changes here to save this CST row and its attachments to the database.</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.02em" }}>Gantt Task Details</div>
+            <div style={{ fontSize: 13.5, color: COLORS.textSoft, marginTop: 8, lineHeight: 1.6 }}>Apply changes here to save this CST row and its attachments to the database.</div>
           </div>
-          <button onClick={onClose} style={{ ...tableInputStyle, width: 38, height: 38, padding: 0, cursor: "pointer" }}>x</button>
+          <button onClick={onClose} style={{ ...tableInputStyle, width: 42, height: 42, padding: 0, cursor: "pointer", borderRadius: 14, borderColor: COLORS.border, boxShadow: "0 8px 18px rgba(15,23,42,0.06)" }}>X</button>
         </div>
 
-        <div style={{ padding: 22, overflowY: "auto", display: "grid", gap: 14, flex: 1 }}>
+        <div style={{ padding: 24, overflowY: "auto", display: "grid", gap: 16, flex: 1 }}>
           <DrawerField label="Label">
             <input value={values.label || ""} onChange={(event) => onChange("label", event.target.value)} style={tableInputStyle} />
           </DrawerField>
@@ -772,8 +799,16 @@ function CstRowDrawer({
           </DrawerField>
           <DrawerField label="Attach Documents">
             <div style={{ display: "grid", gap: 10 }}>
-              <label style={{ border: `1px dashed ${COLORS.borderStrong}`, borderRadius: 14, padding: "14px 16px", cursor: "pointer", background: COLORS.grayBg, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, textAlign: "center", fontSize: 12.5, color: COLORS.textSoft }}>
-                <span style={{ fontWeight: 700, color: COLORS.text }}>Upload documents</span>
+              <label style={uploadCardStyle}>
+                <div style={{ width: 64, height: 64, borderRadius: 20, background: "#f1f5f9", border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.95)" }}>
+                  <div style={{ position: "relative", width: 24, height: 24 }}>
+                    <div style={{ position: "absolute", left: "50%", top: 3, width: 2, height: 13, background: COLORS.teal, transform: "translateX(-50%)", borderRadius: 999 }} />
+                    <div style={{ position: "absolute", left: "50%", top: 1, width: 8, height: 8, borderTop: `2px solid ${COLORS.teal}`, borderLeft: `2px solid ${COLORS.teal}`, transform: "translateX(-50%) rotate(45deg)" }} />
+                    <div style={{ position: "absolute", left: 4, right: 4, bottom: 3, height: 2, borderRadius: 999, background: COLORS.teal }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Drop files here or click to browse</div>
+                <div style={{ fontSize: 12, color: COLORS.textMuted }}>Any format supported - Max 20 MB each</div>
                 <input
                   type="file"
                   multiple
@@ -785,18 +820,40 @@ function CstRowDrawer({
                   style={{ display: "none" }}
                 />
               </label>
+              <label style={{ ...uploadCardStyle, borderColor: COLORS.tealBorder, background: "linear-gradient(180deg,#ffffff 0%,#f0fdfa 100%)" }}>
+                <div style={{ width: 64, height: 64, borderRadius: 20, background: "#ecfeff", border: `1px solid ${COLORS.tealBorder}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.95)" }}>
+                  <div style={{ position: "relative", width: 28, height: 22 }}>
+                    <div style={{ position: "absolute", left: 2, top: 6, width: 24, height: 14, border: `2px solid ${COLORS.teal}`, borderRadius: 5, background: "rgba(13,148,136,0.06)" }} />
+                    <div style={{ position: "absolute", left: 5, top: 2, width: 10, height: 7, borderTopLeftRadius: 4, borderTopRightRadius: 4, border: `2px solid ${COLORS.teal}`, borderBottom: "none", background: "#ecfeff" }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Drop folder here or click to browse</div>
+                <div style={{ fontSize: 12, color: COLORS.textMuted }}>Upload a full folder and keep every file together</div>
+                <input
+                  type="file"
+                  multiple
+                  webkitdirectory=""
+                  directory=""
+                  onChange={(event) => {
+                    const nextFiles = Array.from(event.target.files || []);
+                    onChange("attachments", [...files, ...nextFiles]);
+                    event.target.value = "";
+                  }}
+                  style={{ display: "none" }}
+                />
+              </label>
               {!!files.length && (
                 <div style={{ display: "grid", gap: 8 }}>
                   {files.map((file, index) => (
-                    <div key={`${file.storagePath || file.name}-${index}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, padding: "9px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 10 }}>
+                    <div key={`${file.storagePath || file.name}-${index}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 12 }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.fileName || file.name}</div>
                         <div style={{ fontSize: 11.5, color: COLORS.textSoft, marginTop: 2 }}>{file.mimeType || file.type || "File"}</div>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                        <button type="button" onClick={() => openAttachmentFile(file)} style={{ border: "none", background: "transparent", color: COLORS.teal, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>View</button>
-                        <button type="button" onClick={() => downloadAttachmentFile(file)} style={{ border: "none", background: "transparent", color: COLORS.textSoft, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>Download</button>
-                        <button type="button" onClick={() => onChange("attachments", files.filter((_, currentIndex) => currentIndex !== index))} style={{ border: "none", background: "transparent", color: COLORS.red, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>Remove</button>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
+                          <button type="button" onClick={() => openAttachmentFile(file)} style={{ border: "none", background: "transparent", color: COLORS.teal, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0, lineHeight: 1.2 }}>View</button>
+                          <button type="button" onClick={() => downloadAttachmentFile(file)} style={{ border: "none", background: "transparent", color: COLORS.textSoft, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0, lineHeight: 1.2 }}>Download</button>
+                          <button type="button" onClick={() => confirmAttachmentRemoval(index)} style={{ border: "none", background: "transparent", color: COLORS.red, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0, lineHeight: 1.2 }}>Remove</button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1898,7 +1955,11 @@ export default function CstAuditWorkspace({
       }
 
       for (const attachment of removedPersistedAttachments) {
-        await fetch(`/Auditing/api/cst/projects/${persistedProjectId}/gantt/${rowId}/attachments/${attachment.id}`, { method: "DELETE" });
+        const deleteResponse = await fetch(`/Auditing/api/cst/projects/${persistedProjectId}/gantt/${rowId}/attachments/${attachment.id}`, { method: "DELETE" });
+        const deleteResult = await deleteResponse.json();
+        if (!deleteResponse.ok) {
+          throw new Error(deleteResult.error || "Failed to delete CST attachment.");
+        }
       }
 
       let uploadedAttachments = [];
@@ -2407,3 +2468,4 @@ export default function CstAuditWorkspace({
     </div>
   );
 }
+

@@ -97,9 +97,6 @@ export function validatePdplUpload(file) {
   if (file.size > AUDITING_PDPL_FILE_SIZE_LIMIT) {
     throw new Error(`${file.name} exceeds the 20 MB file size limit.`);
   }
-  if (file.type && !AUDITING_PDPL_ALLOWED_MIME_TYPES.includes(file.type)) {
-    throw new Error(`${file.name} is not a supported file type.`);
-  }
 }
 
 export function normalizeMultiValue(input) {

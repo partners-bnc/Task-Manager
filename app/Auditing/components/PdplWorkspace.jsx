@@ -812,6 +812,34 @@ function DrawerField({ label, children }) {
 function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClose, onSave, onDelete, saveDisabled = false, saveLabel = "Save" }) {
   const [drawerWidth, setDrawerWidth] = useState(520);
   const [isResizing, setIsResizing] = useState(false);
+  const drawerAccent = "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,1) 100%)";
+  const uploadCardStyle = {
+    border: `2px dashed ${COLORS.borderStrong}`,
+    borderRadius: 24,
+    padding: "26px 20px",
+    cursor: "pointer",
+    background: "linear-gradient(180deg,#ffffff 0%,#f8fbff 100%)",
+    display: "grid",
+    justifyItems: "center",
+    gap: 12,
+    textAlign: "center",
+    transition: "all 0.2s ease",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
+  };
+
+  const confirmAttachmentRemoval = (fieldKey, files, index) => {
+    const attachment = files[index];
+    if (!attachment) return;
+    const attachmentLabel = attachment.fileName || attachment.name || "this attachment";
+    const isPersistedAttachment = !(attachment instanceof File);
+    const confirmed = window.confirm(
+      isPersistedAttachment
+        ? `Delete "${attachmentLabel}"? Click OK to remove it from this row. When you save, it will also be deleted from the database.`
+        : `Delete "${attachmentLabel}" from this row?`
+    );
+    if (!confirmed) return;
+    onChange(fieldKey, files.filter((_, currentIndex) => currentIndex !== index));
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -841,13 +869,15 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
           width: `min(${drawerWidth}px, 92vw)`,
           height: "100vh",
           background: "#fff",
-          borderLeft: `1px solid ${COLORS.border}`,
-          boxShadow: "-18px 0 45px rgba(15,23,42,0.12)",
+          borderLeft: `1px solid ${COLORS.borderStrong}`,
+          boxShadow: "-30px 0 70px rgba(15,23,42,0.18)",
           zIndex: 1201,
           display: "flex",
           flexDirection: "column",
+          overflow: "hidden",
         }}
       >
+        <div style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 10, background: drawerAccent }} />
         <div
           onMouseDown={() => setIsResizing(true)}
           style={{
@@ -858,17 +888,18 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
             height: "100%",
             cursor: "col-resize",
             zIndex: 2,
+            background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,1) 100%)",
           }}
         />
-        <div style={{ padding: "20px 22px", borderBottom: `1px solid ${COLORS.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ padding: "22px 24px", borderBottom: `1px solid ${COLORS.border}`, background: "linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div>
-            <div style={{ fontSize: 19, fontWeight: 800, color: COLORS.text }}>{title}</div>
-            {subtitle ? <div style={{ fontSize: 12.5, color: COLORS.textSoft, marginTop: 6 }}>{subtitle}</div> : null}
+            <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.text, letterSpacing: "-0.02em" }}>{title}</div>
+            {subtitle ? <div style={{ fontSize: 13.5, color: COLORS.textSoft, marginTop: 8, lineHeight: 1.6 }}>{subtitle}</div> : null}
           </div>
-          <button onClick={onClose} style={{ ...tableInputStyle, width: 38, height: 38, padding: 0, cursor: "pointer" }}>×</button>
+          <button onClick={onClose} style={{ ...tableInputStyle, width: 42, height: 42, padding: 0, cursor: "pointer", borderRadius: 14, borderColor: COLORS.border, boxShadow: "0 8px 18px rgba(15,23,42,0.06)" }}>X</button>
         </div>
 
-        <div style={{ padding: 22, overflowY: "auto", display: "grid", gap: 14, flex: 1 }}>
+        <div style={{ padding: 24, overflowY: "auto", display: "grid", gap: 16, flex: 1 }}>
       {fields.map((field) => {
         const value = values[field.key] ?? "";
         const commonStyle = { ...tableInputStyle, padding: "10px 12px" };
@@ -877,24 +908,16 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
               return (
                 <DrawerField key={field.key} label={field.label}>
                   <div style={{ display: "grid", gap: 10 }}>
-                    <label
-                      style={{
-                        border: `1px dashed ${COLORS.borderStrong}`,
-                        borderRadius: 14,
-                        padding: "14px 16px",
-                        cursor: "pointer",
-                        background: COLORS.grayBg,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 10,
-                        textAlign: "center",
-                        fontSize: 12.5,
-                        color: COLORS.textSoft,
-                      }}
-                    >
-                      <span style={{ fontSize: 20 }}>📎</span>
-                      <span style={{ fontWeight: 700, color: COLORS.text }}>Upload documents</span>
+                    <label style={uploadCardStyle}>
+                      <div style={{ width: 64, height: 64, borderRadius: 20, background: "#f1f5f9", border: `1px solid ${COLORS.border}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.95)" }}>
+                        <div style={{ position: "relative", width: 24, height: 24 }}>
+                          <div style={{ position: "absolute", left: "50%", top: 3, width: 2, height: 13, background: COLORS.teal, transform: "translateX(-50%)", borderRadius: 999 }} />
+                          <div style={{ position: "absolute", left: "50%", top: 1, width: 8, height: 8, borderTop: `2px solid ${COLORS.teal}`, borderLeft: `2px solid ${COLORS.teal}`, transform: "translateX(-50%) rotate(45deg)" }} />
+                          <div style={{ position: "absolute", left: 4, right: 4, bottom: 3, height: 2, borderRadius: 999, background: COLORS.teal }} />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Drop files here or click to browse</div>
+                      <div style={{ fontSize: 12, color: COLORS.textMuted }}>Any format supported - Max 20 MB each</div>
                       <input
                         type="file"
                         multiple
@@ -906,29 +929,57 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
                         style={{ display: "none" }}
                       />
                     </label>
+                    <label
+                      style={{
+                        ...uploadCardStyle,
+                        borderColor: COLORS.tealBorder,
+                        background: "linear-gradient(180deg,#ffffff 0%,#f0fdfa 100%)",
+                      }}
+                    >
+                      <div style={{ width: 64, height: 64, borderRadius: 20, background: "#ecfeff", border: `1px solid ${COLORS.tealBorder}`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.95)" }}>
+                        <div style={{ position: "relative", width: 28, height: 22 }}>
+                          <div style={{ position: "absolute", left: 2, top: 6, width: 24, height: 14, border: `2px solid ${COLORS.teal}`, borderRadius: 5, background: "rgba(13,148,136,0.06)" }} />
+                          <div style={{ position: "absolute", left: 5, top: 2, width: 10, height: 7, borderTopLeftRadius: 4, borderTopRightRadius: 4, border: `2px solid ${COLORS.teal}`, borderBottom: "none", background: "#ecfeff" }} />
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: COLORS.text }}>Drop folder here or click to browse</div>
+                      <div style={{ fontSize: 12, color: COLORS.textMuted }}>Upload a full folder and keep every file together</div>
+                      <input
+                        type="file"
+                        multiple
+                        webkitdirectory=""
+                        directory=""
+                        onChange={(event) => {
+                          const nextFiles = Array.from(event.target.files || []);
+                          onChange(field.key, [...files, ...nextFiles]);
+                          event.target.value = "";
+                        }}
+                        style={{ display: "none" }}
+                      />
+                    </label>
                     {!!files.length && (
                       <div style={{ display: "grid", gap: 8 }}>
                         {files.map((file, index) => (
-                          <div key={`${file.name}-${index}`} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, padding: "9px 10px", border: `1px solid ${COLORS.border}`, borderRadius: 10 }}>
+                          <div key={`${file.storagePath || file.fileName || file.name}-${index}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", border: `1px solid ${COLORS.border}`, borderRadius: 12 }}>
                             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, minWidth: 0, flex: 1 }}>
                               <div style={{ width: 34, height: 34, borderRadius: 10, background: COLORS.greenBg, border: `1px solid ${COLORS.greenBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-                                📄
+                                DOC
                               </div>
-                              <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</div>
-                                <div style={{ fontSize: 11.5, color: COLORS.textSoft, marginTop: 2 }}>{file.type || "File"}</div>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.fileName || file.name}</div>
+                                <div style={{ fontSize: 11.5, color: COLORS.textSoft, marginTop: 2 }}>{file.mimeType || file.type || "File"}</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 6 }}>
+                                  <button type="button" onClick={() => openAttachmentFile(file)} style={{ border: "none", background: "transparent", color: COLORS.teal, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0, lineHeight: 1.2 }}>
+                                    View
+                                  </button>
+                                  <button type="button" onClick={() => downloadAttachmentFile(file)} style={{ border: "none", background: "transparent", color: COLORS.textSoft, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0, lineHeight: 1.2 }}>
+                                    Download
+                                  </button>
+                                  <button type="button" onClick={() => confirmAttachmentRemoval(field.key, files, index)} style={{ border: "none", background: "transparent", color: COLORS.red, cursor: "pointer", fontSize: 12, fontWeight: 700, padding: 0, lineHeight: 1.2 }}>
+                                    Remove
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0, alignSelf: "center" }}>
-                              <button type="button" onClick={() => openAttachmentFile(file)} style={{ border: "none", background: "transparent", color: COLORS.teal, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                                View
-                              </button>
-                              <button type="button" onClick={() => downloadAttachmentFile(file)} style={{ border: "none", background: "transparent", color: COLORS.textSoft, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                                Download
-                              </button>
-                              <button type="button" onClick={() => onChange(field.key, files.filter((_, currentIndex) => currentIndex !== index))} style={{ border: "none", background: "transparent", color: COLORS.red, cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
-                                Remove
-                              </button>
                             </div>
                           </div>
                         ))}
@@ -981,7 +1032,7 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
                               onClick={() => onChange(field.key, selectedMembers.filter((item) => item !== member))}
                               style={{ border: "none", background: "transparent", color: COLORS.tealDark, cursor: "pointer", fontSize: 12, padding: 0 }}
                             >
-                              ×
+                              x
                             </button>
                           </span>
                         ))
@@ -1266,7 +1317,7 @@ function ProjectCard({ project, members, onOpen }) {
             flexShrink: 0,
           }}
         >
-          👤
+          TEAM
         </div>
         <Pill bg={COLORS.tealBg} color={COLORS.teal} border={COLORS.tealBorder}>
           {project.status === "active" ? "Active" : project.status || "Draft"}
@@ -1850,7 +1901,7 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: COLORS.textSoft }}>Select Team Members</div>
                 </div>
               </div>
-              <div style={{ fontSize: 15, color: COLORS.textMuted }}>{memberPickerOpen ? "▲" : "▼"}</div>
+              <div style={{ fontSize: 15, color: COLORS.textMuted }}>{memberPickerOpen ? "^" : "v"}</div>
             </button>
 
             {false && memberPickerOpen && (
@@ -1980,7 +2031,7 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
                         onClick={() => toggleMember(member.id)}
                         style={{ border: "none", background: "transparent", color: COLORS.textMuted, cursor: "pointer", fontSize: 14, padding: 0, flexShrink: 0 }}
                       >
-                        ×
+                        x
                       </button>
                     </div>
                   ))}
@@ -2016,7 +2067,7 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
                     onClick={() => toggleMember(member.id)}
                     style={{ border: "none", background: "transparent", color: COLORS.tealDark, cursor: "pointer", fontSize: 14, padding: 0 }}
                   >
-                    ×
+                    x
                   </button>
                 </div>
               ))}
@@ -2064,7 +2115,7 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
                     fontSize: 18,
                   }}
                 >
-                  ×
+                  x
                 </button>
               </div>
 
@@ -2185,7 +2236,7 @@ function PdplProjectModal({ open, members, mode = "create", initialValues, onClo
                             onClick={() => toggleMember(member.id)}
                             style={{ border: "none", background: "transparent", color: COLORS.textMuted, cursor: "pointer", fontSize: 15, padding: 0, flexShrink: 0 }}
                           >
-                            ×
+                            x
                           </button>
                         </div>
                       ))}
@@ -3790,7 +3841,7 @@ export default function PdplWorkspace({
                     <Pill bg={COLORS.tealBg} color={COLORS.teal} border={COLORS.tealBorder}>
                       {pivot.rows.length} categories
                     </Pill>
-                    <button onClick={() => setShowControlPivot(false)} style={{ ...tableInputStyle, width: 38, height: 38, padding: 0, cursor: "pointer", fontSize: 20, lineHeight: 1 }}>×</button>
+                    <button onClick={() => setShowControlPivot(false)} style={{ ...tableInputStyle, width: 38, height: 38, padding: 0, cursor: "pointer", fontSize: 20, lineHeight: 1 }}>X</button>
                   </div>
                 </div>
                 <div style={{ padding: 20, overflowY: "auto" }}>
@@ -3891,7 +3942,7 @@ export default function PdplWorkspace({
                 <td style={{ padding: "12px 14px", borderBottom: `1px solid ${COLORS.border}`, minWidth: 150 }}>
                   {Array.isArray(row.attachments) && row.attachments.length ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 18 }}>📎</span>
+                      <span style={{ fontSize: 18 }}>ATT</span>
                       <span style={{ fontSize: 12.5, color: COLORS.textSoft }}>{row.attachments.length}</span>
                       <button
                         type="button"
@@ -3971,7 +4022,7 @@ export default function PdplWorkspace({
                   display: "none",
                 }}
               >
-                ← Back
+                Back
               </button>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ fontSize: 18, fontWeight: 800, color: COLORS.teal }}>Project: {currentProject.name}</div>
@@ -4018,15 +4069,15 @@ export default function PdplWorkspace({
                 Project
               </button>
               <button onClick={() => setImportOpen(true)} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span aria-hidden="true">⬆</span>
+                <span aria-hidden="true">^</span>
                 Import Workbook
               </button>
               <button onClick={exportAllWorkbook} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.text, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span aria-hidden="true">⇩</span>
+                <span aria-hidden="true">v</span>
                 Export All
               </button>
               <button onClick={() => setNav("dashboard")} style={{ border: `1px solid ${COLORS.borderStrong}`, background: "#fff", color: COLORS.textSoft, borderRadius: 12, padding: "9px 14px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
-                <span aria-hidden="true">↩</span>
+                <span aria-hidden="true">Back</span>
                 Back
               </button>
             </div>
@@ -4220,3 +4271,5 @@ export default function PdplWorkspace({
     </div>
   );
 }
+
+
