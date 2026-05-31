@@ -19,9 +19,19 @@ export async function POST(request, { params }) {
     return NextResponse.json({ attachments }, { status: 201 });
   } catch (error) {
     console.error('Error uploading PDPL document attachments:', error);
-    if (String(error.message || '').includes('do not have access')) {
-      return NextResponse.json({ error: error.message }, { status: 403 });
+    const message = String(error?.message || '');
+    if (message.includes('do not have access')) {
+      return NextResponse.json({ error: message }, { status: 403 });
     }
-    return NextResponse.json({ error: error.message || 'Failed to upload PDPL document attachments' }, { status: 500 });
+    if (message.includes('exceeds the 20 MB file size limit')) {
+      return NextResponse.json({ error: message }, { status: 413 });
+    }
+    if (message.includes('valid document file is required')) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+    if (message.includes('not found')) {
+      return NextResponse.json({ error: message }, { status: 404 });
+    }
+    return NextResponse.json({ error: message || 'Failed to upload PDPL document attachments' }, { status: 500 });
   }
 }

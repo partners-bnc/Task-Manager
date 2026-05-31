@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  buildAuditingFileSizeLimitMessage,
+  readResponsePayload,
+  splitAuditingFilesBySize,
+} from "@/utils/auditing-upload-client";
 
 const COLORS = {
   bg: "#f8fafc",
@@ -660,6 +665,7 @@ function CstRowDrawer({
   onClose,
   onSave,
   onDelete,
+  showToast,
 }) {
   if (!open) return null;
 
@@ -689,6 +695,16 @@ function CstRowDrawer({
     );
     if (!confirmed) return;
     onChange("attachments", files.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const appendFiles = (incomingFiles) => {
+    const { validFiles, rejectedFiles } = splitAuditingFilesBySize(incomingFiles);
+    if (rejectedFiles.length) {
+      showToast?.("error", buildAuditingFileSizeLimitMessage(rejectedFiles));
+    }
+    if (validFiles.length) {
+      onChange("attachments", [...files, ...validFiles]);
+    }
   };
 
   return (
@@ -813,8 +829,7 @@ function CstRowDrawer({
                   type="file"
                   multiple
                   onChange={(event) => {
-                    const nextFiles = Array.from(event.target.files || []);
-                    onChange("attachments", [...files, ...nextFiles]);
+                    appendFiles(event.target.files || []);
                     event.target.value = "";
                   }}
                   style={{ display: "none" }}
@@ -835,8 +850,7 @@ function CstRowDrawer({
                   webkitdirectory=""
                   directory=""
                   onChange={(event) => {
-                    const nextFiles = Array.from(event.target.files || []);
-                    onChange("attachments", [...files, ...nextFiles]);
+                    appendFiles(event.target.files || []);
                     event.target.value = "";
                   }}
                   style={{ display: "none" }}
@@ -1447,7 +1461,7 @@ export default function CstAuditWorkspace({
       setCstProjectsLoading(true);
       try {
         const response = await fetch("/Auditing/api/cst/projects", { cache: "no-store" });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) {
           throw new Error(result.error || "Failed to load CST projects.");
         }
@@ -1489,7 +1503,7 @@ export default function CstAuditWorkspace({
       setProjectDetailsLoading(true);
       try {
         const response = await fetch(`/Auditing/api/cst/projects/${currentProject.id}`, { cache: "no-store" });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) {
           throw new Error(result.error || "Failed to load CST project details.");
         }
@@ -1547,7 +1561,7 @@ export default function CstAuditWorkspace({
     }
     try {
       const response = await fetch(`/Auditing/api/cst/projects/${targetProjectId}/dashboard`, { cache: "no-store" });
-      const result = await response.json();
+      const result = await readResponsePayload(response);
       if (!response.ok) throw new Error(result.error || "Failed to load CST dashboard.");
       setDashboardStats(result.dashboard || null);
     } catch (_error) {
@@ -1617,7 +1631,7 @@ export default function CstAuditWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = await response.json();
+      const result = await readResponsePayload(response);
       if (!response.ok) throw new Error(result.error || "Failed to update CST project.");
       return project.id;
     }
@@ -1627,7 +1641,7 @@ export default function CstAuditWorkspace({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const result = await response.json();
+    const result = await readResponsePayload(response);
     if (!response.ok) throw new Error(result.error || "Failed to create CST project in database.");
 
     const persistedProjectId = result.projectId;
@@ -1646,7 +1660,7 @@ export default function CstAuditWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows: serializeGanttRowsForSave(projectSnapshot) }),
       });
-      const result = await response.json();
+      const result = await readResponsePayload(response);
       if (!response.ok) throw new Error(result.error || "Failed to save CST Gantt rows.");
 
       const refreshedProject = ensureCstProject({ ...projectSnapshot, id: persistedProjectId, cstLoadedFromDb: true });
@@ -1766,7 +1780,7 @@ export default function CstAuditWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildProjectRequestPayload(applyLocalProjectMeta(ensureCstProject(targetProject)))),
       });
-      const result = await response.json();
+      const result = await readResponsePayload(response);
       if (!response.ok) throw new Error(result.error || "Failed to update CST project.");
 
       const savedProjectDetail = mapProjectDetailToLocalProject(result.project);
@@ -1792,7 +1806,7 @@ export default function CstAuditWorkspace({
     try {
       if (isPersistedProjectId(targetProject.id)) {
         const response = await fetch(`/Auditing/api/cst/projects/${targetProject.id}`, { method: "DELETE" });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) throw new Error(result.error || "Failed to delete CST project.");
       }
 
@@ -1941,7 +1955,7 @@ export default function CstAuditWorkspace({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) throw new Error(result.error || "Failed to save CST row.");
       } else {
         const response = await fetch(`/Auditing/api/cst/projects/${persistedProjectId}/sections/gantt`, {
@@ -1949,14 +1963,14 @@ export default function CstAuditWorkspace({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) throw new Error(result.error || "Failed to create CST row.");
         rowId = result.rowId;
       }
 
       for (const attachment of removedPersistedAttachments) {
         const deleteResponse = await fetch(`/Auditing/api/cst/projects/${persistedProjectId}/gantt/${rowId}/attachments/${attachment.id}`, { method: "DELETE" });
-        const deleteResult = await deleteResponse.json();
+        const deleteResult = await readResponsePayload(deleteResponse);
         if (!deleteResponse.ok) {
           throw new Error(deleteResult.error || "Failed to delete CST attachment.");
         }
@@ -1970,7 +1984,7 @@ export default function CstAuditWorkspace({
           method: "POST",
           body: formData,
         });
-        const uploadResult = await uploadResponse.json();
+        const uploadResult = await readResponsePayload(uploadResponse);
         if (!uploadResponse.ok) throw new Error(uploadResult.error || "Failed to upload CST attachments.");
         uploadedAttachments = Array.isArray(uploadResult.attachments) ? uploadResult.attachments : [];
       }
@@ -2017,7 +2031,7 @@ export default function CstAuditWorkspace({
       const projectSnapshot = ensureCstProject(currentProject);
       if (isPersistedProjectId(projectSnapshot.id) && isPersistedProjectId(String(drawerState.rowId))) {
         const response = await fetch(`/Auditing/api/cst/projects/${projectSnapshot.id}/sections/gantt/${drawerState.rowId}`, { method: "DELETE" });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) throw new Error(result.error || "Failed to delete CST row.");
       }
 
@@ -2439,6 +2453,7 @@ export default function CstAuditWorkspace({
         memberOptions={memberOptions}
         saving={drawerSaving}
         saveDisabled={!isDrawerDirty}
+        showToast={showToast}
         onChange={(key, value) =>
           setDrawerValues((current) => {
             const next = { ...current, [key]: value };

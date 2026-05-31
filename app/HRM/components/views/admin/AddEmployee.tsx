@@ -6,6 +6,7 @@ import {
   EMPLOYEE_TYPE_OPTIONS,
 } from '@/utils/hrm-employment';
 import { DEFAULT_PROBATION_PERIOD_DAYS } from '@/utils/employee-lifecycle';
+import { HRM_ALLOWED_DEPARTMENTS, mergeAllowedHrmDepartments } from '@/utils/hrm-departments';
 import { useHrmFeedback } from '../../ui/HrmFeedback';
 
 type Option = {
@@ -122,21 +123,17 @@ const GENDER_OPTIONS = [
   { value: 'others', label: 'Others' },
 ];
 const RELIGION_OPTIONS = ['Hindu', 'Muslim', 'Sikh', 'Christian', 'Buddhist', 'Jain', 'Parsi', 'Other'];
-const FIXED_DEPARTMENT_OPTIONS = [
-  'Finance & Accounts',
-  'Marketing',
-  'Cyber Security',
-  'Artificial Intelligence',
-  'Information Technology',
-  'Human Resource',
-];
+const FIXED_DEPARTMENT_OPTIONS = HRM_ALLOWED_DEPARTMENTS;
 const DEPARTMENT_DESIGNATION_SUGGESTIONS: Record<string, string[]> = {
-  'Human Resource': ['Manager', 'HR Manager', 'HR Executive', 'HR Recruiter', 'Talent Acquisition Executive'],
-  'Finance & Accounts': ['Manager', 'Accounts Manager', 'Account Manager', 'Accountant', 'Finance Executive'],
-  Marketing: ['Manager', 'Marketing Manager', 'Digital Marketing Executive', 'SEO Executive', 'Brand Executive'],
-  'Cyber Security': ['Manager', 'Security Manager', 'Security Analyst', 'Cyber Security Analyst', 'Compliance Analyst'],
-  'Artificial Intelligence': ['Manager', 'AI Manager', 'AI Engineer', 'ML Engineer', 'Data Scientist'],
-  'Information Technology': ['Manager', 'IT Manager', 'Software Developer', 'Frontend Developer', 'Backend Developer'],
+  'International Collaborations & Partnerships': ['Manager'],
+  'Consulting - Financial Advisory': ['Manager', 'Financial Advisor', 'Consultant'],
+  'HR & Global Hirings': ['Manager', 'HR Manager', 'HR Executive', 'Recruiter'],
+  'Marketing & Branding': ['Manager', 'Marketing Manager', 'Digital Marketing Executive', 'Brand Executive'],
+  'Accounts & Finance': ['Manager', 'Accounts Manager', 'Accountant', 'Finance Executive'],
+  'Consulting - HR': ['Manager', 'HR Consultant', 'Consultant'],
+  'Cyber Security': ['Manager', 'Security Manager', 'Security Analyst', 'Cyber Security Analyst'],
+  'AI Automation': ['Manager', 'AI Engineer', 'Automation Engineer', 'ML Engineer'],
+  'IT & Internal Control': ['Manager', 'IT Manager', 'Internal Control Executive', 'Software Developer'],
 };
 
 const DOCUMENT_TYPES = [
@@ -619,7 +616,7 @@ export default function AddEmployee({
           return;
         }
 
-        setDepartments(Array.isArray(result?.departments) ? result.departments as Option[] : []);
+        setDepartments(Array.isArray(result?.departments) ? mergeAllowedHrmDepartments(result.departments) as Option[] : mergeAllowedHrmDepartments([]) as Option[]);
         setDesignations(Array.isArray(result?.designations) ? result.designations as Option[] : []);
         setEmployees(
           Array.isArray(result?.employeeOptions)

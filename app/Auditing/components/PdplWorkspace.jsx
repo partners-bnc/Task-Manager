@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  buildAuditingFileSizeLimitMessage,
+  readResponsePayload,
+  splitAuditingFilesBySize,
+} from "@/utils/auditing-upload-client";
 
 const COLORS = {
   bg: "#f8fafc",
@@ -685,16 +690,6 @@ function openAttachmentFile(file) {
   window.open(fileUrl, "_blank", "noopener,noreferrer");
 }
 
-async function readResponsePayload(response) {
-  const rawText = await response.text();
-  if (!rawText) return {};
-  try {
-    return JSON.parse(rawText);
-  } catch {
-    return { error: rawText };
-  }
-}
-
 function downloadAttachmentFile(file) {
   if (!file) return;
   const fileUrl = file.viewUrl || (typeof file === "string" ? file : URL.createObjectURL(file));
@@ -819,7 +814,7 @@ function DrawerField({ label, children }) {
   );
 }
 
-function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClose, onSave, onDelete, saveDisabled = false, saveLabel = "Save" }) {
+function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClose, onSave, onDelete, saveDisabled = false, saveLabel = "Save", showToast }) {
   const [drawerWidth, setDrawerWidth] = useState(520);
   const [isResizing, setIsResizing] = useState(false);
   const drawerAccent = "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,1) 100%)";
@@ -849,6 +844,16 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
     );
     if (!confirmed) return;
     onChange(fieldKey, files.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const appendFiles = (fieldKey, files, incomingFiles) => {
+    const { validFiles, rejectedFiles } = splitAuditingFilesBySize(incomingFiles);
+    if (rejectedFiles.length) {
+      showToast?.("error", buildAuditingFileSizeLimitMessage(rejectedFiles));
+    }
+    if (validFiles.length) {
+      onChange(fieldKey, [...files, ...validFiles]);
+    }
   };
 
   useEffect(() => {
@@ -932,8 +937,7 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
                         type="file"
                         multiple
                         onChange={(event) => {
-                          const nextFiles = Array.from(event.target.files || []);
-                          onChange(field.key, [...files, ...nextFiles]);
+                          appendFiles(field.key, files, event.target.files || []);
                           event.target.value = "";
                         }}
                         style={{ display: "none" }}
@@ -960,8 +964,7 @@ function PdplRowDrawer({ open, title, subtitle, fields, values, onChange, onClos
                         webkitdirectory=""
                         directory=""
                         onChange={(event) => {
-                          const nextFiles = Array.from(event.target.files || []);
-                          onChange(field.key, [...files, ...nextFiles]);
+                          appendFiles(field.key, files, event.target.files || []);
                           event.target.value = "";
                         }}
                         style={{ display: "none" }}
@@ -2466,7 +2469,7 @@ export default function PdplWorkspace({
       setPdplProjectsLoading(true);
       try {
         const response = await fetch("/Auditing/api/pdpl/projects", { cache: "no-store" });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) {
           throw new Error(result.error || "Failed to load PDPL projects.");
         }
@@ -2509,7 +2512,7 @@ export default function PdplWorkspace({
       setProjectDetailsLoading(true);
       try {
         const response = await fetch(`/Auditing/api/pdpl/projects/${currentProject.id}`, { cache: "no-store" });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) {
           throw new Error(result.error || "Failed to load PDPL project details.");
         }
@@ -2763,7 +2766,7 @@ export default function PdplWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const result = await response.json();
+      const result = await readResponsePayload(response);
       if (!response.ok) {
         throw new Error(result.error || "Failed to update PDPL project.");
       }
@@ -2775,7 +2778,7 @@ export default function PdplWorkspace({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    const result = await response.json();
+    const result = await readResponsePayload(response);
     if (!response.ok) {
       throw new Error(result.error || "Failed to create PDPL project in database.");
     }
@@ -2800,7 +2803,7 @@ export default function PdplWorkspace({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows }),
     });
-    const result = await response.json();
+    const result = await readResponsePayload(response);
     if (!response.ok) {
       throw new Error(result.error || `Failed to save ${SECTION_META[sectionKey]?.label || sectionKey}.`);
     }
@@ -2854,7 +2857,7 @@ export default function PdplWorkspace({
 
   const reloadPdplProjectFromDatabase = async (persistedProjectId, drawerSectionKey = "", drawerRowId = null) => {
     const response = await fetch(`/Auditing/api/pdpl/projects/${persistedProjectId}`, { cache: "no-store" });
-    const result = await response.json();
+    const result = await readResponsePayload(response);
     if (!response.ok) {
       throw new Error(result.error || "Failed to reload PDPL project.");
     }
@@ -2969,7 +2972,7 @@ export default function PdplWorkspace({
           )
         ),
       });
-      const result = await response.json();
+      const result = await readResponsePayload(response);
       if (!response.ok) {
         throw new Error(result.error || "Failed to update PDPL project.");
       }
@@ -3053,7 +3056,7 @@ export default function PdplWorkspace({
     try {
       if (isPersistedProjectId(targetProject.id)) {
         const response = await fetch(`/Auditing/api/pdpl/projects/${targetProject.id}`, { method: "DELETE" });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) throw new Error(result.error || "Failed to delete PDPL project.");
       }
 
@@ -3272,7 +3275,7 @@ export default function PdplWorkspace({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) {
           throw new Error(result.error || `Failed to update ${SECTION_META[sectionKey]?.label || sectionKey} row.`);
         }
@@ -3282,7 +3285,7 @@ export default function PdplWorkspace({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) {
           throw new Error(result.error || `Failed to create ${SECTION_META[sectionKey]?.label || sectionKey} row.`);
         }
@@ -3369,7 +3372,7 @@ export default function PdplWorkspace({
         const response = await fetch(`/Auditing/api/pdpl/projects/${currentProject.id}/sections/${drawerState.sectionKey}/${drawerState.key}`, {
           method: "DELETE",
         });
-        const result = await response.json();
+        const result = await readResponsePayload(response);
         if (!response.ok) {
           throw new Error(result.error || "Failed to delete PDPL row.");
         }
@@ -4259,6 +4262,7 @@ export default function PdplWorkspace({
         subtitle={drawerSubtitle}
         fields={drawerFields}
         values={drawerValues}
+        showToast={showToast}
         onChange={(key, value) =>
           setDrawerValues((current) => {
             const next = { ...current, [key]: value };

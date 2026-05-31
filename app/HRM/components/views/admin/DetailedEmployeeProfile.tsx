@@ -9,6 +9,7 @@ import {
   getEmployeeTypeLabel,
 } from '@/utils/hrm-employment';
 import { DEFAULT_PROBATION_PERIOD_DAYS, SEPARATION_REASON_OPTIONS } from '@/utils/employee-lifecycle';
+import { mergeAllowedHrmDepartments } from '@/utils/hrm-departments';
 import { useHrmFeedback } from '../../ui/HrmFeedback';
 import { LoadingPanel, Skeleton } from '../../ui/Skeleton';
 
@@ -22,12 +23,15 @@ const RELIGION_OPTIONS = ['Hindu', 'Muslim', 'Sikh', 'Christian', 'Buddhist', 'J
 const YES_NO_OPTIONS = ['Yes', 'No'];
 const NOTICE_PERIOD_OPTIONS = ['30', '60', '90'];
 const DEPARTMENT_DESIGNATION_SUGGESTIONS: Record<string, string[]> = {
-  'Human Resource': ['Manager', 'HR Manager', 'HR Executive', 'HR Recruiter', 'Talent Acquisition Executive'],
-  'Finance & Accounts': ['Manager', 'Accounts Manager', 'Account Manager', 'Accountant', 'Finance Executive'],
-  Marketing: ['Manager', 'Marketing Manager', 'Digital Marketing Executive', 'SEO Executive', 'Brand Executive'],
-  'Cyber Security': ['Manager', 'Security Manager', 'Security Analyst', 'Cyber Security Analyst', 'Compliance Analyst'],
-  'Artificial Intelligence': ['Manager', 'AI Manager', 'AI Engineer', 'ML Engineer', 'Data Scientist'],
-  'Information Technology': ['Manager', 'IT Manager', 'Software Developer', 'Frontend Developer', 'Backend Developer'],
+  'International Collaborations & Partnerships': ['Manager'],
+  'Consulting - Financial Advisory': ['Manager', 'Financial Advisor', 'Consultant'],
+  'HR & Global Hirings': ['Manager', 'HR Manager', 'HR Executive', 'Recruiter'],
+  'Marketing & Branding': ['Manager', 'Marketing Manager', 'Digital Marketing Executive', 'Brand Executive'],
+  'Accounts & Finance': ['Manager', 'Accounts Manager', 'Accountant', 'Finance Executive'],
+  'Consulting - HR': ['Manager', 'HR Consultant', 'Consultant'],
+  'Cyber Security': ['Manager', 'Security Manager', 'Security Analyst', 'Cyber Security Analyst'],
+  'AI Automation': ['Manager', 'AI Engineer', 'Automation Engineer', 'ML Engineer'],
+  'IT & Internal Control': ['Manager', 'IT Manager', 'Internal Control Executive', 'Software Developer'],
 };
 const DOCUMENT_TYPES = [
   { key: 'aadhaar_card', label: 'Aadhaar Card' },
@@ -510,7 +514,7 @@ export default function DetailedEmployeeProfile({
         setMeta({
           employees: result.employeeOptions || result.employees || [],
           superAdmins: result.superAdminOptions || [],
-          departments: result.departments || [],
+          departments: mergeAllowedHrmDepartments(result.departments || []),
           designations: result.designations || [],
         });
       } catch (requestError: any) {
