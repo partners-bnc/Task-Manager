@@ -5,9 +5,11 @@ import {
   canActorViewTicket,
   isMissingTicketSchemaError,
   loadTicketParticipants,
-  normalizeTicketModuleKey,
   parseMultipartJson,
   requireTicketActor,
+  TICKET_ATTACHMENTS_TABLE,
+  TICKET_COMMENTS_TABLE,
+  TICKETS_TABLE,
   uploadTicketFiles,
 } from '@/utils/tickets';
 
@@ -33,15 +35,12 @@ export async function POST(request, context) {
     }
 
     const { data: ticket, error: ticketError } = await adminClient
-      .from('hrm_tickets')
+      .from(TICKETS_TABLE)
       .select('*')
       .eq('id', ticketId)
       .maybeSingle();
     if (ticketError) throw ticketError;
     if (!ticket) {
-      return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-    }
-    if (normalizeTicketModuleKey(ticket.module_key) !== 'hrm') {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
 
@@ -64,7 +63,7 @@ export async function POST(request, context) {
       updated_at: now,
     };
 
-    const { error: commentError } = await adminClient.from('hrm_ticket_comments').insert(commentPayload);
+    const { error: commentError } = await adminClient.from(TICKET_COMMENTS_TABLE).insert(commentPayload);
     if (commentError) {
       return NextResponse.json({ error: commentError.message || 'Failed to add comment.' }, { status: 500 });
     }
@@ -78,24 +77,24 @@ export async function POST(request, context) {
         actor,
       });
     } catch (error) {
-      await adminClient.from('hrm_ticket_comments').delete().eq('id', commentId);
+      await adminClient.from(TICKET_COMMENTS_TABLE).delete().eq('id', commentId);
       throw error;
     }
     const uploadedPaths = attachments.map((attachment) => attachment.file_path);
 
     if (attachments.length > 0) {
-      const { error: attachmentError } = await adminClient.from('hrm_ticket_attachments').insert(attachments);
+      const { error: attachmentError } = await adminClient.from(TICKET_ATTACHMENTS_TABLE).insert(attachments);
       if (attachmentError) {
         if (uploadedPaths.length > 0) {
           await adminClient.storage.from('hrm-ticket-files').remove(uploadedPaths);
         }
-        await adminClient.from('hrm_ticket_comments').delete().eq('id', commentId);
+        await adminClient.from(TICKET_COMMENTS_TABLE).delete().eq('id', commentId);
         return NextResponse.json({ error: attachmentError.message || 'Comment added, but attachments failed.' }, { status: 500 });
       }
     }
 
     await adminClient
-      .from('hrm_tickets')
+      .from(TICKETS_TABLE)
       .update({ last_activity_at: now })
       .eq('id', ticketId);
 

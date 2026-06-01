@@ -19,7 +19,7 @@ export async function GET(request) {
 
     const csvContent = await buildTicketExportCsv({
       actor,
-      moduleKey: 'hrm',
+      moduleKey: 'all',
       search,
       status,
       category,
@@ -29,7 +29,7 @@ export async function GET(request) {
       status: 200,
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="hrm-all-tickets-export.csv"`,
+        'Content-Disposition': `attachment; filename="all-tickets-export.csv"`,
       },
     });
   } catch (error) {

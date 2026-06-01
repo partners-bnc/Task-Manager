@@ -282,8 +282,9 @@ export async function loadOrganizationChartData() {
 
   const [superAdminsResult, employeesResult] = await Promise.all([
     adminClient
-      .from('super_admins')
-      .select('id, name, email, status, designation, profile_picture_url')
+      .from('privileged_accounts')
+      .select('id, auth_user_id, name, email, status, designation, profile_picture_url')
+      .eq('role', 'super_admin')
       .order('name', { ascending: true }),
     adminClient
       .from('hrm_employees')

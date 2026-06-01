@@ -19,6 +19,12 @@ import {
   syncSuperAdminPasswordToAuth,
   verifySuperAdminPassword,
 } from '@/utils/super-admin-auth';
+import {
+  ensureSupportAuthUser,
+  findSupportByEmail,
+  syncSupportPasswordToAuth,
+  verifySupportPassword,
+} from '@/utils/support-auth';
 
 const EMPLOYEE_AUTH_SELECT_BASE =
   'id, employee_id, name, email, role, password_hash, must_change_password, auth_user_id, employee_status';
@@ -138,6 +144,81 @@ async function tryLegacySuperAdminLogin(identifier, password, loginAs) {
   const authContext = await resolveAuthenticatedUserContext(supabase, data.user);
 
   if (!authContext || authContext.accountType !== 'super_admin') {
+    await supabase.auth.signOut();
+    return { ok: false };
+  }
+
+  return {
+    ok: true,
+    payload: {
+      success: true,
+      role: authContext.accountType,
+      destination: authContext.destination,
+      workspaceHref: authContext.destination,
+      taskManagerHref: authContext.moduleAccess?.taskManager?.href || '/login',
+      modules: authContext.moduleAccess,
+      user: {
+        id: authContext.user.id,
+        email: authContext.user.email,
+        name: authContext.user.name,
+      },
+    },
+  };
+}
+
+async function tryLegacySupportLogin(identifier, password, loginAs) {
+  if (normalizeLoginPortal(loginAs) !== 'support') {
+    return { ok: false };
+  }
+
+  const supportAccount = await findSupportByEmail(identifier);
+
+  if (!supportAccount) {
+    return { ok: false };
+  }
+
+  if (String(supportAccount.status || '').toLowerCase() !== 'active') {
+    return {
+      ok: false,
+      payload: {
+        error: 'This support account is inactive.',
+      },
+      status: 403,
+    };
+  }
+
+  const passwordValid = await verifySupportPassword(supportAccount, password);
+  if (!passwordValid) {
+    return { ok: false };
+  }
+
+  const authUserId = await ensureSupportAuthUser(supportAccount, password);
+  const nextSupportAccount = {
+    ...supportAccount,
+    auth_user_id: authUserId,
+  };
+
+  await syncSupportPasswordToAuth(nextSupportAccount, password);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: nextSupportAccount.email,
+    password,
+  });
+
+  if (error || !data?.user) {
+    return {
+      ok: false,
+      payload: {
+        error: 'Support account was prepared, but sign-in could not be completed. Please try again.',
+      },
+      status: 500,
+    };
+  }
+
+  const authContext = await resolveAuthenticatedUserContext(supabase, data.user);
+
+  if (!authContext || authContext.accountType !== 'support') {
     await supabase.auth.signOut();
     return { ok: false };
   }
@@ -357,6 +438,15 @@ export async function POST(request) {
 
     if (legacySuperAdminResult.payload?.error) {
       return NextResponse.json(legacySuperAdminResult.payload, { status: legacySuperAdminResult.status || 403 });
+    }
+
+    const legacySupportResult = await tryLegacySupportLogin(email, password, selectedPortal);
+    if (legacySupportResult.ok) {
+      return NextResponse.json(legacySupportResult.payload);
+    }
+
+    if (legacySupportResult.payload?.error) {
+      return NextResponse.json(legacySupportResult.payload, { status: legacySupportResult.status || 403 });
     }
 
     const employeeResult = await tryEmployeeLogin(email, password, selectedPortal);

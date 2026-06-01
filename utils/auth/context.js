@@ -1,9 +1,10 @@
 import { adminClient } from '@/utils/supabase/admin';
-import { findHrAdminByAuthUserId } from '@/utils/hr-admins';
 import { findSuperAdminByAuthUserId } from '@/utils/super-admins';
+import { findPrivilegedAccountByAuthUserId } from '@/utils/privileged-accounts';
 import { isEmployeeAccessDisabledNow } from '@/utils/hrm-employment';
 import {
   isHrAdminRole,
+  isSupportRole,
   isSuperAdminRole,
   normalizeProfileRole,
   resolveAccountType,
@@ -32,7 +33,10 @@ export function getEmployeeModuleAccessRecord(employee) {
 }
 
 export function buildModuleAccessState(authContext) {
-  const isPrivilegedUser = authContext?.accountType === 'hr_admin' || authContext?.accountType === 'super_admin';
+  const isPrivilegedUser =
+    authContext?.accountType === 'hr_admin' ||
+    authContext?.accountType === 'super_admin' ||
+    authContext?.accountType === 'support';
   const employeeModuleAccess = getEmployeeModuleAccessRecord(authContext?.employee);
   const employeeAccessBlocked = !isPrivilegedUser && isEmployeeAccessDisabledNow(authContext?.employee);
 
@@ -72,6 +76,10 @@ function getDefaultDestinationForResolvedContext(accountType, moduleAccessState)
 
   if (accountType === 'hr_admin') {
     return '/HRM/hrm/admin';
+  }
+
+  if (accountType === 'support') {
+    return '/Taskmanager/admin';
   }
 
   if (accountType === 'employee') {
@@ -183,7 +191,8 @@ export async function resolveAuthenticatedUserContext(supabase, user) {
     }
   }
 
-  const profileRole = normalizeProfileRole(profile?.role);
+  const privilegedAccount = await findPrivilegedAccountByAuthUserId(user.id);
+  const profileRole = normalizeProfileRole(profile?.role || privilegedAccount?.role);
   const accountType = resolveAccountType({ profileRole, employee });
 
   if (!accountType) {
@@ -192,13 +201,18 @@ export async function resolveAuthenticatedUserContext(supabase, user) {
 
   let hrAdmin = null;
   let superAdmin = null;
+  let support = null;
 
   if (accountType === 'hr_admin') {
-    hrAdmin = await findHrAdminByAuthUserId(user.id);
+    hrAdmin = privilegedAccount?.role === 'hr_admin' ? privilegedAccount : null;
   }
 
   if (accountType === 'super_admin') {
-    superAdmin = await findSuperAdminByAuthUserId(user.id);
+    superAdmin = privilegedAccount?.role === 'super_admin' ? privilegedAccount : await findSuperAdminByAuthUserId(user.id);
+  }
+
+  if (accountType === 'support') {
+    support = privilegedAccount?.role === 'support' ? privilegedAccount : null;
   }
 
   if (accountType === 'super_admin' && !superAdmin) {
@@ -206,6 +220,10 @@ export async function resolveAuthenticatedUserContext(supabase, user) {
   }
 
   if (accountType === 'hr_admin' && !hrAdmin) {
+    return null;
+  }
+
+  if (accountType === 'support' && !support) {
     return null;
   }
 
@@ -230,16 +248,25 @@ export async function resolveAuthenticatedUserContext(supabase, user) {
     profileRole,
     isSuperAdmin: isSuperAdminRole(profileRole),
     isHrAdmin: isHrAdminRole(profileRole),
+    isSupport: isSupportRole(profileRole),
     destination: getDefaultDestinationForResolvedContext(accountType, moduleAccess),
     user: {
       id: user.id,
       employeeId: employee?.employee_id || profile?.employee_id || '',
       email: user.email || superAdmin?.email || hrAdmin?.email || employee?.email || profile?.email || '',
       name: displayName,
-      avatarUrl: superAdmin?.profile_picture_url || user.user_metadata?.avatar_url || employee?.profile_picture_url || null,
+      avatarUrl:
+        superAdmin?.profile_picture_url ||
+        support?.profile_picture_url ||
+        hrAdmin?.profile_picture_url ||
+        user.user_metadata?.avatar_url ||
+        employee?.profile_picture_url ||
+        null,
     },
     superAdmin: superAdmin || null,
     hrAdmin: hrAdmin || null,
+    support: support || null,
+    privilegedAccount: privilegedAccount || null,
     employee: employee || null,
     profile: profile || null,
     moduleAccess,

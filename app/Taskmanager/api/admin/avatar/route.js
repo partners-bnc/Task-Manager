@@ -102,7 +102,7 @@ export async function POST(request) {
 
     if (authContext.isSuperAdmin && authContext.superAdmin?.id) {
       const { error: superAdminUpdateError } = await adminClient
-        .from('super_admins')
+        .from('privileged_accounts')
         .update({
           profile_picture_url: avatarUrl,
           updated_at: new Date().toISOString(),

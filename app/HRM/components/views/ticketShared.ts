@@ -20,7 +20,7 @@ export type TicketPipelineStep =
 export interface TicketPerson {
   authUserId: string;
   employeeId?: string | null;
-  role: 'employee' | 'hr_admin' | 'super_admin';
+  role: 'employee' | 'hr_admin' | 'super_admin' | 'support';
   name: string;
   email: string;
   employeeCode?: string;

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
 import { createClient } from '@/utils/supabase/server';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
+import { findDefaultSupportAccount, listActivePrivilegedAccounts } from '@/utils/privileged-accounts';
 
 export const TICKET_STATUSES = ['ticket_raised', 'open', 'in_progress', 'waiting_on_requester', 'resolved', 'closed'];
 export const TICKET_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
@@ -25,11 +26,17 @@ export const TASK_MANAGER_TICKET_CATEGORIES = [
   'work_update',
   'other',
 ];
-export const TICKET_CATEGORIES = HRM_TICKET_CATEGORIES;
+export const TICKET_CATEGORIES = Array.from(new Set([...HRM_TICKET_CATEGORIES, ...TASK_MANAGER_TICKET_CATEGORIES]));
 export const TICKET_FLOW_STEPS = ['ticket_raised', 'open', 'in_progress', 'waiting_on_requester', 'resolved', 'closed'];
 export const TICKET_HISTORY_STEPS = [...TICKET_FLOW_STEPS, 'reopened'];
 export const HRM_TICKET_FILES_BUCKET = 'hrm-ticket-files';
 export const HRM_TICKET_FILE_SIZE_LIMIT = 10 * 1024 * 1024;
+export const TICKETS_TABLE = 'tickets';
+export const TICKET_PARTICIPANTS_TABLE = 'ticket_participants';
+export const TICKET_COMMENTS_TABLE = 'ticket_comments';
+export const TICKET_ATTACHMENTS_TABLE = 'ticket_attachments';
+export const TICKET_STATUS_HISTORY_TABLE = 'ticket_status_history';
+export const TICKET_ESCALATIONS_TABLE = 'ticket_escalations';
 export const HRM_TICKET_ALLOWED_MIME_TYPES = [
   'application/pdf',
   'image/jpeg',
@@ -50,7 +57,11 @@ export function normalizeTicketModuleKey(moduleKey) {
   return String(moduleKey || 'hrm').trim().toLowerCase() === 'task_manager' ? 'task_manager' : 'hrm';
 }
 
-export function getTicketCategories(moduleKey = 'hrm') {
+export function getTicketCategories(moduleKey = null) {
+  if (!moduleKey || moduleKey === 'all') {
+    return TICKET_CATEGORIES;
+  }
+
   return normalizeTicketModuleKey(moduleKey) === 'task_manager'
     ? TASK_MANAGER_TICKET_CATEGORIES
     : HRM_TICKET_CATEGORIES;
@@ -172,7 +183,14 @@ export function sanitizeStorageFileName(fileName = '') {
 export function isMissingTicketSchemaError(error) {
   const message = String(error?.message || '').toLowerCase();
   return (
-    (message.includes('hrm_ticket') || message.includes('hrm_tickets') || message.includes('hrm_ticket_escalation')) &&
+    (
+      message.includes('hrm_ticket') ||
+      message.includes('hrm_tickets') ||
+      message.includes('ticket_escalation') ||
+      message.includes('ticket_participants') ||
+      message.includes('ticket_comments') ||
+      message.includes('tickets')
+    ) &&
     (message.includes('schema cache') || message.includes('relation') || message.includes('does not exist'))
   );
 }
@@ -276,6 +294,17 @@ export function buildTicketActor(authContext) {
     };
   }
 
+  if (authContext.accountType === 'support') {
+    return {
+      authUserId: authContext.userId,
+      employeeId: null,
+      role: 'support',
+      name: authContext.support?.name || authContext.user?.name || authContext.user?.email || 'Support',
+      email: authContext.support?.email || authContext.user?.email || '',
+      isAdmin: true,
+    };
+  }
+
   if (authContext.accountType === 'employee' && authContext.employee?.id) {
     return {
       authUserId: authContext.userId,
@@ -292,53 +321,37 @@ export function buildTicketActor(authContext) {
 }
 
 export async function listTicketPeople() {
-  const [hrAdminsResult, superAdminsResult, employeesResult] = await Promise.all([
-    adminClient
-      .from('hr_admins')
-      .select('id, auth_user_id, name, email, status')
-      .eq('status', 'Active')
-      .order('name', { ascending: true }),
-    adminClient.from('super_admins').select('id, auth_user_id, name, email, status, profile_picture_url').order('name', { ascending: true }),
+  const [privilegedAccounts, employeesResult] = await Promise.all([
+    listActivePrivilegedAccounts(),
     adminClient
       .from('hrm_employees')
       .select('id, auth_user_id, employee_id, name, email, role, profile_picture_url')
       .order('name', { ascending: true }),
   ]);
 
-  if (hrAdminsResult.error) throw new Error(hrAdminsResult.error.message || 'Failed to load HR admins');
-  if (superAdminsResult.error) throw new Error(superAdminsResult.error.message || 'Failed to load super admins');
   if (employeesResult.error) throw new Error(employeesResult.error.message || 'Failed to load employees');
 
-  const hrAdmins = hrAdminsResult.data || [];
-  const superAdmins = superAdminsResult.data || [];
   const employees = employeesResult.data || [];
-
-  const adminAuthIds = new Set([...hrAdmins, ...superAdmins].map((row) => row.auth_user_id).filter(Boolean));
+  const adminAuthIds = new Set(privilegedAccounts.map((row) => row.auth_user_id).filter(Boolean));
 
   const people = [
-    ...superAdmins
+    ...privilegedAccounts
       .filter((row) => row.auth_user_id)
       .map((row) => ({
         authUserId: row.auth_user_id,
         employeeId: null,
-        role: 'super_admin',
-        name: row.name || 'Super Admin',
+        role: row.role,
+        name:
+          row.name ||
+          (row.role === 'support'
+            ? 'Support'
+            : row.role === 'hr_admin'
+              ? 'HR Admin'
+              : 'Super Admin'),
         email: row.email || '',
         employeeCode: '',
         avatarUrl: row.profile_picture_url || '',
-        label: row.name || row.email || 'Super Admin',
-      })),
-    ...hrAdmins
-      .filter((row) => row.auth_user_id)
-      .map((row) => ({
-        authUserId: row.auth_user_id,
-        employeeId: null,
-        role: 'hr_admin',
-        name: row.name || 'HR Admin',
-        email: row.email || '',
-        employeeCode: '',
-        avatarUrl: '',
-        label: row.name || row.email || 'HR Admin',
+        label: row.name || row.email || row.role,
       })),
     ...employees
       .filter((row) => row.auth_user_id && !adminAuthIds.has(row.auth_user_id))
@@ -479,8 +492,8 @@ export function mapTicketSummary(ticket, participants, byAuthUserId, actor) {
   return {
     id: ticket.id,
     ticketNo: ticket.ticket_no,
-    moduleKey: normalizeTicketModuleKey(ticket.module_key),
-    moduleLabel: formatTicketModuleLabel(ticket.module_key),
+    moduleKey: normalizeTicketModuleKey(ticket.source_module),
+    moduleLabel: formatTicketModuleLabel(ticket.source_module),
     subject: ticket.subject,
     description: ticket.description,
     category: ticket.category,
@@ -509,23 +522,35 @@ export function mapTicketSummary(ticket, participants, byAuthUserId, actor) {
 }
 
 export async function loadVisibleTickets(actor, moduleKey = 'hrm') {
-  const normalizedModuleKey = normalizeTicketModuleKey(moduleKey);
+  const shouldFilterByModule = Boolean(moduleKey && moduleKey !== 'all');
+  const normalizedModuleKey = shouldFilterByModule ? normalizeTicketModuleKey(moduleKey) : null;
   if (actor.isAdmin) {
-    const result = await adminClient
-      .from('hrm_tickets')
+    let query = adminClient
+      .from(TICKETS_TABLE)
       .select('*')
-      .eq('module_key', normalizedModuleKey)
       .order('last_activity_at', { ascending: false });
+    if (normalizedModuleKey) {
+      query = query.eq('source_module', normalizedModuleKey);
+    }
+    const result = await query;
     if (result.error) throw result.error;
     return (result.data || []).map(withDerivedTicketSla);
   }
 
+  const scopedTicketQuery = (columnName) => {
+    let query = adminClient.from(TICKETS_TABLE).select('*').eq(columnName, actor.authUserId);
+    if (normalizedModuleKey) {
+      query = query.eq('source_module', normalizedModuleKey);
+    }
+    return query;
+  };
+
   const [requesterRows, ownerRows, escalatedRows, raisedForRows, participantRowsResult] = await Promise.all([
-    adminClient.from('hrm_tickets').select('*').eq('module_key', normalizedModuleKey).eq('requester_auth_user_id', actor.authUserId),
-    adminClient.from('hrm_tickets').select('*').eq('module_key', normalizedModuleKey).eq('owner_auth_user_id', actor.authUserId),
-    adminClient.from('hrm_tickets').select('*').eq('module_key', normalizedModuleKey).eq('current_escalated_auth_user_id', actor.authUserId),
-    adminClient.from('hrm_tickets').select('*').eq('module_key', normalizedModuleKey).eq('raised_for_auth_user_id', actor.authUserId),
-    adminClient.from('hrm_ticket_participants').select('ticket_id').eq('participant_auth_user_id', actor.authUserId),
+    scopedTicketQuery('requester_auth_user_id'),
+    scopedTicketQuery('owner_auth_user_id'),
+    scopedTicketQuery('current_escalated_auth_user_id'),
+    scopedTicketQuery('raised_for_auth_user_id'),
+    adminClient.from(TICKET_PARTICIPANTS_TABLE).select('ticket_id').eq('participant_auth_user_id', actor.authUserId),
   ]);
 
   const possibleError =
@@ -546,11 +571,11 @@ export async function loadVisibleTickets(actor, moduleKey = 'hrm') {
 
   const participantTicketIds = (participantRowsResult.data || []).map((row) => row.ticket_id).filter(Boolean);
   if (participantTicketIds.length > 0) {
-    const participantTicketsResult = await adminClient
-      .from('hrm_tickets')
-      .select('*')
-      .eq('module_key', normalizedModuleKey)
-      .in('id', participantTicketIds);
+    let participantQuery = adminClient.from(TICKETS_TABLE).select('*').in('id', participantTicketIds);
+    if (normalizedModuleKey) {
+      participantQuery = participantQuery.eq('source_module', normalizedModuleKey);
+    }
+    const participantTicketsResult = await participantQuery;
     if (participantTicketsResult.error) throw participantTicketsResult.error;
     (participantTicketsResult.data || []).forEach((ticket) => {
       ticketMap.set(ticket.id, withDerivedTicketSla(ticket));
@@ -567,7 +592,7 @@ export async function loadVisibleTickets(actor, moduleKey = 'hrm') {
 export async function loadTicketParticipants(ticketIds = []) {
   if (!Array.isArray(ticketIds) || ticketIds.length === 0) return {};
 
-  const { data, error } = await adminClient.from('hrm_ticket_participants').select('*').in('ticket_id', ticketIds);
+  const { data, error } = await adminClient.from(TICKET_PARTICIPANTS_TABLE).select('*').in('ticket_id', ticketIds);
   if (error) throw error;
   return groupByKey(data || [], 'ticket_id');
 }
@@ -576,7 +601,7 @@ export async function loadTicketStatusHistory(ticketIds = []) {
   if (!Array.isArray(ticketIds) || ticketIds.length === 0) return {};
 
   const { data, error } = await adminClient
-    .from('hrm_ticket_status_history')
+    .from(TICKET_STATUS_HISTORY_TABLE)
     .select('*')
     .in('ticket_id', ticketIds)
     .order('step_no', { ascending: true });
@@ -589,7 +614,7 @@ export async function loadTicketEscalations(ticketIds = []) {
   if (!Array.isArray(ticketIds) || ticketIds.length === 0) return {};
 
   const { data, error } = await adminClient
-    .from('hrm_ticket_escalations')
+    .from(TICKET_ESCALATIONS_TABLE)
     .select('*')
     .in('ticket_id', ticketIds)
     .order('created_at', { ascending: true });
@@ -682,7 +707,7 @@ export async function insertTicketHistoryEntry({
     created_at: createdAt || new Date().toISOString(),
   };
 
-  const { data, error } = await adminClient.from('hrm_ticket_status_history').insert(payload).select('*').single();
+  const { data, error } = await adminClient.from(TICKET_STATUS_HISTORY_TABLE).insert(payload).select('*').single();
   if (error) throw error;
   return data;
 }
@@ -710,9 +735,27 @@ export async function insertTicketEscalationEntry({
     created_at: createdAt || new Date().toISOString(),
   };
 
-  const { data, error } = await adminClient.from('hrm_ticket_escalations').insert(payload).select('*').single();
+  const { data, error } = await adminClient.from(TICKET_ESCALATIONS_TABLE).insert(payload).select('*').single();
   if (error) throw error;
   return data;
+}
+
+export async function resolveInitialTicketOwner() {
+  const supportAccount = await findDefaultSupportAccount();
+  if (!supportAccount?.auth_user_id) {
+    throw new Error('No active support account is configured. Add a support user first.');
+  }
+
+  return {
+    authUserId: supportAccount.auth_user_id,
+    employeeId: null,
+    role: 'support',
+    name: supportAccount.name || 'Support',
+    email: supportAccount.email || '',
+    employeeCode: '',
+    avatarUrl: supportAccount.profile_picture_url || '',
+    label: supportAccount.name || supportAccount.email || 'Support',
+  };
 }
 
 export async function uploadTicketFiles({ ticketId, commentId = null, files = [], actor }) {

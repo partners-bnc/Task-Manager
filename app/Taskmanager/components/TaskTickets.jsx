@@ -13,9 +13,9 @@ export default function TaskTickets() {
         <Tickets
           variant={isAdminMode ? 'admin' : 'employee'}
           apiBasePath="/Taskmanager/api/tickets"
-          moduleTitle="Task Tickets"
-          moduleDescription="Raise task management issues, blockers, and coordination requests in one place."
-          createLabel="Create Task Ticket"
+          moduleTitle="Ticketing"
+          moduleDescription="Raise issues, blockers, and support requests in one unified ticketing system."
+          createLabel="Create Ticket"
           appearance="task_manager"
         />
       </div>

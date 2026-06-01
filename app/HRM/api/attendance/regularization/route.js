@@ -182,8 +182,9 @@ async function getReportingManagerSummary(employeeId) {
 
   if (employeeRow?.reporting_super_admin_id) {
     const { data: superAdminRow, error: superAdminError } = await adminClient
-      .from('super_admins')
+      .from('privileged_accounts')
       .select('id, auth_user_id, name, email')
+      .eq('role', 'super_admin')
       .eq('id', employeeRow.reporting_super_admin_id)
       .maybeSingle();
 

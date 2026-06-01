@@ -67,9 +67,10 @@ export async function findSuperAdminByEmail(email) {
   if (!normalizedEmail) return null;
 
   const { data, error } = await adminClient
-    .from('super_admins')
+    .from('privileged_accounts')
     .select(SUPER_ADMIN_AUTH_SELECT)
     .eq('email', normalizedEmail)
+    .eq('role', 'super_admin')
     .maybeSingle();
 
   if (error) {
@@ -136,16 +137,16 @@ export async function ensureSuperAdminAuthUser(superAdmin, password) {
     }
   }
 
-  const { error: updateSuperAdminError } = await adminClient
-    .from('super_admins')
+  const { error: updatePrivilegedAccountError } = await adminClient
+    .from('privileged_accounts')
     .update({
       auth_user_id: authUserId,
       updated_at: new Date().toISOString(),
     })
     .eq('id', superAdmin.id);
 
-  if (updateSuperAdminError) {
-    throw new Error(updateSuperAdminError.message || 'Failed to map super admin auth user');
+  if (updatePrivilegedAccountError) {
+    throw new Error(updatePrivilegedAccountError.message || 'Failed to map super admin auth user');
   }
 
   await upsertSuperAdminProfile(authUserId, superAdmin);
@@ -172,16 +173,16 @@ export async function syncSuperAdminPasswordToAuth(superAdmin, password) {
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const { error: updateSuperAdminError } = await adminClient
-    .from('super_admins')
+  const { error: updatePrivilegedAccountError } = await adminClient
+    .from('privileged_accounts')
     .update({
       password_hash: passwordHash,
       updated_at: new Date().toISOString(),
     })
     .eq('id', superAdmin.id);
 
-  if (updateSuperAdminError) {
-    throw new Error(updateSuperAdminError.message || 'Failed to update super admin password');
+  if (updatePrivilegedAccountError) {
+    throw new Error(updatePrivilegedAccountError.message || 'Failed to update super admin password');
   }
 
   await upsertSuperAdminProfile(superAdmin.auth_user_id, superAdmin);

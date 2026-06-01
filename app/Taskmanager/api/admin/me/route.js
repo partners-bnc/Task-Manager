@@ -17,7 +17,7 @@ export async function GET() {
     }
 
     const authContext = await resolveAuthenticatedUserContext(supabase, user);
-    if (!authContext?.isHrAdmin) {
+    if (!authContext || authContext.accountType === 'employee') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -41,6 +41,24 @@ export async function GET() {
     }
 
     if (!authContext.hrAdmin) {
+      if (authContext.accountType === 'support' && authContext.support) {
+        return NextResponse.json({
+          success: true,
+          admin: {
+            id: user.id,
+            srNo: 'SUP-1',
+            name: authContext.support.name,
+            email: authContext.support.email,
+            phone: '',
+            department: 'Support',
+            designation: authContext.support.designation_ref?.title || authContext.support.designation || 'IT Support',
+            status: authContext.support.status || 'Active',
+            role: getAccountTypeLabel('support'),
+            accountRole: 'Support',
+            avatar: authContext.support.profile_picture_url || user.user_metadata?.avatar_url || '',
+          },
+        });
+      }
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -53,7 +71,7 @@ export async function GET() {
         email: authContext.hrAdmin.email,
         phone: authContext.hrAdmin.phone || '',
         department: authContext.hrAdmin.department?.name || '',
-        designation: authContext.hrAdmin.designation?.title || '',
+        designation: authContext.hrAdmin.designation_ref?.title || authContext.hrAdmin.designation?.title || '',
         status: authContext.hrAdmin.status || 'Active',
         role: getAccountTypeLabel('hr_admin'),
         avatar: user.user_metadata?.avatar_url || '',
@@ -78,7 +96,7 @@ export async function PATCH(request) {
     }
 
     const authContext = await resolveAuthenticatedUserContext(supabase, user);
-    if (!authContext?.isHrAdmin) {
+    if (!authContext || authContext.accountType === 'employee') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -117,7 +135,7 @@ export async function PATCH(request) {
       if (authContext.isSuperAdmin && authContext.superAdmin && (fullName !== undefined || designation !== undefined)) {
         updates.push(
           supabase
-            .from('super_admins')
+            .from('privileged_accounts')
             .update({
               ...(fullName !== undefined ? { name: fullName || null } : {}),
               ...(designation !== undefined ? { designation: designation || null } : {}),
@@ -128,8 +146,19 @@ export async function PATCH(request) {
       } else if (authContext.hrAdmin && fullName !== undefined) {
         updates.push(
           supabase
-            .from('hr_admins')
+            .from('privileged_accounts')
             .update({ name: fullName || null, updated_at: new Date().toISOString() })
+            .eq('auth_user_id', user.id)
+        );
+      } else if (authContext.support && (fullName !== undefined || designation !== undefined)) {
+        updates.push(
+          supabase
+            .from('privileged_accounts')
+            .update({
+              ...(fullName !== undefined ? { name: fullName || null } : {}),
+              ...(designation !== undefined ? { designation: designation || null } : {}),
+              updated_at: new Date().toISOString(),
+            })
             .eq('auth_user_id', user.id)
         );
       }
@@ -156,16 +185,29 @@ export async function PATCH(request) {
 
         if (authContext.isSuperAdmin && authContext.superAdmin) {
           const passwordHash = await bcrypt.hash(password, 10);
-          const { error: superAdminPasswordError } = await supabase
-            .from('super_admins')
+          const { error: privilegedPasswordError } = await supabase
+            .from('privileged_accounts')
             .update({
               password_hash: passwordHash,
               updated_at: new Date().toISOString(),
             })
             .eq('auth_user_id', user.id);
 
-          if (superAdminPasswordError) {
-            return NextResponse.json({ error: superAdminPasswordError.message }, { status: 500 });
+          if (privilegedPasswordError) {
+            return NextResponse.json({ error: privilegedPasswordError.message }, { status: 500 });
+          }
+        } else if (authContext.support) {
+          const passwordHash = await bcrypt.hash(password, 10);
+          const { error: privilegedPasswordError } = await supabase
+            .from('privileged_accounts')
+            .update({
+              password_hash: passwordHash,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('auth_user_id', user.id);
+
+          if (privilegedPasswordError) {
+            return NextResponse.json({ error: privilegedPasswordError.message }, { status: 500 });
           }
         }
       }

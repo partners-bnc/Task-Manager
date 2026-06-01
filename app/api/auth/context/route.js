@@ -7,7 +7,7 @@ function getTaskManagerHref(accountType) {
     return '/Taskmanager/dashboard';
   }
 
-  if (accountType === 'hr_admin' || accountType === 'super_admin') {
+  if (accountType === 'hr_admin' || accountType === 'super_admin' || accountType === 'support') {
     return '/Taskmanager/admin';
   }
 

@@ -8,6 +8,8 @@ const SUPER_ADMIN_SELECT = `
   designation,
   profile_picture_url,
   status,
+  role,
+  password_hash,
   created_at,
   updated_at
 `;
@@ -16,9 +18,10 @@ export async function findSuperAdminByAuthUserId(authUserId) {
   if (!authUserId) return null;
 
   const { data, error } = await adminClient
-    .from('super_admins')
+    .from('privileged_accounts')
     .select(SUPER_ADMIN_SELECT)
     .eq('auth_user_id', authUserId)
+    .eq('role', 'super_admin')
     .maybeSingle();
 
   if (error) {

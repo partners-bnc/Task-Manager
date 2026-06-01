@@ -1,4 +1,4 @@
-export const LOGIN_PORTALS = ['super_admin', 'hr_admin', 'employee'];
+export const LOGIN_PORTALS = ['super_admin', 'hr_admin', 'support', 'employee'];
 
 export function normalizeProfileRole(role) {
   const normalized = String(role || '').trim().toLowerCase();
@@ -14,6 +14,7 @@ export function normalizeLoginPortal(portal) {
 
   if (normalized === 'superadmin') return 'super_admin';
   if (normalized === 'hr') return 'hr_admin';
+  if (normalized === 'supportteam') return 'support';
 
   return normalized || 'employee';
 }
@@ -27,6 +28,10 @@ export function isHrAdminRole(role) {
   return normalized === 'hr_admin' || normalized === 'super_admin';
 }
 
+export function isSupportRole(role) {
+  return normalizeProfileRole(role) === 'support';
+}
+
 export function resolveAccountType({ profileRole, employee }) {
   const normalizedProfileRole = normalizeProfileRole(profileRole);
 
@@ -36,6 +41,10 @@ export function resolveAccountType({ profileRole, employee }) {
 
   if (normalizedProfileRole === 'hr_admin') {
     return 'hr_admin';
+  }
+
+  if (normalizedProfileRole === 'support') {
+    return 'support';
   }
 
   if (employee) {
@@ -55,6 +64,7 @@ export function getDefaultDestinationForAccountType(accountType) {
     case 'super_admin':
       return '/Taskmanager/admin';
     case 'hr_admin':
+    case 'support':
       return '/HRM/hrm/admin';
     case 'employee':
       return '/HRM/hrm';
@@ -71,6 +81,8 @@ export function getAccountTypeLabel(accountType) {
       return 'HR Admin';
     case 'employee':
       return 'Employee';
+    case 'support':
+      return 'Support';
     default:
       return 'User';
   }

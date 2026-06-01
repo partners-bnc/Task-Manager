@@ -1,5 +1,7 @@
 import { adminClient } from '@/utils/supabase/admin';
 import {
+  TICKET_ATTACHMENTS_TABLE,
+  TICKET_COMMENTS_TABLE,
   ensureActorInTicketDirectory,
   formatTicketCategoryLabel,
   formatTicketModuleLabel,
@@ -119,12 +121,12 @@ function buildEscalationSummary(escalations = [], byAuthUserId) {
 
 export async function buildTicketExportCsv({
   actor,
-  moduleKey,
+  moduleKey = 'all',
   search = '',
   status = '',
   category = '',
 }) {
-  const normalizedModuleKey = normalizeTicketModuleKey(moduleKey);
+  const normalizedModuleKey = moduleKey === 'all' ? 'all' : normalizeTicketModuleKey(moduleKey);
   const directory = ensureActorInTicketDirectory(await listTicketPeople(), actor);
   const visibleTickets = await loadVisibleTickets(actor, normalizedModuleKey);
   const participantsByTicketId = await loadTicketParticipants(visibleTickets.map((ticket) => ticket.id));
@@ -137,10 +139,10 @@ export async function buildTicketExportCsv({
 
   const [commentsResult, attachmentsResult, historyByTicketId, escalationsByTicketId] = await Promise.all([
     filteredIds.length > 0
-      ? adminClient.from('hrm_ticket_comments').select('*').in('ticket_id', filteredIds).order('created_at', { ascending: true })
+      ? adminClient.from(TICKET_COMMENTS_TABLE).select('*').in('ticket_id', filteredIds).order('created_at', { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     filteredIds.length > 0
-      ? adminClient.from('hrm_ticket_attachments').select('*').in('ticket_id', filteredIds).order('created_at', { ascending: true })
+      ? adminClient.from(TICKET_ATTACHMENTS_TABLE).select('*').in('ticket_id', filteredIds).order('created_at', { ascending: true })
       : Promise.resolve({ data: [], error: null }),
     loadTicketStatusHistory(filteredIds),
     loadTicketEscalations(filteredIds),

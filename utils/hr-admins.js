@@ -51,11 +51,10 @@ const EMPLOYEE_DASHBOARD_SELECT_WITH_EMPLOYMENT_FIELDS = `
 
 const HR_ADMIN_SELECT = `
   id,
-  sr_no,
   auth_user_id,
   email,
   name,
-  phone,
+  role,
   status,
   created_at,
   updated_at,
@@ -73,8 +72,9 @@ export async function findHrAdminByAuthUserId(authUserId) {
   if (!authUserId) return null;
 
   const { data, error } = await adminClient
-    .from('hr_admins')
+    .from('privileged_accounts')
     .select(HR_ADMIN_SELECT)
+    .eq('role', 'hr_admin')
     .eq('auth_user_id', authUserId)
     .maybeSingle();
 
@@ -153,9 +153,10 @@ export async function getHrAdminDashboardData() {
 
   const [hrAdminsResult, employeesResult, departmentsResult, designationsResult, profilesResult] = await Promise.all([
     adminClient
-      .from('hr_admins')
+      .from('privileged_accounts')
       .select(HR_ADMIN_SELECT)
-      .order('sr_no', { ascending: true }),
+      .eq('role', 'hr_admin')
+      .order('name', { ascending: true }),
     loadEmployeesForDashboard(),
     adminClient
       .from('hrm_departments')
@@ -271,8 +272,9 @@ async function loadRecentEmployeesForDashboard() {
 export async function getHrAdminDashboardSnapshot() {
   const [hrAdminsResult, employeeStateResult, recentEmployeesResult, departmentsResult, designationsResult] = await Promise.all([
     adminClient
-      .from('hr_admins')
-      .select('id, sr_no, auth_user_id, email, name, created_at', { count: 'exact' })
+      .from('privileged_accounts')
+      .select('id, auth_user_id, email, name, created_at', { count: 'exact' })
+      .eq('role', 'hr_admin')
       .order('created_at', { ascending: false })
       .limit(5),
     loadEmployeeStateRowsForDashboard(),
@@ -323,8 +325,9 @@ export async function getHrAdminDashboardSnapshot() {
 
 export async function listHrAdminApprovers() {
   const { data, error } = await adminClient
-    .from('hr_admins')
+    .from('privileged_accounts')
     .select('id, auth_user_id, name, email, status')
+    .eq('role', 'hr_admin')
     .eq('status', 'Active')
     .order('name', { ascending: true });
 

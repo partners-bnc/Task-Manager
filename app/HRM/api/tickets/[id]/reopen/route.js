@@ -8,8 +8,8 @@ import {
   isMissingTicketSchemaError,
   isTicketClosedStatus,
   loadTicketStatusHistory,
-  normalizeTicketModuleKey,
   requireTicketActor,
+  TICKETS_TABLE,
 } from '@/utils/tickets';
 
 export async function POST(_request, context) {
@@ -25,7 +25,7 @@ export async function POST(_request, context) {
     }
 
     const [{ data: ticket, error: ticketError }, historyByTicketId] = await Promise.all([
-      adminClient.from('hrm_tickets').select('*').eq('id', ticketId).maybeSingle(),
+      adminClient.from(TICKETS_TABLE).select('*').eq('id', ticketId).maybeSingle(),
       loadTicketStatusHistory([ticketId]),
     ]);
 
@@ -33,10 +33,6 @@ export async function POST(_request, context) {
     if (!ticket) {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
-    if (normalizeTicketModuleKey(ticket.module_key) !== 'hrm') {
-      return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-    }
-
     if (!canActorReopenTicket(ticket, actor)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -69,7 +65,7 @@ export async function POST(_request, context) {
     });
 
     const { data: updatedTicket, error: updateError } = await adminClient
-      .from('hrm_tickets')
+      .from(TICKETS_TABLE)
       .update({
         status: 'open',
         closed_at: null,

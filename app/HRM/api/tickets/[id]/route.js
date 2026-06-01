@@ -30,16 +30,20 @@ import {
   normalizeTicketModuleKey,
   requireTicketActor,
   resolveTicketPerson,
+  TICKET_ATTACHMENTS_TABLE,
+  TICKET_COMMENTS_TABLE,
+  TICKET_PARTICIPANTS_TABLE,
+  TICKETS_TABLE,
   withDerivedTicketSla,
   withAttachmentUrls,
 } from '@/utils/tickets';
 
 async function loadTicketBundle(ticketId) {
   const [ticketResult, participantsByTicketId, commentsResult, attachmentsResult, historyByTicketId, escalationsByTicketId] = await Promise.all([
-    adminClient.from('hrm_tickets').select('*').eq('id', ticketId).maybeSingle(),
+    adminClient.from(TICKETS_TABLE).select('*').eq('id', ticketId).maybeSingle(),
     loadTicketParticipants([ticketId]),
-    adminClient.from('hrm_ticket_comments').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true }),
-    adminClient.from('hrm_ticket_attachments').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true }),
+    adminClient.from(TICKET_COMMENTS_TABLE).select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true }),
+    adminClient.from(TICKET_ATTACHMENTS_TABLE).select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true }),
     loadTicketStatusHistory([ticketId]),
     loadTicketEscalations([ticketId]),
   ]);
@@ -76,8 +80,8 @@ function buildTicketDetail(ticket, participants, comments, attachments, history,
   return {
     id: ticket.id,
     ticketNo: ticket.ticket_no,
-    moduleKey: normalizeTicketModuleKey(ticket.module_key),
-    moduleLabel: formatTicketModuleLabel(ticket.module_key),
+    moduleKey: normalizeTicketModuleKey(ticket.source_module),
+    moduleLabel: formatTicketModuleLabel(ticket.source_module),
     subject: ticket.subject,
     description: ticket.description,
     category: ticket.category,
@@ -188,7 +192,7 @@ function buildUpdatePayload(ticket, body, actor, reassignedOwner, escalatedTo, h
     if (!actor.isAdmin) {
       throw new Error('Only admins can change ticket category.');
     }
-    if (!getTicketCategories(ticket.module_key).includes(nextCategory)) {
+    if (!getTicketCategories('all').includes(nextCategory)) {
       throw new Error('Ticket category is invalid.');
     }
     nextPayload.category = nextCategory;
@@ -256,10 +260,6 @@ export async function GET(_request, context) {
     if (!ticket) {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
-    if (normalizeTicketModuleKey(ticket.module_key) !== 'hrm') {
-      return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-    }
-
     if (!canActorViewTicket(ticket, actor, participants)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -298,10 +298,6 @@ export async function PATCH(request, context) {
     if (!ticket) {
       return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
     }
-    if (normalizeTicketModuleKey(ticket.module_key) !== 'hrm') {
-      return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 });
-    }
-
     if (!canActorViewTicket(ticket, actor, participants)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -322,7 +318,7 @@ export async function PATCH(request, context) {
     }
 
     const { data: updatedTicket, error: updateError } = await adminClient
-      .from('hrm_tickets')
+      .from(TICKETS_TABLE)
       .update(updatePlan.ticketUpdate)
       .eq('id', ticketId)
       .select('*')
@@ -356,8 +352,8 @@ export async function PATCH(request, context) {
     }
 
     if (reassignedOwner) {
-      await adminClient.from('hrm_ticket_participants').delete().eq('ticket_id', ticketId).eq('participant_type', 'owner');
-      const { error: participantError } = await adminClient.from('hrm_ticket_participants').insert({
+      await adminClient.from(TICKET_PARTICIPANTS_TABLE).delete().eq('ticket_id', ticketId).eq('participant_type', 'owner');
+      const { error: participantError } = await adminClient.from(TICKET_PARTICIPANTS_TABLE).insert({
         ticket_id: ticketId,
         participant_type: 'owner',
         participant_auth_user_id: reassignedOwner.authUserId,

@@ -465,8 +465,8 @@ interface TicketsProps {
 export default function Tickets({
   variant = 'employee',
   apiBasePath = '/HRM/api/tickets',
-  moduleTitle = 'HRM Tickets',
-  moduleDescription = 'Raise HR issues, follow their progress, and keep all replies, attachments, and closure updates in one place.',
+  moduleTitle = 'Ticketing',
+  moduleDescription = 'Raise issues, follow their progress, and keep replies, attachments, and closure updates in one place.',
   createLabel = 'Create Ticket',
   appearance = 'default',
 }: TicketsProps) {
@@ -493,7 +493,6 @@ export default function Tickets({
   const [category, setCategory] = useState('attendance');
   const [priority, setPriority] = useState('medium');
   const [raisedForAuthUserId, setRaisedForAuthUserId] = useState('');
-  const [ownerAuthUserId, setOwnerAuthUserId] = useState('');
   const [selectedCc, setSelectedCc] = useState<string[]>([]);
   const [ccSearch, setCcSearch] = useState('');
   const [newFiles, setNewFiles] = useState<File[]>([]);
@@ -519,7 +518,6 @@ export default function Tickets({
 
       setData(result);
       setRaisedForAuthUserId((current) => current || result.actor?.authUserId || '');
-      setOwnerAuthUserId((current) => current || result.actor?.authUserId || '');
 
       if (!keepCurrentSelection) {
         setSelectedTicketId('');
@@ -565,9 +563,8 @@ export default function Tickets({
     [categoryFilter, data?.myTickets, search, statusFilter]
   );
   const assignedTickets = useMemo(() => {
-    const base = data?.actor?.isAdmin ? data?.adminOpenTickets || [] : data?.assignedTickets || [];
-    return filterTicketCollection(base, search, statusFilter, categoryFilter);
-  }, [categoryFilter, data?.actor?.isAdmin, data?.adminOpenTickets, data?.assignedTickets, search, statusFilter]);
+    return filterTicketCollection(data?.assignedTickets || [], search, statusFilter, categoryFilter);
+  }, [categoryFilter, data?.assignedTickets, search, statusFilter]);
   const allTickets = useMemo(
     () => filterTicketCollection(data?.allTickets || [], search, statusFilter, categoryFilter),
     [categoryFilter, data?.allTickets, search, statusFilter]
@@ -616,12 +613,9 @@ export default function Tickets({
         .join(' '),
     }));
   }, [data?.filters?.categories]);
-  const preferredOwner =
-    visiblePeople.find((person) => person.role === 'hr_admin') ||
-    visiblePeople.find((person) => person.role === 'super_admin') ||
-    null;
+  const supportPerson = visiblePeople.find((person) => person.role === 'support') || null;
   const ccOptions = visiblePeople
-    .filter((person) => person.authUserId !== ownerAuthUserId)
+    .filter((person) => person.authUserId !== supportPerson?.authUserId)
     .filter((person) => {
       const searchValue = ccSearch.trim().toLowerCase();
       if (!searchValue) return true;
@@ -644,23 +638,10 @@ export default function Tickets({
     setCategory(categoryOptions[0]?.value || 'other');
     setPriority('medium');
     setRaisedForAuthUserId(data?.actor?.authUserId || '');
-    setOwnerAuthUserId(preferredOwner?.authUserId || data?.actor?.authUserId || '');
     setSelectedCc([]);
     setCcSearch('');
     setNewFiles([]);
   };
-
-  useEffect(() => {
-    if (!visiblePeople.length) return;
-    if (ownerAuthUserId) return;
-    if (preferredOwner?.authUserId) {
-      setOwnerAuthUserId(preferredOwner.authUserId);
-      return;
-    }
-    if (data?.actor?.authUserId) {
-      setOwnerAuthUserId(data.actor.authUserId);
-    }
-  }, [data?.actor?.authUserId, ownerAuthUserId, preferredOwner?.authUserId, visiblePeople.length]);
 
   useEffect(() => {
     if (!categoryOptions.length) return;
@@ -678,8 +659,8 @@ export default function Tickets({
       showFeedback({ type: 'warning', title: 'Description Required', message: 'Description is required.' });
       return;
     }
-    if (!ownerAuthUserId) {
-      showFeedback({ type: 'warning', title: 'Owner Required', message: 'Select one owner.' });
+    if (!supportPerson) {
+      showFeedback({ type: 'warning', title: 'Support Missing', message: 'No active support account is available yet.' });
       return;
     }
 
@@ -694,7 +675,6 @@ export default function Tickets({
           category,
           priority,
           raisedForAuthUserId: raisedForAuthUserId || data?.actor?.authUserId || '',
-          ownerAuthUserId,
           ccAuthUserIds: selectedCc,
         })
       );
@@ -918,6 +898,21 @@ export default function Tickets({
       : moduleDescription;
   const isAdminView = variant === 'admin';
   const sections = isAdminView ? SECTION_CONFIG : SECTION_CONFIG.filter((section) => section.key !== 'all');
+
+  const getTicketCount = (section: TicketSection) => {
+    switch (section) {
+      case 'my':
+        return myTickets.length;
+      case 'assigned':
+        return assignedTickets.length;
+      case 'all':
+        return allTickets.length;
+      case 'closed':
+        return closedTickets.length;
+      default:
+        return 0;
+    }
+  };
   const isTaskManagerAppearance = appearance === 'task_manager';
   const filterControlClass = isTaskManagerAppearance
     ? 'border border-slate-200 bg-white text-slate-700 focus:border-slate-300 focus:ring-2 focus:ring-slate-100'
@@ -963,6 +958,7 @@ export default function Tickets({
           />
           {sections.map((section) => {
             const isActive = activeSection === section.key;
+            const count = section.key !== 'raise' ? getTicketCount(section.key) : null;
             return (
               <button
                 key={section.key}
@@ -973,7 +969,14 @@ export default function Tickets({
                 }`}
               >
                 <span className={`material-symbols-outlined ${isAdminView ? 'text-[15px]' : 'text-[16px]'}`}>{section.icon}</span>
-                <span className="whitespace-nowrap">{section.label}</span>
+                <span className="whitespace-nowrap">
+                  {section.label}
+                  {count !== null && count > 0 && (
+                    <span className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-700">
+                      {count}
+                    </span>
+                  )}
+                </span>
               </button>
             );
           })}
@@ -1050,23 +1053,10 @@ export default function Tickets({
                 </select>
               </div>
 
-              <div>
-                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Raised To</label>
-                <select
-                  value={ownerAuthUserId}
-                  onChange={(event) => {
-                    const nextOwnerId = event.target.value;
-                    setOwnerAuthUserId(nextOwnerId);
-                    setSelectedCc((current) => current.filter((id) => id !== nextOwnerId));
-                  }}
-                  className={formControlClass}
-                >
-                  {visiblePeople.map((person) => (
-                    <option key={person.authUserId} value={person.authUserId}>
-                      {person.name} {person.employeeCode ? `(${person.employeeCode})` : ''}
-                    </option>
-                  ))}
-                </select>
+              <div className={`${isTaskManagerAppearance ? 'rounded-2xl bg-slate-50' : 'rounded-2xl border border-outline-variant/10 bg-surface-container-low'} px-4 py-4`}>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-on-surface-variant">Initial Handler</label>
+                <p className="text-sm font-semibold text-on-surface">{personLabel(supportPerson)}</p>
+                <p className="mt-1 text-xs text-on-surface-variant">Every new ticket first goes to Support, then Support can assign it to the final owner.</p>
               </div>
 
               <div className="md:col-span-2">
@@ -1148,7 +1138,7 @@ export default function Tickets({
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700">Ticket Summary</p>
               <div className="mt-4 grid gap-3 text-sm text-on-surface">
                 <p><span className="font-semibold">Raised by:</span> {personLabel(data?.actor)}</p>
-                <p><span className="font-semibold">Raised To:</span> {personLabel(visiblePeople.find((person) => person.authUserId === ownerAuthUserId))}</p>
+                <p><span className="font-semibold">Raised To:</span> {personLabel(supportPerson)}</p>
                 <p><span className="font-semibold">Raise For:</span> {personLabel(visiblePeople.find((person) => person.authUserId === raisedForAuthUserId))}</p>
                 <p><span className="font-semibold">CC count:</span> {selectedCc.length}</p>
                 <p><span className="font-semibold">Files:</span> {newFiles.length}</p>

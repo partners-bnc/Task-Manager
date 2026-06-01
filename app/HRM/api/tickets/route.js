@@ -14,6 +14,10 @@ import {
   loadVisibleTickets,
   parseMultipartJson,
   requireTicketActor,
+  resolveInitialTicketOwner,
+  TICKET_ATTACHMENTS_TABLE,
+  TICKET_PARTICIPANTS_TABLE,
+  TICKETS_TABLE,
   uploadTicketFiles,
 } from '@/utils/tickets';
 
@@ -24,7 +28,7 @@ function createEmptyResponse(actor = null) {
     filters: {
       statuses: TICKET_STATUSES,
       priorities: TICKET_PRIORITIES,
-      categories: getTicketCategories('hrm'),
+      categories: getTicketCategories('all'),
     },
     people: [],
     myTickets: [],
@@ -45,7 +49,7 @@ export async function GET() {
 
     let tickets;
     try {
-      tickets = await loadVisibleTickets(actor, 'hrm');
+      tickets = await loadVisibleTickets(actor, 'all');
     } catch (error) {
       if (isMissingTicketSchemaError(error)) {
         return NextResponse.json(createEmptyResponse(actor), { status: 200 });
@@ -63,7 +67,7 @@ export async function GET() {
         filters: {
           statuses: TICKET_STATUSES,
           priorities: TICKET_PRIORITIES,
-          categories: getTicketCategories('hrm'),
+          categories: getTicketCategories('all'),
         },
         people: directory.people,
         ...grouped,
@@ -88,7 +92,6 @@ export async function POST(request) {
     const description = String(payload.description || '').trim();
     const category = String(payload.category || '').trim().toLowerCase();
     const priority = String(payload.priority || 'medium').trim().toLowerCase();
-    const ownerAuthUserId = String(payload.ownerAuthUserId || '').trim();
     const raisedForAuthUserId = String(payload.raisedForAuthUserId || actor.authUserId).trim() || actor.authUserId;
     const ccAuthUserIds = Array.isArray(payload.ccAuthUserIds)
       ? payload.ccAuthUserIds.map((value) => String(value || '').trim()).filter(Boolean)
@@ -101,24 +104,17 @@ export async function POST(request) {
     if (!description) {
       return NextResponse.json({ error: 'Description is required.' }, { status: 400 });
     }
-    if (!getTicketCategories('hrm').includes(category)) {
+    if (!getTicketCategories('all').includes(category)) {
       return NextResponse.json({ error: 'Category is invalid.' }, { status: 400 });
     }
     if (!TICKET_PRIORITIES.includes(priority)) {
       return NextResponse.json({ error: 'Priority is invalid.' }, { status: 400 });
     }
-    if (!ownerAuthUserId) {
-      return NextResponse.json({ error: 'Select one owner for the ticket.' }, { status: 400 });
-    }
-
     const directory = ensureActorInTicketDirectory(await listTicketPeople(), actor);
-    const owner = directory.byAuthUserId.get(ownerAuthUserId);
-    if (!owner) {
-      return NextResponse.json({ error: 'Selected owner is invalid.' }, { status: 400 });
-    }
+    const owner = await resolveInitialTicketOwner();
 
     const raisedFor = directory.byAuthUserId.get(raisedForAuthUserId) || directory.byAuthUserId.get(actor.authUserId) || actor;
-    const uniqueCcAuthIds = Array.from(new Set(ccAuthUserIds)).filter((authUserId) => authUserId !== ownerAuthUserId);
+    const uniqueCcAuthIds = Array.from(new Set(ccAuthUserIds)).filter((authUserId) => authUserId !== owner.authUserId);
     const invalidCc = uniqueCcAuthIds.find((authUserId) => !directory.byAuthUserId.has(authUserId));
     if (invalidCc) {
       return NextResponse.json({ error: 'One or more CC recipients are invalid.' }, { status: 400 });
@@ -128,7 +124,7 @@ export async function POST(request) {
     const now = new Date().toISOString();
     const ticketPayload = {
       id: ticketId,
-      module_key: 'hrm',
+      source_module: 'hrm',
       subject,
       description,
       category,
@@ -174,7 +170,7 @@ export async function POST(request) {
     });
     const uploadedPaths = uploadedAttachments.map((attachment) => attachment.file_path);
 
-    const { error: ticketInsertError } = await adminClient.from('hrm_tickets').insert(ticketPayload);
+    const { error: ticketInsertError } = await adminClient.from(TICKETS_TABLE).insert(ticketPayload);
     if (ticketInsertError) {
       if (uploadedPaths.length > 0) {
         await adminClient.storage.from('hrm-ticket-files').remove(uploadedPaths);
@@ -182,12 +178,12 @@ export async function POST(request) {
       throw ticketInsertError;
     }
 
-    const { error: participantError } = await adminClient.from('hrm_ticket_participants').insert(participantRows);
+    const { error: participantError } = await adminClient.from(TICKET_PARTICIPANTS_TABLE).insert(participantRows);
     if (participantError) {
       if (uploadedPaths.length > 0) {
         await adminClient.storage.from('hrm-ticket-files').remove(uploadedPaths);
       }
-      await adminClient.from('hrm_tickets').delete().eq('id', ticketId);
+      await adminClient.from(TICKETS_TABLE).delete().eq('id', ticketId);
       throw participantError;
     }
 
@@ -204,25 +200,25 @@ export async function POST(request) {
       if (uploadedPaths.length > 0) {
         await adminClient.storage.from('hrm-ticket-files').remove(uploadedPaths);
       }
-      await adminClient.from('hrm_ticket_participants').delete().eq('ticket_id', ticketId);
-      await adminClient.from('hrm_tickets').delete().eq('id', ticketId);
+      await adminClient.from(TICKET_PARTICIPANTS_TABLE).delete().eq('ticket_id', ticketId);
+      await adminClient.from(TICKETS_TABLE).delete().eq('id', ticketId);
       throw historyError;
     }
 
     if (uploadedAttachments.length > 0) {
-      const { error: attachmentError } = await adminClient.from('hrm_ticket_attachments').insert(uploadedAttachments);
+      const { error: attachmentError } = await adminClient.from(TICKET_ATTACHMENTS_TABLE).insert(uploadedAttachments);
       if (attachmentError) {
         if (uploadedPaths.length > 0) {
           await adminClient.storage.from('hrm-ticket-files').remove(uploadedPaths);
         }
-        await adminClient.from('hrm_ticket_participants').delete().eq('ticket_id', ticketId);
-        await adminClient.from('hrm_tickets').delete().eq('id', ticketId);
+        await adminClient.from(TICKET_PARTICIPANTS_TABLE).delete().eq('ticket_id', ticketId);
+        await adminClient.from(TICKETS_TABLE).delete().eq('id', ticketId);
         throw attachmentError;
       }
     }
 
     const { data: insertedTicket, error: insertedError } = await adminClient
-      .from('hrm_tickets')
+      .from(TICKETS_TABLE)
       .select('*')
       .eq('id', ticketId)
       .single();

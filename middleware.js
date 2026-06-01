@@ -96,7 +96,7 @@ export async function middleware(request) {
       return NextResponse.redirect(url)
     }
 
-    if (isTaskAdminPath && !authContext.isHrAdmin) {
+    if (isTaskAdminPath && authContext.accountType === 'employee') {
       const url = request.nextUrl.clone()
       url.pathname = authContext.destination
       return NextResponse.redirect(url)

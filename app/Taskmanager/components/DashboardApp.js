@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DataProvider, useData } from './DataContext';
 import { ModuleAccessGate } from '@/app/components-homepage/ModuleAccessGate';
 import Login from './Login';
@@ -23,6 +23,13 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const [currentView, setCurrentView] = useState(safeInitialView);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const isSupportUser = !!user?.role && String(user.role).toLowerCase() === 'support';
+
+  useEffect(() => {
+    if (isSupportUser && currentView !== 'task-tickets') {
+      setCurrentView('task-tickets');
+    }
+  }, [isSupportUser, currentView]);
 
   if (loading) {
     return (
@@ -38,6 +45,10 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   }
 
   const renderView = () => {
+    if (isSupportUser) {
+      return <TaskTickets />;
+    }
+
     switch (currentView) {
       case 'dashboard':
         return <Dashboard onNavigate={setCurrentView} />;

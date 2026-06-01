@@ -189,25 +189,8 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
   const isAdminMode = mode === 'admin';
 
   const fetchAdminData = async () => {
-    const [tasksRes, usersRes, adminMeRes, taskLabelsRes] = await Promise.all([
-      fetch('/Taskmanager/api/tasks', { method: 'GET' }),
-      fetch('/HRM/api/employees?taskManagerOnly=1', { method: 'GET' }),
-      fetch('/Taskmanager/api/admin/me', { method: 'GET' }),
-      fetch('/Taskmanager/api/task-labels', { method: 'GET' }),
-    ]);
-
-    const tasksJson = await tasksRes.json();
-    const usersJson = await usersRes.json();
+    const adminMeRes = await fetch('/Taskmanager/api/admin/me', { method: 'GET' });
     const adminMeJson = await adminMeRes.json();
-    const taskLabelsJson = await taskLabelsRes.json();
-
-    if (!tasksRes.ok) {
-      throw new Error(tasksJson.error || 'Failed to fetch tasks');
-    }
-
-    if (!usersRes.ok) {
-      throw new Error(usersJson.error || 'Failed to fetch team members');
-    }
 
     if (!adminMeRes.ok) {
       if (adminMeRes.status === 401 || adminMeRes.status === 403) {
@@ -220,22 +203,55 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
       throw new Error(adminMeJson.error || 'Failed to fetch admin profile');
     }
 
+    if (!adminMeJson?.admin) {
+      if (!user && initialUser) {
+        setUser(initialUser);
+      }
+      setTasks([]);
+      setUsers([]);
+      setTaskLabels([]);
+      return;
+    }
+
+    const isSupportUser = String(adminMeJson.admin?.accountRole || adminMeJson.admin?.role || '').toLowerCase() === 'support';
+
+    setUser(adminMeJson.admin);
+
+    if (isSupportUser) {
+      setTasks([]);
+      setUsers([]);
+      setTaskLabels([]);
+      return;
+    }
+
+    const [tasksRes, usersRes, taskLabelsRes] = await Promise.all([
+      fetch('/Taskmanager/api/tasks', { method: 'GET' }),
+      fetch('/HRM/api/employees?taskManagerOnly=1', { method: 'GET' }),
+      fetch('/Taskmanager/api/task-labels', { method: 'GET' }),
+    ]);
+
+    const tasksJson = await tasksRes.json();
+    const usersJson = await usersRes.json();
+    const taskLabelsJson = await taskLabelsRes.json();
+
+    if (!tasksRes.ok) {
+      throw new Error(tasksJson.error || 'Failed to fetch tasks');
+    }
+
+    if (!usersRes.ok) {
+      throw new Error(usersJson.error || 'Failed to fetch team members');
+    }
+
     if (!taskLabelsRes.ok) {
       throw new Error(taskLabelsJson.error || 'Failed to fetch task labels');
     }
 
     const nextUsers = normalizeUsers(usersJson.employees || []);
-    const adminId = adminMeJson?.admin?.id || null;
+    const adminId = adminMeJson.admin?.id || null;
     const nextTasks = (tasksJson.tasks || []).map((task) => normalizeTask(task, [], adminId));
     const nextTaskLabels = Array.isArray(taskLabelsJson.labels)
       ? taskLabelsJson.labels.map((item) => item.name).filter(Boolean)
       : [];
-
-    if (adminMeJson?.admin) {
-      setUser(adminMeJson.admin);
-    } else if (!user && initialUser) {
-      setUser(initialUser);
-    }
 
     setUsers(nextUsers);
     setTasks(nextTasks);

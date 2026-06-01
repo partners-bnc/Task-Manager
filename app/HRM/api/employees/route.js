@@ -1013,8 +1013,9 @@ async function fetchEmployeeFormMeta() {
       .select('id, employee_id, name, email')
       .order('created_at', { ascending: false }),
     adminClient
-      .from('super_admins')
+      .from('privileged_accounts')
       .select('id, auth_user_id, name, email, status')
+      .eq('role', 'super_admin')
       .eq('status', 'Active')
       .order('name', { ascending: true }),
     adminClient
@@ -1083,8 +1084,9 @@ async function attachCreatorNames(rows = []) {
       : Promise.resolve({ data: [], error: null }),
     superAdminIds.length
       ? adminClient
-          .from('super_admins')
+          .from('privileged_accounts')
           .select('id, name, email')
+          .eq('role', 'super_admin')
           .in('id', superAdminIds)
       : Promise.resolve({ data: [], error: null }),
     departmentIds.length

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from 'next/image';
 import Link from 'next/link';
-import { Eye, EyeOff, Lock } from "lucide-react";
+import { Eye, EyeOff, Lock, Home, LayoutGrid } from "lucide-react";
 import { useData } from "./DataContext";
 import { createClient as createSupabaseClient } from '@/utils/supabase/client';
 
@@ -11,12 +11,14 @@ const supabase = createSupabaseClient();
 const LOGIN_OPTIONS = [
   { id: 'super_admin', label: 'Super Admin' },
   { id: 'hr_admin', label: 'HR Admin' },
+  { id: 'support', label: 'Support' },
   { id: 'employee', label: 'Employee' },
 ];
 
 const SIMPLE_ROLE_ERROR_BY_LOGIN = {
   super_admin: 'This email is not registered as a Super Admin. Please choose the correct login type.',
   hr_admin: 'This email is not registered as an HR Admin. Please choose the correct login type.',
+  support: 'This email is not registered as a Support user. Please choose the correct login type.',
   employee: 'This email is not registered as an Employee. Please choose the correct login type.',
 };
 
@@ -206,27 +208,36 @@ export default function Login({ onSuccess }) {
   return (
     <div className="min-h-screen flex w-full bg-white">
       {/* Left Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex flex-col justify-center px-12 lg:px-24 z-10 bg-white relative">
+      <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 md:px-12 lg:px-28 z-10 bg-white relative">
         <div className="absolute top-6 right-6">
           <Link
             href="/"
-            className="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            className="inline-flex items-center justify-center rounded-lg border border-slate-200 w-9 h-9 text-slate-600 hover:bg-slate-50 hover:text-[#7F40EE] transition-colors"
+            title="Home"
           >
-            Home
+            <Home size={17} strokeWidth={2} />
           </Link>
         </div>
-        <div className="mb-10">
-          <h1 className="text-2xl font-bold text-black mb-10">Sanctum Enterprise Suite</h1>
+        <div className="mb-12">
+          <div className="mb-8">
+            <div className="flex items-center gap-2.5 mb-1">
+              <LayoutGrid size={24} className="text-[#7F40EE] shrink-0" strokeWidth={2} />
+              <h1 className="text-xl lg:text-2xl font-semibold text-slate-900 tracking-tight leading-none">
+                BNC Workspace
+              </h1>
+            </div>
+            <p className="text-xs font-normal text-slate-400 uppercase tracking-[0.25em] pl-[2.125rem]">Enterprise Platform</p>
+          </div>
           {!isRecoveryMode && !isForgotPasswordMode ? (
-            <div className="mb-6">
-              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            <div className="mb-8">
+              <p className="mb-3 text-xs font-normal text-slate-400 uppercase tracking-[0.25em]">
                 Sign In As
               </p>
-              <div className="relative flex w-full max-w-[28rem] rounded-full bg-[#F1F4F5] p-1.5 shadow-[inset_0_1px_1px_rgba(148,163,184,0.16)]">
+              <div className="relative flex w-full rounded-full bg-[#F1F4F5] p-1 md:p-1.5 shadow-[inset_0_1px_1px_rgba(148,163,184,0.16)]">
                 <div
-                  className="pointer-events-none absolute inset-y-1.5 left-1.5 rounded-full bg-[#7F40EE] shadow-[0_12px_28px_rgba(127,64,238,0.22)] transition-transform duration-300 ease-out"
+                  className="pointer-events-none absolute inset-y-1 md:inset-y-1.5 left-1 md:left-1.5 rounded-full bg-[#7F40EE] shadow-[0_12px_28px_rgba(127,64,238,0.22)] transition-transform duration-300 ease-out"
                   style={{
-                    width: 'calc((100% - 0.75rem) / 3)',
+                    width: 'calc((100% - 0.5rem) / 4)',
                     transform: `translateX(calc(${activeLoginIndex} * 100%))`,
                   }}
                 />
@@ -237,11 +248,11 @@ export default function Login({ onSuccess }) {
                       key={option.id}
                       type="button"
                       onClick={() => setLoginAs(option.id)}
-                        className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-full px-2.5 py-2.5 text-[13px] font-semibold transition-colors duration-300 ${
-                          isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900'
-                        }`}
+                      className={`relative z-10 flex flex-1 items-center justify-center gap-1 md:gap-2 rounded-full px-1 md:px-2.5 py-2 md:py-2.5 text-[11px] md:text-[13px] font-semibold transition-colors duration-300 ${
+                        isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900'
+                      }`}
                     >
-                      {isActive ? <Lock size={16} strokeWidth={2.2} /> : null}
+                      {isActive ? <Lock size={14} strokeWidth={2.2} className="hidden sm:inline" /> : null}
                       <span className="whitespace-nowrap">{option.label}</span>
                     </button>
                   );
@@ -249,15 +260,19 @@ export default function Login({ onSuccess }) {
               </div>
             </div>
           ) : null}
-          <h2 className="text-3xl font-bold text-slate-900 mb-2">
-            {isRecoveryMode ? 'Reset Password' : isForgotPasswordMode ? 'Forgot Password' : 'Welcome Back'}
+          <h2 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-1.5 tracking-tight">
+            {isRecoveryMode ? 'Reset Password' : isForgotPasswordMode ? 'Forgot Password' : (
+              <span style={{ fontFamily: "'Georgia', 'Times New Roman', serif", fontStyle: 'italic', letterSpacing: '-0.01em' }}>
+                Welcome Back
+              </span>
+            )}
           </h2>
-          <p className="text-slate-500">
+          <p className="text-sm text-slate-500 leading-relaxed">
             {isRecoveryMode
               ? 'Create a new password to finish your first sign-in.'
               : isForgotPasswordMode
                 ? 'Enter your employee ID or work email and we will send a reset link if the account exists.'
-                : 'Use the central login and choose the correct workspace before signing in.'}
+                : 'Sign in to your account and access your workspace.'}
           </p>
         </div>
 
@@ -274,7 +289,7 @@ export default function Login({ onSuccess }) {
           {!isRecoveryMode && !isForgotPasswordMode ? (
             <>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 mb-2.5">
                   Work Email
                 </label>
                 <input
@@ -283,12 +298,12 @@ export default function Login({ onSuccess }) {
                   onChange={(event) => setIdentifier(event.target.value)}
                   required
                   placeholder="john@example.com"
-                  className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-black"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 mb-2.5">
                   Password
                 </label>
                 <div className="relative">
@@ -298,7 +313,7 @@ export default function Login({ onSuccess }) {
                     onChange={(event) => setPassword(event.target.value)}
                     required
                     placeholder="Min 8 Characters"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-black"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400"
                   />
                   <button
                     type="button"
@@ -312,7 +327,7 @@ export default function Login({ onSuccess }) {
             </>
           ) : !isRecoveryMode ? (
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 mb-2.5">
                 Work Email
               </label>
               <input
@@ -321,13 +336,13 @@ export default function Login({ onSuccess }) {
                 onChange={(event) => setIdentifier(event.target.value)}
                 required
                 placeholder="john@example.com"
-                className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-black"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400"
               />
             </div>
           ) : (
             <>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 mb-2.5">
                   New Password
                 </label>
                 <div className="relative">
@@ -339,7 +354,7 @@ export default function Login({ onSuccess }) {
                     minLength={8}
                     disabled={!recoveryReady || loading}
                     placeholder="Minimum 8 characters"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-black disabled:bg-slate-50 disabled:text-slate-400"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-400"
                   />
                   <button
                     type="button"
@@ -352,7 +367,7 @@ export default function Login({ onSuccess }) {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-slate-600 mb-2.5">
                   Confirm Password
                 </label>
                 <div className="relative">
@@ -364,7 +379,7 @@ export default function Login({ onSuccess }) {
                     minLength={8}
                     disabled={!recoveryReady || loading}
                     placeholder="Repeat your new password"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-black disabled:bg-slate-50 disabled:text-slate-400"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-400"
                   />
                   <button
                     type="button"
@@ -379,13 +394,13 @@ export default function Login({ onSuccess }) {
           )}
 
           {info && (
-            <div className='text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2'>
+            <div className='text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3'>
               {info}
             </div>
           )}
 
           {error && (
-            <div className='text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2'>
+            <div className='text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3'>
               {error}
             </div>
           )}
@@ -393,7 +408,7 @@ export default function Login({ onSuccess }) {
           <button
             type="submit"
             disabled={loading || (isRecoveryMode && !recoveryReady)}
-            className="flex w-full items-center justify-center gap-3 rounded-lg bg-[#7F40EE] py-3 font-bold text-white transition-all duration-200 hover:bg-[#671aec] hover:shadow-[0_18px_36px_rgba(127,64,238,0.28)] disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none"
+            className="flex w-full items-center justify-center gap-3 rounded-xl bg-linear-to-r from-[#7F40EE] to-[#6B2FD4] py-3.5 font-bold text-white text-base transition-all duration-300 hover:shadow-[0_20px_40px_rgba(127,64,238,0.32)] hover:from-[#6B2FD4] hover:to-[#5A1FB5] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
             {loading ? <ButtonSpinner /> : null}
             <span>
@@ -407,7 +422,7 @@ export default function Login({ onSuccess }) {
         </form>
 
         {!isRecoveryMode && (
-          <div className="mt-6 max-w-md text-sm">
+          <div className="mt-6 max-w-md">
             <button
               type="button"
               onClick={() => {
@@ -415,7 +430,7 @@ export default function Login({ onSuccess }) {
                 setError('');
                 setInfo('');
               }}
-              className="font-medium text-[#7733ec] hover:underline"
+              className="text-xs font-normal text-slate-400 hover:text-[#7F40EE] transition-colors duration-200 uppercase tracking-widest"
             >
               {isForgotPasswordMode ? 'Back to login' : 'Forgot password?'}
             </button>
@@ -431,8 +446,8 @@ export default function Login({ onSuccess }) {
 
         {/* Subtle Shiny Reflection / Glass Effect */}
         <div className="absolute inset-0 z-0 pointer-events-none">
-          <div className="absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-10 left-0" />
-          <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-transparent opacity-30" />
+          <div className="absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-linear-to-r from-transparent to-white opacity-10 left-0" />
+          <div className="absolute inset-0 bg-linear-to-br from-white/10 via-transparent to-transparent opacity-30" />
         </div>
 
         {/* Connecting Lines (SVG Layer) */}
