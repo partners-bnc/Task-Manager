@@ -31,18 +31,26 @@ function formatExportDate(value) {
   return date.toISOString();
 }
 
+const UNRESOLVED_FILTER_VALUE = 'unresolved';
+const CLOSED_TICKET_STATUSES = ['resolved', 'closed'];
+
 function filterSummaries(tickets, search, status, category) {
   const searchValue = String(search || '').trim().toLowerCase();
   const normalizedStatus = String(status || '').trim().toLowerCase();
   const normalizedCategory = String(category || '').trim().toLowerCase();
 
   return tickets.filter((ticket) => {
+    const ticketStatus = String(ticket.status || '').trim().toLowerCase();
     const matchesSearch =
       !searchValue ||
       String(ticket.ticketNo || '').toLowerCase().includes(searchValue) ||
       String(ticket.subject || '').toLowerCase().includes(searchValue) ||
       String(ticket.description || '').toLowerCase().includes(searchValue);
-    const matchesStatus = !normalizedStatus || ticket.status === normalizedStatus;
+    const matchesStatus =
+      !normalizedStatus ||
+      (normalizedStatus === UNRESOLVED_FILTER_VALUE
+        ? !CLOSED_TICKET_STATUSES.includes(ticketStatus)
+        : ticketStatus === normalizedStatus);
     const matchesCategory = !normalizedCategory || ticket.category === normalizedCategory;
     return matchesSearch && matchesStatus && matchesCategory;
   });

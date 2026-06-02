@@ -33,29 +33,27 @@ export function getEmployeeModuleAccessRecord(employee) {
 }
 
 export function buildModuleAccessState(authContext) {
-  const isPrivilegedUser =
-    authContext?.accountType === 'hr_admin' ||
-    authContext?.accountType === 'super_admin' ||
-    authContext?.accountType === 'support';
+  const isHrOrSuperAdmin = authContext?.accountType === 'hr_admin' || authContext?.accountType === 'super_admin';
+  const isSupportUser = authContext?.accountType === 'support';
   const employeeModuleAccess = getEmployeeModuleAccessRecord(authContext?.employee);
-  const employeeAccessBlocked = !isPrivilegedUser && isEmployeeAccessDisabledNow(authContext?.employee);
+  const employeeAccessBlocked = !isHrOrSuperAdmin && !isSupportUser && isEmployeeAccessDisabledNow(authContext?.employee);
 
-  const taskManagerEnabled = !employeeAccessBlocked && (isPrivilegedUser ? true : Boolean(employeeModuleAccess.task_manager));
-  const hrmEnabled = !employeeAccessBlocked && (isPrivilegedUser ? true : Boolean(employeeModuleAccess.hrm_admin));
-  const auditingEnabled = !employeeAccessBlocked && (isPrivilegedUser ? true : Boolean(employeeModuleAccess.auditing));
-  const crmEnabled = !employeeAccessBlocked && (isPrivilegedUser ? true : Boolean(employeeModuleAccess.crm));
+  const taskManagerEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin || isSupportUser ? true : Boolean(employeeModuleAccess.task_manager));
+  const hrmEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : false);
+  const auditingEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : false);
+  const crmEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : false);
 
   return {
     taskManager: {
       enabled: taskManagerEnabled,
       href: taskManagerEnabled
-        ? (isPrivilegedUser ? '/Taskmanager/admin' : '/Taskmanager/dashboard')
+        ? (isHrOrSuperAdmin || isSupportUser ? '/Taskmanager/admin' : '/Taskmanager/dashboard')
         : null,
     },
     hrm: {
       enabled: hrmEnabled,
       href: hrmEnabled
-        ? (isPrivilegedUser ? '/HRM/hrm/admin' : '/HRM/hrm')
+        ? (isHrOrSuperAdmin ? '/HRM/hrm/admin' : '/HRM/hrm')
         : null,
     },
     auditing: {
@@ -276,4 +274,3 @@ export async function resolveAuthenticatedUserContext(supabase, user) {
 export function hasLinkedEmployeeAccess(authContext) {
   return Boolean(authContext?.employee?.id);
 }
-

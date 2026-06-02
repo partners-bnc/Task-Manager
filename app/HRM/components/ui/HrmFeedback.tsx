@@ -166,7 +166,7 @@ export function HrmFeedbackProvider({ children }: { children: React.ReactNode })
                 <span className="material-symbols-outlined text-[32px]">{meta.icon}</span>
               </div>
               <div className="min-w-0 flex-1">
-                <p id="hrm-feedback-title" className="font-headline text-[1.9rem] font-extrabold leading-none text-on-surface">
+                <p id="hrm-feedback-title" className="font-headline text-[1.9rem] font-normal leading-none text-on-surface">
                   {title}
                 </p>
                 <p id="hrm-feedback-message" className="mt-4 whitespace-pre-wrap text-base leading-7 text-on-surface-variant">

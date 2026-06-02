@@ -429,7 +429,10 @@ export function canActorReopenTicket(ticket, actor) {
 
 export function canActorCloseTicket(ticket, actor) {
   if (!ticket || !actor?.authUserId) return false;
-  return normalizeTicketStatus(ticket.status) === 'resolved' && ticket.requester_auth_user_id === actor.authUserId;
+  return (
+    normalizeTicketStatus(ticket.status) === 'resolved' &&
+    (ticket.requester_auth_user_id === actor.authUserId || Boolean(actor.isAdmin))
+  );
 }
 
 export function canActorAdvanceTicket(ticket, actor) {

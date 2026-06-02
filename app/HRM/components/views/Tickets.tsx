@@ -1530,6 +1530,7 @@ export default function Tickets({
                   className={`w-full max-w-[220px] rounded-2xl px-4 py-3 text-sm outline-none transition ${filterControlClass}`}
                 >
                   <option value="">All Statuses</option>
+                  <option value="unresolved">Unresolved</option>
                   {(data?.filters.statuses || []).map((status) => (
                     <option key={status} value={status}>
                       {status.replace(/_/g, ' ')}
@@ -1549,18 +1550,33 @@ export default function Tickets({
                   ))}
                 </select>
                 {isAdminView && activeSection === 'all' ? (
-                  <button
-                    type="button"
-                    onClick={handleExportTickets}
-                    disabled={isExporting}
-                    className={`inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                      isTaskManagerAppearance
-                        ? 'bg-white text-slate-700 shadow-sm hover:bg-slate-50'
-                        : 'bg-violet-600 text-white hover:shadow-md hover:shadow-violet-200'
-                    } disabled:cursor-not-allowed disabled:opacity-60`}
-                  >
-                    {isExporting ? 'Exporting...' : 'Export Excel'}
-                  </button>
+                  <div className="inline-flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStatusFilter(statusFilter === 'unresolved' ? '' : 'unresolved')}
+                      className={`inline-flex items-center justify-center whitespace-nowrap rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                        statusFilter === 'unresolved'
+                          ? 'ring-1 ring-violet-500/30 bg-violet-600 text-white shadow-sm hover:bg-violet-700'
+                          : isTaskManagerAppearance
+                            ? 'bg-white text-slate-700 shadow-sm hover:bg-slate-50'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {statusFilter === 'unresolved' ? 'Showing Unresolved' : 'Unresolved'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExportTickets}
+                      disabled={isExporting}
+                      className={`inline-flex items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                        isTaskManagerAppearance
+                          ? 'bg-white text-slate-700 shadow-sm hover:bg-slate-50'
+                          : 'bg-violet-600 text-white hover:shadow-md hover:shadow-violet-200'
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      {isExporting ? 'Exporting...' : 'Export Excel'}
+                    </button>
+                  </div>
                 ) : null}
               </div>
 

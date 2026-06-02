@@ -243,6 +243,9 @@ export function formatRelativeTicketTime(value?: string | null) {
   return formatTicketDateTime(value);
 }
 
+const UNRESOLVED_FILTER_VALUE = 'unresolved';
+const CLOSED_TICKET_STATUSES = ['resolved', 'closed'];
+
 export function filterTicketCollection(
   tickets: TicketSummary[],
   search: string,
@@ -250,12 +253,18 @@ export function filterTicketCollection(
   category: string
 ) {
   const searchValue = search.trim().toLowerCase();
+  const normalizedStatusFilter = String(status || '').trim().toLowerCase();
   return tickets.filter((ticket) => {
+    const ticketStatus = String(ticket.status || '').trim().toLowerCase();
     const matchesSearch =
       !searchValue ||
       ticket.ticketNo.toLowerCase().includes(searchValue) ||
       ticket.subject.toLowerCase().includes(searchValue);
-    const matchesStatus = !status || ticket.status === status;
+    const matchesStatus =
+      !normalizedStatusFilter ||
+      (normalizedStatusFilter === UNRESOLVED_FILTER_VALUE
+        ? !CLOSED_TICKET_STATUSES.includes(ticketStatus)
+        : ticketStatus === normalizedStatusFilter);
     const matchesCategory = !category || ticket.category === category;
     return matchesSearch && matchesStatus && matchesCategory;
   });
