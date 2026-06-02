@@ -103,8 +103,8 @@ export function clearCachedWorkspaceState() {
 
 let workspaceAuthRequest = null;
 
-export async function fetchWorkspaceState() {
-  if (!workspaceAuthRequest) {
+export async function fetchWorkspaceState(force = false) {
+  if (!workspaceAuthRequest || force) {
     workspaceAuthRequest = (async () => {
       const response = await fetch('/api/auth/context', {
         method: 'GET',

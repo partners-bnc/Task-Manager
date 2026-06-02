@@ -16,9 +16,9 @@ export function useWorkspaceRouting() {
     let isMounted = true;
     const supabase = createClient();
 
-    const loadWorkspaceState = async () => {
+    const loadWorkspaceState = async (force = false) => {
       try {
-        const nextWorkspaceState = await fetchWorkspaceState();
+        const nextWorkspaceState = await fetchWorkspaceState(force);
         if (!isMounted) return;
         setWorkspaceState(nextWorkspaceState);
       } catch {
@@ -29,7 +29,8 @@ export function useWorkspaceRouting() {
       }
     };
 
-    loadWorkspaceState();
+    // Always fetch fresh state on mount to reflect DB values after recent changes.
+    loadWorkspaceState(true);
 
     const {
       data: { subscription },
@@ -41,10 +42,12 @@ export function useWorkspaceRouting() {
         }
         return;
       }
-      loadWorkspaceState();
+      // Force a fresh fetch after sign-in or other auth changes.
+      loadWorkspaceState(true);
     });
 
     const handleFocus = () => {
+      // On window focus, perform a non-forced fetch (will reuse in-flight request if present)
       loadWorkspaceState();
     };
     window.addEventListener('focus', handleFocus);

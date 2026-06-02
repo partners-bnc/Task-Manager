@@ -39,9 +39,9 @@ export function buildModuleAccessState(authContext) {
   const employeeAccessBlocked = !isHrOrSuperAdmin && !isSupportUser && isEmployeeAccessDisabledNow(authContext?.employee);
 
   const taskManagerEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin || isSupportUser ? true : Boolean(employeeModuleAccess.task_manager));
-  const hrmEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : false);
-  const auditingEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : false);
-  const crmEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : false);
+  const hrmEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : Boolean(employeeModuleAccess.hrm_admin));
+  const auditingEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : Boolean(employeeModuleAccess.auditing));
+  const crmEnabled = !employeeAccessBlocked && (isHrOrSuperAdmin ? true : Boolean(employeeModuleAccess.crm));
 
   return {
     taskManager: {
