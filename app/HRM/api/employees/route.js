@@ -386,16 +386,28 @@ function validateUploadedFile(file, {
 
 function normalizeWorkingDays(value) {
   const parsed = parseJsonArray(value);
-  return parsed
-    .map((item) => String(item || '').trim())
-    .filter(Boolean);
+  const normalized = [];
+
+  for (const item of parsed) {
+    const day = String(item || '').trim().toLowerCase();
+    if (!day || normalized.includes(day)) continue;
+    normalized.push(day);
+  }
+
+  return normalized;
 }
 
 function normalizeWorkingDaysInput(value) {
+  const normalized = [];
+
   if (Array.isArray(value)) {
-    return value
-      .map((item) => String(item || '').trim())
-      .filter(Boolean);
+    for (const item of value) {
+      const day = String(item || '').trim().toLowerCase();
+      if (!day || normalized.includes(day)) continue;
+      normalized.push(day);
+    }
+
+    return normalized;
   }
 
   return normalizeWorkingDays(value);

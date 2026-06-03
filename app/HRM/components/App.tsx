@@ -7,6 +7,7 @@ import Profile from './views/Profile';
 import Leave from './views/Leave';
 import Attendance from './views/Attendance';
 import RegularizeAttendance from './views/RegularizeAttendance';
+import TeamRegularization from './views/TeamRegularization';
 import Salary from './views/Salary';
 import Tickets from './views/Tickets';
 import Expenses from './views/Expenses';
@@ -97,6 +98,7 @@ export default function App() {
     home: <Dashboard employee={employee} setCurrentTab={setCurrentTab} onLogout={handleLogout} isLoggingOut={isLoggingOut} />,
     attendance: <Attendance onOpenRegularizeAttendance={() => setCurrentTab('regularize-attendance')} />,
     'regularize-attendance': <RegularizeAttendance />,
+    'team-regularization': <TeamRegularization />,
     'policy-manual': <PolicyManual />,
     tickets: <Tickets variant="employee" />,
     expenses: <Expenses variant="employee" />,
@@ -117,6 +119,8 @@ export default function App() {
       ? 'Attendance'
       : currentTab === 'regularize-attendance'
       ? 'Regularization'
+      : currentTab === 'team-regularization'
+      ? 'Team Regularization'
       : currentTab === 'policy-manual'
       ? 'Policy Manual'
       : currentTab === 'tickets'
@@ -146,7 +150,7 @@ export default function App() {
         onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
       
-      <div className="flex-1 flex min-w-0 flex-col md:ml-60">
+      <div className="flex-1 flex min-w-0 flex-col md:ml-64">
         <div className="sticky top-0 z-30 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-lowest/95 px-4 py-3 backdrop-blur md:hidden">
           <button
             type="button"
@@ -192,4 +196,3 @@ export default function App() {
     </HrmFeedbackProvider>
   );
 }
-

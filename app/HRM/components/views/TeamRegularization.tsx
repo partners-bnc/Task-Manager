@@ -1,23 +1,23 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useHrmFeedback } from '../../ui/HrmFeedback';
-import HrmEmptyState from '../../ui/HrmEmptyState';
-import { LoadingPanel } from '../../ui/Skeleton';
+import EmployeePageHeader from '../ui/EmployeePageHeader';
+import { useHrmFeedback } from '../ui/HrmFeedback';
+import HrmEmptyState from '../ui/HrmEmptyState';
+import { LoadingPanel } from '../ui/Skeleton';
+import { formatDateLong } from './attendanceShared';
 
 type InboxTab = 'pending' | 'history';
 
-interface AdminRegularizationItem {
+interface TeamRegularizationItem {
   id: string;
   date: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: string;
   requestType: string;
   timeRange: string;
   reason: string;
   appliedOn: string;
   currentStatusLabel?: string;
-  sentToHr?: string;
-  reportingManager?: string;
   approvalOutcome?: string;
   reviewedBy?: string;
   reviewedAt?: string;
@@ -27,40 +27,32 @@ interface AdminRegularizationItem {
   employeeCode: string;
 }
 
-function statusTone(status: AdminRegularizationItem['status']) {
+function statusTone(status: string) {
   if (status === 'Approved') return 'bg-emerald-50 text-emerald-700';
   if (status === 'Rejected') return 'bg-rose-50 text-rose-600';
   return 'bg-amber-50 text-amber-700';
 }
 
-export default function RegularizationInbox() {
+export default function TeamRegularization() {
   const { showFeedback } = useHrmFeedback();
   const [activeTab, setActiveTab] = useState<InboxTab>('pending');
-  const [pendingForMe, setPendingForMe] = useState<AdminRegularizationItem[]>([]);
-  const [history, setHistory] = useState<AdminRegularizationItem[]>([]);
+  const [pendingForMe, setPendingForMe] = useState<TeamRegularizationItem[]>([]);
+  const [history, setHistory] = useState<TeamRegularizationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isReviewingId, setIsReviewingId] = useState('');
   const [error, setError] = useState('');
-  const [setupPending, setSetupPending] = useState(false);
 
   const loadInbox = async () => {
     setIsLoading(true);
     setError('');
-
     try {
-      const response = await fetch('/HRM/api/admin/regularization', { method: 'GET' });
+      const response = await fetch('/HRM/api/employee/team-regularization', { method: 'GET' });
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to load regularization inbox');
-      }
-
+      if (!response.ok) throw new Error(result.error || 'Failed to load team requests');
       setPendingForMe(result.pendingForMe || []);
       setHistory(result.history || []);
-      setSetupPending(Boolean(result.setupPending));
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Failed to load regularization inbox');
-      setSetupPending(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load team requests');
     } finally {
       setIsLoading(false);
     }
@@ -75,71 +67,52 @@ export default function RegularizationInbox() {
     decision: 'approved' | 'rejected',
     approvalOutcome?: 'full_day' | 'half_day'
   ) => {
-    if (!id) {
-      showFeedback({ type: 'warning', title: 'Request Missing', message: 'This request is missing its id, so it cannot be reviewed yet.' });
-      return;
-    }
-
     try {
       setIsReviewingId(id);
       const response = await fetch(`/HRM/api/attendance/regularization/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decision, approvalOutcome }),
       });
-
       const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to review request');
-      }
-
+      if (!response.ok) throw new Error(result.error || 'Failed to review request');
       await loadInbox();
       window.dispatchEvent(new CustomEvent('hrm-attendance-updated'));
-      window.dispatchEvent(new CustomEvent('hrm-admin-sidebar-counts-refresh'));
       showFeedback({ type: 'success', title: 'Request Reviewed', message: 'Regularization request reviewed successfully.' });
-    } catch (requestError) {
-      showFeedback({ type: 'error', title: 'Review Failed', message: requestError instanceof Error ? requestError.message : 'Failed to review request' });
+    } catch (err) {
+      showFeedback({ type: 'error', title: 'Review Failed', message: err instanceof Error ? err.message : 'Failed to review request' });
     } finally {
       setIsReviewingId('');
     }
   };
-
-  const list = activeTab === 'pending' ? pendingForMe : history;
 
   const switchTabs = useMemo(
     () => [
       { key: 'pending' as const, label: 'Pending', count: pendingForMe.length, icon: 'hourglass_top' },
       { key: 'history' as const, label: 'History', count: history.length, icon: 'history' },
     ],
-    [history.length, pendingForMe.length]
+    [pendingForMe.length, history.length]
   );
 
-  const activeTabIndex = switchTabs.findIndex((tab) => tab.key === activeTab);
+  const activeTabIndex = switchTabs.findIndex((t) => t.key === activeTab);
+  const list = activeTab === 'pending' ? pendingForMe : history;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 px-6 py-6">
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-100/90 text-violet-700 shadow-sm">
-              <span className="material-symbols-outlined text-[22px]">fact_check</span>
-            </div>
-            <h1 className="text-3xl font-headline font-bold text-on-background">Attendance Regularization</h1>
-          </div>
-        </div>
-      </section>
+    <div className="mx-auto max-w-7xl space-y-6 pb-8">
+      <EmployeePageHeader
+        icon="supervised_user_circle"
+        title="Team Regularization"
+        description="Review and approve attendance regularization requests from your team members."
+      />
 
       <section className="overflow-x-auto">
-        <div className="relative inline-grid min-w-[420px] grid-cols-2 items-center overflow-hidden rounded-[1.05rem] bg-[#F1F4F5] p-1 shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
+        <div className="relative inline-grid min-w-[340px] grid-cols-2 items-center overflow-hidden rounded-[1.05rem] bg-[#F1F4F5] p-1 shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
           <div
             className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/2)] rounded-[0.8rem] bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] shadow-[0_6px_14px_rgba(167,139,250,0.18)] transition-transform duration-300 ease-out"
             style={{ transform: `translateX(calc(${activeTabIndex} * 100%))` }}
           />
           {switchTabs.map((tab) => {
             const isActive = activeTab === tab.key;
-
             return (
               <button
                 key={tab.key}
@@ -164,36 +137,32 @@ export default function RegularizationInbox() {
         </div>
       </section>
 
-      <section className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
-        {isLoading ? (
-          <LoadingPanel
-            title="Loading regularization inbox"
-            message="Pending approvals and review history are being prepared for this queue."
-          />
-        ) : error ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-700">
-            {error}
-          </div>
-        ) : setupPending ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-700">
-            Regularization database setup is pending. Apply the latest migration so the recipient table exists in Supabase.
-          </div>
-        ) : list.length === 0 ? (
-          <HrmEmptyState
-            icon={activeTab === 'pending' ? 'hourglass_disabled' : 'history'}
-            title={activeTab === 'pending' ? 'No pending requests' : 'No history records yet'}
-            message={
-              activeTab === 'pending'
-                ? 'Fresh regularization requests will appear here once employees send them for approval.'
-                : 'Reviewed regularization records will begin showing here after the first approval cycle.'
-            }
-          />
-        ) : activeTab === 'pending' ? (
+      {isLoading ? (
+        <LoadingPanel
+          title="Loading team requests"
+          message="Fetching regularization requests from your team members."
+        />
+      ) : error ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-700">
+          {error}
+        </div>
+      ) : list.length === 0 ? (
+        <HrmEmptyState
+          icon={activeTab === 'pending' ? 'hourglass_disabled' : 'history'}
+          title={activeTab === 'pending' ? 'No pending requests' : 'No history yet'}
+          message={
+            activeTab === 'pending'
+              ? 'Team regularization requests sent to you will appear here.'
+              : 'Reviewed team requests will appear here after the first approval cycle.'
+          }
+        />
+      ) : activeTab === 'pending' ? (
+        <section className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
           <>
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-xl font-headline font-bold text-on-background">Pending</h2>
-                <p className="mt-1 text-sm text-on-surface-variant">Review employee regularization requests in a cleaner approval queue.</p>
+                <h2 className="text-xl font-headline font-bold text-on-background">Pending Approvals</h2>
+                <p className="mt-1 text-sm text-on-surface-variant">Review your team members' regularization requests.</p>
               </div>
               <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
                 {pendingForMe.length} pending
@@ -201,38 +170,27 @@ export default function RegularizationInbox() {
             </div>
 
             <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <table className="w-full min-w-[1160px] text-left">
+              <table className="w-full min-w-[1000px] text-left">
                 <thead className="sticky top-0 z-20 bg-white">
                   <tr className="border-b border-outline-variant/10">
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Request Type</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Current Status</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Requested Time</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reporting Manager</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reason</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Applied On</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Status</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Action</th>
+                    {['Employee', 'Date', 'Request Type', 'Current Status', 'Requested Time', 'Reason', 'Applied On', 'Action'].map((h) => (
+                      <th key={h} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
                   {pendingForMe.map((item) => (
                     <tr key={item.id} className="align-top">
                       <td className="px-4 py-4 text-sm text-on-surface">
-                        <p className="font-semibold truncate whitespace-nowrap">{item.employeeName}</p>
-                        <p className="mt-1 text-xs text-on-surface-variant">{item.employeeCode}</p>
+                        <p className="font-semibold">{item.employeeName}</p>
+                        <p className="text-xs text-on-surface-variant">{item.employeeCode}</p>
                       </td>
-                      <td className="px-4 py-4 text-sm text-on-surface whitespace-nowrap">{item.date}</td>
+                      <td className="px-4 py-4 text-sm text-on-surface">{formatDateLong(item.date)}</td>
                       <td className="px-4 py-4 text-sm text-on-surface">{item.requestType}</td>
                       <td className="px-4 py-4 text-sm text-on-surface">{item.currentStatusLabel || '-'}</td>
                       <td className="px-4 py-4 text-sm text-on-surface">{item.timeRange}</td>
-                      <td className="px-4 py-4 text-sm text-on-surface">{item.reportingManager || '-'}</td>
                       <td className="px-4 py-4 text-sm text-on-surface">{item.reason || '-'}</td>
-                      <td className="px-4 py-4 text-sm text-on-surface whitespace-nowrap">{item.appliedOn}</td>
-                      <td className="px-4 py-4">
-                        <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${statusTone(item.status)}`}>{item.status}</span>
-                      </td>
+                      <td className="px-4 py-4 text-sm text-on-surface">{item.appliedOn}</td>
                       <td className="px-4 py-4">
                         {item.canReview ? (
                           <div className="flex flex-nowrap gap-2 whitespace-nowrap">
@@ -271,12 +229,14 @@ export default function RegularizationInbox() {
               </table>
             </div>
           </>
-        ) : (
+        </section>
+      ) : (
+        <section className="rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-6 shadow-sm">
           <>
             <div className="mb-5 flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-headline font-bold text-on-background">History</h2>
-                <p className="mt-1 text-sm text-on-surface-variant">View reviewed regularization requests with final decisions and audit trail.</p>
+                <p className="mt-1 text-sm text-on-surface-variant">Reviewed requests from your team members.</p>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
                 {history.length} records
@@ -284,27 +244,22 @@ export default function RegularizationInbox() {
             </div>
 
             <div className="overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <table className="w-full min-w-[1080px] text-left">
+              <table className="w-full min-w-[900px] text-left">
                 <thead className="sticky top-0 z-20 bg-white">
                   <tr className="border-b border-outline-variant/10">
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Employee</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Requested Time</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Status</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Approval Result</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reviewed By</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reviewed At</th>
-                    <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reason</th>
+                    {['Employee', 'Date', 'Requested Time', 'Status', 'Approval Result', 'Reviewed By', 'Reviewed At', 'Reason'].map((h) => (
+                      <th key={h} className="px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/10">
                   {history.map((item) => (
                     <tr key={item.id}>
                       <td className="px-4 py-4 text-sm text-on-surface">
-                        <p className="font-semibold truncate whitespace-nowrap">{item.employeeName}</p>
-                        <p className="mt-1 text-xs text-on-surface-variant">{item.employeeCode}</p>
+                        <p className="font-semibold">{item.employeeName}</p>
+                        <p className="text-xs text-on-surface-variant">{item.employeeCode}</p>
                       </td>
-                      <td className="px-4 py-4 text-sm text-on-surface whitespace-nowrap">{item.date}</td>
+                      <td className="px-4 py-4 text-sm text-on-surface">{formatDateLong(item.date)}</td>
                       <td className="px-4 py-4 text-sm text-on-surface">{item.timeRange}</td>
                       <td className="px-4 py-4">
                         <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${statusTone(item.status)}`}>{item.status}</span>
@@ -319,8 +274,8 @@ export default function RegularizationInbox() {
               </table>
             </div>
           </>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }

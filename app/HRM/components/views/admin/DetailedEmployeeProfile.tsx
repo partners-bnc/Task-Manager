@@ -309,15 +309,27 @@ function getEducationDocumentUrl(entry: any) {
   return `${supabaseUrl}/storage/v1/object/public/employee-files/${filePath}`;
 }
 
+function normalizeWorkingDaysState(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  const normalized: string[] = [];
+  for (const item of value) {
+    const day = String(item || '').trim().toLowerCase();
+    if (!day || normalized.includes(day)) continue;
+    normalized.push(day);
+  }
+
+  return normalized;
+}
+
 function formatWorkingDays(workingDays: unknown) {
-  if (!Array.isArray(workingDays) || workingDays.length === 0) {
+  const normalizedDays = normalizeWorkingDaysState(workingDays);
+  if (normalizedDays.length === 0) {
     return '--';
   }
 
-  return workingDays
-    .map((day) => String(day || '').trim())
-    .filter(Boolean)
-    .map((day) => day.charAt(0).toUpperCase() + day.slice(1).toLowerCase())
+  return normalizedDays
+    .map((day) => day.charAt(0).toUpperCase() + day.slice(1))
     .join(', ');
 }
 
@@ -464,6 +476,7 @@ export default function DetailedEmployeeProfile({
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [sameAsCurrentAddress, setSameAsCurrentAddress] = useState(false);
+  const [workingDays, setWorkingDays] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [documentFiles, setDocumentFiles] = useState<Record<string, File | null>>({});
   const [educationFiles, setEducationFiles] = useState<Record<string, File | null>>({});
@@ -510,6 +523,7 @@ export default function DetailedEmployeeProfile({
         const nextForm = normalizeEmployeeToForm(result.employee || {});
         setEmployee(result.employee || null);
         setForm(nextForm);
+        setWorkingDays(normalizeWorkingDaysState(result.employee?.working_days));
         setSameAsCurrentAddress(isPermanentAddressSameAsCurrent(nextForm));
         setMeta({
           employees: result.employeeOptions || result.employees || [],
@@ -673,6 +687,7 @@ export default function DetailedEmployeeProfile({
         body: JSON.stringify({
           id: employee.id,
           ...form,
+          workingDays: normalizeWorkingDaysState(workingDays),
         }),
       });
 
@@ -685,6 +700,7 @@ export default function DetailedEmployeeProfile({
       const nextForm = normalizeEmployeeToForm(nextEmployee);
       setEmployee(nextEmployee);
       setForm(nextForm);
+      setWorkingDays(normalizeWorkingDaysState(nextEmployee?.working_days));
       setSameAsCurrentAddress(isPermanentAddressSameAsCurrent(nextForm));
       setIsEditing(false);
       setMessage('Employee details updated successfully.');
@@ -1265,10 +1281,7 @@ export default function DetailedEmployeeProfile({
           <Field label="Total Years Of Experience">
             <input name="totalExperience" value={form.totalExperience} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
           </Field>
-          <Field label="Working Schedule">
-            <input name="workingScheduleLabel" value={form.workingScheduleLabel} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)} />
-          </Field>
-          <Field label="Second Saturday Off">
+           <Field label="Second Saturday Off">
             <select name="secondSaturdayOff" value={form.secondSaturdayOff} onChange={handleChange} disabled={!isEditing} className={inputClassName(!isEditing)}>
               {YES_NO_OPTIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
@@ -1282,6 +1295,40 @@ export default function DetailedEmployeeProfile({
               ))}
             </select>
           </Field>
+          <div className="md:col-span-2 xl:col-span-3">         <Field label="Working Schedule">
+            {isEditing ? (
+              <div className="rounded-2xl border border-outline-variant/15 bg-white px-4 py-4">
+                <div className="flex flex-wrap gap-2">
+                  {(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const).map((day) => {
+                    const checked = workingDays.includes(day);
+                    return (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => setWorkingDays((prev) => checked ? prev.filter((d) => d !== day) : [...prev, day])}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                          checked
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant hover:border-primary/40 hover:text-primary'
+                        }`}
+                      >
+                        {checked ? <span className="material-symbols-outlined text-[15px]">check</span> : null}
+                        {day.charAt(0).toUpperCase() + day.slice(1)}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-3 text-xs text-on-surface-variant">
+                  {workingDays.length > 0 ? `${workingDays.length} day(s) selected` : 'No working days selected'}
+                </p>
+              </div>
+            ) : (
+              <div className={inputClassName(true)}>
+                {formatWorkingDays(workingDays)}
+              </div>
+            )}
+          </Field>
+</div>
         </div>
       </SectionShell>
     );

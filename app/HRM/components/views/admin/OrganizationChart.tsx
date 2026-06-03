@@ -606,7 +606,7 @@ export default function OrganizationChart({
                 minWidth: '100%',
               }}
             >
-              <div className="flex min-w-[1650px] justify-start px-0 pb-0 pt-1">
+              <div className="flex min-w-[1650px] justify-center px-0 pb-0 pt-1">
                 <div className="space-y-8">
                   {data.roots.length > 1 ? (
                     <div ref={topClusterRef} className="flex flex-col items-center">
