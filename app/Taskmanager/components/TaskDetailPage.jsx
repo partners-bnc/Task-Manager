@@ -1395,6 +1395,11 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     }
   };
 
+  const handleTaskCommentSubmit = async (event) => {
+    event.preventDefault();
+    await postComment();
+  };
+
   const postComment = async (subtaskId = null) => {
     const text = subtaskId
       ? String(subtaskCommentDrafts[subtaskId] || '').trim()
@@ -2456,22 +2461,28 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
           </div>
 
           {canComment && (
-            <div className='mt-4 flex gap-3'>
-              <input
+            <form className='mt-4 flex gap-3' onSubmit={handleTaskCommentSubmit}>
+              <textarea
                 value={commentText}
                 onChange={(event) => setCommentText(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    postComment();
+                  }
+                }}
                 placeholder='Write a comment...'
-                className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm'
+                rows={2}
+                className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm resize-none'
               />
               <button
-                type='button'
+                type='submit'
                 disabled={saving || !commentText.trim()}
-                onClick={postComment}
                 className='rounded-lg bg-[#7F40EE] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6A31D1] disabled:opacity-60'
               >
                 Comment
               </button>
-            </div>
+            </form>
           )}
         </section>
 
