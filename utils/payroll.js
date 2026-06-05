@@ -1,7 +1,7 @@
 import { adminClient } from '@/utils/supabase/admin';
 import { deriveEmploymentFields } from '@/utils/hrm-employment';
 import { calculateLeaveDays, getEmployeeLeaveContext } from '@/utils/leave';
-import { getCurrentDateInTimeZone, listDatesInRange } from '@/utils/attendance';
+import { getCurrentDateInTimeZone, listDatesInRange, isEmployeeScheduledOff, normalizeWorkingDays } from '@/utils/attendance';
 
 const PAYROLL_PROFILE_SELECT = `
   id,
@@ -843,50 +843,148 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
     throw new Error(clearError.message || 'Failed to clear month-close attendance LOP entries');
   }
 
-  const [{ data: attendanceRows, error: attendanceError }, { data: approvedLeaves, error: leaveError }] = await Promise.all([
+  const allDates = listDatesInRange(startDate, endDate);
+
+  const [employeesResult, attendanceResult, holidaysResult, approvedLeavesResult, leaveTypesResult] = await Promise.all([
+    adminClient
+      .from('hrm_employees')
+      .select('id, date_of_joining, separated_at, working_days, second_saturday_off')
+      .order('employee_id', { ascending: true }),
     adminClient
       .from('hrm_attendance')
       .select('employee_id, date, status, is_regularized')
-      .in('status', ['absent', 'halfday'])
+      .gte('date', startDate)
+      .lte('date', endDate),
+    adminClient
+      .from('hrm_holidays')
+      .select('date')
       .gte('date', startDate)
       .lte('date', endDate),
     adminClient
       .from('hrm_leave_requests')
-      .select('employee_id, start_date, end_date, status')
+      .select('employee_id, start_date, end_date, status, applied_session, session, leave_type_id')
       .eq('status', 'approved')
       .lte('start_date', endDate)
       .gte('end_date', startDate),
+    adminClient
+      .from('hrm_leave_types')
+      .select('id, code, counts_as_lop'),
   ]);
 
-  if (attendanceError) {
-    throw new Error(attendanceError.message || 'Failed to load unresolved attendance rows for payroll LOP');
-  }
-  if (leaveError) {
-    throw new Error(leaveError.message || 'Failed to load approved leave requests for payroll LOP');
+  if (employeesResult.error) throw new Error(employeesResult.error.message || 'Failed to load employees for attendance LOP');
+  if (attendanceResult.error) throw new Error(attendanceResult.error.message || 'Failed to load attendance rows for payroll LOP');
+  if (holidaysResult.error) throw new Error(holidaysResult.error.message || 'Failed to load holidays for payroll LOP');
+  if (approvedLeavesResult.error) throw new Error(approvedLeavesResult.error.message || 'Failed to load approved leaves for payroll LOP');
+
+  const holidayDates = new Set((holidaysResult.data || []).map((h) => h.date));
+
+  // Build leave type code map: id => { code, counts_as_lop }
+  const leaveTypeMap = new Map((leaveTypesResult.data || []).map((lt) => [lt.id, lt]));
+
+  function isLopLeaveTypeById(leaveTypeId) {
+    const lt = leaveTypeMap.get(leaveTypeId);
+    if (!lt) return false;
+    if (lt.counts_as_lop) return true;
+    const code = String(lt.code || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    return code === 'lop' || code === 'loss_of_pay' || code === 'loss_of_pay_lop';
   }
 
-  const approvedLeaveDateKeys = new Set();
-  for (const request of approvedLeaves || []) {
+  // Full-day leave keys: employeeId:date => skip entirely
+  const fullDayLeaveKeys = new Set();
+  // Half-day LOP leave keys: employeeId:date => one half is LOP
+  const halfDayLopLeaveKeys = new Set();
+  // Half-day paid/non-LOP leave keys: employeeId:date => leave covered, employee may have worked other half
+  const halfDayPaidLeaveKeys = new Set();
+  for (const request of approvedLeavesResult.data || []) {
+    const session = request.applied_session || request.session || 'full_day';
+    const isLop = isLopLeaveTypeById(request.leave_type_id);
     const requestStart = request.start_date < startDate ? startDate : request.start_date;
     const requestEnd = request.end_date > endDate ? endDate : request.end_date;
     for (const date of listDatesInRange(requestStart, requestEnd)) {
-      approvedLeaveDateKeys.add(`${request.employee_id}:${date}`);
+      const key = `${request.employee_id}:${date}`;
+      if (session === 'full_day') {
+        fullDayLeaveKeys.add(key);
+      } else if (isLop) {
+        halfDayLopLeaveKeys.add(key);
+      } else {
+        halfDayPaidLeaveKeys.add(key);
+      }
     }
   }
 
-  const rows = (attendanceRows || [])
-    .filter((row) => !row.is_regularized)
-    .filter((row) => !approvedLeaveDateKeys.has(`${row.employee_id}:${row.date}`))
-    .map((row) => ({
-      employee_id: row.employee_id,
-      attendance_date: row.date,
-      day_fraction: row.status === 'halfday' ? 0.5 : 1.0,
-      source: 'attendance',
-      notes:
-        row.status === 'halfday'
-          ? 'Generated from unresolved month-close half-day attendance for payroll.'
-          : 'Generated from unresolved month-close absence for payroll.',
-    }));
+  // key = "employeeId:date" => status ('present','absent','halfday','late','on_leave')
+  const attendanceMap = new Map();
+  for (const row of attendanceResult.data || []) {
+    attendanceMap.set(`${row.employee_id}:${row.date}`, row.status);
+  }
+
+  const rows = [];
+
+  for (const employee of employeesResult.data || []) {
+    const joinDate = employee.date_of_joining ? String(employee.date_of_joining).slice(0, 10) : null;
+    const separatedDate = employee.separated_at ? String(employee.separated_at).slice(0, 10) : null;
+    const workingDays = normalizeWorkingDays(employee.working_days);
+    const secondSaturdayOff = Boolean(employee.second_saturday_off);
+    const schedule = { workingDays, secondSaturdayOff, joinDate };
+
+    for (const date of allDates) {
+      if (joinDate && date < joinDate) continue;
+      if (separatedDate && date > separatedDate) continue;
+      if (holidayDates.has(date)) continue;
+
+      const key = `${employee.id}:${date}`;
+      const status = attendanceMap.get(key);
+
+      // Skip scheduled off days UNLESS HR explicitly marked the day absent
+      if (isEmployeeScheduledOff(date, schedule)) {
+        if (status !== 'absent') continue;
+      }
+
+      // Full-day leave covers the entire day — no attendance LOP
+      if (fullDayLeaveKeys.has(key)) continue;
+      // on_leave attendance status means HR/leave applied full-day leave — no LOP
+      if (status === 'on_leave') continue;
+
+      let fraction = 0;
+      if (status === 'halfday' || status === 'half_day' || status === 'late') {
+        if (halfDayPaidLeaveKeys.has(key)) {
+          // Half-day paid leave (CL/SL/SP/CH/COFF) + employee worked other half (CL:P, P:SL, P:CH etc.)
+          // No LOP — the worked half is present, the leave half is covered by paid leave
+          fraction = 0;
+        } else if (halfDayLopLeaveKeys.has(key)) {
+          // Half-day LOP leave + employee worked other half (LOP:P, P:LOP)
+          // LOP is already tracked via leave_request entry — no duplicate attendance LOP
+          fraction = 0;
+        } else {
+          // No leave at all — half day worked only, unresolved half counts as 0.5 LOP
+          fraction = 0.5;
+        }
+      } else if (status === undefined || status === null || status === 'absent') {
+        if (halfDayPaidLeaveKeys.has(key) || halfDayLopLeaveKeys.has(key)) {
+          // Half-day leave approved but employee didn't work remaining half (SL:A, LOP:A, CL:A)
+          // The absent half = 0.5 LOP (only for LOP type; paid leave absent half also generates 0.5 LOP)
+          fraction = 0.5;
+        } else {
+          // Full day absent, no leave — 1.0 LOP
+          fraction = 1.0;
+        }
+      }
+      // present = no LOP
+
+      if (fraction > 0) {
+        rows.push({
+          employee_id: employee.id,
+          attendance_date: date,
+          day_fraction: fraction,
+          source: 'attendance',
+          notes:
+            fraction === 0.5
+              ? 'Generated from unresolved month-close half-day attendance for payroll.'
+              : 'Generated from unresolved month-close absence for payroll.',
+        });
+      }
+    }
+  }
 
   if (!rows.length) {
     return [];
@@ -1048,10 +1146,16 @@ async function loadPayrollReferenceData(year, month) {
     releaseMap.set(release.employee_id, roundCurrency(total));
   }
 
-  const lopMap = new Map();
+  const lopLeaveMap = new Map();
+  const lopAttendanceMap = new Map();
   for (const lopEntry of lopResult.data || []) {
-    const total = toNumber(lopMap.get(lopEntry.employee_id), 0) + toNumber(lopEntry.day_fraction, 0);
-    lopMap.set(lopEntry.employee_id, roundDays(total));
+    if (lopEntry.source === 'attendance') {
+      const total = toNumber(lopAttendanceMap.get(lopEntry.employee_id), 0) + toNumber(lopEntry.day_fraction, 0);
+      lopAttendanceMap.set(lopEntry.employee_id, roundDays(total));
+    } else {
+      const total = toNumber(lopLeaveMap.get(lopEntry.employee_id), 0) + toNumber(lopEntry.day_fraction, 0);
+      lopLeaveMap.set(lopEntry.employee_id, roundDays(total));
+    }
   }
 
   return {
@@ -1060,7 +1164,8 @@ async function loadPayrollReferenceData(year, month) {
     effectiveSalaryMap,
     scheduleMap,
     releaseMap,
-    lopMap,
+    lopLeaveMap,
+    lopAttendanceMap,
     bounds: { startDate, endDate, monthKey, daysInMonth },
   };
 }
@@ -1093,6 +1198,8 @@ export function calculateEmployeePayroll({
   retentionSchedules = [],
   retentionReleaseAmount = 0,
   lopDays = 0,
+  lopLeaveDays = 0,
+  lopAttendanceDays = 0,
   year,
   month,
   daysInMonth,
@@ -1105,7 +1212,9 @@ export function calculateEmployeePayroll({
   );
 
   const grossSalary = salarySnapshot;
-  const proratedSalary = grossSalary;
+  const proratedSalary = daysInMonth > 0 && activeDays < daysInMonth
+    ? roundCurrency((salarySnapshot / daysInMonth) * activeDays)
+    : grossSalary;
   const normalizedLopDays = roundDays(lopDays);
   const lopDeduction = roundCurrency(daysInMonth > 0 ? (salarySnapshot / daysInMonth) * normalizedLopDays : 0);
   const activeRetention = profile?.retention_enabled
@@ -1126,7 +1235,7 @@ export function calculateEmployeePayroll({
   const totalDeductions = roundCurrency(
     lopDeduction + totalPfDeduction + totalTdsDeduction + retentionDeduction
   );
-  const netSalary = roundCurrency(grossSalary - totalDeductions + toNumber(retentionReleaseAmount, 0));
+  const netSalary = roundCurrency(proratedSalary - totalDeductions + toNumber(retentionReleaseAmount, 0));
 
   return {
     employeeId: employee.id,
@@ -1142,6 +1251,8 @@ export function calculateEmployeePayroll({
     activeEnd,
     activeDays,
     lopDays: normalizedLopDays,
+    lopLeaveDays: roundDays(lopLeaveDays),
+    lopAttendanceDays: roundDays(lopAttendanceDays),
     lopDeduction,
     pfEmployeeDeduction,
     pfEmployerDeduction,
@@ -1183,7 +1294,9 @@ export async function previewPayrollRun({ year, month, employeeId = null }) {
     const effectiveRevision = reference.effectiveSalaryMap.get(employee.id) || null;
     const retentionSchedules = reference.scheduleMap.get(employee.id) || [];
     const retentionReleaseAmount = reference.releaseMap.get(employee.id) || 0;
-    const lopDays = reference.lopMap.get(employee.id) || 0;
+    const lopLeaveDays = reference.lopLeaveMap.get(employee.id) || 0;
+    const lopAttendanceDays = reference.lopAttendanceMap.get(employee.id) || 0;
+    const lopDays = roundDays(lopLeaveDays + lopAttendanceDays);
 
     rows.push(
       calculateEmployeePayroll({
@@ -1193,6 +1306,8 @@ export async function previewPayrollRun({ year, month, employeeId = null }) {
         retentionSchedules,
         retentionReleaseAmount,
         lopDays,
+        lopLeaveDays,
+        lopAttendanceDays,
         year,
         month,
         daysInMonth: reference.bounds.daysInMonth,
@@ -1415,6 +1530,8 @@ export async function generatePayrollRun({ year, month, actorUserId, previewSign
           activeEnd: row.activeEnd,
           activeDays: row.activeDays,
           lopDays: row.lopDays,
+          lopLeaveDays: row.lopLeaveDays,
+          lopAttendanceDays: row.lopAttendanceDays,
         },
         policy: {
           pfEnabled: Boolean(row.profile?.pf_enabled),

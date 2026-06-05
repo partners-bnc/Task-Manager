@@ -67,6 +67,7 @@ async function loadEmployeeRows() {
       employee_type,
       employment_lifecycle_status,
       current_stage,
+      date_of_joining,
       working_days,
       second_saturday_off,
       reporting_manager_id,
@@ -92,6 +93,7 @@ async function loadEmployeeRows() {
       city,
       email,
       employee_status,
+      date_of_joining,
       working_days,
       second_saturday_off,
       reporting_manager_id,
@@ -137,6 +139,7 @@ function getRelationRecord(value) {
 function formatStatusLabel(status = '') {
   const normalized = String(status || '').trim().toLowerCase();
   if (!normalized) return '--';
+  if (normalized === 'missing') return '--';
   if (normalized === 'on_leave') return 'On Leave';
   if (normalized === 'late') return 'Half Day';
   if (normalized === 'halfday' || normalized === 'half_day') return 'Half Day';
@@ -251,11 +254,22 @@ function buildMonthlySummary(dailyStatuses = []) {
       current.totalDays += 1;
 
       if (code.includes(':')) {
-        current.halfDay += 1;
-        code
-          .split(':')
-          .slice(0, 2)
-          .forEach((part) => addSummaryContribution(current, part, 0.5));
+        const parts = code.split(':').slice(0, 2).map((p) => p.trim());
+        const hasPresent = parts.includes('P');
+        const hasAbsent = parts.includes('A');
+        const hasLop = parts.includes('LOP');
+
+        if (hasPresent && !hasAbsent && !hasLop) {
+          // e.g. CL:P, P:CL, P:CH, SL:P, P:SL — leave + worked half
+          // Count as present day, leave gets credit too
+          current.present += 1;
+          const leavepart = parts.find((p) => p !== 'P');
+          if (leavepart) addSummaryContribution(current, leavepart, 0.5);
+        } else {
+          // e.g. LOP:P, P:LOP, SL:A, A:LOP — one half is missing/lop
+          current.halfDay += 1;
+          parts.forEach((part) => addSummaryContribution(current, part, 0.5));
+        }
         return current;
       }
 
@@ -429,6 +443,7 @@ export async function GET(request) {
       department: getRelationRecord(employee.department)?.name || '',
       designation: getRelationRecord(employee.designation)?.title || '',
       city: employee.city || '',
+      joinDate: employee.date_of_joining || null,
     }));
 
     const departmentOptions = [...new Set(employeeOptions.map((employee) => employee.department).filter(Boolean))].sort();
@@ -507,14 +522,22 @@ export async function GET(request) {
       const rows = selectedEmployees
         .map((employee) => {
           const dailyStatuses = calendarDays.map((day) => {
+            const isBeforeJoin = employee.date_of_joining && day.date < employee.date_of_joining;
             const holiday = holidayMap.get(day.date);
             const rawAttendance = attendanceMap.get(`${employee.id}:${day.date}`) || null;
             const leaveRequest = leaveRequestMap.get(`${employee.id}:${day.date}`) || null;
-            const rendered = holiday
+            const rendered = isBeforeJoin
+              ? buildAttendanceUiRecord(day.date, null, {
+                  workingDays: employee.working_days || [],
+                  secondSaturdayOff: Boolean(employee.second_saturday_off),
+                  joinDate: employee.date_of_joining,
+                })
+              : holiday
               ? buildHolidayUiRecord(day.date, holiday)
               : buildAttendanceUiRecord(day.date, rawAttendance, {
                   workingDays: employee.working_days || [],
                   secondSaturdayOff: Boolean(employee.second_saturday_off),
+                  joinDate: employee.date_of_joining,
                 });
             const backfillDetails =
               !holiday && rawAttendance
@@ -631,11 +654,19 @@ export async function GET(request) {
         .map((date) => {
           const holiday = holidayMap.get(date);
           const rawAttendance = attendanceMap.get(date) || null;
-          const rendered = holiday
+          const isBeforeJoin = selectedEmployee.date_of_joining && date < selectedEmployee.date_of_joining;
+          const rendered = isBeforeJoin
+            ? buildAttendanceUiRecord(date, null, {
+                workingDays: selectedEmployee.working_days || [],
+                secondSaturdayOff: Boolean(selectedEmployee.second_saturday_off),
+                joinDate: selectedEmployee.date_of_joining,
+              })
+            : holiday
             ? buildHolidayUiRecord(date, holiday)
             : buildAttendanceUiRecord(date, rawAttendance, {
                 workingDays: selectedEmployee.working_days || [],
                 secondSaturdayOff: Boolean(selectedEmployee.second_saturday_off),
+                joinDate: selectedEmployee.date_of_joining,
               });
 
           return formatAttendanceRow(rendered, {
@@ -706,11 +737,19 @@ export async function GET(request) {
       employeeRows.map((employee) => {
         const rawAttendance = attendanceMap.get(employee.id) || null;
         const swipeSummary = summarizeSwipePattern(swipeMap.get(employee.id) || []);
-        const rendered = holiday
+        const isBeforeJoin = employee.date_of_joining && selectedDate < employee.date_of_joining;
+        const rendered = isBeforeJoin
+          ? buildAttendanceUiRecord(selectedDate, null, {
+              workingDays: employee.working_days || [],
+              secondSaturdayOff: Boolean(employee.second_saturday_off),
+              joinDate: employee.date_of_joining,
+            })
+          : holiday
           ? buildHolidayUiRecord(selectedDate, holiday)
           : buildAttendanceUiRecord(selectedDate, rawAttendance, {
               workingDays: employee.working_days || [],
               secondSaturdayOff: Boolean(employee.second_saturday_off),
+              joinDate: employee.date_of_joining,
             });
 
         return {

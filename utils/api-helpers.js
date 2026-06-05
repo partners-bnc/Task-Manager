@@ -478,6 +478,9 @@ export function normalizeSubtasks(input) {
         title: String(subtask?.title || '').trim(),
         is_completed: Boolean(subtask?.is_completed),
         assigned_employee_id: subtask?.assigned_employee_id || null,
+        priority: subtask?.priority || 'medium',
+        due_date: subtask?.due_date || null,
+        frequency: subtask?.frequency || null,
       };
     })
     .filter((subtask) => subtask.title.length > 0);

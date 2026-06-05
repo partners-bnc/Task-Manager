@@ -638,6 +638,9 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [uploadingTaskAttachments, setUploadingTaskAttachments] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState('');
+  const [newSubtaskPriority, setNewSubtaskPriority] = useState('medium');
+  const [newSubtaskDueDate, setNewSubtaskDueDate] = useState('');
+  const [newSubtaskFrequency, setNewSubtaskFrequency] = useState('');
   const [progressDraft, setProgressDraft] = useState(0);
   const [taskLabels, setTaskLabels] = useState([]);
   const [newLabelName, setNewLabelName] = useState('');
@@ -649,6 +652,8 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
   const [reviewHoverRatings, setReviewHoverRatings] = useState({});
   const [pendingSubtaskCommentIds, setPendingSubtaskCommentIds] = useState([]);
   const [pendingInstructionIds, setPendingInstructionIds] = useState([]);
+
+  const [subtaskMetaDrafts, setSubtaskMetaDrafts] = useState({});
 
   const [editForm, setEditForm] = useState({
     taskName: '',
@@ -1040,6 +1045,9 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
         body: JSON.stringify({
           subtaskTitle: title,
           assignedEmployeeId: newSubtaskAssigneeId || null,
+          subtaskPriority: newSubtaskPriority || 'medium',
+          subtaskDueDate: newSubtaskDueDate || null,
+          subtaskFrequency: newSubtaskFrequency || null,
         }),
       });
 
@@ -1050,6 +1058,9 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
 
       setNewSubtaskTitle('');
       setNewSubtaskAssigneeId('');
+      setNewSubtaskPriority('medium');
+      setNewSubtaskDueDate('');
+      setNewSubtaskFrequency('');
       await loadTaskData();
     } catch (err) {
       setError(err.message || 'Failed to add subtask');
@@ -1183,6 +1194,22 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveSubtaskMeta = async (subtask, field, value) => {
+    if (!canManageSubtasks || !subtask) return;
+    const body = { subtaskId: subtask.id };
+    if (field === 'priority') body.subtaskPriority = value;
+    if (field === 'dueDate') body.subtaskDueDate = value || null;
+    if (field === 'frequency') body.subtaskFrequency = value || null;
+    setSubtaskMetaDrafts((prev) => ({ ...prev, [subtask.id]: { ...(prev[subtask.id] || {}), [field]: value } }));
+    try {
+      await fetch(`/Taskmanager/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (_) {}
   };
 
   const canEditSubtaskTitle = (subtask) => {
@@ -1766,34 +1793,61 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
             <div>
               <h2 className='mb-3 text-sm font-semibold text-slate-600'>Subtasks</h2>
               {canManageSubtasks && (
-                <div className='mb-3 flex gap-2'>
-                  <input
-                    value={newSubtaskTitle}
-                    onChange={(event) => setNewSubtaskTitle(event.target.value)}
-                    placeholder='Add subtask...'
-                    className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm'
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') {
-                        event.preventDefault();
-                        addChecklistItem();
-                      }
-                    }}
-                  />
-                  {canManageSubtasks && (
+                <div className='mb-3 space-y-2'>
+                  <div className='flex gap-2'>
+                    <input
+                      value={newSubtaskTitle}
+                      onChange={(event) => setNewSubtaskTitle(event.target.value)}
+                      placeholder='Add subtask...'
+                      className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm'
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addChecklistItem();
+                        }
+                      }}
+                    />
+                    <button
+                      type='button'
+                      disabled={saving || !newSubtaskTitle.trim()}
+                      onClick={addChecklistItem}
+                      className='rounded-lg bg-[#7F40EE] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6A31D1] disabled:opacity-60'
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <div className='flex flex-wrap gap-2'>
                     <AssigneePicker
                       value={newSubtaskAssigneeId}
                       onChange={setNewSubtaskAssigneeId}
                       options={subtaskAssignees}
                     />
-                  )}
-                  <button
-                    type='button'
-                    disabled={saving || !newSubtaskTitle.trim()}
-                    onClick={addChecklistItem}
-                    className='rounded-lg bg-[#7F40EE] px-4 py-2 text-sm font-semibold text-white hover:bg-[#6A31D1] disabled:opacity-60'
-                  >
-                    Add
-                  </button>
+                    <select
+                      value={newSubtaskPriority}
+                      onChange={(e) => setNewSubtaskPriority(e.target.value)}
+                      className='rounded-lg border border-slate-200 px-2 py-1.5 text-xs bg-white'
+                    >
+                      <option value='low'>Low</option>
+                      <option value='medium'>Medium</option>
+                      <option value='high'>High</option>
+                    </select>
+                    <input
+                      type='date'
+                      value={newSubtaskDueDate}
+                      onChange={(e) => setNewSubtaskDueDate(e.target.value)}
+                      className='rounded-lg border border-slate-200 px-2 py-1.5 text-xs'
+                    />
+                    <select
+                      value={newSubtaskFrequency}
+                      onChange={(e) => setNewSubtaskFrequency(e.target.value)}
+                      className='rounded-lg border border-slate-200 px-2 py-1.5 text-xs bg-white'
+                    >
+                      <option value=''>No Repeat</option>
+                      <option value='weekly'>Weekly</option>
+                      <option value='monthly'>Monthly</option>
+                      <option value='yearly'>Yearly</option>
+                    </select>
+                  </div>
                 </div>
               )}
               <div className='space-y-2'>
@@ -1892,6 +1946,19 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                   </span>
                                 </div>
                               ) : null}
+                              {(subtask.priority && subtask.priority !== 'medium') || subtask.due_date || subtask.frequency ? (
+                                <div className='mt-1.5 flex flex-wrap gap-1'>
+                                  {subtask.priority && subtask.priority !== 'medium' && (
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${ subtask.priority === 'high' ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600' }`}>{subtask.priority}</span>
+                                  )}
+                                  {subtask.due_date && (
+                                    <span className='inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700'>{new Date(subtask.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                  )}
+                                  {subtask.frequency && (
+                                    <span className='inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-blue-700'>Repeats {subtask.frequency}</span>
+                                  )}
+                                </div>
+                              ) : null}
                             </div>
                             <div className='flex flex-nowrap items-start gap-2 sm:justify-self-end'>
                               {assigned ? (
@@ -1950,6 +2017,46 @@ export default function TaskDetailPage({ taskId, mode = 'employee' }) {
                                       disabled={pendingSubtaskAttachmentIds.includes(subtask.id)}
                                     />
                                   </label>
+                                </div>
+                              </div>
+
+                              <div className='flex flex-wrap gap-2 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-3'>
+                                <div className='flex flex-col gap-1'>
+                                  <span className='text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400'>Priority</span>
+                                  <select
+                                    value={subtaskMetaDrafts[subtask.id]?.priority ?? subtask.priority ?? 'medium'}
+                                    onChange={(e) => saveSubtaskMeta(subtask, 'priority', e.target.value)}
+                                    disabled={!canManageSubtasks}
+                                    className='rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs'
+                                  >
+                                    <option value='low'>Low</option>
+                                    <option value='medium'>Medium</option>
+                                    <option value='high'>High</option>
+                                  </select>
+                                </div>
+                                <div className='flex flex-col gap-1'>
+                                  <span className='text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400'>Due Date</span>
+                                  <input
+                                    type='date'
+                                    value={subtaskMetaDrafts[subtask.id]?.dueDate ?? (subtask.due_date ? subtask.due_date.slice(0,10) : '')}
+                                    onChange={(e) => saveSubtaskMeta(subtask, 'dueDate', e.target.value)}
+                                    disabled={!canManageSubtasks}
+                                    className='rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs'
+                                  />
+                                </div>
+                                <div className='flex flex-col gap-1'>
+                                  <span className='text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400'>Repeat</span>
+                                  <select
+                                    value={subtaskMetaDrafts[subtask.id]?.frequency ?? subtask.frequency ?? ''}
+                                    onChange={(e) => saveSubtaskMeta(subtask, 'frequency', e.target.value)}
+                                    disabled={!canManageSubtasks}
+                                    className='rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs'
+                                  >
+                                    <option value=''>No Repeat</option>
+                                    <option value='weekly'>Weekly</option>
+                                    <option value='monthly'>Monthly</option>
+                                    <option value='yearly'>Yearly</option>
+                                  </select>
                                 </div>
                               </div>
 

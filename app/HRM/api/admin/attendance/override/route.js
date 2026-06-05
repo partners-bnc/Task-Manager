@@ -92,6 +92,7 @@ function readNoteMarker(noteText = '', markerName = '') {
 function formatStatusLabel(status = '') {
   const normalized = String(status || '').trim().toLowerCase();
   if (!normalized) return '--';
+  if (normalized === 'missing') return '--';
   if (normalized === 'on_leave') return 'On Leave';
   if (normalized === 'halfday' || normalized === 'half_day') return 'Half Day';
   if (normalized === 'weekend') return 'Off';
@@ -439,14 +440,22 @@ async function refreshMonthlyEmployeeState({ employeeRow, employeeId, month, tod
   const dailyStatuses = listDatesInRange(range.start, range.end)
     .filter((value) => value <= today)
     .map((calendarDate) => {
+      const isBeforeJoin = employeeRow.date_of_joining && calendarDate < employeeRow.date_of_joining;
       const holiday = holidayMap.get(calendarDate);
       const rawAttendance = attendanceMap.get(calendarDate) || null;
       const leaveRequest = leaveRequestMap.get(calendarDate) || null;
-      const rendered = holiday
+      const rendered = isBeforeJoin
+        ? buildAttendanceUiRecord(calendarDate, null, {
+            workingDays: employeeRow.working_days || [],
+            secondSaturdayOff: Boolean(employeeRow.second_saturday_off),
+            joinDate: employeeRow.date_of_joining,
+          })
+        : holiday
         ? buildHolidayUiRecord(calendarDate, holiday)
         : buildAttendanceUiRecord(calendarDate, rawAttendance, {
             workingDays: employeeRow.working_days || [],
             secondSaturdayOff: Boolean(employeeRow.second_saturday_off),
+            joinDate: employeeRow.date_of_joining,
           });
       const backfillDetails =
         !holiday && rawAttendance

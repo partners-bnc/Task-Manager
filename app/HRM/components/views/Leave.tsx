@@ -24,7 +24,6 @@ type LeaveBalance = {
   carryForwardDays: number;
   usedDays: number;
   availableDays: number;
-  lopDays: number;
   leaveTypeCode: string;
 };
 
@@ -68,7 +67,6 @@ type LeaveResponse = {
   balances: LeaveBalance[];
   summary: {
     totalAvailable: number;
-    lopDays: number;
     casualAvailable: number;
     sickAvailable: number;
     specialAvailable: number;
@@ -320,13 +318,6 @@ export default function Leave() {
       value: balancesByType.get('Special Leave')?.availableDays ?? data?.summary?.specialAvailable ?? 0,
       helper: 'One paid day available each year',
     },
-    {
-      label: 'LOP',
-      icon: 'money_off',
-      shell: 'bg-rose-50',
-      value: data?.summary?.lopDays ?? 0,
-      helper: 'Days marked for payroll deduction',
-    },
   ];
 
   return (
@@ -395,7 +386,7 @@ export default function Leave() {
                   {formatLeaveDays(data?.summary?.totalAvailable || 0)}
                 </p>
                 <p className="mt-3 text-[11px] leading-5 text-on-surface-variant">
-                  Total currently available across your balances
+                  Total currently available across your paid leave balances
                 </p>
               </>
             )}
@@ -403,7 +394,7 @@ export default function Leave() {
         </div>
 
         {isLoading ? (
-          <MetricCardSkeleton count={4} />
+          <MetricCardSkeleton count={3} />
         ) : (
           kpiItems.map((item) => (
             <div key={item.label} className={`rounded-3xl border border-white/70 ${item.shell} px-5 py-5 shadow-[0_18px_38px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.9)]`}>
@@ -519,10 +510,6 @@ export default function Leave() {
                         <span className="font-semibold text-on-surface">{formatLeaveDays(data?.summary?.sickAvailable ?? 0)}</span>
                       </div>
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-on-surface-variant">LOP</span>
-                        <span className="font-semibold text-on-surface">{formatLeaveDays(data?.summary?.lopDays ?? 0)}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
                         <span className="text-on-surface-variant">Special Leave</span>
                         <span className="font-semibold text-on-surface">{formatLeaveDays(data?.summary?.specialAvailable ?? 0)}</span>
                       </div>
@@ -606,7 +593,7 @@ export default function Leave() {
           <div className="relative z-10">
             <h3 className="text-xl font-bold font-headline leading-tight text-on-tertiary-container">Leave Policy Snapshot</h3>
             <p className="mt-2 text-sm leading-6 text-on-tertiary-container/80">
-              Casual, Sick, and Special Leave need enough balance before submission. If balance is not enough, apply under LOP. Comp Off and Client Holiday remain approval-based without payroll deduction.
+              Casual, Sick, and Special Leave need enough balance before submission. If balance is not enough, apply under LOP. Attendance-based payroll LOP is tracked in Salary & Payslips, not in leave balances.
             </p>
           </div>
 
@@ -645,7 +632,7 @@ export default function Leave() {
         <div className="mb-6">
           <h2 className="text-xl font-bold font-headline text-on-background">Leave History</h2>
           <p className="mt-2 text-sm text-on-surface-variant">
-            Review your submitted leave requests, approval status, and paid versus LOP outcome in a more structured table.
+            Review your submitted leave requests, approval status, and paid versus unpaid leave outcome in a more structured table.
           </p>
         </div>
 
@@ -658,7 +645,7 @@ export default function Leave() {
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Dates</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Worked On</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Status</th>
-                <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Paid / LOP</th>
+                <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Paid / Unpaid</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Approved / Rejected By</th>
                 <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Reason</th>
               </tr>
@@ -693,7 +680,7 @@ export default function Leave() {
                     <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusPill(item.status)}`}>{item.status}</span>
                   </td>
                   <td className="px-5 py-4 text-sm text-on-surface-variant">
-                    {formatLeaveDays(item.paidDays)} paid / {formatLeaveDays(item.lopDays)} LOP
+                    {formatLeaveDays(item.paidDays)} paid / {formatLeaveDays(item.lopDays)} unpaid
                   </td>
                   <td className="px-5 py-4 text-sm text-on-surface-variant">
                     {item.reviewedByName || '--'}
@@ -760,7 +747,7 @@ export default function Leave() {
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Dates</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Worked On</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Duration</th>
-                      <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">LOP Term</th>
+                      <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Paid / Unpaid</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Reason</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Review Note</th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Action</th>
@@ -780,7 +767,7 @@ export default function Leave() {
                         <td className="px-5 py-4 text-sm text-on-surface">
                           <p className="font-medium">{getProjectedLopLabel(item)}</p>
                           <p className="text-xs text-on-surface-variant">
-                            {formatLeaveDays(item.projectedPaidDays || 0)} paid / {formatLeaveDays(item.projectedLopDays || 0)} LOP
+                            {formatLeaveDays(item.projectedPaidDays || 0)} paid / {formatLeaveDays(item.projectedLopDays || 0)} unpaid
                           </p>
                         </td>
                         <td className="max-w-[260px] px-5 py-4 text-sm text-on-surface-variant">{item.reason || '--'}</td>
@@ -847,7 +834,7 @@ export default function Leave() {
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Dates</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Worked On</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Status</th>
-                    <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Paid / LOP</th>
+                    <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Paid / Unpaid</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Reviewed By</th>
                     <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Note</th>
                   </tr>
@@ -866,7 +853,7 @@ export default function Leave() {
                         <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${getStatusPill(item.status)}`}>{item.status}</span>
                       </td>
                       <td className="px-5 py-4 text-sm text-on-surface-variant">
-                        {formatLeaveDays(item.paidDays)} paid / {formatLeaveDays(item.lopDays)} LOP
+                        {formatLeaveDays(item.paidDays)} paid / {formatLeaveDays(item.lopDays)} unpaid
                       </td>
                       <td className="px-5 py-4 text-sm text-on-surface">
                         {item.reviewedByName || '--'}

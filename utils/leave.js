@@ -735,7 +735,6 @@ export async function applyApprovedLeaveToAttendance({ employeeId, workingDates,
 export function buildLeaveSummary(balances = []) {
   const summary = {
     totalAvailable: 0,
-    lopDays: 0,
     casualAvailable: 0,
     sickAvailable: 0,
     specialAvailable: 0,
@@ -744,10 +743,8 @@ export function buildLeaveSummary(balances = []) {
   for (const balance of balances) {
     const leaveTypeName = balance.leave_type?.name || '';
     const available = roundLeaveDays(balance.available_days);
-    const lopDays = roundLeaveDays(balance.lop_days);
 
     summary.totalAvailable = roundLeaveDays(summary.totalAvailable + available);
-    summary.lopDays = roundLeaveDays(summary.lopDays + lopDays);
 
     if (leaveTypeName === 'Casual Leave') {
       summary.casualAvailable = available;

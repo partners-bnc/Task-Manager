@@ -205,7 +205,6 @@ export async function GET() {
           carryForwardDays: Number(balance.carry_forward_days || 0),
           usedDays: Number(balance.used_days || 0),
           availableDays: Number(balance.available_days || 0),
-          lopDays: Number(balance.lop_days || 0),
           leaveTypeCode: balance.leave_type?.code || getLeaveTypeCode(balance.leave_type?.name || ''),
         })),
         summary: buildLeaveSummary(balances),

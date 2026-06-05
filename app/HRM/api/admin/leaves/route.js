@@ -3,7 +3,6 @@ import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import {
-  buildLeaveSummary,
   getEmployeeLeaveContext,
   getLeaveTypeCode,
   isClientHolidayLeaveType,
@@ -50,7 +49,6 @@ async function loadBalanceRowsForEmployees(employees = []) {
         availableDays: Number(balance.available_days || 0),
         usedDays: Number(balance.used_days || 0),
         creditedDays: Number(balance.credited_days || 0),
-        lopDays: Number(balance.lop_days || 0),
       }));
     })
   );
@@ -135,13 +133,6 @@ export async function GET() {
         pending: mappedRequests.filter((item) => item.status === 'pending'),
         history: mappedRequests.filter((item) => item.status !== 'pending'),
         balances: allBalances,
-        summary: buildLeaveSummary(
-          allBalances.map((balance) => ({
-            leave_type: { name: balance.leaveTypeName },
-            available_days: balance.availableDays,
-            lop_days: balance.lopDays,
-          }))
-        ),
       },
       { status: 200 }
     );

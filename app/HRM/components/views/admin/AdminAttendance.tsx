@@ -313,6 +313,8 @@ export default function AdminAttendance() {
   const [statusFilter, setStatusFilter] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
   const [response, setResponse] = useState<AttendanceResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -350,7 +352,6 @@ export default function AdminAttendance() {
               }
             : {
                 mode,
-                employeeId: selectedEmployeeId,
                 month: selectedMonth,
                 status: statusFilter,
               }
@@ -427,8 +428,14 @@ export default function AdminAttendance() {
           leave: Number(row?.summary?.leave || 0),
           totalDays: Number(row?.summary?.totalDays || 0),
         },
-      }));
-  }, [mode, response?.rows]);
+      }))
+      .sort((a, b) =>
+        String(a.employee.employeeId || '').localeCompare(String(b.employee.employeeId || ''), 'en', { numeric: true, sensitivity: 'base' })
+      )
+      .filter((row) =>
+        selectedEmployeeIds.length === 0 || selectedEmployeeIds.includes(row.employee.id)
+      );
+  }, [mode, response?.rows, selectedEmployeeIds]);
   const calendarDays = response?.calendarDays || [];
 
   const filteredEmployeeOptions = useMemo(() => {
@@ -605,11 +612,14 @@ export default function AdminAttendance() {
     }
 
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Monthly Attendance');
-    const employeeName =
-      filteredEmployeeOptions.find((employee) => employee.id === selectedEmployeeId)?.name || 'all_employees';
+    const employeeLabel = selectedEmployeeIds.length === 1
+      ? safeFilePart(filteredEmployeeOptions.find((e) => e.id === selectedEmployeeIds[0])?.name || 'employee')
+      : selectedEmployeeIds.length > 1
+      ? `${selectedEmployeeIds.length}_employees`
+      : 'all';
     XLSX.writeFile(
       workbook,
-      `monthly_attendance_${safeFilePart(selectedMonth)}_${safeFilePart(selectedEmployeeId ? employeeName : 'all')}.xlsx`
+      `monthly_attendance_${safeFilePart(selectedMonth)}_${employeeLabel}.xlsx`
     );
   };
 
@@ -893,18 +903,83 @@ export default function AdminAttendance() {
               onChange={(event) => setSelectedMonth(event.target.value)}
               className="rounded-2xl border border-outline-variant/15 bg-white px-4 py-3 text-sm text-on-surface outline-none"
             />
-            <select
-              value={selectedEmployeeId}
-              onChange={(event) => setSelectedEmployeeId(event.target.value)}
-              className="rounded-2xl border border-outline-variant/15 bg-white px-4 py-3 text-sm text-on-surface outline-none"
-            >
-              <option value="">All Employees</option>
-              {filteredEmployeeOptions.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name} {employee.employeeId ? `(${employee.employeeId})` : ''}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setEmployeeDropdownOpen((prev) => !prev)}
+                className="flex w-full items-center justify-between gap-2 rounded-2xl border border-outline-variant/15 bg-white px-4 py-3 text-sm text-on-surface outline-none"
+              >
+                <span className="truncate">
+                  {selectedEmployeeIds.length === 0
+                    ? 'All Employees'
+                    : selectedEmployeeIds.length === 1
+                    ? (filteredEmployeeOptions.find((e) => e.id === selectedEmployeeIds[0])?.name || '1 selected')
+                    : `${selectedEmployeeIds.length} employees selected`}
+                </span>
+                <span className="material-symbols-outlined shrink-0 text-[18px] text-on-surface-variant">
+                  {employeeDropdownOpen ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+              {employeeDropdownOpen && (
+                <>
+                  <button
+                    type="button"
+                    aria-label="Close employee filter"
+                    onClick={() => setEmployeeDropdownOpen(false)}
+                    className="fixed inset-0 z-30"
+                  />
+                  <div className="absolute left-0 top-full z-40 mt-1 w-full min-w-[260px] overflow-hidden rounded-2xl border border-outline-variant/15 bg-white shadow-[0_8px_32px_rgba(15,23,42,0.12)]">
+                    <div className="border-b border-outline-variant/10 px-3 py-2 flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-on-surface-variant">Filter Employees</span>
+                      {selectedEmployeeIds.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEmployeeIds([])}
+                          className="text-xs font-semibold text-violet-700 hover:underline"
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-64 overflow-y-auto py-1">
+                      {filteredEmployeeOptions.map((employee) => {
+                        const checked = selectedEmployeeIds.includes(employee.id);
+                        return (
+                          <button
+                            key={employee.id}
+                            type="button"
+                            onClick={() =>
+                              setSelectedEmployeeIds((prev) =>
+                                checked ? prev.filter((id) => id !== employee.id) : [...prev, employee.id]
+                              )
+                            }
+                            className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-surface-container-low"
+                          >
+                            <span
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                                checked
+                                  ? 'border-violet-600 bg-violet-600 text-white'
+                                  : 'border-outline-variant/40 bg-white'
+                              }`}
+                            >
+                              {checked && (
+                                <span className="material-symbols-outlined text-[12px]">check</span>
+                              )}
+                            </span>
+                            <span className="truncate text-on-surface">
+                              {employee.name}
+                              {employee.employeeId ? (
+                                <span className="ml-1 text-on-surface-variant">[{employee.employeeId}]</span>
+                              ) : null}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}

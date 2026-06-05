@@ -233,7 +233,7 @@ export default function Salary({ employee }: { employee?: any }) {
                 ['PF', 'PF uses one fixed amount. The same fixed amount is applied on employee side and employer side, and both are included in payroll deductions.'],
                 ['TDS', 'TDS is deducted only once from the employee side and HR can configure it either as a percent value or as one fixed amount.'],
                 ['Retention', 'Retention deducts a fixed monthly amount from salary while the schedule is active. HR can later release the retained amount through a separate retention release entry.'],
-                ['LOP', 'One LOP day is deducted using monthly salary divided by total calendar days in that payroll month.'],
+                ['LOP', 'Monthly payroll LOP combines approved unpaid leave and unresolved absences or half-days for that payroll month only. It resets fresh for the next month.'],
                 ['Join / Exit', 'If an employee joins or exits in the middle of a month, salary is prorated using active calendar days inside the payroll month.'],
                 ['Payslip Visibility', 'Salary month is visible after HR marks it paid, but the payslip PDF is visible only after HR sends the payslip to the employee panel.'],
                 ['Salary Credit Day', 'Salary is credited to the employee on the 8th day of every month.'],
@@ -407,7 +407,7 @@ export default function Salary({ employee }: { employee?: any }) {
                     <div>
                       <DetailKeyValue label="Salary Snapshot" value={formatCurrency(selectedMonth.salary_snapshot)} />
                       <DetailKeyValue label="Prorated Salary" value={formatCurrency(selectedMonth.prorated_salary)} />
-                      <DetailKeyValue label="LOP Deduction" value={formatCurrency(selectedMonth.lop_deduction)} />
+                      <DetailKeyValue label="Monthly Payroll LOP Deduction" value={formatCurrency(selectedMonth.lop_deduction)} />
                       <DetailKeyValue label="Employee PF" value={formatCurrency(selectedMonth.pf_employee_deduction)} />
                       <DetailKeyValue label="Employer PF" value={formatCurrency(selectedMonth.pf_employer_deduction)} />
                       <DetailKeyValue label="Total PF" value={formatCurrency(selectedMonth.total_pf_deduction)} />
@@ -418,7 +418,7 @@ export default function Salary({ employee }: { employee?: any }) {
                       <DetailKeyValue label="Retention" value={formatCurrency(selectedMonth.retention_deduction)} />
                       <DetailKeyValue label="Retention Release" value={formatCurrency(selectedMonth.retention_release_amount)} />
                       <DetailKeyValue label="Active Days" value={latestSnapshot?.meta?.activeDays ?? selectedMonth.active_days} />
-                      <DetailKeyValue label="LOP Days" value={latestSnapshot?.meta?.lopDays ?? selectedMonth.lop_days} />
+                      <DetailKeyValue label="Final Monthly LOP Days" value={latestSnapshot?.meta?.lopDays ?? selectedMonth.lop_days} />
                     </div>
                   </div>
                 </div>

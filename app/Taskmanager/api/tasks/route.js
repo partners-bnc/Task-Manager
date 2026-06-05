@@ -237,6 +237,10 @@ export async function POST(request) {
         title: subtask.title,
         is_completed: !!subtask.is_completed,
         assigned_employee_id: subtask.assigned_employee_id || null,
+        priority: ['low', 'medium', 'high'].includes(subtask.priority) ? subtask.priority : 'medium',
+        due_date: subtask.due_date || null,
+        frequency: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? subtask.frequency : null,
+        last_cycle_reset: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? new Date().toISOString() : null,
       }));
 
       const { data: insertedSubtasks, error: subtaskError } = await supabase

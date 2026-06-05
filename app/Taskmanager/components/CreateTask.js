@@ -18,7 +18,7 @@ export default function CreateTask({ onCancel }) {
   const [dueTime, setDueTime] = useState('');
   const [assignees, setAssignees] = useState([]);
 
-  const [subtasks, setSubtasks] = useState([{ title: '', assignedEmployeeId: '' }]);
+  const [subtasks, setSubtasks] = useState([{ title: '', assignedEmployeeId: '', priority: 'medium', dueDate: '', frequency: '' }]);
 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [tempAssignees, setTempAssignees] = useState([]);
@@ -31,7 +31,6 @@ export default function CreateTask({ onCancel }) {
   const filteredUsers = users.filter((user) => {
     const query = assigneeSearch.trim().toLowerCase();
     if (!query) return true;
-
     return [user?.name, user?.email, user?.username, user?.employee_id]
       .filter(Boolean)
       .some((value) => String(value).toLowerCase().includes(query));
@@ -73,16 +72,16 @@ export default function CreateTask({ onCancel }) {
     };
 
     return (
-      <details className="relative w-full md:w-52">
+      <details className="relative w-full md:w-44">
         <summary className="flex list-none items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-slate-700 cursor-pointer">
           <span className="flex min-w-0 items-center gap-2">
             {selectedUser ? (
               <>
-                {renderUserAvatar(selectedUser, 'w-7 h-7 rounded-full')}
-                <span className="truncate text-sm">{selectedUser.name}</span>
+                {renderUserAvatar(selectedUser, 'w-6 h-6 rounded-full')}
+                <span className="truncate text-xs">{selectedUser.name}</span>
               </>
             ) : (
-              <span className="text-slate-500">{placeholder}</span>
+              <span className="text-xs text-slate-500">{placeholder}</span>
             )}
           </span>
           <span className="text-[10px] text-slate-400">▼</span>
@@ -118,7 +117,7 @@ export default function CreateTask({ onCancel }) {
   };
 
   const handleAddSubtask = () => {
-    setSubtasks([...subtasks, { title: '', assignedEmployeeId: '' }]);
+    setSubtasks([...subtasks, { title: '', assignedEmployeeId: '', priority: 'medium', dueDate: '', frequency: '' }]);
   };
 
   const handleRemoveSubtask = (index) => {
@@ -136,6 +135,12 @@ export default function CreateTask({ onCancel }) {
   const handleSubtaskAssigneeChange = (index, assignedEmployeeId) => {
     const newList = [...subtasks];
     newList[index] = { ...newList[index], assignedEmployeeId };
+    setSubtasks(newList);
+  };
+
+  const handleSubtaskFieldChange = (index, field, value) => {
+    const newList = [...subtasks];
+    newList[index] = { ...newList[index], [field]: value };
     setSubtasks(newList);
   };
 
@@ -196,8 +201,12 @@ export default function CreateTask({ onCancel }) {
         .map((item) => ({
           title: String(item?.title || '').trim(),
           assignedEmployeeId: item?.assignedEmployeeId || '',
+          priority: item?.priority || 'medium',
+          dueDate: item?.dueDate || '',
+          frequency: item?.frequency || '',
         }))
         .filter((item) => item.title !== '');
+
       const newTask = {
         id: `t${Date.now()}`,
         title,
@@ -221,6 +230,9 @@ export default function CreateTask({ onCancel }) {
           title: item.title,
           completed: false,
           assigned_employee_id: item.assignedEmployeeId || null,
+          priority: item.priority || 'medium',
+          due_date: item.dueDate || null,
+          frequency: item.frequency || null,
         })),
         attachments: uploadedAttachments,
       };
@@ -427,24 +439,66 @@ export default function CreateTask({ onCancel }) {
           <label className="block text-sm font-semibold text-slate-700 mb-2">Subtasks</label>
           <div className="space-y-3">
             {subtasks.map((item, index) => (
-              <div key={index} className="flex flex-wrap gap-2 md:flex-nowrap">
-                <input
-                  type="text"
-                  value={item.title}
-                  onChange={(e) => handleSubtaskChange(index, e.target.value)}
-                  placeholder={index === 0 ? 'Create Product Card' : 'Add subtask...'}
-                  className="min-w-[220px] flex-1 px-4 py-2 rounded-lg bg-gray-50 border-none focus:ring-1 focus:ring-[#7F40EE] outline-none text-sm"
-                />
-                {renderAssigneePicker({
-                  value: item.assignedEmployeeId,
-                  onChange: (nextValue) => handleSubtaskAssigneeChange(index, nextValue),
-                  options: assignees
-                    .map((uid) => users.find((user) => user.id === uid))
-                    .filter(Boolean),
-                })}
-                <button onClick={() => handleRemoveSubtask(index)} className="text-red-400 hover:text-red-600 p-2">
-                  <Trash2 size={18} />
-                </button>
+              <div key={index} className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={item.title}
+                    onChange={(e) => handleSubtaskChange(index, e.target.value)}
+                    placeholder={index === 0 ? 'Create Product Card' : 'Add subtask...'}
+                    className="flex-1 px-4 py-2 rounded-lg bg-white border border-gray-200 focus:ring-1 focus:ring-[#7F40EE] outline-none text-sm"
+                  />
+                  <button onClick={() => handleRemoveSubtask(index)} className="text-red-400 hover:text-red-600 p-2 shrink-0">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Assignee</span>
+                    {renderAssigneePicker({
+                      value: item.assignedEmployeeId,
+                      onChange: (nextValue) => handleSubtaskAssigneeChange(index, nextValue),
+                      options: assignees
+                        .map((uid) => users.find((user) => user.id === uid))
+                        .filter(Boolean),
+                      placeholder: 'Assign to',
+                    })}
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Priority</span>
+                    <select
+                      value={item.priority || 'medium'}
+                      onChange={(e) => handleSubtaskFieldChange(index, 'priority', e.target.value)}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#7F40EE]"
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Due Date</span>
+                    <input
+                      type="date"
+                      value={item.dueDate || ''}
+                      onChange={(e) => handleSubtaskFieldChange(index, 'dueDate', e.target.value)}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#7F40EE]"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Repeat</span>
+                    <select
+                      value={item.frequency || ''}
+                      onChange={(e) => handleSubtaskFieldChange(index, 'frequency', e.target.value)}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#7F40EE]"
+                    >
+                      <option value="">No Repeat</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             ))}
           </div>

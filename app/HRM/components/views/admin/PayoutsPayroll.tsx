@@ -16,11 +16,11 @@ const SECTIONS = [
 
 const DIRECTORY_COLUMNS = ['Employee ID', 'Profile', 'Join Date', 'Status', 'Company', 'Salary', 'PF', 'TDS', 'Retention', 'Est. In Hand', 'Last Increment'];
 const HISTORY_COLUMNS = ['Month', 'Gross', 'Deductions', 'Net', 'Payment Status', 'Payslip Status', 'Paid At', 'Action'];
-const PREVIEW_COLUMNS = ['Employee ID', 'Name', 'Company', 'Active Days', 'LOP Days', 'Gross Salary', 'LOP Deduction', 'Employee PF', 'Employer PF', 'Total PF', 'Employee TDS', 'Total TDS', 'Retention', 'Release', 'Net Salary'];
+const PREVIEW_COLUMNS = ['Employee ID', 'Name', 'Company', 'Active Days', 'Leave LOP', 'Attendance LOP', 'Total LOP', 'Gross Salary', 'LOP Deduction', 'Employee PF', 'Employer PF', 'Total PF', 'Employee TDS', 'Total TDS', 'Retention', 'Release', 'Net Salary'];
 const LEDGER_COLUMNS = ['Month', 'Employee ID', 'Name', 'Company', 'Gross', 'Deductions', 'Net', 'Status', 'Actions'];
 const DIRECTORY_COLUMN_WIDTHS = ['140px', '320px', '140px', '180px', '140px', '120px', '90px', '90px', '110px', '140px', '220px'];
 const HISTORY_COLUMN_WIDTHS = ['150px', '140px', '150px', '150px', '160px', '160px', '140px', '110px'];
-const PREVIEW_COLUMN_WIDTHS = ['130px', '240px', '140px', '110px', '100px', '150px', '160px', '130px', '130px', '130px', '130px', '130px', '130px', '130px', '150px'];
+const PREVIEW_COLUMN_WIDTHS = ['130px', '240px', '140px', '110px', '110px', '120px', '100px', '150px', '160px', '130px', '130px', '130px', '130px', '130px', '130px', '130px', '150px'];
 const LEDGER_COLUMN_WIDTHS = ['130px', '120px', '220px', '140px', '120px', '140px', '140px', '130px', '260px'];
 
 function formatCurrency(value: any) {
@@ -285,6 +285,8 @@ export default function PayoutsPayroll() {
   const [itemLoading, setItemLoading] = useState(false);
   const [activeLedgerAction, setActiveLedgerAction] = useState<{ itemId: string; type: 'view' | 'payslip' | 'paid' | 'send' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [bulkGenerating, setBulkGenerating] = useState(false);
+  const [bulkMarkingPaid, setBulkMarkingPaid] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     pfEnabled: false,
@@ -528,7 +530,9 @@ export default function PayoutsPayroll() {
       employee_name: row.employeeName || '--',
       company: row.company || '--',
       active_days: Number(row.activeDays || 0),
-      lop_days: Number(row.lopDays || 0),
+      leave_lop_days: Number(row.lopLeaveDays || 0),
+      attendance_lop_days: Number(row.lopAttendanceDays || 0),
+      total_lop_days: Number(row.lopDays || 0),
       gross_salary: Number(row.salarySnapshot || 0),
       lop_deduction: Number(row.lopDeduction || 0),
       employee_pf: Number(row.pfEmployeeDeduction || 0),
@@ -886,6 +890,58 @@ export default function PayoutsPayroll() {
       setActiveLedgerAction(null);
       setSubmitting(false);
     }
+  }
+
+  async function handleBulkGeneratePayslips() {
+    const pending = ledgerRows.filter((item: any) => !item.hasPayslip);
+    if (!pending.length) {
+      showFeedback('error', 'All payslips are already generated.');
+      return;
+    }
+    setBulkGenerating(true);
+    let success = 0;
+    let failed = 0;
+    for (const item of pending) {
+      try {
+        await fetchPayrollJson(`/HRM/api/admin/payroll/items/${item.id}/payslip`, { method: 'POST' });
+        success += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    await loadRuns();
+    setBulkGenerating(false);
+    showFeedback(failed === 0 ? 'success' : 'error', failed === 0
+      ? `All ${success} payslips generated successfully.`
+      : `${success} generated, ${failed} failed.`);
+  }
+
+  async function handleBulkMarkPaid() {
+    const pending = ledgerRows.filter((item: any) => item.hasPayslip && item.payment_status !== 'paid');
+    if (!pending.length) {
+      showFeedback('error', 'No payslips ready to mark as paid. Generate payslips first.');
+      return;
+    }
+    setBulkMarkingPaid(true);
+    let success = 0;
+    let failed = 0;
+    for (const item of pending) {
+      try {
+        await fetchPayrollJson(`/HRM/api/admin/payroll/items/${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentStatus: 'paid' }),
+        });
+        success += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    await loadRuns();
+    setBulkMarkingPaid(false);
+    showFeedback(failed === 0 ? 'success' : 'error', failed === 0
+      ? `${success} payroll items marked as paid.`
+      : `${success} marked paid, ${failed} failed.`);
   }
 
   const isLedgerDetailOpen = activeSection === 'ledger' && Boolean(selectedItemId && itemDetail);
@@ -1935,7 +1991,9 @@ export default function PayoutsPayroll() {
                             </td>
                             <td className="px-5 py-4 text-sm text-slate-700">{row.company || '--'}</td>
                             <td className="px-5 py-4 text-sm text-slate-700">{row.activeDays}</td>
-                            <td className="px-5 py-4 text-sm text-slate-700">{row.lopDays}</td>
+                            <td className="px-5 py-4 text-sm text-slate-700">{row.lopLeaveDays ?? 0}</td>
+                            <td className="px-5 py-4 text-sm text-slate-700">{row.lopAttendanceDays ?? 0}</td>
+                            <td className="px-5 py-4 text-sm font-semibold text-rose-700">{row.lopDays}</td>
                             <td className="px-5 py-4 text-sm font-semibold text-slate-900">{formatCurrency(row.salarySnapshot)}</td>
                             <td className="px-5 py-4 text-sm text-rose-700">{formatCurrency(row.lopDeduction)}</td>
                             <td className="px-5 py-4 text-sm text-slate-700">{formatCurrency(row.pfEmployeeDeduction)}</td>
@@ -1989,7 +2047,9 @@ export default function PayoutsPayroll() {
                         <DetailKeyValue label="Employee Name" value={selectedPreviewRow.employeeName || '--'} />
                         <DetailKeyValue label="Company" value={selectedPreviewRow.company || '--'} />
                         <DetailKeyValue label="Active Days" value={selectedPreviewRow.activeDays} />
-                        <DetailKeyValue label="LOP Days" value={selectedPreviewRow.lopDays} />
+                        <DetailKeyValue label="Leave LOP Days" value={selectedPreviewRow.lopLeaveDays ?? 0} />
+                        <DetailKeyValue label="Attendance LOP Days" value={selectedPreviewRow.lopAttendanceDays ?? 0} />
+                        <DetailKeyValue label="Total LOP Days" value={selectedPreviewRow.lopDays} />
                         <DetailKeyValue label="Salary Snapshot" value={formatCurrency(selectedPreviewRow.salarySnapshot)} />
                         <DetailKeyValue
                           label="Active Period"
@@ -2038,6 +2098,34 @@ export default function PayoutsPayroll() {
                 <p className="mt-1 text-sm text-on-surface-variant">
                   Generated payroll runs, payment tracking, and payslip actions.
                 </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleBulkGeneratePayslips}
+                  disabled={bulkGenerating || bulkMarkingPaid || runsLoading}
+                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition ${
+                    bulkGenerating || bulkMarkingPaid || runsLoading
+                      ? 'cursor-not-allowed border-violet-200 bg-violet-100 text-violet-400'
+                      : 'border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">description</span>
+                  {bulkGenerating ? 'Generating...' : 'Generate All Payslips'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkMarkPaid}
+                  disabled={bulkMarkingPaid || bulkGenerating || runsLoading}
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+                    bulkMarkingPaid || bulkGenerating || runsLoading
+                      ? 'cursor-not-allowed bg-slate-300 text-white'
+                      : 'bg-slate-900 text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">payments</span>
+                  {bulkMarkingPaid ? 'Marking Paid...' : 'Mark All Paid'}
+                </button>
               </div>
             </div>
 

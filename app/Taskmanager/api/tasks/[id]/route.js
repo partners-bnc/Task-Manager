@@ -898,6 +898,34 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: 'Subtask instruction removed' });
     }
 
+    if (body?.subtaskId && (body?.subtaskPriority !== undefined || Object.prototype.hasOwnProperty.call(body, 'subtaskDueDate') || body?.subtaskFrequency !== undefined)) {
+      const metaUpdate = {};
+      if (body.subtaskPriority !== undefined) {
+        metaUpdate.priority = ['low', 'medium', 'high'].includes(body.subtaskPriority) ? body.subtaskPriority : 'medium';
+      }
+      if (Object.prototype.hasOwnProperty.call(body, 'subtaskDueDate')) {
+        metaUpdate.due_date = normalizeDueDate(body.subtaskDueDate);
+      }
+      if (body.subtaskFrequency !== undefined) {
+        const freq = ['weekly', 'monthly', 'yearly'].includes(body.subtaskFrequency) ? body.subtaskFrequency : null;
+        metaUpdate.frequency = freq;
+        metaUpdate.last_cycle_reset = freq ? new Date().toISOString() : null;
+      }
+      metaUpdate.updated_at = new Date().toISOString();
+
+      const { error: metaError } = await adminClient
+        .from('task_subtasks')
+        .update(metaUpdate)
+        .eq('id', body.subtaskId)
+        .eq('task_id', taskId);
+
+      if (metaError) {
+        return NextResponse.json({ error: metaError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask updated' });
+    }
+
     if (body?.subtaskTitle && !body?.subtaskId) {
       const title = String(body.subtaskTitle || '').trim();
       if (!title) {

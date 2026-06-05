@@ -41,7 +41,6 @@ type LeaveAdminBalance = {
   availableDays: number;
   usedDays: number;
   creditedDays: number;
-  lopDays: number;
 };
 
 type LeaveAdminResponse = {
@@ -101,7 +100,6 @@ type BalanceSummaryRow = {
   sickLeave: number;
   specialLeave: number;
   usedDays: number;
-  lopDays: number;
 };
 
 export default function LeaveManagement() {
@@ -185,7 +183,6 @@ export default function LeaveManagement() {
         sickLeave: 0,
         specialLeave: 0,
         usedDays: 0,
-        lopDays: 0,
       };
 
       const leaveType = String(balance.leaveTypeName || '').toLowerCase();
@@ -200,7 +197,6 @@ export default function LeaveManagement() {
       }
 
       current.usedDays += Number(balance.usedDays) || 0;
-      current.lopDays = Math.max(current.lopDays, Number(balance.lopDays) || 0);
       grouped.set(balance.employeeId, current);
     }
 
@@ -241,7 +237,7 @@ export default function LeaveManagement() {
             <h1 className="text-3xl font-headline font-bold text-on-background">Leave Management</h1>
           </div>
           <p className="pl-14 text-sm leading-6 text-on-surface-variant">
-            Review leave requests, monthly balances, and LOP impact in one place.
+            Review leave requests and paid leave balances in one place. Attendance-based payroll LOP stays in payroll views.
           </p>
         </div>
         <button
@@ -335,7 +331,7 @@ export default function LeaveManagement() {
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Date Range</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Worked On</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Days</th>
-                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP Term</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Paid / Unpaid</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Reason</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Review Note</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Action</th>
@@ -355,7 +351,7 @@ export default function LeaveManagement() {
                         <td className="px-4 py-4 text-sm text-on-surface">
                           <p className="font-medium">{getProjectedLopLabel(item)}</p>
                           <p className="text-xs text-on-surface-variant">
-                            {formatLeaveDays(item.projectedPaidDays || 0)} paid / {formatLeaveDays(item.projectedLopDays || 0)} LOP
+                            {formatLeaveDays(item.projectedPaidDays || 0)} paid / {formatLeaveDays(item.projectedLopDays || 0)} unpaid
                           </p>
                         </td>
                         <td className="px-4 py-4 text-sm text-on-surface">{item.reason || '--'}</td>
@@ -428,7 +424,7 @@ export default function LeaveManagement() {
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Worked On</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Status</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Paid</th>
-                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
+                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Unpaid</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Approved / Rejected By</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Review Note</th>
                     </tr>
@@ -472,7 +468,7 @@ export default function LeaveManagement() {
               <div>
                 <h2 className="text-xl font-headline font-bold text-on-background">Live Employee Balance Table</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
-                  Simple leave balance view without repeating the same employee row for every leave type.
+                  Paid leave balance view without mixing in payroll-side attendance LOP.
                 </p>
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
@@ -497,7 +493,6 @@ export default function LeaveManagement() {
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Sick Leave</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Special Leave</th>
                       <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">Used</th>
-                      <th className="sticky top-0 z-10 bg-white px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant/70">LOP</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant/10">
@@ -512,7 +507,6 @@ export default function LeaveManagement() {
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.sickLeave)}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.specialLeave)}</td>
                         <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.usedDays)}</td>
-                        <td className="px-4 py-4 text-sm text-on-surface">{formatLeaveDays(row.lopDays)}</td>
                       </tr>
                     ))}
                   </tbody>

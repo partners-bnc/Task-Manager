@@ -276,6 +276,13 @@ export function calculateAttendanceMetrics({ checkInAt, checkOutAt }) {
   };
 }
 
+export function isDateBeforeJoin(dateString, joinDate) {
+  if (!dateString || !joinDate) {
+    return false;
+  }
+  return String(dateString) < String(joinDate);
+}
+
 export function mapDbStatusToUiStatus(status, isWeekend = false) {
   if (status === 'weekend' || status === 'off') {
     return 'weekend';
@@ -322,8 +329,24 @@ export function buildHolidayUiRecord(dateString, holiday) {
 }
 
 export function buildAttendanceUiRecord(dateString, row, employeeSchedule = {}) {
+  const { joinDate } = employeeSchedule;
+  const isBeforeJoin = isDateBeforeJoin(dateString, joinDate);
   const isOffDay = isEmployeeScheduledOff(dateString, employeeSchedule);
   const offDayLabel = getOffDayLabel(dateString, employeeSchedule);
+
+  if (isBeforeJoin) {
+    return {
+      date: dateString,
+      status: 'missing',
+      checkIn: '-',
+      checkOut: '-',
+      lateIn: '-',
+      earlyOut: '-',
+      workHours: '-',
+      shiftHours: '-',
+      notes: '',
+    };
+  }
 
   if (!row) {
     return {
