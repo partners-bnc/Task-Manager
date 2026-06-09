@@ -336,16 +336,32 @@ export async function GET(request) {
     );
     const tasksWithCreators = await attachTaskCreatorNames(tasks);
 
+    const mappedTasks = tasksWithCreators.map((task) => ({
+      ...task,
+      task_subtasks: Array.isArray(task.task_subtasks)
+        ? task.task_subtasks.map((subtask) => {
+          const match = (subtask.title || '').match(/\s+\[status:(to_do|in_progress|completed)\]$/);
+          const cleanTitle = match ? subtask.title.substring(0, subtask.title.length - match[0].length) : subtask.title;
+          const statusOverride = match ? match[1] : null;
+          return {
+            ...subtask,
+            title: cleanTitle,
+            _statusOverride: statusOverride,
+          };
+        })
+        : [],
+    }));
+
     const members = await findTaskManagerMembers();
 
     const stats = {
-      total: tasksWithCreators.length,
-      pending: tasksWithCreators.filter((task) => task.status === 'pending').length,
-      inProgress: tasksWithCreators.filter((task) => task.status === 'in_progress').length,
-      completed: tasksWithCreators.filter((task) => task.status === 'completed').length,
+      total: mappedTasks.length,
+      pending: mappedTasks.filter((task) => task.status === 'pending').length,
+      inProgress: mappedTasks.filter((task) => task.status === 'in_progress').length,
+      completed: mappedTasks.filter((task) => task.status === 'completed').length,
     };
 
-    return NextResponse.json({ employee, tasks: tasksWithCreators, members, stats, success: true });
+    return NextResponse.json({ employee, tasks: mappedTasks, members, stats, success: true });
   } catch (error) {
     console.error('Error fetching employee tasks:', error);
     return NextResponse.json({ error: 'Failed to fetch tasks', success: false }, { status: 500 });
@@ -361,7 +377,7 @@ export async function PATCH(request) {
     }
 
     const employee = actorData.employee;
-    const { taskId, status, subtaskTitle, subtaskId, isCompleted, assignedEmployeeId } = await request.json();
+    const { taskId, status, subtaskTitle, subtaskId, isCompleted, assignedEmployeeId, subtaskStatus } = await request.json();
 
     if (taskId && subtaskTitle) {
       const cleanTitle = String(subtaskTitle).trim();
@@ -421,14 +437,29 @@ export async function PATCH(request) {
     }
 
     if (subtaskId && typeof isCompleted === 'boolean') {
-      const { data: subtask, error: subtaskError } = await adminClient
-        .from('task_subtasks')
-        .select('id, task_id, assigned_employee_id')
-        .eq('id', subtaskId)
-        .single();
+      const [subtaskRes, instructionsRes, attachmentsRes, commentsRes] = await Promise.all([
+        adminClient
+          .from('task_subtasks')
+          .select('id, title, task_id, assigned_employee_id')
+          .eq('id', subtaskId)
+          .maybeSingle(),
+        adminClient
+          .from('task_subtask_instructions')
+          .select('id', { count: 'exact', head: true })
+          .eq('subtask_id', subtaskId),
+        adminClient
+          .from('task_subtask_attachments')
+          .select('id', { count: 'exact', head: true })
+          .eq('subtask_id', subtaskId),
+        adminClient
+          .from('task_comments')
+          .select('id', { count: 'exact', head: true })
+          .eq('subtask_id', subtaskId)
+      ]);
 
-      if (subtaskError || !subtask) {
-        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      const subtask = subtaskRes.data;
+      if (subtaskRes.error || !subtask) {
+        return NextResponse.json({ error: subtaskRes.error?.message || 'Subtask not found' }, { status: 404 });
       }
 
       const canAccessTask = await employeeCanAccessTask(subtask.task_id, employee.id);
@@ -441,9 +472,20 @@ export async function PATCH(request) {
         return NextResponse.json({ error: 'Subtask is assigned to another employee' }, { status: 403 });
       }
 
+      const hasAssignee = !!subtask.assigned_employee_id;
+      const hasInstructions = (instructionsRes.count || 0) > 0;
+      const hasAttachments = (attachmentsRes.count || 0) > 0;
+      const hasComments = (commentsRes.count || 0) > 0;
+      const hasActivity = hasAssignee || hasInstructions || hasAttachments || hasComments;
+
+      const targetStatus = subtaskStatus || (isCompleted ? 'completed' : (hasActivity ? 'in_progress' : 'to_do'));
+      const cleanTitle = (subtask.title || '').replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+      const nextTitle = `${cleanTitle} [status:${targetStatus}]`;
+
       const { error: subtaskUpdateError } = await adminClient
         .from('task_subtasks')
         .update({
+          title: nextTitle,
           is_completed: isCompleted,
           updated_at: new Date().toISOString(),
         })

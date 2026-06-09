@@ -132,6 +132,14 @@ async function fetchTaskById(taskId) {
       last_cycle_reset,
       created_by,
       created_by_employee_id,
+      assigned_by_employee_id,
+      assigned_by_employee:hrm_employees!tasks_assigned_by_employee_id_fkey (
+        id,
+        name,
+        email,
+        role,
+        profile_picture_url
+      ),
       created_at,
       updated_at,
       task_assignments (
@@ -170,6 +178,10 @@ async function fetchTaskById(taskId) {
         title,
         is_completed,
         assigned_employee_id,
+        priority,
+        due_date,
+        frequency,
+        last_cycle_reset,
         created_at,
         updated_at,
         task_subtask_instructions (
@@ -260,18 +272,25 @@ async function fetchTaskById(taskId) {
     ...task,
     task_attachments: mergedAttachments,
     task_subtasks: Array.isArray(task.task_subtasks)
-      ? task.task_subtasks.map((subtask) => ({
+      ? task.task_subtasks.map((subtask) => {
+        const match = (subtask.title || '').match(/\s+\[status:(to_do|in_progress|completed)\]$/);
+        const cleanTitle = match ? subtask.title.substring(0, subtask.title.length - match[0].length) : subtask.title;
+        const statusOverride = match ? match[1] : null;
+        return {
           ...subtask,
+          title: cleanTitle,
+          _statusOverride: statusOverride,
           task_subtask_instructions: Array.isArray(subtask.task_subtask_instructions)
             ? [...subtask.task_subtask_instructions].sort((left, right) => {
-                const leftSort = Number(left?.sort_order || 0);
-                const rightSort = Number(right?.sort_order || 0);
-                if (leftSort !== rightSort) return leftSort - rightSort;
-                return new Date(left?.created_at || 0).getTime() - new Date(right?.created_at || 0).getTime();
-              })
+              const leftSort = Number(left?.sort_order || 0);
+              const rightSort = Number(right?.sort_order || 0);
+              if (leftSort !== rightSort) return leftSort - rightSort;
+              return new Date(left?.created_at || 0).getTime() - new Date(right?.created_at || 0).getTime();
+            })
             : [],
           task_subtask_attachments: Array.isArray(subtask.task_subtask_attachments) ? subtask.task_subtask_attachments : [],
-        }))
+        };
+      })
       : [],
   };
 }
@@ -310,8 +329,10 @@ async function fetchTaskEmployeeRatings(taskId) {
 async function fetchTaskCreator(task, employees = []) {
   if (!task) return null;
 
-  if (task.created_by_employee_id) {
-    const fromDirectory = (employees || []).find((employee) => employee?.id === task.created_by_employee_id);
+  const creatorEmployeeId = task.assigned_by_employee_id || task.created_by_employee_id;
+
+  if (creatorEmployeeId) {
+    const fromDirectory = (employees || []).find((employee) => employee?.id === creatorEmployeeId);
     if (fromDirectory) {
       return {
         id: fromDirectory.id,
@@ -326,7 +347,7 @@ async function fetchTaskCreator(task, employees = []) {
     const { data: employee } = await adminClient
       .from('hrm_employees')
       .select('id, name, email, role, profile_picture_url')
-      .eq('id', task.created_by_employee_id)
+      .eq('id', creatorEmployeeId)
       .maybeSingle();
 
     if (employee) {
@@ -580,22 +601,33 @@ export async function PATCH(request, { params }) {
     }
 
     if (body?.subtaskId && typeof body?.isCompleted === 'boolean') {
-      if (actor.type === 'employee') {
-        const { data: existingSubtask, error: subtaskFetchError } = await adminClient
+      const [subtaskRes, instructionsRes, attachmentsRes, commentsRes] = await Promise.all([
+        adminClient
           .from('task_subtasks')
-          .select('id, assigned_employee_id')
+          .select('id, title, assigned_employee_id')
           .eq('id', body.subtaskId)
           .eq('task_id', taskId)
-          .maybeSingle();
+          .maybeSingle(),
+        adminClient
+          .from('task_subtask_instructions')
+          .select('id', { count: 'exact', head: true })
+          .eq('subtask_id', body.subtaskId),
+        adminClient
+          .from('task_subtask_attachments')
+          .select('id', { count: 'exact', head: true })
+          .eq('subtask_id', body.subtaskId),
+        adminClient
+          .from('task_comments')
+          .select('id', { count: 'exact', head: true })
+          .eq('subtask_id', body.subtaskId)
+      ]);
 
-        if (subtaskFetchError) {
-          return NextResponse.json({ error: subtaskFetchError.message }, { status: 500 });
-        }
+      const existingSubtask = subtaskRes.data;
+      if (subtaskRes.error || !existingSubtask) {
+        return NextResponse.json({ error: subtaskRes.error?.message || 'Subtask not found' }, { status: 404 });
+      }
 
-        if (!existingSubtask) {
-          return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
-        }
-
+      if (actor.type === 'employee') {
         if (
           existingSubtask.assigned_employee_id &&
           existingSubtask.assigned_employee_id !== actor.employeeId
@@ -607,9 +639,20 @@ export async function PATCH(request, { params }) {
         }
       }
 
+      const hasAssignee = !!existingSubtask.assigned_employee_id;
+      const hasInstructions = (instructionsRes.count || 0) > 0;
+      const hasAttachments = (attachmentsRes.count || 0) > 0;
+      const hasComments = (commentsRes.count || 0) > 0;
+      const hasActivity = hasAssignee || hasInstructions || hasAttachments || hasComments;
+
+      const targetStatus = body.subtaskStatus || (body.isCompleted ? 'completed' : (hasActivity ? 'in_progress' : 'to_do'));
+      const cleanTitle = (existingSubtask.title || '').replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+      const nextTitle = `${cleanTitle} [status:${targetStatus}]`;
+
       const { data: updatedSubtask, error: updateError } = await adminClient
         .from('task_subtasks')
         .update({
+          title: nextTitle,
           is_completed: body.isCompleted,
           updated_at: new Date().toISOString(),
         })
@@ -655,12 +698,22 @@ export async function PATCH(request, { params }) {
         return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
       }
 
+      const { data: mainTaskAssignments } = await adminClient
+        .from('task_assignments')
+        .select('employee_id')
+        .eq('task_id', taskId);
+
+      const isMainTaskAssignee = Array.isArray(mainTaskAssignments) && mainTaskAssignments.some(
+        (assignment) => String(assignment.employee_id) === String(actor.employeeId)
+      );
+
       const canReassignSubtask =
         isTaskCreator(currentTask, actor) ||
-        (actor.type === 'employee' && existingSubtask.data.assigned_employee_id === actor.employeeId);
+        (actor.type === 'employee' && existingSubtask.data.assigned_employee_id === actor.employeeId) ||
+        isMainTaskAssignee;
 
       if (!canReassignSubtask) {
-        return NextResponse.json({ error: 'Only the task creator or current subtask assignee can reassign this subtask' }, { status: 403 });
+        return NextResponse.json({ error: 'Only the task creator, current subtask assignee, or main task assignees can reassign this subtask' }, { status: 403 });
       }
 
       const previousAssigneeId = existingSubtask.data.assigned_employee_id || null;
@@ -795,14 +848,19 @@ export async function PATCH(request, { params }) {
       }
 
       const previousTitle = existingSubtask.title || '';
-      if (title === previousTitle) {
+      const match = previousTitle.match(/\s+\[status:(to_do|in_progress|completed)\]$/);
+      const suffix = match ? match[0] : '';
+      const cleanIncoming = title.replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+      const nextTitle = cleanIncoming + suffix;
+
+      if (nextTitle === previousTitle) {
         return NextResponse.json({ success: true, message: 'Subtask title unchanged' });
       }
 
       const { error: updateError } = await adminClient
         .from('task_subtasks')
         .update({
-          title,
+          title: nextTitle,
           updated_at: new Date().toISOString(),
         })
         .eq('id', body.subtaskId)
@@ -867,6 +925,45 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: 'Subtask instruction added' });
     }
 
+    if (body?.subtaskId && body?.editInstructionId && typeof body?.editInstructionText === 'string') {
+      const text = String(body.editInstructionText || '').trim();
+      if (!text) {
+        return NextResponse.json({ error: 'Instruction text is required' }, { status: 400 });
+      }
+
+      const { data: existingInstruction, error: fetchInstructionError } = await adminClient
+        .from('task_subtask_instructions')
+        .select('id')
+        .eq('id', body.editInstructionId)
+        .eq('task_id', taskId)
+        .eq('subtask_id', body.subtaskId)
+        .maybeSingle();
+
+      if (fetchInstructionError) {
+        return NextResponse.json({ error: fetchInstructionError.message }, { status: 500 });
+      }
+
+      if (!existingInstruction) {
+        return NextResponse.json({ error: 'Instruction not found' }, { status: 404 });
+      }
+
+      const { error: updateInstructionError } = await adminClient
+        .from('task_subtask_instructions')
+        .update({
+          instruction_text: text,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', body.editInstructionId)
+        .eq('task_id', taskId)
+        .eq('subtask_id', body.subtaskId);
+
+      if (updateInstructionError) {
+        return NextResponse.json({ error: updateInstructionError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask instruction updated' });
+    }
+
     if (body?.subtaskId && body?.removeInstructionId) {
       const { data: existingInstruction, error: fetchInstructionError } = await adminClient
         .from('task_subtask_instructions')
@@ -901,7 +998,7 @@ export async function PATCH(request, { params }) {
     if (body?.subtaskId && (body?.subtaskPriority !== undefined || Object.prototype.hasOwnProperty.call(body, 'subtaskDueDate') || body?.subtaskFrequency !== undefined)) {
       const metaUpdate = {};
       if (body.subtaskPriority !== undefined) {
-        metaUpdate.priority = ['low', 'medium', 'high'].includes(body.subtaskPriority) ? body.subtaskPriority : 'medium';
+        metaUpdate.priority = ['low', 'medium', 'high'].includes(body.subtaskPriority) ? body.subtaskPriority : null;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'subtaskDueDate')) {
         metaUpdate.due_date = normalizeDueDate(body.subtaskDueDate);
@@ -942,13 +1039,25 @@ export async function PATCH(request, { params }) {
         }
       }
 
+      const cleanTitle = title.replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+      const subtaskInsertPayload = {
+        task_id: taskId,
+        title: `${cleanTitle} [status:to_do]`,
+        assigned_employee_id: assignedEmployeeId,
+      };
+      if (body.subtaskPriority !== undefined) {
+        subtaskInsertPayload.priority = ['low', 'medium', 'high'].includes(body.subtaskPriority) ? body.subtaskPriority : null;
+      }
+      if (body.subtaskDueDate) {
+        subtaskInsertPayload.due_date = normalizeDueDate(body.subtaskDueDate);
+      }
+      if (body.subtaskFrequency && ['weekly', 'monthly', 'yearly'].includes(body.subtaskFrequency)) {
+        subtaskInsertPayload.frequency = body.subtaskFrequency;
+      }
+
       const { data: newSubtask, error: insertError } = await adminClient
         .from('task_subtasks')
-        .insert({
-          task_id: taskId,
-          title,
-          assigned_employee_id: assignedEmployeeId,
-        })
+        .insert(subtaskInsertPayload)
         .select('id')
         .single();
 
@@ -971,6 +1080,29 @@ export async function PATCH(request, { params }) {
       }
 
       return NextResponse.json({ success: true, message: 'Subtask created', subtaskId: newSubtask.id });
+    }
+
+    // Handle combined status + progress update from subtask auto-derive
+    if (typeof body?.status === 'string' && typeof body?.progressPercentage === 'number' && Object.keys(body).length === 2) {
+      const normalizedStatus = ['pending', 'in_progress', 'completed'].includes(body.status) ? body.status : 'pending';
+      const progress = Math.min(100, Math.max(0, Math.round(body.progressPercentage)));
+      const nextUpdatedAt = new Date().toISOString();
+
+      const { error: updateError } = await adminClient
+        .from('tasks')
+        .update({
+          status: normalizedStatus,
+          progress_percentage: progress,
+          completed_at: getCompletionTimestamp(currentTask.status, normalizedStatus, currentTask.completed_at, nextUpdatedAt),
+          updated_at: nextUpdatedAt,
+        })
+        .eq('id', taskId);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Task status and progress updated' });
     }
 
     // Handle status-only update (allowed for employees with task access and admins)

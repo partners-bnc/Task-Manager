@@ -9,7 +9,6 @@ import {
   getOffDayLabel,
   getAttendanceSummary,
   getCurrentDateInTimeZone,
-  getCurrentMinutesInTimeZone,
   getDateRangeForMonth,
   isEmployeeScheduledOff,
   listDatesInRange,
@@ -150,51 +149,6 @@ async function rollupAttendanceForDay(employeeId, attendanceDate, attendanceId =
   return attendanceRow;
 }
 
-async function ensureAutoCheckoutForToday(employeeId) {
-  const today = getCurrentDateInTimeZone();
-  const nowMinutes = getCurrentMinutesInTimeZone();
-
-  if (nowMinutes < timeStringToMinutes(ATTENDANCE_POLICY.autoCheckout)) {
-    return;
-  }
-
-  const { data: todayAttendance } = await adminClient
-    .from('hrm_attendance')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .eq('date', today)
-    .maybeSingle();
-
-  if (!todayAttendance?.check_in || todayAttendance.check_out) {
-    return;
-  }
-
-  const { data: latestSwipe, error: latestSwipeError } = await adminClient
-    .from('hrm_attendance_swipes')
-    .select('*')
-    .eq('employee_id', employeeId)
-    .eq('swipe_date', today)
-    .order('swipe_time', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (latestSwipeError || latestSwipe?.swipe_type !== 'in') {
-    return;
-  }
-
-  const autoSwipeTime = `${today}T${ATTENDANCE_POLICY.autoCheckout}:00+05:30`;
-
-  await adminClient.from('hrm_attendance_swipes').insert({
-    employee_id: employeeId,
-    attendance_id: todayAttendance.id,
-    swipe_date: today,
-    swipe_time: autoSwipeTime,
-    swipe_type: 'out',
-    source: 'manual',
-  });
-
-  await rollupAttendanceForDay(employeeId, today, todayAttendance.id);
-}
 
 async function getTodayActionFromLatestSwipe(employeeId, attendanceDate) {
   const { data: latestSwipe, error } = await adminClient
@@ -312,7 +266,6 @@ export async function GET(request) {
     }
 
     const month = request.nextUrl.searchParams.get('month') || getCurrentDateInTimeZone().slice(0, 7);
-    await ensureAutoCheckoutForToday(employeeContext.employeeId);
 
     const { start, end } = getDateRangeForMonth(month);
     const [attendanceResult, holidayResult] = await Promise.all([
@@ -369,8 +322,6 @@ export async function POST(request) {
     if (employeeContext.error) {
       return employeeContext.error;
     }
-
-    await ensureAutoCheckoutForToday(employeeContext.employeeId);
 
     const nowIso = new Date().toISOString();
     const attendanceDate = getCurrentDateInTimeZone();

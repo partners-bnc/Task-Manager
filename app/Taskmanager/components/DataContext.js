@@ -90,16 +90,25 @@ const getDeadlineState = (task) => {
 };
 
 const normalizeUsers = (rows = []) =>
-  rows.map((row) => ({
-    id: row.id,
-    employee_id: row.employee_id,
-    username: row.username,
-    name: row.name,
-    email: row.email,
-    role: row.role,
-    avatar: row.profile_picture_url || '',
-    module_access: row.module_access || null,
-  }));
+  rows.map((row) => {
+    let role = row.role;
+    if (row.email === 'summit@bncglobal.in') {
+      role = 'Founder';
+    } else if (row.email === 'gurvinder@bncglobal.in') {
+      role = 'Co-Founder';
+    }
+    return {
+      id: row.id,
+      auth_user_id: row.auth_user_id || null,
+      employee_id: row.employee_id,
+      username: row.username,
+      name: row.name,
+      email: row.email,
+      role: role,
+      avatar: row.profile_picture_url || '',
+      module_access: row.module_access || null,
+    };
+  });
 
 const deriveSharedUsersFromTasks = (tasks = [], currentEmployee = null) => {
   const map = new Map();
@@ -138,10 +147,16 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     ? task.task_assignments.map((assignment) => assignment?.employee?.id).filter(Boolean)
     : fallbackAssignees;
   const isCurrentCreator =
-    currentUserId && (task?.created_by === currentUserId || task?.created_by_employee_id === currentUserId);
+    currentUserId && (
+      task?.created_by === currentUserId || 
+      task?.created_by_employee_id === currentUserId ||
+      task?.assigned_by_employee_id === currentUserId ||
+      task?.assigned_by_employee?.auth_user_id === currentUserId
+    );
   const createdByLabel = isCurrentCreator
     ? 'You'
-    : task?.creator_name ||
+    : task?.assigned_by_employee?.name ||
+      task?.creator_name ||
       (task?.created_by ? 'Admin' : 'Employee');
   const deadlineState = getDeadlineState(task);
 
@@ -168,6 +183,8 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     attachments: Array.isArray(task.task_attachments) ? task.task_attachments.length : 0,
     createdBy: createdByLabel,
     createdById: task?.created_by || task?.created_by_employee_id || null,
+    assignedByEmployeeId: task?.assigned_by_employee_id || null,
+    assignedByEmployee: task?.assigned_by_employee || null,
     deadlineState,
     isAssignedToCurrentUser: Boolean(currentUserId) && assignees.includes(currentUserId),
     isAssignedByCurrentUser: Boolean(currentUserId) && (task?.created_by === currentUserId || task?.created_by_employee_id === currentUserId),
@@ -446,6 +463,7 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
           due_date: subtask.due_date || null,
           frequency: subtask.frequency || null,
         })),
+        assignedByEmployeeId: newTask.assignedByEmployeeId || null,
       }),
     });
 

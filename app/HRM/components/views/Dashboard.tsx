@@ -5,6 +5,7 @@ import type { AttendanceRecord, AttendanceResponse } from './attendanceShared';
 import EmployeePageHeader from '../ui/EmployeePageHeader';
 import { useHrmFeedback } from '../ui/HrmFeedback';
 import { captureAttendanceLocationPayload } from '@/utils/attendance-location';
+import DailyWorkLogModal from './DailyWorkLogModal';
 
 type HolidayItem = {
   id: string;
@@ -228,6 +229,9 @@ export default function Dashboard({
   const [attendanceSetupPending, setAttendanceSetupPending] = useState(false);
   const [isAttendanceUpdating, setIsAttendanceUpdating] = useState(false);
   const [holidayItems, setHolidayItems] = useState<HolidayItem[]>([]);
+  const [isWorkLogModalOpen, setIsWorkLogModalOpen] = useState(false);
+  const [pendingLocationPayload, setPendingLocationPayload] = useState<any>(null);
+  const [employeeTasks, setEmployeeTasks] = useState<{ id: string; task_name: string; created_at: string }[]>([]);
   const attendanceButtonClassName =
     'group relative flex-1 overflow-hidden rounded-2xl bg-gradient-to-b from-violet-400 via-violet-500 to-violet-600 px-4 py-3 text-xs font-semibold text-white shadow-[0_14px_28px_rgba(139,92,246,0.28)] transition-all duration-200 before:absolute before:inset-x-4 before:top-1 before:h-[42%] before:rounded-full before:bg-white/20 before:blur-md hover:-translate-y-0.5 hover:shadow-[0_18px_32px_rgba(139,92,246,0.34)] active:translate-y-1 active:shadow-[0_8px_18px_rgba(139,92,246,0.22)] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0';
   const attendanceMonth = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}`;
@@ -582,49 +586,67 @@ export default function Dashboard({
     return todayAction === 'check_out' ? 'Check Out' : 'Check In';
   }, [todayAction]);
 
-  const handleAttendanceAction = async () => {
-    if (isAttendanceUpdating) {
+  const executeCheckout = async (locationPayload) => {
+    const response = await fetch('/HRM/api/attendance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(locationPayload),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      showFeedback({ type: 'warning', title: 'Attendance Not Marked', message: result.error || 'Unable to update attendance right now.' });
       return;
     }
+    setTodayAttendance(result.attendance || null);
+    setTodayAction(result.action === 'checked_in' ? 'check_out' : 'check_in');
+    window.dispatchEvent(new CustomEvent('hrm-attendance-updated'));
+    if (result.warning) {
+      showFeedback({ type: 'warning', title: 'Attendance Saved with Fallback Location', message: result.warning });
+    }
+  };
 
+  const handleAttendanceAction = async () => {
+    if (isAttendanceUpdating) return;
     try {
       setIsAttendanceUpdating(true);
       const locationPayload = await captureAttendanceLocationPayload();
-      const response = await fetch('/HRM/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(locationPayload),
-      });
-      const result = await response.json();
-
-      if (!response.ok) {
-        showFeedback({
-          type: 'warning',
-          title: 'Attendance Not Marked',
-          message: result.error || 'Unable to update attendance right now.',
-        });
+      if (todayAction === 'check_out') {
+        try {
+          const tasksRes = await fetch('/HRM/api/employee/tasks');
+          const tasksResult = await tasksRes.json();
+          setEmployeeTasks((tasksResult.tasks || []).slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+        } catch { setEmployeeTasks([]); }
+        setPendingLocationPayload(locationPayload);
+        setIsWorkLogModalOpen(true);
+        setIsAttendanceUpdating(false);
         return;
       }
-
-      setTodayAttendance(result.attendance || null);
-      setTodayAction(result.action === 'checked_in' ? 'check_out' : 'check_in');
-      window.dispatchEvent(new CustomEvent('hrm-attendance-updated'));
-
-      if (result.warning) {
-        showFeedback({
-          type: 'warning',
-          title: 'Attendance Saved with Fallback Location',
-          message: result.warning,
-        });
-      }
+      await executeCheckout(locationPayload);
     } catch {
-      showFeedback({
-        type: 'error',
-        title: 'Attendance Not Updated',
-        message: 'Unable to update attendance right now.',
-      });
+      showFeedback({ type: 'error', title: 'Attendance Not Updated', message: 'Unable to update attendance right now.' });
     } finally {
       setIsAttendanceUpdating(false);
+    }
+  };
+
+  const handleWorkLogSubmitAndCheckout = async (entries) => {
+    const newEntries = entries.filter((e) => !e.isExisting);
+    if (newEntries.length > 0) {
+      const saveRes = await fetch('/HRM/api/attendance/work-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: todayDateKey, entries: newEntries }),
+      });
+      const saveResult = await saveRes.json();
+      if (!saveRes.ok) throw new Error(saveResult.error || 'Failed to save work log');
+    }
+    setIsWorkLogModalOpen(false);
+    setIsAttendanceUpdating(true);
+    try {
+      await executeCheckout(pendingLocationPayload || {});
+    } finally {
+      setIsAttendanceUpdating(false);
+      setPendingLocationPayload(null);
     }
   };
 
@@ -856,6 +878,24 @@ export default function Dashboard({
           </div>
         </div>
       </div>
+
+      {isWorkLogModalOpen && (
+        <DailyWorkLogModal
+          date={todayDateKey}
+          tasks={employeeTasks}
+          onSubmitAndCheckout={handleWorkLogSubmitAndCheckout}
+          onClose={() => { setIsWorkLogModalOpen(false); setPendingLocationPayload(null); }}
+        />
+      )}
+
+      {isWorkLogModalOpen && (
+        <DailyWorkLogModal
+          date={todayDateKey}
+          tasks={employeeTasks}
+          onSubmitAndCheckout={handleWorkLogSubmitAndCheckout}
+          onClose={() => { setIsWorkLogModalOpen(false); setPendingLocationPayload(null); }}
+        />
+      )}
 
       {isSwipesModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">

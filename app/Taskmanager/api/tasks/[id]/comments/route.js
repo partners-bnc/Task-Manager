@@ -227,3 +227,77 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Failed to delete comment' }, { status: 500 });
   }
 }
+
+export async function PATCH(request, { params }) {
+  try {
+    const { id: taskId } = await params;
+    if (!taskId) {
+      return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
+    }
+
+    const actor = await getActor(request);
+    if (!actor) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const canAccess = await hasTaskAccess(taskId, actor);
+    if (!canAccess) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const commentId = body?.commentId;
+    const commentText = String(body?.commentText || '').trim();
+    const subtaskId = body?.subtaskId || null;
+
+    if (!commentId) {
+      return NextResponse.json({ error: 'Comment ID is required' }, { status: 400 });
+    }
+
+    if (!commentText) {
+      return NextResponse.json({ error: 'Comment text cannot be empty' }, { status: 400 });
+    }
+
+    if (subtaskId) {
+      const subtask = await validateSubtask(taskId, subtaskId);
+      if (!subtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+    }
+
+    const { data: existingComment, error: fetchError } = await adminClient
+      .from('task_comments')
+      .select('id, task_id, subtask_id, author_type, employee_id, profile_id')
+      .eq('id', commentId)
+      .eq('task_id', taskId)
+      .maybeSingle();
+
+    if (fetchError) {
+      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+    }
+
+    if (!existingComment) {
+      return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
+    }
+
+    if (!canDeleteComment(existingComment, actor)) {
+      return NextResponse.json({ error: 'You are not authorized to edit this comment' }, { status: 403 });
+    }
+
+    const { data: updatedComment, error: updateError } = await adminClient
+      .from('task_comments')
+      .update({ comment_text: commentText, updated_at: new Date().toISOString() })
+      .eq('id', commentId)
+      .select('id, task_id, subtask_id, author_type, author_name, author_avatar_url, comment_text, created_at, updated_at, employee_id, profile_id')
+      .single();
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, comment: { ...updatedComment, can_delete: true } });
+  } catch (error) {
+    console.error('Error updating comment:', error);
+    return NextResponse.json({ error: 'Failed to update comment' }, { status: 500 });
+  }
+}

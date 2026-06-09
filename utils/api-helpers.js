@@ -515,12 +515,17 @@ export async function syncTaskSubtasks(supabase, taskId, subtasks) {
 
   const toInsert = subtasks
     .filter((subtask) => !subtask.id)
-    .map((subtask) => ({
-      task_id: taskId,
-      title: subtask.title,
-      is_completed: !!subtask.is_completed,
-      assigned_employee_id: subtask.assigned_employee_id || null,
-    }));
+    .map((subtask) => {
+      const cleanTitle = subtask.title.replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+      const match = subtask.title.match(/\s+\[status:(to_do|in_progress|completed)\]$/);
+      const status = match ? match[1] : (subtask.is_completed ? 'completed' : 'to_do');
+      return {
+        task_id: taskId,
+        title: `${cleanTitle} [status:${status}]`,
+        is_completed: !!subtask.is_completed,
+        assigned_employee_id: subtask.assigned_employee_id || null,
+      };
+    });
 
   if (toInsert.length > 0) {
     const { error: insertError } = await supabase.from('task_subtasks').insert(toInsert);
@@ -531,8 +536,11 @@ export async function syncTaskSubtasks(supabase, taskId, subtasks) {
     const existing = existingById.get(subtask.id);
     if (!existing) return false;
 
+    const existingCleanTitle = (existing.title || '').replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+    const incomingCleanTitle = (subtask.title || '').replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+
     return !(
-      existing.title === subtask.title &&
+      existingCleanTitle === incomingCleanTitle &&
       existing.is_completed === !!subtask.is_completed &&
       (existing.assigned_employee_id || null) === (subtask.assigned_employee_id || null)
     );
@@ -541,18 +549,24 @@ export async function syncTaskSubtasks(supabase, taskId, subtasks) {
   if (toUpdate.length > 0) {
     const now = new Date().toISOString();
     const results = await Promise.all(
-      toUpdate.map((subtask) =>
-        supabase
+      toUpdate.map((subtask) => {
+        const existing = existingById.get(subtask.id);
+        const match = (existing?.title || '').match(/\s+\[status:(to_do|in_progress|completed)\]$/);
+        const suffix = match ? match[0] : '';
+        const cleanIncoming = (subtask.title || '').replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+        const nextTitle = cleanIncoming + suffix;
+
+        return supabase
           .from('task_subtasks')
           .update({
-            title: subtask.title,
+            title: nextTitle,
             is_completed: !!subtask.is_completed,
             assigned_employee_id: subtask.assigned_employee_id || null,
             updated_at: now,
           })
           .eq('id', subtask.id)
-          .eq('task_id', taskId)
-      )
+          .eq('task_id', taskId);
+      })
     );
 
     for (const result of results) {

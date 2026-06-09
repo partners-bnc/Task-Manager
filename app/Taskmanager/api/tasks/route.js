@@ -38,7 +38,11 @@ async function attachTaskCreatorNames(tasks = [], supabase) {
   }
 
   const employeeIds = Array.from(
-    new Set(tasks.map((task) => task?.created_by_employee_id).filter(Boolean))
+    new Set(
+      tasks
+        .flatMap((task) => [task?.created_by_employee_id, task?.assigned_by_employee_id])
+        .filter(Boolean)
+    )
   );
   const profileIds = Array.from(
     new Set(tasks.map((task) => task?.created_by).filter(Boolean))
@@ -71,8 +75,8 @@ async function attachTaskCreatorNames(tasks = [], supabase) {
   const profileById = new Map((profileResult.data || []).map((item) => [item.id, item]));
 
   return tasks.map((task) => {
-    const employeeCreator = task?.created_by_employee_id
-      ? employeeById.get(task.created_by_employee_id)
+    const employeeCreator = (task?.assigned_by_employee_id || task?.created_by_employee_id)
+      ? employeeById.get(task.assigned_by_employee_id || task.created_by_employee_id)
       : null;
     const profileCreator = task?.created_by
       ? profileById.get(task.created_by)
@@ -112,6 +116,13 @@ export async function GET() {
     .from('tasks')
     .select(`
       *,
+      assigned_by_employee:hrm_employees!tasks_assigned_by_employee_id_fkey (
+        id,
+        name,
+        email,
+        role,
+        profile_picture_url
+      ),
       task_assignments (
         employee:hrm_employees!task_assignments_employee_id_fkey (
           id,
@@ -138,7 +149,24 @@ export async function GET() {
   }
 
   const tasksWithCreators = await attachTaskCreatorNames(tasks || [], supabase);
-  return NextResponse.json({ tasks: tasksWithCreators });
+  
+  const mappedTasks = tasksWithCreators.map((task) => ({
+    ...task,
+    task_subtasks: Array.isArray(task.task_subtasks)
+      ? task.task_subtasks.map((subtask) => {
+        const match = (subtask.title || '').match(/\s+\[status:(to_do|in_progress|completed)\]$/);
+        const cleanTitle = match ? subtask.title.substring(0, subtask.title.length - match[0].length) : subtask.title;
+        const statusOverride = match ? match[1] : null;
+        return {
+          ...subtask,
+          title: cleanTitle,
+          _statusOverride: statusOverride,
+        };
+      })
+      : [],
+  }));
+
+  return NextResponse.json({ tasks: mappedTasks });
 }
 
 export async function POST(request) {
@@ -148,7 +176,7 @@ export async function POST(request) {
     const { supabase, actor } = auth;
 
     const body = await request.json();
-    const { taskName, description, priority, dueDate, assignedMembers, attachments, subtasks, label, frequency } = body;
+    const { taskName, description, priority, dueDate, assignedMembers, attachments, subtasks, label, frequency, assignedByEmployeeId } = body;
     const normalizedSubtasks = normalizeSubtasks(subtasks);
     const normalizedDueDate = normalizeDueDate(dueDate);
     const normalizedLabel = normalizeLabel(label);
@@ -172,6 +200,13 @@ export async function POST(request) {
 
     await ensureTaskLabelExists(supabase, normalizedLabel);
 
+    const validatedAssignedByEmployeeId =
+      assignedByEmployeeId && validEmployeeIds.has(assignedByEmployeeId)
+        ? assignedByEmployeeId
+        : actor.type === 'employee'
+          ? actor.employeeId
+          : null;
+
     const taskInsertPayload = {
       task_name: taskName,
       description,
@@ -183,6 +218,7 @@ export async function POST(request) {
       status: 'pending',
       created_by: actor.type === 'admin' ? actor.userId : null,
       created_by_employee_id: actor.type === 'employee' ? actor.employeeId : null,
+      assigned_by_employee_id: validatedAssignedByEmployeeId,
     };
 
     // Insert task
@@ -232,16 +268,21 @@ export async function POST(request) {
     // Insert task subtasks
     let createdSubtasks = [];
     if (normalizedSubtasks.length > 0) {
-      const subtaskRecords = normalizedSubtasks.map((subtask) => ({
-        task_id: task.id,
-        title: subtask.title,
-        is_completed: !!subtask.is_completed,
-        assigned_employee_id: subtask.assigned_employee_id || null,
-        priority: ['low', 'medium', 'high'].includes(subtask.priority) ? subtask.priority : 'medium',
-        due_date: subtask.due_date || null,
-        frequency: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? subtask.frequency : null,
-        last_cycle_reset: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? new Date().toISOString() : null,
-      }));
+      const subtaskRecords = normalizedSubtasks.map((subtask) => {
+        const cleanTitle = (subtask.title || '').replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+        const match = (subtask.title || '').match(/\s+\[status:(to_do|in_progress|completed)\]$/);
+        const status = match ? match[1] : (subtask.is_completed ? 'completed' : 'to_do');
+        return {
+          task_id: task.id,
+          title: `${cleanTitle} [status:${status}]`,
+          is_completed: !!subtask.is_completed,
+          assigned_employee_id: subtask.assigned_employee_id || null,
+          priority: ['low', 'medium', 'high'].includes(subtask.priority) ? subtask.priority : 'medium',
+          due_date: subtask.due_date || null,
+          frequency: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? subtask.frequency : null,
+          last_cycle_reset: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? new Date().toISOString() : null,
+        };
+      });
 
       const { data: insertedSubtasks, error: subtaskError } = await supabase
         .from('task_subtasks')
@@ -488,6 +529,52 @@ export async function DELETE(request) {
 
     const { searchParams } = new URL(request.url);
     const taskId = searchParams.get('id');
+    const subtaskId = searchParams.get('subtaskId');
+
+    if (subtaskId) {
+      const { data: subtask, error: fetchSubtaskError } = await supabase
+        .from('task_subtasks')
+        .select('id, task_id, title')
+        .eq('id', subtaskId)
+        .maybeSingle();
+
+      if (fetchSubtaskError || !subtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+
+      const { data: parentTask, error: parentTaskError } = await supabase
+        .from('tasks')
+        .select('created_by, created_by_employee_id, task_assignments(employee_id)')
+        .eq('id', subtask.task_id)
+        .maybeSingle();
+
+      if (parentTaskError || !parentTask) {
+        return NextResponse.json({ error: 'Parent task not found' }, { status: 404 });
+      }
+
+      // Allow admins, task creators, and task assignees (mirrors frontend canManageSubtasks logic)
+      const isTaskAssignee =
+        actor.type === 'employee' &&
+        !!actor.employeeId &&
+        (parentTask.task_assignments || []).some(
+          (a) => String(a.employee_id) === String(actor.employeeId)
+        );
+
+      if (actor.type !== 'admin' && !isTaskCreator(parentTask, actor) && !isTaskAssignee) {
+        return NextResponse.json({ error: 'Only task creators, admins, or assignees can delete subtasks' }, { status: 403 });
+      }
+
+      const { error: deleteError } = await supabase
+        .from('task_subtasks')
+        .delete()
+        .eq('id', subtaskId);
+
+      if (deleteError) {
+        return NextResponse.json({ error: deleteError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask deleted successfully' });
+    }
 
     if (!taskId) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });

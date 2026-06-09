@@ -21,7 +21,7 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const { user, loading, isAdminMode } = useData();
   const safeInitialView = initialView;
   const [currentView, setCurrentView] = useState(safeInitialView);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const isSupportUser = !!user?.role && String(user.role).toLowerCase() === 'support';
 
@@ -30,6 +30,16 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
       setCurrentView('task-tickets');
     }
   }, [isSupportUser, currentView]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlView = params.get('view');
+      if (urlView) {
+        setCurrentView(urlView);
+      }
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -112,7 +122,7 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
         </div>
         <div className="w-11" />
       </div>
-      <main className={`ml-0 min-h-screen ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-64'}`}>
+      <main className={`ml-0 min-h-screen ${isSidebarCollapsed ? 'md:ml-20' : 'md:ml-56'} transition-all duration-200`}>
         {renderView()}
       </main>
     </div>
