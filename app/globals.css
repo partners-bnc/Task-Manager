@@ -1,4 +1,5 @@
-﻿@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
 
 @theme {
   --color-primary: #7f40ee;
@@ -24,8 +25,8 @@
   --blue: #2a72c3;
   --purple: #7e3fb5;
   --mono: "SFMono-Regular", "Cascadia Code", "Fira Code", "Consolas", "Liberation Mono", monospace;
-  --display: "Segoe UI", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif;
-  --body: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --display: Inter, Arial, sans-serif;
+  --body: Inter, Arial, sans-serif;
 }
 
 @keyframes pulse-glow {
