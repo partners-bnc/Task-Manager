@@ -1212,9 +1212,19 @@ export async function GET(request) {
     const includeMeta = searchParams.get('includeMeta') === '1';
     const taskManagerOnly = searchParams.get('taskManagerOnly') === '1';
 
-    const auth = await requireHrAdminAccess();
-    if (auth.error) {
-      return auth.error;
+    const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const authContext = await resolveAuthenticatedUserContext(supabase, user);
+    if (!authContext?.isHrAdmin && !authContext?.isSupport) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     if (id) {

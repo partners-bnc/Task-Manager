@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
-import { isHrAdminRole, isSuperAdminRole, normalizeProfileRole } from '@/utils/auth/roles';
+import { isHrAdminRole, isSupportRole, isSuperAdminRole, normalizeProfileRole } from '@/utils/auth/roles';
 
 const EMPLOYEE_DIRECTORY_SELECT = `
   id,
@@ -138,8 +138,8 @@ async function getActorFromSupabaseUserWithOptions(options = {}) {
 
   if (!user) return null;
 
-  // Run profile + employee lookups in parallel (both only need user.id)
-  const [{ data: profile }, { data: employee }] = await Promise.all([
+  // Run profile + employee + privileged account lookups in parallel
+  const [{ data: profile }, { data: employee }, { data: privilegedAccount }] = await Promise.all([
     supabase
       .from('hrm_profiles')
       .select('role, full_name, email, employee_id')
@@ -163,6 +163,11 @@ async function getActorFromSupabaseUserWithOptions(options = {}) {
           crm
         )
       `)
+      .eq('auth_user_id', user.id)
+      .maybeSingle(),
+    adminClient
+      .from('privileged_accounts')
+      .select('role, name, email')
       .eq('auth_user_id', user.id)
       .maybeSingle(),
   ]);
@@ -229,14 +234,16 @@ async function getActorFromSupabaseUserWithOptions(options = {}) {
     }
   }
 
-  if (isHrAdminRole(profile?.role)) {
+  const resolvedRole = profile?.role || privilegedAccount?.role;
+
+  if (isHrAdminRole(resolvedRole) || isSupportRole(resolvedRole)) {
     return {
       type: 'admin',
       userId: user.id,
       authUserId: user.id,
-      adminRole: normalizeProfileRole(profile?.role),
-      isSuperAdmin: isSuperAdminRole(profile?.role),
-      name: profile?.full_name || user.email || 'Admin',
+      adminRole: normalizeProfileRole(resolvedRole),
+      isSuperAdmin: isSuperAdminRole(resolvedRole),
+      name: privilegedAccount?.name || profile?.full_name || user.email || 'Admin',
       email: user.email || '',
       avatarUrl: user.user_metadata?.avatar_url || null,
     };

@@ -42,6 +42,7 @@ export default function Sidebar({
 
   const navItems = [
     { id: 'home', label: 'Home', icon: 'dashboard' },
+    { id: 'calendar', label: 'Calendar', icon: 'date_range' },
     { id: 'attendance', label: 'Attendance', icon: 'calendar_today' },
     { id: 'policy-manual', label: 'Policy Manual', icon: 'menu_book' },
     { id: 'tickets', label: 'Tickets & Requests', icon: 'support_agent' },

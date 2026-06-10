@@ -16,6 +16,7 @@ import PolicyManual from './views/PolicyManual';
 import { ShellSkeleton } from './ui/Skeleton';
 import { HrmFeedbackProvider } from './ui/HrmFeedback';
 import { createClient } from '@/utils/supabase/client';
+import CalendarView from '@/app/Taskmanager/components/CalendarView';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('home');
@@ -104,6 +105,7 @@ export default function App() {
     expenses: <Expenses variant="employee" />,
     'organization-chart': <OrganizationChart apiPath="/HRM/api/employee/organization-chart" />,
     leave: <Leave />,
+    calendar: <CalendarView />,
     salary: <Salary employee={employee} />,
     profile: <Profile employee={employee} onEmployeeChange={setEmployee} onRefreshEmployee={refreshEmployee} />,
   };
@@ -115,6 +117,8 @@ export default function App() {
   const currentTabLabel =
     currentTab === 'home'
       ? 'Home'
+      : currentTab === 'calendar'
+      ? 'Calendar'
       : currentTab === 'attendance'
       ? 'Attendance'
       : currentTab === 'regularize-attendance'

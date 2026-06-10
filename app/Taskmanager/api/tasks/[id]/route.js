@@ -995,10 +995,46 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ success: true, message: 'Subtask instruction removed' });
     }
 
+    if (body?.subtaskId && body?.subtaskStatus && !Object.prototype.hasOwnProperty.call(body, 'isCompleted')) {
+      const allowedStatuses = ['to_do', 'in_progress', 'completed'];
+      const targetStatus = allowedStatuses.includes(body.subtaskStatus) ? body.subtaskStatus : 'to_do';
+
+      const { data: existingSubtask, error: fetchError } = await adminClient
+        .from('task_subtasks')
+        .select('id, title, is_completed')
+        .eq('id', body.subtaskId)
+        .eq('task_id', taskId)
+        .maybeSingle();
+
+      if (fetchError || !existingSubtask) {
+        return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
+      }
+
+      const cleanTitle = (existingSubtask.title || '').replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
+      const nextTitle = `${cleanTitle} [status:${targetStatus}]`;
+      const nextCompleted = targetStatus === 'completed';
+
+      const { error: updateError } = await adminClient
+        .from('task_subtasks')
+        .update({
+          title: nextTitle,
+          is_completed: nextCompleted,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', body.subtaskId)
+        .eq('task_id', taskId);
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, message: 'Subtask status updated' });
+    }
+
     if (body?.subtaskId && (body?.subtaskPriority !== undefined || Object.prototype.hasOwnProperty.call(body, 'subtaskDueDate') || body?.subtaskFrequency !== undefined)) {
       const metaUpdate = {};
       if (body.subtaskPriority !== undefined) {
-        metaUpdate.priority = ['low', 'medium', 'high'].includes(body.subtaskPriority) ? body.subtaskPriority : null;
+        metaUpdate.priority = ['low', 'medium', 'high', 'urgent'].includes(body.subtaskPriority) ? body.subtaskPriority : null;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'subtaskDueDate')) {
         metaUpdate.due_date = normalizeDueDate(body.subtaskDueDate);
@@ -1188,7 +1224,7 @@ export async function PATCH(request, { params }) {
         await ensureTaskLabelExists(updatePayload.label);
       }
       if (typeof body?.priority === 'string') {
-        const priority = ['low', 'medium', 'high'].includes(body.priority) ? body.priority : 'medium';
+        const priority = ['low', 'medium', 'high', 'urgent'].includes(body.priority) ? body.priority : 'medium';
         updatePayload.priority = priority;
       }
       if (Object.prototype.hasOwnProperty.call(body, 'dueDate')) {

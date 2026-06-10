@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { createClient } from '@/utils/supabase/server';
+import { adminClient } from '@/utils/supabase/admin';
 import { getAccountTypeLabel } from '@/utils/auth/roles';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 
@@ -114,7 +115,7 @@ export async function PATCH(request) {
 
       if (fullName !== undefined) {
         updates.push(
-          supabase
+          adminClient
             .from('hrm_profiles')
             .update({ full_name: fullName || null })
             .eq('id', user.id)

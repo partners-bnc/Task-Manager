@@ -50,13 +50,13 @@ async function attachTaskCreatorNames(tasks = [], supabase) {
 
   const [employeeResult, profileResult] = await Promise.all([
     employeeIds.length > 0
-      ? supabase
+      ? adminClient
         .from('hrm_employees')
         .select('id, name, email')
         .in('id', employeeIds)
       : Promise.resolve({ data: [], error: null }),
     profileIds.length > 0
-      ? supabase
+      ? adminClient
         .from('hrm_profiles')
         .select('id, full_name, email')
         .in('id', profileIds)
@@ -110,63 +110,68 @@ async function taskHasIncompleteSubtasks(taskId, supabase) {
 
 
 export async function GET() {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  const { data: tasks, error } = await supabase
-    .from('tasks')
-    .select(`
-      *,
-      assigned_by_employee:hrm_employees!tasks_assigned_by_employee_id_fkey (
-        id,
-        name,
-        email,
-        role,
-        profile_picture_url
-      ),
-      task_assignments (
-        employee:hrm_employees!task_assignments_employee_id_fkey (
+    const { data: tasks, error } = await supabase
+      .from('tasks')
+      .select(`
+        *,
+        assigned_by_employee:hrm_employees!tasks_assigned_by_employee_id_fkey (
           id,
           name,
           email,
           role,
           profile_picture_url
+        ),
+        task_assignments (
+          employee:hrm_employees!task_assignments_employee_id_fkey (
+            id,
+            name,
+            email,
+            role,
+            profile_picture_url
+          )
+        ),
+        task_attachments (*),
+        task_subtasks (
+          id,
+          title,
+          is_completed,
+          assigned_employee_id,
+          created_at,
+          updated_at
         )
-      ),
-      task_attachments (*),
-      task_subtasks (
-        id,
-        title,
-        is_completed,
-        assigned_employee_id,
-        created_at,
-        updated_at
-      )
-    `)
-    .order('created_at', { ascending: false });
+      `)
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const tasksWithCreators = await attachTaskCreatorNames(tasks || [], supabase);
+    
+    const mappedTasks = tasksWithCreators.map((task) => ({
+      ...task,
+      task_subtasks: Array.isArray(task.task_subtasks)
+        ? task.task_subtasks.map((subtask) => {
+          const match = (subtask.title || '').match(/\s+\[status:(to_do|in_progress|completed)\]$/);
+          const cleanTitle = match ? subtask.title.substring(0, subtask.title.length - match[0].length) : subtask.title;
+          const statusOverride = match ? match[1] : null;
+          return {
+            ...subtask,
+            title: cleanTitle,
+            _statusOverride: statusOverride,
+          };
+        })
+        : [],
+    }));
+
+    return NextResponse.json({ tasks: mappedTasks });
+  } catch (err) {
+    console.error('Error in GET /Taskmanager/api/tasks:', err);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
-
-  const tasksWithCreators = await attachTaskCreatorNames(tasks || [], supabase);
-  
-  const mappedTasks = tasksWithCreators.map((task) => ({
-    ...task,
-    task_subtasks: Array.isArray(task.task_subtasks)
-      ? task.task_subtasks.map((subtask) => {
-        const match = (subtask.title || '').match(/\s+\[status:(to_do|in_progress|completed)\]$/);
-        const cleanTitle = match ? subtask.title.substring(0, subtask.title.length - match[0].length) : subtask.title;
-        const statusOverride = match ? match[1] : null;
-        return {
-          ...subtask,
-          title: cleanTitle,
-          _statusOverride: statusOverride,
-        };
-      })
-      : [],
-  }));
-
-  return NextResponse.json({ tasks: mappedTasks });
 }
 
 export async function POST(request) {
@@ -277,7 +282,7 @@ export async function POST(request) {
           title: `${cleanTitle} [status:${status}]`,
           is_completed: !!subtask.is_completed,
           assigned_employee_id: subtask.assigned_employee_id || null,
-          priority: ['low', 'medium', 'high'].includes(subtask.priority) ? subtask.priority : 'medium',
+          priority: ['low', 'medium', 'high', 'urgent'].includes(subtask.priority) ? subtask.priority : 'medium',
           due_date: subtask.due_date || null,
           frequency: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? subtask.frequency : null,
           last_cycle_reset: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? new Date().toISOString() : null,

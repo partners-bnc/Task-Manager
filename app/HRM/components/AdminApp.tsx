@@ -22,6 +22,7 @@ import Expenses from './views/Expenses';
 import PolicyManualManager from './views/admin/PolicyManualManager';
 import { ShellSkeleton } from './ui/Skeleton';
 import { HrmFeedbackProvider } from './ui/HrmFeedback';
+import CalendarView from '@/app/Taskmanager/components/CalendarView';
 
 export default function AdminApp() {
   const searchParams = useSearchParams();
@@ -188,6 +189,7 @@ export default function AdminApp() {
       />
     ),
     'admin-payouts': <PayoutsPayroll />,
+    'admin-calendar': <CalendarView />,
     'admin-organization-chart': <OrganizationChart />,
     'admin-module-access': <ModuleAccessManager />,
     'admin-attendance': <AdminAttendance />,
@@ -226,6 +228,8 @@ export default function AdminApp() {
   const currentTabLabel =
     currentTab === 'admin-dashboard'
       ? 'Admin Dashboard'
+      : currentTab === 'admin-calendar'
+      ? 'Calendar'
       : currentTab === 'admin-analytics'
       ? 'Analytics'
       : currentTab === 'admin-employee-list'

@@ -34,6 +34,7 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
   const navItems = [
     { id: 'admin-dashboard', label: 'Admin Dashboard', icon: 'admin_panel_settings' },
+    { id: 'admin-calendar', label: 'Calendar', icon: 'date_range' },
     { id: 'admin-employee-list', label: 'Employee Directory', icon: 'groups' },
     { id: 'admin-onboarding', label: 'Employee Onboarding', icon: 'how_to_reg' },
     { id: 'admin-payouts', label: 'Payouts & Payroll', icon: 'account_balance_wallet' },

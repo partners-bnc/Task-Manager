@@ -9,6 +9,7 @@ import { ModuleAccessGate } from '@/app/components-homepage/ModuleAccessGate';
 import { USERS } from './data';
 import { WorkspaceShellLoader } from '@/app/components-homepage/ExperienceLoaders';
 import Login from './Login';
+import CalendarView from './CalendarView';
 import {
   ArrowLeft,
   ArrowRight,
@@ -82,10 +83,11 @@ const getTaskStatusBadgeStyle = (status) => {
   return 'bg-slate-100 text-slate-700 hover:ring-slate-400/20'; // pending/to do
 };
 
-const PRIORITY_OPTIONS = [
+    const PRIORITY_OPTIONS = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
+  { value: 'urgent', label: 'Urgent' },
 ];
 
 const formatDate = (value) => {
@@ -1174,7 +1176,6 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     }
   };
 
-  // Derive task status and progress automatically from subtasks after any subtask change
   const deriveTaskStatusFromSubtasks = (currentSubtasks) => {
     if (!currentSubtasks || currentSubtasks.length === 0) return;
 
@@ -1189,6 +1190,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     } else if (inProgressCount > 0 || completedCount > 0) {
       nextStatus = 'in_progress';
     } else {
+      // All subtasks still to_do — keep task as pending
       nextStatus = 'pending';
     }
 
@@ -1492,6 +1494,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     if (field === 'priority') body.subtaskPriority = value;
     if (field === 'dueDate') body.subtaskDueDate = value || null;
     if (field === 'frequency') body.subtaskFrequency = value || null;
+    if (field === 'status') body.subtaskStatus = value;
     setSubtaskMetaDrafts((prev) => ({ ...prev, [subtask.id]: { ...(prev[subtask.id] || {}), [field]: value } }));
     if (field === 'status') {
       const nextCompleted = value === 'completed' || value === 'done';
@@ -1588,13 +1591,15 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
 
     setTask((prev) => {
       if (!prev) return prev;
+      const updatedSubtasks = (prev.task_subtasks || []).map((s) =>
+        s.id === subtaskId
+          ? { ...s, is_completed: targetCompleted, _statusOverride: targetStatus }
+          : s
+      );
+      setTimeout(() => deriveTaskStatusFromSubtasks(updatedSubtasks), 0);
       return {
         ...prev,
-        task_subtasks: (prev.task_subtasks || []).map((s) =>
-          s.id === subtaskId
-            ? { ...s, is_completed: targetCompleted, _statusOverride: targetStatus }
-            : s
-        ),
+        task_subtasks: updatedSubtasks,
       };
     });
 
@@ -2231,7 +2236,12 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                 {STATUS_OPTIONS.find(o => o.value === task.status)?.label || task.status.replace('_', ' ')}
                               </span>
                             )}
-                            <span className='rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold uppercase text-orange-700'>
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${
+                              task.priority === 'urgent' ? 'bg-red-100 text-red-700' :
+                              task.priority === 'high' ? 'bg-orange-100 text-orange-700' :
+                              task.priority === 'medium' ? 'bg-blue-100 text-blue-700' :
+                              'bg-green-100 text-green-700'
+                            }`}>
                               {task.priority} priority
                             </span>
                             {/* Task Progress Bar Badge removed */}
@@ -4328,69 +4338,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                 </section>
 
                 <section ref={calendarSectionRef} id='task-calendar' className={`rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm${activeTaskSection !== 'calendar' ? ' hidden' : ''}`}>
-                  <div className='flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between'>
-                    <div>
-                      <h2 className='text-lg font-semibold text-slate-900'>Calendar</h2>
-                      <p className='mt-1 text-sm text-slate-500'>A clean schedule view for this task and its dated subtasks.</p>
-                    </div>
-                    <span className='rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500'>
-                      {scheduledItems.length} dated items
-                    </span>
-                  </div>
-
-                  <div className='mt-6 grid gap-4 lg:grid-cols-[minmax(280px,0.4fr)_minmax(0,0.6fr)]'>
-                    <div className='rounded-[28px] bg-slate-900 p-6 text-white shadow-sm'>
-                      <p className='text-xs font-semibold uppercase tracking-[0.2em] text-white/60'>Main Deadline</p>
-                      <div className='mt-3 text-3xl font-semibold'>{formatShortDate(task.due_date)}</div>
-                      <p className='mt-3 text-sm leading-6 text-white/70'>
-                        {task.status === 'completed'
-                          ? 'This task is completed.'
-                          : 'Use this card to keep the main task milestone visible and easy to scan.'}
-                      </p>
-                      <div className='mt-6 flex flex-wrap gap-2'>
-                        <span className='rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/80'>
-                          {task.status.replace('_', ' ')}
-                        </span>
-                        <span className='rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/80'>
-                          {task.priority} priority
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className='space-y-3'>
-                      {scheduledItems.length === 0 ? (
-                        <div className='rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-500'>
-                          No dated milestones yet.
-                        </div>
-                      ) : (
-                        scheduledItems.map((item) => (
-                          <div key={item.id} className='rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm'>
-                            <div className='flex items-start justify-between gap-3'>
-                              <div className='min-w-0'>
-                                <div className='flex flex-wrap items-center gap-2'>
-                                  <span className='rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500'>
-                                    {item.kind}
-                                  </span>
-                                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${item.status === 'completed'
-                                    ? 'border-emerald-200 bg-emerald-100 text-emerald-700'
-                                    : item.status === 'in_progress'
-                                      ? 'border-sky-200 bg-sky-100 text-sky-700'
-                                      : 'border-slate-200 bg-slate-100 text-slate-600'
-                                    }`}>
-                                    {getSubtaskStatusLabel(item.status)}
-                                  </span>
-                                </div>
-                                <p className='mt-2 truncate text-sm font-semibold text-slate-900'>{item.title}</p>
-                              </div>
-                              <div className='text-right'>
-                                <p className='text-sm font-semibold text-slate-900'>{formatShortDate(item.dueDate)}</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
+                  <CalendarView taskId={task.id} isMini={true} />
                 </section>
 
 

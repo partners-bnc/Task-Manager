@@ -22,6 +22,7 @@ const PRIORITY_LABELS = {
   low: 'Low',
   medium: 'Medium',
   high: 'High',
+  urgent: 'Urgent',
 };
 
 const STATUS_TO_API = {
@@ -165,7 +166,7 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     title: task.task_name,
     description: task.description || '',
     label: task.label || null,
-    priority: PRIORITY_LABELS[task.priority] || 'Medium',
+    priority: PRIORITY_LABELS[task.priority] || task.priority || 'Medium',
     status: STATUS_LABELS[task.status] || 'Pending',
     startDate: formatDate(task.created_at),
     dueDate: formatDate(deriveDueDate(task), { includeTime: true }),
@@ -230,16 +231,7 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
       return;
     }
 
-    const isSupportUser = String(adminMeJson.admin?.accountRole || adminMeJson.admin?.role || '').toLowerCase() === 'support';
-
     setUser(adminMeJson.admin);
-
-    if (isSupportUser) {
-      setTasks([]);
-      setUsers([]);
-      setTaskLabels([]);
-      return;
-    }
 
     const [tasksRes, usersRes, taskLabelsRes] = await Promise.all([
       fetch('/Taskmanager/api/tasks', { method: 'GET' }),

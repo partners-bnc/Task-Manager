@@ -16,6 +16,7 @@ import ChatPanel from './ChatPanel';
 import TaskTickets from './TaskTickets';
 import { USERS } from './data';
 import { WorkspaceShellLoader } from '@/app/components-homepage/ExperienceLoaders';
+import CalendarView from './CalendarView';
 
 function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const { user, loading, isAdminMode } = useData();
@@ -23,13 +24,7 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const [currentView, setCurrentView] = useState(safeInitialView);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const isSupportUser = !!user?.role && String(user.role).toLowerCase() === 'support';
 
-  useEffect(() => {
-    if (isSupportUser && currentView !== 'task-tickets') {
-      setCurrentView('task-tickets');
-    }
-  }, [isSupportUser, currentView]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -55,9 +50,6 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   }
 
   const renderView = () => {
-    if (isSupportUser) {
-      return <TaskTickets />;
-    }
 
     switch (currentView) {
       case 'dashboard':
@@ -76,6 +68,8 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
         return <ChatPanel />;
       case 'task-tickets':
         return <TaskTickets />;
+      case 'calendar':
+        return <CalendarView />;
       default:
         return <Dashboard onNavigate={setCurrentView} />;
     }
@@ -117,6 +111,8 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
               ? 'Chat'
               : currentView === 'task-tickets'
               ? 'Task Tickets'
+              : currentView === 'calendar'
+              ? 'Calendar'
               : 'Settings'}
           </p>
         </div>

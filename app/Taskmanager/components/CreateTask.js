@@ -534,8 +534,7 @@ export default function CreateTask({ onCancel }) {
         totalSubtasks: cleanedSubtasks.length,
         assignees,
         assignedByEmployeeId: assignedBy || null,
-        subtasks: cleanedSubtasks.map((item, i) => ({
-          id: `st${i}`,
+        subtasks: cleanedSubtasks.map((item) => ({
           title: item.title,
           completed: false,
           assigned_employee_id: item.assignedEmployeeId || null,
