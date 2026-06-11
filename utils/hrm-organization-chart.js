@@ -1,6 +1,20 @@
 import { adminClient } from '@/utils/supabase/admin';
 import { deriveEmploymentFields } from '@/utils/hrm-employment';
 
+const isSuperAdminEntity = (emp) => {
+  if (!emp) return false;
+  if (emp.email && ['summit@bncglobal.in', 'gurvinder@bncglobal.in'].includes(emp.email.toLowerCase().trim())) {
+    return true;
+  }
+  if (emp.employee_id) {
+    const empIdUpper = String(emp.employee_id).toUpperCase().trim();
+    if (empIdUpper.startsWith('SA-') || empIdUpper.startsWith('SA0') || ['SA01', 'SA02', 'SA-01', 'SA-02'].includes(empIdUpper)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const hrmEmployeeColumnSupportPromises = new Map();
 
 function cleanText(value) {
@@ -301,12 +315,14 @@ export async function loadOrganizationChartData() {
   }
 
   const superAdmins = superAdminsResult.data || [];
-  const employees = (employeesResult.data || []).map((employee) => ({
-    ...employee,
-    reporting_super_admin_id: reportingSuperAdminSupported ? employee.reporting_super_admin_id || null : null,
-    employment_lifecycle_status: lifecycleSupported ? employee.employment_lifecycle_status || null : null,
-    current_stage: currentStageSupported ? employee.current_stage || null : null,
-  }));
+  const employees = (employeesResult.data || [])
+    .map((employee) => ({
+      ...employee,
+      reporting_super_admin_id: reportingSuperAdminSupported ? employee.reporting_super_admin_id || null : null,
+      employment_lifecycle_status: lifecycleSupported ? employee.employment_lifecycle_status || null : null,
+      current_stage: currentStageSupported ? employee.current_stage || null : null,
+    }))
+    .filter((emp) => !isSuperAdminEntity(emp));
 
   const chart = buildOrganizationTree(superAdmins, employees);
 

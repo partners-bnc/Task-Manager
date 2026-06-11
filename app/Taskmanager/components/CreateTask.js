@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import {
   Plus,
@@ -20,7 +20,9 @@ import {
   UserCheck,
   Users,
   User,
-  ArrowLeft
+  ArrowLeft,
+  Mic,
+  MicOff
 } from 'lucide-react';
 import { useData } from './DataContext';
 
@@ -37,6 +39,75 @@ export default function CreateTask({ onCancel }) {
   const [dueTime, setDueTime] = useState('');
   const [assignees, setAssignees] = useState([]);
   const [assignedBy, setAssignedBy] = useState('');
+
+  // Speech Recognition States
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsListening(false);
+      return;
+    }
+
+    const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+    if (!SpeechRecognition) {
+      alert('Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.');
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-IN'; // Regional English optimization
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            transcript += event.results[i][0].transcript;
+          }
+        }
+        if (transcript) {
+          setDescription((prev) => {
+            const separator = prev && !prev.endsWith(' ') ? ' ' : '';
+            return prev + separator + transcript;
+          });
+        }
+      };
+
+      recognition.onerror = (e) => {
+        console.error('Speech recognition error:', e);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      console.error('Failed to start speech recognition:', err);
+      setIsListening(false);
+    }
+  };
 
   // Subtasks list (initialized empty)
   const [subtasks, setSubtasks] = useState([]);
@@ -669,19 +740,46 @@ export default function CreateTask({ onCancel }) {
 
         {/* Description */}
         <div className="space-y-2">
-          <div className="flex items-center gap-1.5">
-            <AlignLeft size={14} className="text-slate-400" />
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-              Description <span className="text-slate-900 font-extrabold ml-0.5">*</span>
-            </label>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <AlignLeft size={14} className="text-slate-400" />
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                Description <span className="text-slate-900 font-extrabold ml-0.5">*</span>
+              </label>
+            </div>
+            {isListening && (
+              <span className="text-xs text-red-500 font-bold flex items-center gap-1 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                Listening... Speak now
+              </span>
+            )}
           </div>
-          <textarea
-            rows={3}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Develop a dynamic product catalog with filtering and sorting features..."
-            className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-white hover:bg-slate-50/50 transition resize-none text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
-          />
+          <div className="flex items-stretch gap-3">
+            <div className="flex-grow">
+              <textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Develop a dynamic product catalog with filtering and sorting features..."
+                className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-white hover:bg-slate-50/50 transition resize-none text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`w-14 flex flex-col items-center justify-center rounded-xl border transition-all duration-300 shadow-sm shrink-0 ${
+                isListening
+                  ? 'bg-red-500 border-red-500 text-white animate-pulse shadow-md shadow-red-100 hover:bg-red-600'
+                  : 'bg-white hover:bg-slate-50 text-slate-400 hover:text-[#7F40EE] border-slate-200 hover:border-[#7F40EE]'
+              }`}
+              title={isListening ? "Stop listening" : "Click to Speak (Voice to Text)"}
+            >
+              <Mic size={22} className={isListening ? 'scale-110' : ''} />
+              <span className="text-[9px] font-bold mt-1.5 uppercase tracking-wider">
+                {isListening ? "Stop" : "Mic"}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Row 1: Label, Priority, Repeat Frequency */}

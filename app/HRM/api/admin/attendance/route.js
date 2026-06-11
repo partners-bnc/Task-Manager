@@ -12,6 +12,20 @@ import {
 } from '@/utils/attendance';
 import { formatLeaveSession, getLeaveAttendanceCode, getLeaveTypeCode } from '@/utils/leave';
 
+const isSuperAdminEntity = (emp) => {
+  if (!emp) return false;
+  if (emp.email && ['summit@bncglobal.in', 'gurvinder@bncglobal.in'].includes(emp.email.toLowerCase().trim())) {
+    return true;
+  }
+  if (emp.employee_id) {
+    const empIdUpper = String(emp.employee_id).toUpperCase().trim();
+    if (empIdUpper.startsWith('SA-') || empIdUpper.startsWith('SA0') || ['SA01', 'SA02', 'SA-01', 'SA-02'].includes(empIdUpper)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const OPPOSITE_HALF_PRESENT_MARKER = '[hr_override_opposite_half_present]';
 const APRIL_BACKFILL_CODE_MARKER = 'april_backfill_code';
 const APRIL_BACKFILL_LABEL_MARKER = 'april_backfill_label';
@@ -413,9 +427,11 @@ export async function GET(request) {
       );
     }
 
-    const employeeRows = (employeesResult.data || []).filter((employee) => {
-      return deriveEmploymentFields(employee).employmentLifecycleStatus === 'active';
-    });
+    const employeeRows = (employeesResult.data || [])
+      .filter((employee) => !isSuperAdminEntity(employee))
+      .filter((employee) => {
+        return deriveEmploymentFields(employee).employmentLifecycleStatus === 'active';
+      });
 
     const managerIds = [...new Set(employeeRows.map((row) => row.reporting_manager_id).filter(Boolean))];
     let managerMap = new Map();

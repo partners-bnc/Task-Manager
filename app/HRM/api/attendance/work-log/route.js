@@ -64,9 +64,9 @@ export async function POST(request) {
       remarks: entry.remarks ? String(entry.remarks).trim() : null,
     }));
 
-    const invalid = rows.find((r) => !r.client_name || !r.hours_spent || r.hours_spent <= 0);
+    const invalid = rows.find((r) => !r.client_name || !r.hours_spent || r.hours_spent <= 0 || !r.task_id || !r.remarks);
     if (invalid) {
-      return NextResponse.json({ error: 'Each entry must have a client name and valid hours' }, { status: 400 });
+      return NextResponse.json({ error: 'Each entry must have client name, project/task, valid hours, and remarks.' }, { status: 400 });
     }
 
     const { data, error } = await adminClient.from('hrm_daily_work_logs').insert(rows).select();
@@ -90,8 +90,8 @@ export async function PATCH(request) {
     const body = await request.json();
     const { client_name, task_id, task_name_snapshot, hours_spent, remarks } = body;
 
-    if (!client_name || !hours_spent || Number(hours_spent) <= 0) {
-      return NextResponse.json({ error: 'Client name and valid hours are required' }, { status: 400 });
+    if (!client_name || !hours_spent || Number(hours_spent) <= 0 || !task_id || !remarks) {
+      return NextResponse.json({ error: 'Client name, project/task, valid hours, and remarks are required' }, { status: 400 });
     }
 
     const { error } = await adminClient

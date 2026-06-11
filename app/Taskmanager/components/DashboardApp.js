@@ -17,6 +17,7 @@ import TaskTickets from './TaskTickets';
 import { USERS } from './data';
 import { WorkspaceShellLoader } from '@/app/components-homepage/ExperienceLoaders';
 import CalendarView from './CalendarView';
+import DailyWorkLogs from './DailyWorkLogs';
 
 function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
   const { user, loading, isAdminMode } = useData();
@@ -70,6 +71,8 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
         return <TaskTickets />;
       case 'calendar':
         return <CalendarView />;
+      case 'work-log':
+        return isAdminMode ? <DailyWorkLogs /> : <Dashboard onNavigate={setCurrentView} />;
       default:
         return <Dashboard onNavigate={setCurrentView} />;
     }
@@ -113,6 +116,8 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
               ? 'Task Tickets'
               : currentView === 'calendar'
               ? 'Calendar'
+              : currentView === 'work-log'
+              ? 'Daily Work Log'
               : 'Settings'}
           </p>
         </div>

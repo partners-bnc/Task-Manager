@@ -101,9 +101,17 @@ export default function DailyWorkLogModal({
       clientRef.current?.focus();
       return;
     }
+    if (!form.task_id) {
+      setFormError('Please select a project/task.');
+      return;
+    }
     const hours = parseFloat(form.hours_spent);
     if (!form.hours_spent || isNaN(hours) || hours <= 0 || hours > 24) {
       setFormError('Enter valid hours (0.5 – 24).');
+      return;
+    }
+    if (!form.remarks.trim()) {
+      setFormError('Remarks are required.');
       return;
     }
     setEntries((prev) => [...prev, { ...form }]);
@@ -158,9 +166,23 @@ export default function DailyWorkLogModal({
 
   // Save edit — updates DB if existing, else just updates state
   const handleSaveEdit = async (index: number) => {
-    if (!editForm.client_name.trim()) return;
+    if (!editForm.client_name.trim()) {
+      alert('Client name is required.');
+      return;
+    }
+    if (!editForm.task_id) {
+      alert('Please select a project/task.');
+      return;
+    }
     const hours = parseFloat(editForm.hours_spent);
-    if (isNaN(hours) || hours <= 0 || hours > 24) return;
+    if (isNaN(hours) || hours <= 0 || hours > 24) {
+      alert('Enter valid hours.');
+      return;
+    }
+    if (!editForm.remarks.trim()) {
+      alert('Remarks are required.');
+      return;
+    }
 
     const entry = entries[index];
     setSavingEdit(true);
@@ -273,7 +295,9 @@ export default function DailyWorkLogModal({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Project / Task</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Project / Task <span className="text-red-400">*</span>
+                </label>
                 <select
                   value={form.task_id}
                   onChange={(e) => handleFormChange('task_id', e.target.value)}
@@ -303,7 +327,9 @@ export default function DailyWorkLogModal({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">Remarks</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">
+                  Remarks <span className="text-red-400">*</span>
+                </label>
                 <textarea
                   rows={3}
                   value={form.remarks}

@@ -18,6 +18,14 @@ const EMPLOYEE_TASK_SELECT = `
   progress_percentage,
   created_by,
   created_by_employee_id,
+  assigned_by_employee_id,
+  assigned_by_employee:hrm_employees!tasks_assigned_by_employee_id_fkey (
+    id,
+    name,
+    email,
+    role,
+    profile_picture_url
+  ),
   created_at,
   due_date,
   completed_at,
@@ -43,7 +51,9 @@ const EMPLOYEE_TASK_SELECT = `
 `;
 
 const EMPLOYEE_TASK_SELECT_LEGACY = EMPLOYEE_TASK_SELECT
-  .replace(/\s*created_by_employee_id,\n/, '\n');
+  .replace(/\s*created_by_employee_id,\n/, '\n')
+  .replace(/\s*assigned_by_employee_id,\n/, '\n')
+  .replace(/\s*assigned_by_employee:[\s\S]*?\),\n/, '\n');
 
 async function attachTaskCreatorNames(tasks = []) {
   if (!Array.isArray(tasks) || tasks.length === 0) {
@@ -51,7 +61,11 @@ async function attachTaskCreatorNames(tasks = []) {
   }
 
   const employeeIds = Array.from(
-    new Set(tasks.map((task) => task?.created_by_employee_id).filter(Boolean))
+    new Set(
+      tasks
+        .flatMap((task) => [task?.created_by_employee_id, task?.assigned_by_employee_id])
+        .filter(Boolean)
+    )
   );
   const profileIds = Array.from(
     new Set(tasks.map((task) => task?.created_by).filter(Boolean))
@@ -84,8 +98,8 @@ async function attachTaskCreatorNames(tasks = []) {
   const profileById = new Map((profileResult.data || []).map((item) => [item.id, item]));
 
   return tasks.map((task) => {
-    const employeeCreator = task?.created_by_employee_id
-      ? employeeById.get(task.created_by_employee_id)
+    const employeeCreator = (task?.assigned_by_employee_id || task?.created_by_employee_id)
+      ? employeeById.get(task.assigned_by_employee_id || task.created_by_employee_id)
       : null;
     const profileCreator = task?.created_by
       ? profileById.get(task.created_by)
@@ -123,16 +137,20 @@ async function employeeCanAccessTask(taskId, employeeId) {
       .maybeSingle(),
     adminClient
       .from('tasks')
-      .select('id')
+      .select('id, created_by_employee_id, assigned_by_employee_id')
       .eq('id', taskId)
-      .eq('created_by_employee_id', employeeId)
       .maybeSingle(),
   ]);
+
+  const isCreatorOrAssigner = createdTask && (
+    createdTask.created_by_employee_id === employeeId ||
+    createdTask.assigned_by_employee_id === employeeId
+  );
 
   return (
     (!assignmentError && !!assignment) ||
     (!subtaskAssignmentError && !!subtaskAssignment) ||
-    (!isMissingTaskCreatorEmployeeColumn(createdTaskError) && !createdTaskError && !!createdTask)
+    isCreatorOrAssigner
   );
 }
 
@@ -275,7 +293,7 @@ export async function GET(request) {
       adminClient
         .from('tasks')
         .select(EMPLOYEE_TASK_SELECT)
-        .eq('created_by_employee_id', employee.id)
+        .or(`created_by_employee_id.eq.${employee.id},assigned_by_employee_id.eq.${employee.id}`)
         .order('created_at', { ascending: false }),
     ]);
 

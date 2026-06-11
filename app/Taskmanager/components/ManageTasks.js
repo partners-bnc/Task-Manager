@@ -108,90 +108,87 @@ export default function ManageTasks() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <h2 className="shrink-0 text-2xl font-bold text-black">Tasks</h2>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-3 xl:justify-end">
-            <div className="min-w-0 flex bg-white p-1 rounded-lg shadow-sm overflow-x-auto">
-              {['All', 'Pending', 'In Progress', 'Completed'].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setStatusFilter(tab)}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${
-                    statusFilter === tab ? 'bg-[#7F40EE] text-white shadow-md' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {tab === 'Pending' ? 'To Do' : tab}
-                  <span
-                    className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
-                      statusFilter === tab ? 'bg-white/20 text-white' : 'bg-gray-100 text-slate-600'
-                    }`}
-                  >
-                    {tab === 'All' ? tasks.length : tasks.filter((t) => t.status === tab).length}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="min-w-0 flex bg-white p-1 rounded-lg shadow-sm overflow-x-auto">
-              {['All', 'Urgent', 'High', 'Medium', 'Low'].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setPriorityFilter(tab)}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all whitespace-nowrap ${
-                    priorityFilter === tab ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  {tab === 'All' ? 'All Priorities' : tab}
-                  <span
-                    className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
-                      priorityFilter === tab ? 'bg-white/20 text-white' : 'bg-gray-100 text-slate-600'
-                    }`}
-                  >
-                    {tab === 'All' ? tasks.length : tasks.filter((t) => t.priority === tab).length}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="w-[170px] shrink-0 rounded-lg bg-white p-1 shadow-sm xl:w-[185px]">
-              <select
-                value={labelFilter}
-                onChange={(event) => setLabelFilter(event.target.value)}
-                className="w-full rounded-md border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-700 outline-none"
+      <div
+        className="mb-3 flex flex-nowrap items-center gap-1 overflow-x-auto pb-1"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        <div className="flex bg-white p-1 rounded-2xl shadow-sm shrink-0 h-10 items-center">
+          {['All', 'Pending', 'In Progress', 'Completed'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setStatusFilter(tab)}
+              className={`h-8 px-2.5 flex items-center justify-center text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+                statusFilter === tab ? 'bg-[#7F40EE] text-white shadow-md' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>{tab === 'Pending' ? 'To Do' : tab}</span>
+              <span
+                className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
+                  statusFilter === tab ? 'bg-white/20 text-white' : 'bg-gray-100 text-slate-600'
+                }`}
               >
-                <option value="All">All Labels ({tasks.length})</option>
-                {mergedLabelOptions.map((taskLabel) => (
-                  <option key={taskLabel} value={taskLabel}>
-                    {taskLabel} ({getLabelCount(taskLabel)})
-                  </option>
-                ))}
-              </select>
-            </div>
+                {tab === 'All' ? tasks.length : tasks.filter((t) => t.status === tab).length}
+              </span>
+            </button>
+          ))}
+        </div>
 
-            <div className="w-[170px] shrink-0 rounded-lg bg-white p-1 shadow-sm xl:w-[200px]">
-              <select
-                value={createdByFilter}
-                onChange={(event) => setCreatedByFilter(event.target.value)}
-                className="w-full rounded-md border-0 bg-transparent px-3 py-2 text-sm font-medium text-slate-700 outline-none"
+        <div className="flex bg-white p-1 rounded-2xl shadow-sm shrink-0 h-10 items-center">
+          {['All', 'Urgent', 'High', 'Medium', 'Low'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setPriorityFilter(tab)}
+              className={`h-8 px-2.5 flex items-center justify-center text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+                priorityFilter === tab ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <span>{tab === 'All' ? 'All' : tab}</span>
+              <span
+                className={`ml-2 text-xs py-0.5 px-1.5 rounded-full ${
+                  priorityFilter === tab ? 'bg-white/20 text-white' : 'bg-gray-100 text-slate-600'
+                }`}
               >
-                <option value="All">All Creators ({tasks.length})</option>
-                {createdByOptions.map((createdBy) => (
-                  <option key={createdBy} value={createdBy}>
-                    {createdBy} ({getCreatedByCount(createdBy)})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+                {tab === 'All' ? tasks.length : tasks.filter((t) => t.priority === tab).length}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="w-[130px] shrink-0 rounded-2xl bg-white p-1 shadow-sm h-10 flex items-center">
+          <select
+            value={labelFilter}
+            onChange={(event) => setLabelFilter(event.target.value)}
+            className="w-full h-8 rounded-xl border-0 bg-transparent px-2.5 py-1 text-sm font-semibold text-slate-700 outline-none cursor-pointer"
+          >
+            <option value="All">All Labels ({tasks.length})</option>
+            {mergedLabelOptions.map((taskLabel) => (
+              <option key={taskLabel} value={taskLabel}>
+                {taskLabel} ({getLabelCount(taskLabel)})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="w-[145px] shrink-0 rounded-2xl bg-white p-1 shadow-sm h-10 flex items-center">
+          <select
+            value={createdByFilter}
+            onChange={(event) => setCreatedByFilter(event.target.value)}
+            className="w-full h-8 rounded-xl border-0 bg-transparent px-2.5 py-1 text-sm font-semibold text-slate-700 outline-none cursor-pointer"
+          >
+            <option value="All">All Creators ({tasks.length})</option>
+            {createdByOptions.map((createdBy) => (
+              <option key={createdBy} value={createdBy}>
+                {createdBy} ({getCreatedByCount(createdBy)})
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
       <div className="mb-6 overflow-x-auto">
-        <div className="relative inline-grid min-w-[360px] grid-cols-3 items-center overflow-hidden rounded-2xl bg-white p-1 shadow-sm">
+        <div className="relative inline-grid min-w-[500px] grid-cols-3 items-center overflow-hidden rounded-2xl bg-white p-1 shadow-sm h-10">
           <div
-            className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-[0.9rem] bg-[#7F40EE] shadow-md transition-transform duration-300 ease-out"
+            className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-xl bg-[#7F40EE] shadow-md transition-transform duration-300 ease-out"
             style={{ transform: `translateX(calc(${activeOwnershipIndex} * 100%))` }}
           />
           {ownershipTabs.map((tab) => {
@@ -201,7 +198,7 @@ export default function ManageTasks() {
                 key={tab.key}
                 type="button"
                 onClick={() => setOwnershipFilter(tab.key)}
-                className={`relative z-10 inline-flex items-center justify-center gap-2 rounded-[0.9rem] px-4 py-2.5 text-sm font-semibold transition-colors ${
+                className={`relative z-10 inline-flex items-center justify-center gap-2 rounded-xl h-8 text-sm font-semibold transition-colors ${
                   isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
@@ -288,8 +285,8 @@ export default function ManageTasks() {
               </div>
 
               <div className="border-t border-gray-100 pt-4 flex justify-between items-end">
-                <div className="flex -space-x-2">
-                  {task.assignees.map((uid) => {
+                <div className="flex -space-x-3 items-center">
+                  {task.assignees.slice(0, 4).map((uid) => {
                     const assignee = getUserById(uid);
                     const avatarSrc = assignee?.avatar || null;
                     const fallbackInitial = assignee?.name?.trim()?.charAt(0)?.toUpperCase() || 'U';
@@ -298,7 +295,7 @@ export default function ManageTasks() {
                       return (
                         <div
                           key={uid}
-                          className="h-10 w-10 rounded-full border-2 border-white bg-slate-200 text-sm font-semibold flex items-center justify-center text-slate-700"
+                          className="h-10 w-10 rounded-full border-2 border-white bg-slate-200 text-sm font-bold flex items-center justify-center text-slate-700 shrink-0"
                           title={assignee?.name || 'Assignee'}
                           aria-label={assignee?.name || 'Assignee'}
                         >
@@ -314,11 +311,20 @@ export default function ManageTasks() {
                         width={40}
                         height={40}
                         unoptimized
-                        className="h-10 w-10 rounded-full border-2 border-white"
+                        className="h-10 w-10 rounded-full border-2 border-white object-cover shrink-0"
                         alt={assignee?.name ? `${assignee.name} avatar` : 'Assignee avatar'}
+                        title={assignee?.name || 'Assignee'}
                       />
                     );
                   })}
+                  {task.assignees.length > 4 && (
+                    <div
+                      className="h-10 w-10 rounded-full border-2 border-white bg-[#7F40EE] text-xs font-bold flex items-center justify-center text-white shrink-0 shadow-sm"
+                      title={`${task.assignees.length - 4} more assignees`}
+                    >
+                      +{task.assignees.length - 4}
+                    </div>
+                  )}
                 </div>
                 <div className="text-right">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">

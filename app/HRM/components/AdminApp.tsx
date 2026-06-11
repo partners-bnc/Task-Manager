@@ -23,6 +23,7 @@ import PolicyManualManager from './views/admin/PolicyManualManager';
 import { ShellSkeleton } from './ui/Skeleton';
 import { HrmFeedbackProvider } from './ui/HrmFeedback';
 import CalendarView from '@/app/Taskmanager/components/CalendarView';
+import DailyWorkLogs from '@/app/Taskmanager/components/DailyWorkLogs';
 
 export default function AdminApp() {
   const searchParams = useSearchParams();
@@ -193,6 +194,7 @@ export default function AdminApp() {
     'admin-organization-chart': <OrganizationChart />,
     'admin-module-access': <ModuleAccessManager />,
     'admin-attendance': <AdminAttendance />,
+    'admin-work-logs': <DailyWorkLogs />,
     'admin-policy-manual': <PolicyManualManager />,
     'admin-regularization': <RegularizationInbox />,
     'admin-tickets': <Tickets variant="admin" />,
@@ -246,6 +248,8 @@ export default function AdminApp() {
       ? 'Module Access'
       : currentTab === 'admin-attendance'
       ? 'Attendance'
+      : currentTab === 'admin-work-logs'
+      ? 'Daily Work Log'
       : currentTab === 'admin-policy-manual'
       ? 'Policy Manual'
       : currentTab === 'admin-regularization'

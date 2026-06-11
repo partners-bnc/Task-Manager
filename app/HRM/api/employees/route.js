@@ -22,6 +22,20 @@ import {
 } from '@/utils/employee-lifecycle';
 
 const EMAIL_NOTIFICATIONS_ENABLED = process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true';
+
+const isSuperAdminEntity = (emp) => {
+  if (!emp) return false;
+  if (emp.email && ['summit@bncglobal.in', 'gurvinder@bncglobal.in'].includes(emp.email.toLowerCase().trim())) {
+    return true;
+  }
+  if (emp.employee_id) {
+    const empIdUpper = String(emp.employee_id).toUpperCase().trim();
+    if (empIdUpper.startsWith('SA-') || empIdUpper.startsWith('SA0') || ['SA01', 'SA02', 'SA-01', 'SA-02'].includes(empIdUpper)) {
+      return true;
+    }
+  }
+  return false;
+};
 const EMPLOYEE_FILES_BUCKET = 'employee-files';
 const PROFILE_PICTURE_MAX_SIZE_BYTES = 5 * 1024 * 1024;
 const EMPLOYEE_FILE_MAX_SIZE_BYTES = 10 * 1024 * 1024;
@@ -1047,7 +1061,7 @@ async function fetchEmployeeFormMeta() {
   if (departmentsResult.error) throw new Error(departmentsResult.error.message || 'Failed to load departments');
   if (designationsResult.error) throw new Error(designationsResult.error.message || 'Failed to load designations');
   return {
-    employeeOptions: employeesResult.data || [],
+    employeeOptions: (employeesResult.data || []).filter(emp => !isSuperAdminEntity(emp)),
     superAdminOptions: superAdminsResult.data || [],
     departments: departmentsResult.data || [],
     designations: designationsResult.data || [],
@@ -1252,7 +1266,7 @@ export async function GET(request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
-      if (!employee) {
+      if (!employee || isSuperAdminEntity(employee)) {
         return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
       }
 
@@ -1301,7 +1315,7 @@ export async function GET(request) {
         })
       : employees || [];
 
-    const enrichedEmployees = await attachCreatorNames(filteredEmployees);
+    const enrichedEmployees = await attachCreatorNames((filteredEmployees || []).filter(emp => !isSuperAdminEntity(emp)));
 
     if (includeMeta) {
       const meta = await fetchEmployeeFormMeta();

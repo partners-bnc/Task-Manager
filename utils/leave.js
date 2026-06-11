@@ -7,6 +7,20 @@ import {
 } from '@/utils/attendance';
 import { deriveEmploymentFields } from '@/utils/hrm-employment';
 
+const isSuperAdminEntity = (emp) => {
+  if (!emp) return false;
+  if (emp.email && ['summit@bncglobal.in', 'gurvinder@bncglobal.in'].includes(emp.email.toLowerCase().trim())) {
+    return true;
+  }
+  if (emp.employee_id) {
+    const empIdUpper = String(emp.employee_id).toUpperCase().trim();
+    if (empIdUpper.startsWith('SA-') || empIdUpper.startsWith('SA0') || ['SA01', 'SA02', 'SA-01', 'SA-02'].includes(empIdUpper)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const MONTHLY_DEFAULTS = {
   'Casual Leave': 0.5,
   'Sick Leave': 1,
@@ -210,7 +224,9 @@ export async function listActiveEmployeesForLeave() {
     throw new Error(error.message || 'Failed to load active employees');
   }
 
-  return (employees || []).map((employee) => {
+  return (employees || [])
+    .filter((emp) => !isSuperAdminEntity(emp))
+    .map((employee) => {
     const employment = deriveEmploymentFields(employee);
     return {
       ...employee,
@@ -250,17 +266,19 @@ export async function listDirectReportEmployeesForLeave(reportingManagerId) {
     throw new Error(error.message || 'Failed to load reporting employees');
   }
 
-  return (employees || []).map((employee) => {
-    const employment = deriveEmploymentFields(employee);
-    return {
-      ...employee,
-      employment_lifecycle_status:
-        employee.employment_lifecycle_status ?? employment.employmentLifecycleStatus,
-      current_stage: employee.current_stage ?? employment.currentStage,
-      resolved_employment_lifecycle_status: employment.employmentLifecycleStatus,
-      resolved_current_stage: employment.currentStage,
-    };
-  });
+  return (employees || [])
+    .map((employee) => {
+      const employment = deriveEmploymentFields(employee);
+      return {
+        ...employee,
+        employment_lifecycle_status:
+          employee.employment_lifecycle_status ?? employment.employmentLifecycleStatus,
+        current_stage: employee.current_stage ?? employment.currentStage,
+        resolved_employment_lifecycle_status: employment.employmentLifecycleStatus,
+        resolved_current_stage: employment.currentStage,
+      };
+    })
+    .filter((emp) => !isSuperAdminEntity(emp));
 }
 
 export async function listActiveLeaveTypes() {

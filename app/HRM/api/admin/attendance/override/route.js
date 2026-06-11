@@ -2,6 +2,20 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
+
+const isSuperAdminEntity = (emp) => {
+  if (!emp) return false;
+  if (emp.email && ['summit@bncglobal.in', 'gurvinder@bncglobal.in'].includes(emp.email.toLowerCase().trim())) {
+    return true;
+  }
+  if (emp.employee_id) {
+    const empIdUpper = String(emp.employee_id).toUpperCase().trim();
+    if (empIdUpper.startsWith('SA-') || empIdUpper.startsWith('SA0') || ['SA01', 'SA02', 'SA-01', 'SA-02'].includes(empIdUpper)) {
+      return true;
+    }
+  }
+  return false;
+};
 import {
   buildAttendanceUiRecord,
   buildHolidayUiRecord,
@@ -688,7 +702,7 @@ export async function PATCH(request) {
       .eq('id', employeeId)
       .maybeSingle();
 
-    if (employeeError || !employeeRow?.id) {
+    if (employeeError || !employeeRow?.id || isSuperAdminEntity(employeeRow)) {
       return NextResponse.json({ error: employeeError?.message || 'Employee not found.' }, { status: 404 });
     }
 

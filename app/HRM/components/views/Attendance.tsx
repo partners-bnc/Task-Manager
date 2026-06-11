@@ -41,6 +41,29 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
   const [isLoading, setIsLoading] = useState(true);
   const selectedDateRef = useRef(selectedDate);
 
+  const [logsModalDate, setLogsModalDate] = useState<string | null>(null);
+  const [modalLogs, setModalLogs] = useState<any[]>([]);
+  const [loadingModalLogs, setLoadingModalLogs] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+
+  const handleViewLogs = async (dateStr: string) => {
+    setLogsModalDate(dateStr);
+    setLoadingModalLogs(true);
+    setModalError(null);
+    try {
+      const response = await fetch(`/HRM/api/attendance/work-log?date=${dateStr}`);
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to load logs');
+      }
+      setModalLogs(data.logs || []);
+    } catch (err: any) {
+      setModalError(err.message || 'An error occurred while loading logs.');
+    } finally {
+      setLoadingModalLogs(false);
+    }
+  };
+
   const year = activeMonth.getFullYear();
   const month = activeMonth.getMonth();
   const monthKey = getMonthKey(activeMonth);
@@ -292,7 +315,17 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
                 const cfg = STATUS_CONFIG.holiday;
                 return (
                   <div className="flex-1 flex flex-col">
-                    <p className="text-base font-bold font-headline text-on-surface mb-1">{formatDateLong(selectedDate)}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-base font-bold font-headline text-on-surface">{formatDateLong(selectedDate)}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleViewLogs(selectedDate)}
+                        className="p-1 rounded-lg text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition flex items-center justify-center"
+                        title="View Daily Work Logs"
+                      >
+                        <span className="material-symbols-outlined text-[20px] block">assignment</span>
+                      </button>
+                    </div>
                     <span className={`self-start inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cfg.bg} ${cfg.text} mt-1 mb-5`}>
                       <span className="material-symbols-outlined text-sm">{cfg.icon}</span>
                       {cfg.label}
@@ -309,7 +342,17 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
               if (selectedRecord && selectedRecord.status === 'weekend') {
                 return (
                   <div className="flex-1 flex flex-col">
-                    <p className="text-base font-bold font-headline text-on-surface mb-4">{formatDateLong(selectedDate)}</p>
+                    <div className="flex items-center gap-2 mb-4">
+                      <p className="text-base font-bold font-headline text-on-surface">{formatDateLong(selectedDate)}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleViewLogs(selectedDate)}
+                        className="p-1 rounded-lg text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition flex items-center justify-center"
+                        title="View Daily Work Logs"
+                      >
+                        <span className="material-symbols-outlined text-[20px] block">assignment</span>
+                      </button>
+                    </div>
                     <div className="flex-1 flex flex-col items-center justify-center text-center py-6">
                       <span className="material-symbols-outlined text-on-surface-variant/30 text-5xl mb-3">weekend</span>
                       <p className="text-sm font-semibold text-on-surface mb-1">{selectedRecord.notes || 'Weekly Off'}</p>
@@ -322,7 +365,17 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
               if (!selectedRecord) {
                 return (
                   <div className="flex-1 flex flex-col">
-                    <p className="text-base font-bold font-headline text-on-surface mb-4">{formatDateLong(selectedDate)}</p>
+                    <div className="flex items-center gap-2 mb-4">
+                      <p className="text-base font-bold font-headline text-on-surface">{formatDateLong(selectedDate)}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleViewLogs(selectedDate)}
+                        className="p-1 rounded-lg text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition flex items-center justify-center"
+                        title="View Daily Work Logs"
+                      >
+                        <span className="material-symbols-outlined text-[20px] block">assignment</span>
+                      </button>
+                    </div>
                     <div className="flex-1 flex flex-col items-center justify-center text-center py-6">
                       <span className="material-symbols-outlined text-on-surface-variant/30 text-5xl mb-3">event_busy</span>
                       <p className="text-sm text-on-surface-variant">No attendance details available for this date.</p>
@@ -335,7 +388,17 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
               return (
                 <div className="flex-1 flex flex-col">
                   <div className="flex items-start justify-between gap-3 mb-5">
-                    <p className="text-base font-bold font-headline text-on-surface">{formatDateLong(selectedDate)}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-base font-bold font-headline text-on-surface">{formatDateLong(selectedDate)}</p>
+                      <button
+                        type="button"
+                        onClick={() => handleViewLogs(selectedDate)}
+                        className="p-1 rounded-lg text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 transition flex items-center justify-center"
+                        title="View Daily Work Logs"
+                      >
+                        <span className="material-symbols-outlined text-[20px] block">assignment</span>
+                      </button>
+                    </div>
                     <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${cfg.bg} ${cfg.text}`}>
                       <span className="material-symbols-outlined text-sm">{cfg.icon}</span>
                       {cfg.label}
@@ -382,6 +445,97 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
           </div>
         </div>
       </div>
+      {logsModalDate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity duration-200 animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-3xl overflow-hidden border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-indigo-600">assignment</span>
+                <h3 className="font-bold text-slate-900">
+                  Work Logs: {new Date(`${logsModalDate}T00:00:00`).toLocaleDateString('en-US', {
+                    month: 'long',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </h3>
+              </div>
+              <button
+                onClick={() => setLogsModalDate(null)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {loadingModalLogs ? (
+                <div className="space-y-3 py-4 animate-pulse">
+                  <div className="h-4 bg-slate-200 rounded w-1/4" />
+                  <div className="h-3 bg-slate-200 rounded w-1/2" />
+                  <div className="h-12 bg-slate-100 rounded-xl" />
+                </div>
+              ) : modalError ? (
+                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base">error</span>
+                  <p className="text-xs font-semibold">{modalError}</p>
+                </div>
+              ) : modalLogs.length === 0 ? (
+                <div className="py-8 text-center">
+                  <span className="material-symbols-outlined text-slate-300 text-5xl mb-2 block">assignment_late</span>
+                  <p className="text-sm font-semibold text-slate-800">No work logs submitted</p>
+                  <p className="text-xs text-slate-400 mt-1">You didn't log any work entries for this day.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[500px]">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-slate-400">
+                        <th className="pb-3 pr-3 font-semibold text-[10px] uppercase tracking-wider w-[20%] font-sans">Client</th>
+                        <th className="pb-3 pr-3 font-semibold text-[10px] uppercase tracking-wider w-[35%] font-sans">Project / Task</th>
+                        <th className="pb-3 pr-3 font-semibold text-[10px] uppercase tracking-wider w-[12%] font-sans">Hours</th>
+                        <th className="pb-3 pr-3 font-semibold text-[10px] uppercase tracking-wider font-sans">Remarks</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {modalLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3 pr-3 font-medium text-slate-800 font-sans">
+                            {log.client_name}
+                          </td>
+                          <td className="py-3 pr-3 text-slate-600 font-sans">
+                            {log.task_name_snapshot || <span className="text-slate-300">—</span>}
+                          </td>
+                          <td className="py-3 pr-3 whitespace-nowrap font-sans">
+                            <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold font-sans">
+                              {log.hours_spent} hrs
+                            </span>
+                          </td>
+                          <td className="py-3 pr-3 text-slate-500 font-sans">
+                            {log.remarks || <span className="text-slate-300">—</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setLogsModalDate(null)}
+                className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-50 transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

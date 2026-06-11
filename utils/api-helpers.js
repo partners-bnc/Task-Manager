@@ -292,25 +292,48 @@ export async function hasTaskAccess(taskId, actor) {
       .maybeSingle(),
     adminClient
       .from('tasks')
-      .select('id')
+      .select('id, created_by_employee_id, assigned_by_employee_id')
       .eq('id', taskId)
-      .eq('created_by_employee_id', actor.employeeId)
       .maybeSingle(),
   ]);
+
+  const isCreatorOrAssigner = createdTask && (
+    createdTask.created_by_employee_id === actor.employeeId ||
+    createdTask.assigned_by_employee_id === actor.employeeId
+  );
 
   return (
     (!assignmentError && !!assignment) ||
     (!subtaskAssignmentError && !!subtaskAssignment) ||
-    (!isMissingTaskCreatorEmployeeColumn(createdTaskError) && !createdTaskError && !!createdTask)
+    isCreatorOrAssigner
   );
 }
 
 export function isTaskCreator(task, actor) {
   if (!task || !actor) return false;
   if (actor.type === 'admin') return !!actor.authUserId && task.created_by === actor.authUserId;
-  if (actor.type === 'employee') return !!actor.employeeId && task.created_by_employee_id === actor.employeeId;
+  if (actor.type === 'employee') {
+    return !!actor.employeeId && (
+      task.created_by_employee_id === actor.employeeId ||
+      task.assigned_by_employee_id === actor.employeeId
+    );
+  }
   return false;
 }
+
+const isSuperAdminEntity = (emp) => {
+  if (!emp) return false;
+  if (emp.email && ['summit@bncglobal.in', 'gurvinder@bncglobal.in'].includes(emp.email.toLowerCase().trim())) {
+    return true;
+  }
+  if (emp.employee_id) {
+    const empIdUpper = String(emp.employee_id).toUpperCase().trim();
+    if (empIdUpper.startsWith('SA-') || empIdUpper.startsWith('SA0') || ['SA01', 'SA02', 'SA-01', 'SA-02'].includes(empIdUpper)) {
+      return true;
+    }
+  }
+  return false;
+};
 
 export async function fetchEmployeeDirectory(supabase = adminClient, options = {}) {
   const { taskManagerOnly = false } = options;
@@ -323,7 +346,7 @@ export async function fetchEmployeeDirectory(supabase = adminClient, options = {
     throw new Error(error.message);
   }
 
-  const employees = data || [];
+  const employees = (data || []).filter(emp => !isSuperAdminEntity(emp));
   return taskManagerOnly
     ? employees.filter((employee) => employeeHasTaskManagerAccess(employee))
     : employees;
@@ -344,6 +367,7 @@ export async function findEmployeeById(employeeId, supabase = adminClient, optio
   }
 
   if (!data) return null;
+  if (isSuperAdminEntity(data)) return null;
   if (taskManagerOnly && !employeeHasTaskManagerAccess(data)) {
     return null;
   }

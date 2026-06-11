@@ -34,6 +34,7 @@ export function Navbar({
   const avatarSrc = user?.avatarUrl || null;
   const avatarInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || 'U';
   const employeeId = user?.employeeId || user?.email || 'USER';
+  const displayName = user?.name || employeeId;
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -100,7 +101,7 @@ export function Navbar({
                     </div>
                   )}
                 </div>
-                <div className="text-sm font-semibold text-slate-700">{employeeId}</div>
+                <div className="text-sm font-semibold text-slate-700">{displayName}</div>
               </div>
               <button
                 type="button"
@@ -157,7 +158,7 @@ export function Navbar({
                     </div>
                   )}
                 </div>
-                <div className="text-sm font-semibold text-slate-700">{employeeId}</div>
+                <div className="text-sm font-semibold text-slate-700">{displayName}</div>
               </div>
               <Link
                 href={othersHref}

@@ -205,12 +205,7 @@ export async function POST(request) {
 
     await ensureTaskLabelExists(supabase, normalizedLabel);
 
-    const validatedAssignedByEmployeeId =
-      assignedByEmployeeId && validEmployeeIds.has(assignedByEmployeeId)
-        ? assignedByEmployeeId
-        : actor.type === 'employee'
-          ? actor.employeeId
-          : null;
+    const validatedAssignedByEmployeeId = assignedByEmployeeId || null;
 
     const taskInsertPayload = {
       task_name: taskName,

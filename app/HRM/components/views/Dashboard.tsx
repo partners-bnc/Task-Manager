@@ -348,6 +348,20 @@ export default function Dashboard({
     };
   }, []);
 
+  // Prefetch employee tasks on mount to ensure modal opens instantly
+  useEffect(() => {
+    async function loadTasks() {
+      try {
+        const tasksRes = await fetch('/HRM/api/employee/tasks');
+        const tasksResult = await tasksRes.json();
+        setEmployeeTasks((tasksResult.tasks || []).slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+      } catch {
+        setEmployeeTasks([]);
+      }
+    }
+    loadTasks();
+  }, []);
+
   const cardHolidays = useMemo(() => {
     const today = new Date();
     const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -610,12 +624,28 @@ export default function Dashboard({
     try {
       setIsAttendanceUpdating(true);
       const locationPayload = await captureAttendanceLocationPayload();
-      if (todayAction === 'check_out') {
-        try {
-          const tasksRes = await fetch('/HRM/api/employee/tasks');
-          const tasksResult = await tasksRes.json();
-          setEmployeeTasks((tasksResult.tasks || []).slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-        } catch { setEmployeeTasks([]); }
+      
+      // Fetch fresh attendance status from database to prevent out-of-sync checkout bypasses
+      const syncRes = await fetch(`/HRM/api/attendance?month=${attendanceMonth}`, { method: 'GET' });
+      if (!syncRes.ok) throw new Error('Failed to synchronize attendance state');
+      const syncResult = await syncRes.json();
+      const currentAction = syncResult.todayAction || todayAction;
+
+      // Sync local states
+      setTodayAction(currentAction);
+      setTodayAttendance(syncResult.todayRecord || null);
+      setAttendanceRecords(syncResult.records || []);
+      setAttendanceSummary(syncResult.summary || { presentCount: 0, absentCount: 0, halfDayCount: 0 });
+
+      if (currentAction === 'check_out') {
+        // Fetch tasks in background to ensure freshness, but do not block opening the modal
+        fetch('/HRM/api/employee/tasks')
+          .then(res => res.json())
+          .then(result => {
+            setEmployeeTasks((result.tasks || []).slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+          })
+          .catch(() => {});
+
         setPendingLocationPayload(locationPayload);
         setIsWorkLogModalOpen(true);
         setIsAttendanceUpdating(false);
@@ -878,15 +908,6 @@ export default function Dashboard({
           </div>
         </div>
       </div>
-
-      {isWorkLogModalOpen && (
-        <DailyWorkLogModal
-          date={todayDateKey}
-          tasks={employeeTasks}
-          onSubmitAndCheckout={handleWorkLogSubmitAndCheckout}
-          onClose={() => { setIsWorkLogModalOpen(false); setPendingLocationPayload(null); }}
-        />
-      )}
 
       {isWorkLogModalOpen && (
         <DailyWorkLogModal
