@@ -185,7 +185,7 @@ export async function POST(request) {
     const normalizedSubtasks = normalizeSubtasks(subtasks);
     const normalizedDueDate = normalizeDueDate(dueDate);
     const normalizedLabel = normalizeLabel(label);
-    const normalizedFrequency = ['weekly', 'monthly', 'yearly'].includes(frequency) ? frequency : null;
+    const normalizedFrequency = ['daily', 'weekly', 'monthly', 'yearly'].includes(frequency) ? frequency : null;
     const actorPayload = getAssignmentActivityActorPayload(actor);
     const employeeDirectory = await fetchEmployeeDirectory(supabase, { taskManagerOnly: true });
     const validEmployeeIds = new Set(employeeDirectory.map((employee) => employee.id));
@@ -279,8 +279,8 @@ export async function POST(request) {
           assigned_employee_id: subtask.assigned_employee_id || null,
           priority: ['low', 'medium', 'high', 'urgent'].includes(subtask.priority) ? subtask.priority : 'medium',
           due_date: subtask.due_date || null,
-          frequency: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? subtask.frequency : null,
-          last_cycle_reset: ['weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? new Date().toISOString() : null,
+          frequency: ['daily', 'weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? subtask.frequency : null,
+          last_cycle_reset: ['daily', 'weekly', 'monthly', 'yearly'].includes(subtask.frequency) ? new Date().toISOString() : null,
         };
       });
 

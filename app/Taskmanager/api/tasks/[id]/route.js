@@ -1040,7 +1040,7 @@ export async function PATCH(request, { params }) {
         metaUpdate.due_date = normalizeDueDate(body.subtaskDueDate);
       }
       if (body.subtaskFrequency !== undefined) {
-        const freq = ['weekly', 'monthly', 'yearly'].includes(body.subtaskFrequency) ? body.subtaskFrequency : null;
+        const freq = ['daily', 'weekly', 'monthly', 'yearly'].includes(body.subtaskFrequency) ? body.subtaskFrequency : null;
         metaUpdate.frequency = freq;
         metaUpdate.last_cycle_reset = freq ? new Date().toISOString() : null;
       }
@@ -1087,7 +1087,7 @@ export async function PATCH(request, { params }) {
       if (body.subtaskDueDate) {
         subtaskInsertPayload.due_date = normalizeDueDate(body.subtaskDueDate);
       }
-      if (body.subtaskFrequency && ['weekly', 'monthly', 'yearly'].includes(body.subtaskFrequency)) {
+      if (body.subtaskFrequency && ['daily', 'weekly', 'monthly', 'yearly'].includes(body.subtaskFrequency)) {
         subtaskInsertPayload.frequency = body.subtaskFrequency;
       }
 
@@ -1179,7 +1179,8 @@ export async function PATCH(request, { params }) {
       typeof body?.priority === 'string' ||
       Object.prototype.hasOwnProperty.call(body, 'dueDate') ||
       Object.prototype.hasOwnProperty.call(body, 'frequency') ||
-      typeof body?.status === 'string';
+      typeof body?.status === 'string' ||
+      Array.isArray(body?.assignedMembers);
 
     if (hasMainFields) {
       const { data: taskToCheck, error: taskFetchError } = await adminClient
@@ -1231,7 +1232,7 @@ export async function PATCH(request, { params }) {
         updatePayload.due_date = normalizeDueDate(body.dueDate);
       }
       if (Object.prototype.hasOwnProperty.call(body, 'frequency')) {
-        const frequency = ['weekly', 'monthly', 'yearly'].includes(body.frequency) ? body.frequency : null;
+        const frequency = ['daily', 'weekly', 'monthly', 'yearly'].includes(body.frequency) ? body.frequency : null;
         updatePayload.frequency = frequency;
       }
       if (typeof body?.status === 'string') {
@@ -1246,19 +1247,70 @@ export async function PATCH(request, { params }) {
         updatePayload.completed_at = getCompletionTimestamp(currentTask.status, normalizedStatus, currentTask.completed_at, new Date().toISOString());
       }
 
-      if (Object.keys(updatePayload).length === 0) {
-        return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+      if (Array.isArray(body?.assignedMembers)) {
+        const { data: currentAssignments, error: fetchAssignmentsError } = await adminClient
+          .from('task_assignments')
+          .select('employee_id')
+          .eq('task_id', taskId);
+
+        if (fetchAssignmentsError) {
+          return NextResponse.json({ error: fetchAssignmentsError.message }, { status: 500 });
+        }
+
+        const existingAssigneeIds = (currentAssignments || []).map(a => a.employee_id);
+        const newAssigneeIds = body.assignedMembers;
+
+        const toAdd = newAssigneeIds.filter(id => !existingAssigneeIds.includes(id));
+        const toRemove = existingAssigneeIds.filter(id => !newAssigneeIds.includes(id));
+
+        if (toAdd.length > 0) {
+          const insertPayload = toAdd.map(empId => ({
+            task_id: taskId,
+            employee_id: empId,
+            assigned_at: new Date().toISOString()
+          }));
+          const { error: insertErr } = await adminClient
+            .from('task_assignments')
+            .insert(insertPayload);
+          if (insertErr) {
+            return NextResponse.json({ error: insertErr.message }, { status: 500 });
+          }
+        }
+
+        if (toRemove.length > 0) {
+          const { error: deleteErr } = await adminClient
+            .from('task_assignments')
+            .delete()
+            .eq('task_id', taskId)
+            .in('employee_id', toRemove);
+          if (deleteErr) {
+            return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+          }
+
+          const { error: subtaskUpdateErr } = await adminClient
+            .from('task_subtasks')
+            .update({ assigned_employee_id: null, updated_at: new Date().toISOString() })
+            .eq('task_id', taskId)
+            .in('assigned_employee_id', toRemove);
+          if (subtaskUpdateErr) {
+            return NextResponse.json({ error: subtaskUpdateErr.message }, { status: 500 });
+          }
+        }
       }
 
-      updatePayload.updated_at = new Date().toISOString();
+      if (Object.keys(updatePayload).length > 0) {
+        updatePayload.updated_at = new Date().toISOString();
 
-      const { error: updateError } = await adminClient
-        .from('tasks')
-        .update(updatePayload)
-        .eq('id', taskId);
+        const { error: updateError } = await adminClient
+          .from('tasks')
+          .update(updatePayload)
+          .eq('id', taskId);
 
-      if (updateError) {
-        return NextResponse.json({ error: updateError.message }, { status: 500 });
+        if (updateError) {
+          return NextResponse.json({ error: updateError.message }, { status: 500 });
+        }
+      } else if (!Array.isArray(body?.assignedMembers)) {
+        return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
       }
 
       return NextResponse.json({ success: true, message: 'Task updated' });

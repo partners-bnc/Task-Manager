@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import CreateTask from '@/app/Taskmanager/components/CreateTask';
+import { DataProvider } from '@/app/Taskmanager/components/DataContext';
 
 interface Task {
   id: string;
@@ -23,6 +25,7 @@ interface DailyWorkLogModalProps {
   tasks: Task[];
   onSubmitAndCheckout: (entries: LogEntry[]) => Promise<void>;
   onClose: () => void;
+  isCheckout?: boolean;
 }
 
 const EMPTY_FORM: Omit<LogEntry, 'isExisting'> = {
@@ -38,6 +41,7 @@ export default function DailyWorkLogModal({
   tasks,
   onSubmitAndCheckout,
   onClose,
+  isCheckout = true,
 }: DailyWorkLogModalProps) {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [entries, setEntries] = useState<LogEntry[]>([]);
@@ -45,12 +49,63 @@ export default function DailyWorkLogModal({
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
   const [submitError, setSubmitError] = useState('');
+  
+  // local tasks state for task list
+  const [localTasks, setLocalTasks] = useState<Task[]>(tasks);
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
+
   // inline edit state: index -> edited values
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<Omit<LogEntry, 'isExisting'>>({ ...EMPTY_FORM });
   const [savingEdit, setSavingEdit] = useState(false);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
   const clientRef = useRef<HTMLInputElement>(null);
+
+  // Sync tasks prop
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
+
+  const fetchTasks = async () => {
+    try {
+      const res = await fetch('/HRM/api/employee/tasks');
+      const data = await res.json();
+      if (data.tasks) {
+        setLocalTasks((data.tasks || []).slice().sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+      }
+    } catch (err) {
+      console.error('Failed to load tasks', err);
+    }
+  };
+
+  // Determine if editing is allowed (only today and yesterday)
+  const isEditable = (() => {
+    try {
+      const getTzDateStr = (d: Date) => {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Kolkata',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).formatToParts(d);
+        const val = Object.fromEntries(parts.map(p => [p.type, p.value]));
+        return `${val.year}-${val.month}-${val.day}`;
+      };
+      
+      const todayStr = getTzDateStr(new Date());
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = getTzDateStr(yesterday);
+      
+      return date === todayStr || date === yesterdayStr;
+    } catch {
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+      return date === todayStr || date === yesterdayStr;
+    }
+  })();
 
   useEffect(() => {
     let active = true;
@@ -82,13 +137,13 @@ export default function DailyWorkLogModal({
   }, [date]);
 
   useEffect(() => {
-    if (!loadingExisting) setTimeout(() => clientRef.current?.focus(), 80);
-  }, [loadingExisting]);
+    if (!loadingExisting && isEditable) setTimeout(() => clientRef.current?.focus(), 80);
+  }, [loadingExisting, isEditable]);
 
   const handleFormChange = (field: string, value: string) => {
     setFormError('');
     if (field === 'task_id') {
-      const task = tasks.find((t) => t.id === value);
+      const task = localTasks.find((t) => t.id === value);
       setForm((prev) => ({ ...prev, task_id: value, task_name_snapshot: task?.task_name || '' }));
     } else {
       setForm((prev) => ({ ...prev, [field]: value }));
@@ -96,6 +151,7 @@ export default function DailyWorkLogModal({
   };
 
   const handleAddEntry = () => {
+    if (!isEditable) return;
     if (!form.client_name.trim()) {
       setFormError('Client name is required.');
       clientRef.current?.focus();
@@ -119,8 +175,10 @@ export default function DailyWorkLogModal({
     setFormError('');
   };
 
+
   // Delete — removes from DB if existing, else just from state
   const handleDelete = async (index: number) => {
+    if (!isEditable) return;
     const entry = entries[index];
     if (entry.isExisting && entry.id) {
       setDeletingIndex(index);
@@ -144,6 +202,7 @@ export default function DailyWorkLogModal({
 
   // Start edit
   const handleStartEdit = (index: number) => {
+    if (!isEditable) return;
     const entry = entries[index];
     setEditForm({
       client_name: entry.client_name,
@@ -157,7 +216,7 @@ export default function DailyWorkLogModal({
 
   const handleEditFormChange = (field: string, value: string) => {
     if (field === 'task_id') {
-      const task = tasks.find((t) => t.id === value);
+      const task = localTasks.find((t) => t.id === value);
       setEditForm((prev) => ({ ...prev, task_id: value, task_name_snapshot: task?.task_name || prev.task_name_snapshot }));
     } else {
       setEditForm((prev) => ({ ...prev, [field]: value }));
@@ -166,6 +225,7 @@ export default function DailyWorkLogModal({
 
   // Save edit — updates DB if existing, else just updates state
   const handleSaveEdit = async (index: number) => {
+    if (!isEditable) return;
     if (!editForm.client_name.trim()) {
       alert('Client name is required.');
       return;
@@ -220,11 +280,16 @@ export default function DailyWorkLogModal({
 
   const totalHours = entries.reduce((sum, e) => sum + (parseFloat(e.hours_spent) || 0), 0);
   const newEntriesCount = entries.filter((e) => !e.isExisting).length;
-  const canCheckout = entries.length > 0;
+  const canCheckout = totalHours === 8;
 
   const handleSubmit = async () => {
+    if (!isEditable) return;
     if (entries.length === 0) {
-      setSubmitError('Add at least one work log entry before checking out.');
+      setSubmitError('Add at least one work log entry.');
+      return;
+    }
+    if (totalHours !== 8) {
+      setSubmitError('Total hours logged must be exactly 8 hours. Currently: ' + totalHours.toFixed(1) + ' hrs.');
       return;
     }
     setSubmitting(true);
@@ -255,7 +320,9 @@ export default function DailyWorkLogModal({
               <span className="material-symbols-outlined text-violet-500 text-lg sm:text-xl">assignment_turned_in</span>
               Daily Work Log
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">{formattedDate} · Fill your work summary before checking out</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {formattedDate} · {isEditable ? (isCheckout ? 'Fill your work summary before checking out' : 'Manage your daily work logs') : 'Read-only log view'}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -273,89 +340,109 @@ export default function DailyWorkLogModal({
             <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Add Entry</p>
 
             {formError && (
-              <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              <div className="text-xs text-red-650 bg-red-50 border border-red-100 rounded-lg px-3 py-2 font-medium">
                 {formError}
               </div>
             )}
 
-            <div className="space-y-2.5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Client <span className="text-red-400">*</span>
-                </label>
-                <input
-                  ref={clientRef}
-                  type="text"
-                  value={form.client_name}
-                  onChange={(e) => handleFormChange('client_name', e.target.value)}
-                  placeholder="e.g. Acme Corp"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition"
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEntry(); } }}
-                />
-              </div>
+            {isEditable ? (
+              <div className="space-y-2.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Client <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    ref={clientRef}
+                    type="text"
+                    value={form.client_name}
+                    onChange={(e) => handleFormChange('client_name', e.target.value)}
+                    placeholder="e.g. Acme Corp"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition"
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEntry(); } }}
+                  />
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Project / Task <span className="text-red-400">*</span>
-                </label>
-                <select
-                  value={form.task_id}
-                  onChange={(e) => handleFormChange('task_id', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 bg-white transition"
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Project / Task <span className="text-red-400">*</span>
+                  </label>
+                  <div className="flex flex-col gap-1">
+                    <select
+                      value={form.task_id}
+                      onChange={(e) => handleFormChange('task_id', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 bg-white transition"
+                    >
+                      <option value="">— Select a task —</option>
+                      {localTasks.map((task) => (
+                        <option key={task.id} value={task.id}>{task.task_name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateTaskModal(true)}
+                      className="text-left text-[#7F40EE] hover:text-[#6A31D1] hover:underline text-[11px] font-bold flex items-center gap-1 mt-1 w-fit transition-all animate-none"
+                    >
+                      <span className="material-symbols-outlined text-[14px] font-bold">add</span>
+                      Create New Task
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Hours Spent <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0.5"
+                    max="24"
+                    step="0.5"
+                    value={form.hours_spent}
+                    onChange={(e) => handleFormChange('hours_spent', e.target.value)}
+                    placeholder="e.g. 2.5"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Remarks <span className="text-red-400">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={form.remarks}
+                    onChange={(e) => handleFormChange('remarks', e.target.value)}
+                    placeholder="What did you accomplish?"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 resize-none transition"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddEntry}
+                  className="mt-3 w-full py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-750 text-xs font-bold hover:bg-violet-100 transition flex items-center justify-center gap-2"
                 >
-                  <option value="">— Select a task —</option>
-                  {tasks.map((task) => (
-                    <option key={task.id} value={task.id}>{task.task_name}</option>
-                  ))}
-                </select>
+                  <span className="material-symbols-outlined text-sm">add_circle</span>
+                  Add to List
+                </button>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Hours Spent <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0.5"
-                  max="24"
-                  step="0.5"
-                  value={form.hours_spent}
-                  onChange={(e) => handleFormChange('hours_spent', e.target.value)}
-                  placeholder="e.g. 2.5"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 transition"
-                />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-400 py-6 px-3 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                <span className="material-symbols-outlined text-3xl mb-1.5 text-slate-350 select-none">lock</span>
+                <p className="text-xs font-bold text-slate-500">Read-Only Mode</p>
+                <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
+                  Work logs for dates older than yesterday are locked and cannot be edited.
+                </p>
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">
-                  Remarks <span className="text-red-400">*</span>
-                </label>
-                <textarea
-                  rows={3}
-                  value={form.remarks}
-                  onChange={(e) => handleFormChange('remarks', e.target.value)}
-                  placeholder="What did you accomplish?"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 focus:ring-1 focus:ring-violet-200 resize-none transition"
-                />
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleAddEntry}
-              className="mt-auto w-full py-2 rounded-xl bg-violet-50 border border-violet-200 text-violet-700 text-xs font-bold hover:bg-violet-100 transition flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-sm">add_circle</span>
-              Add to List
-            </button>
+            )}
           </div>
 
           {/* RIGHT — Entries Table */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-4">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Today's Work Entries</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Work Entries</p>
               {entries.length > 0 && (
-                <span className="text-xs font-semibold text-violet-600 bg-violet-50 px-2.5 py-1 rounded-full">
+                <span className="text-xs font-semibold text-violet-650 bg-violet-50 px-2.5 py-1 rounded-full">
                   Total: {totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)} hrs
                 </span>
               )}
@@ -363,12 +450,12 @@ export default function DailyWorkLogModal({
 
             {loadingExisting ? (
               <div className="flex-1 flex items-center justify-center text-sm text-slate-400">
-                Loading previous entries...
+                Loading entries...
               </div>
             ) : entries.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center text-slate-400 py-8">
                 <span className="material-symbols-outlined text-4xl mb-2 opacity-40">inbox</span>
-                <p className="text-sm">No entries yet. Add your first work entry on the left.</p>
+                <p className="text-sm">No entries yet.</p>
               </div>
             ) : (
               <div className="flex-1 overflow-auto">
@@ -379,7 +466,7 @@ export default function DailyWorkLogModal({
                       <th className="pb-2 pr-3 font-semibold text-[10px] uppercase tracking-wider text-slate-400 w-[35%]">Project / Task</th>
                       <th className="pb-2 pr-3 font-semibold text-[10px] uppercase tracking-wider text-slate-400 w-[10%]">Hours</th>
                       <th className="pb-2 pr-3 font-semibold text-[10px] uppercase tracking-wider text-slate-400">Remarks</th>
-                      <th className="pb-2 w-16 text-right font-semibold text-[10px] uppercase tracking-wider text-slate-400">Actions</th>
+                      {isEditable && <th className="pb-2 w-16 text-right font-semibold text-[10px] uppercase tracking-wider text-slate-400">Actions</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -403,7 +490,7 @@ export default function DailyWorkLogModal({
                                 className="w-full px-2 py-1 rounded border border-violet-300 text-xs outline-none bg-white"
                               >
                                 <option value="">— No task —</option>
-                                {tasks.map((t) => (
+                                {localTasks.map((t) => (
                                   <option key={t.id} value={t.id}>{t.task_name}</option>
                                 ))}
                               </select>
@@ -464,29 +551,31 @@ export default function DailyWorkLogModal({
                             <td className="py-2.5 pr-3 text-slate-500 truncate max-w-0">
                               <span className="block truncate">{entry.remarks || <span className="text-slate-300">—</span>}</span>
                             </td>
-                            <td className="py-2.5 text-right w-20">
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => handleStartEdit(index)}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-violet-600 transition-colors"
-                                  title="Edit"
-                                >
-                                  <span className="material-symbols-outlined" style={{fontSize:'17px'}}>edit</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(index)}
-                                  disabled={deletingIndex === index}
-                                  className="w-6 h-6 flex items-center justify-center text-slate-600 hover:text-red-500 transition-colors"
-                                  title="Delete"
-                                >
-                                  <span className="material-symbols-outlined" style={{fontSize:'17px'}}>
-                                    {deletingIndex === index ? 'hourglass_top' : 'delete'}
-                                  </span>
-                                </button>
-                              </div>
-                            </td>
+                            {isEditable && (
+                              <td className="py-2.5 text-right w-20">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStartEdit(index)}
+                                    className="w-6 h-6 flex items-center justify-center text-slate-650 hover:text-violet-600 transition-colors"
+                                    title="Edit"
+                                  >
+                                    <span className="material-symbols-outlined" style={{fontSize:'17px'}}>edit</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDelete(index)}
+                                    disabled={deletingIndex === index}
+                                    className="w-6 h-6 flex items-center justify-center text-slate-650 hover:text-red-500 transition-colors"
+                                    title="Delete"
+                                  >
+                                    <span className="material-symbols-outlined" style={{fontSize:'17px'}}>
+                                      {deletingIndex === index ? 'hourglass_top' : 'delete'}
+                                    </span>
+                                  </button>
+                                </div>
+                              </td>
+                            )}
                           </>
                         )}
                       </tr>
@@ -500,20 +589,36 @@ export default function DailyWorkLogModal({
 
         {/* Footer */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 bg-slate-50/60">
-          <div className="text-xs text-slate-500 leading-relaxed">
-            {newEntriesCount > 0 ? (
-              <span className="text-violet-600 font-semibold">
-                {newEntriesCount} new {newEntriesCount === 1 ? 'entry' : 'entries'} will be saved
-              </span>
-            ) : entries.length > 0 ? (
-              <span>Checking out with <span className="font-semibold text-slate-700">{entries.length}</span> existing {entries.length === 1 ? 'entry' : 'entries'} from today.</span>
+          <div className="text-xs leading-relaxed">
+            {isEditable ? (
+              totalHours === 8 ? (
+                <span className="text-emerald-600 font-bold flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] font-bold">check_circle</span>
+                  Perfect! Exactly 8 hours of your work logged. Ready to submit.
+                </span>
+              ) : totalHours === 0 ? (
+                <span className="text-red-500 font-bold flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] font-bold">warning</span>
+                  You have to fill exactly 8 hours of your work.
+                </span>
+              ) : totalHours < 8 ? (
+                <span className="text-red-500 font-bold flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] font-bold">warning</span>
+                  You have to fill exactly 8 hours of your work. Currently: {totalHours.toFixed(1)} hrs (Less than 8 hours).
+                </span>
+              ) : (
+                <span className="text-red-500 font-bold flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] font-bold">warning</span>
+                  You have to fill exactly 8 hours of your work. Currently: {totalHours.toFixed(1)} hrs (More than 8 hours).
+                </span>
+              )
             ) : (
-              <span>You must add at least one work entry to check out. Please fill your <span className="font-semibold text-slate-700">8 hours</span> of work.</span>
+              <span className="text-slate-500 font-semibold">Locked. Under read-only compliance rule.</span>
             )}
           </div>
           <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
             {submitError && (
-              <span className="text-xs text-red-500">{submitError}</span>
+              <span className="text-xs text-red-500 mr-2 font-medium">{submitError}</span>
             )}
             <button
               type="button"
@@ -521,22 +626,45 @@ export default function DailyWorkLogModal({
               disabled={submitting}
               className="px-4 py-2 rounded-xl text-xs sm:text-sm font-medium text-slate-500 hover:bg-slate-100 transition disabled:opacity-50"
             >
-              Cancel
+              {isEditable ? 'Cancel' : 'Close'}
             </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting || !canCheckout}
-              className="px-4 sm:px-5 py-2 rounded-xl bg-violet-600 text-white text-xs sm:text-sm font-bold hover:bg-violet-700 transition flex items-center gap-2 shadow-md shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="material-symbols-outlined text-base">
-                {submitting ? 'hourglass_top' : 'logout'}
-              </span>
-              {submitting ? 'Checking Out...' : 'Submit & Check Out'}
-            </button>
+            {isEditable && (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || !canCheckout}
+                className="px-4 sm:px-5 py-2 rounded-xl bg-[#7F40EE] text-white text-xs sm:text-sm font-bold hover:bg-[#6A31D1] transition flex items-center gap-2 shadow-md shadow-violet-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-base">
+                  {submitting ? 'hourglass_top' : (isCheckout ? 'logout' : 'save')}
+                </span>
+                {submitting ? (isCheckout ? 'Checking Out...' : 'Saving...') : (isCheckout ? 'Submit & Check Out' : 'Save Logs')}
+              </button>
+            )}
           </div>
         </div>
       </div>
+      {showCreateTaskModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl w-full max-w-[1250px] max-h-[95vh] overflow-y-auto p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowCreateTaskModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 p-2 rounded-lg hover:bg-slate-100 transition-colors z-[101]"
+              title="Close"
+            >
+              <span className="material-symbols-outlined text-[24px]">close</span>
+            </button>
+            <DataProvider mode="employee">
+              <CreateTask
+                onCancel={() => {
+                  setShowCreateTaskModal(false);
+                  fetchTasks();
+                }}
+              />
+            </DataProvider>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

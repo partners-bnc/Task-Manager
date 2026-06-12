@@ -791,6 +791,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     status: 'pending',
     dueDate: '',
     dueTime: '',
+    assignedMembers: [],
   });
 
   const backHref = mode === 'admin' ? '/Taskmanager/admin/tasks' : '/Taskmanager/dashboard';
@@ -834,11 +835,22 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     [subtaskAssignees]
   );
 
+  const visibleSubtasks = useMemo(() => {
+    const allSubtasks = Array.isArray(task?.task_subtasks) ? task.task_subtasks : [];
+    if (!viewer) return [];
+    if (viewer.isTaskCreator || viewer.type === 'admin') {
+      return allSubtasks;
+    }
+    return allSubtasks.filter(
+      (subtask) => subtask.assigned_employee_id && String(subtask.assigned_employee_id) === String(viewer.employeeId)
+    );
+  }, [task?.task_subtasks, viewer]);
+
   const completion = useMemo(() => {
-    const subtasks = task?.task_subtasks || [];
+    const subtasks = visibleSubtasks;
     const done = subtasks.filter((subtask) => subtask.is_completed).length;
     return { done, total: subtasks.length };
-  }, [task]);
+  }, [visibleSubtasks]);
 
   const ratedAssigneeCount = useMemo(
     () => Object.values(reviewRatingsDraft).filter((value) => Number(value) > 0).length,
@@ -889,20 +901,20 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
   };
 
   const groupedSubtasks = useMemo(() => {
-    const subtasks = Array.isArray(task?.task_subtasks) ? task.task_subtasks : [];
     const grouped = {
       in_progress: [],
       to_do: [],
       completed: [],
     };
 
-    subtasks.forEach((subtask, index) => {
-      const status = getSubtaskStatusWithDraft(subtask, index);
-      grouped[status].push({ subtask, status, index });
+    visibleSubtasks.forEach((subtask) => {
+      const index = (task?.task_subtasks || []).findIndex((s) => s.id === subtask.id);
+      const status = getSubtaskStatusWithDraft(subtask, index >= 0 ? index : 0);
+      grouped[status].push({ subtask, status, index: index >= 0 ? index : 0 });
     });
 
     return grouped;
-  }, [task, subtaskMetaDrafts]);
+  }, [visibleSubtasks, task, subtaskMetaDrafts]);
 
   const latestSubtaskReassignmentById = useMemo(() => {
     const mapped = new Map();
@@ -925,15 +937,16 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
       sortDate: attachment.uploaded_at || attachment.created_at || null,
     }));
 
-    const subtaskAttachments = (task?.task_subtasks || []).flatMap((subtask, index) =>
-      (subtask?.task_subtask_attachments || []).map((attachment) => ({
+    const subtaskAttachments = visibleSubtasks.flatMap((subtask) => {
+      const index = (task?.task_subtasks || []).findIndex((s) => s.id === subtask.id);
+      return (subtask?.task_subtask_attachments || []).map((attachment) => ({
         ...attachment,
         scope: 'subtask',
-        scopeLabel: `Subtask ${index + 1}`,
+        scopeLabel: `Subtask ${(index >= 0 ? index : 0) + 1}`,
         subtaskTitle: subtask.title || 'Subtask',
         sortDate: attachment.uploaded_at || attachment.created_at || null,
-      }))
-    );
+      }));
+    });
 
     return [...taskAttachments, ...subtaskAttachments].sort(
       (left, right) => new Date(right.sortDate || 0).getTime() - new Date(left.sortDate || 0).getTime()
@@ -953,7 +966,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
       });
     }
 
-    for (const subtask of Array.isArray(task?.task_subtasks) ? task.task_subtasks : []) {
+    for (const subtask of visibleSubtasks) {
       if (!subtask?.due_date) continue;
       items.push({
         id: `subtask:${subtask.id}`,
@@ -966,7 +979,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     }
 
     return items.sort((left, right) => new Date(left.dueDate).getTime() - new Date(right.dueDate).getTime());
-  }, [task, subtaskMetaDrafts]);
+  }, [visibleSubtasks, task, subtaskMetaDrafts]);
 
   const scrollToTaskSection = (sectionId) => {
     setActiveTaskSection(sectionId);
@@ -974,7 +987,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
 
   const assignmentTree = useMemo(() => {
     const taskAssignments = Array.isArray(task?.task_assignments) ? task.task_assignments : [];
-    const subtasks = Array.isArray(task?.task_subtasks) ? task.task_subtasks : [];
+    const subtasks = visibleSubtasks;
 
     if (!taskCreator && taskAssignments.length === 0 && subtasks.length === 0 && assignmentActivity.length === 0) {
       return [];
@@ -1071,7 +1084,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     }
 
     return [creatorNode];
-  }, [assignmentActivity, employeeDirectoryById, task, taskCreator]);
+  }, [assignmentActivity, employeeDirectoryById, task, taskCreator, visibleSubtasks]);
 
   const loadTaskData = async () => {
     setLoading(true);
@@ -1122,6 +1135,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
         status: fetchedTask.status || 'pending',
         dueDate: toDateInputValue(fetchedTask.due_date),
         dueTime: toTimeInputValue(fetchedTask.due_date),
+        assignedMembers: (fetchedTask.task_assignments || []).map((a) => a.employee_id),
       });
     } catch (err) {
       setError(err.message || 'Failed to load task details');
@@ -2439,6 +2453,45 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                 </div>
                               </div>
 
+                              {/* Assign To */}
+                              <div className='space-y-1.5'>
+                                <label className='flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider'>
+                                  <Users size={13} className='text-slate-400' />
+                                  Assign To
+                                </label>
+                                <div className='flex flex-wrap gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50 max-h-40 overflow-y-auto'>
+                                  {employees.map((emp) => {
+                                    const isAssigned = (editForm.assignedMembers || []).includes(emp.id);
+                                    return (
+                                      <button
+                                        type='button'
+                                        key={emp.id}
+                                        onClick={() => {
+                                          const currentList = editForm.assignedMembers || [];
+                                          const nextList = isAssigned
+                                            ? currentList.filter((id) => id !== emp.id)
+                                            : [...currentList, emp.id];
+                                          setEditForm((prev) => ({ ...prev, assignedMembers: nextList }));
+                                        }}
+                                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition duration-200 ${
+                                          isAssigned
+                                            ? 'bg-[#7F40EE] text-white border-[#7F40EE] hover:bg-[#6A31D1]'
+                                            : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
+                                        }`}
+                                      >
+                                        <Avatar name={emp.name} src={emp.profile_picture_url} size='h-4 w-4' />
+                                        <span>{emp.name}</span>
+                                        {isAssigned ? (
+                                          <span className="material-symbols-outlined text-[12px] font-bold">check</span>
+                                        ) : (
+                                          <span className="material-symbols-outlined text-[12px] text-slate-400">+</span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
                               {/* Description */}
                               <div className='space-y-1.5'>
                                 <label className='flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider'>
@@ -2483,6 +2536,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                     className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none'
                                   >
                                     <option value=''>Never</option>
+                                    <option value='daily'>Daily</option>
                                     <option value='weekly'>Weekly</option>
                                     <option value='monthly'>Monthly</option>
                                     <option value='yearly'>Yearly</option>
@@ -4194,7 +4248,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                       <p className='mt-1 text-sm text-slate-500'>Subtasks grouped by status in a premium board view.</p>
                     </div>
                     <span className='rounded-full bg-slate-100 border border-slate-200 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500'>
-                      {task.task_subtasks?.length || 0} subtasks
+                      {visibleSubtasks.length} subtasks
                     </span>
                   </div>
 

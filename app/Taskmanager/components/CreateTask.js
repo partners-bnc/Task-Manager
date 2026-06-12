@@ -10,6 +10,7 @@ import {
   X,
   Settings,
   FileText,
+  Briefcase,
   Tag,
   AlignLeft,
   Flag,
@@ -30,6 +31,7 @@ export default function CreateTask({ onCancel }) {
   const { addTask, createTaskLabel, taskLabels, users, user } = useData();
 
   const [title, setTitle] = useState('');
+  const [clientName, setClientName] = useState('');
   const [description, setDescription] = useState('');
   const [label, setLabel] = useState('');
   const [newLabelName, setNewLabelName] = useState('');
@@ -228,7 +230,7 @@ export default function CreateTask({ onCancel }) {
   });
 
   const renderUserAvatar = (u, className = 'w-10 h-10 rounded-full') => {
-    const avatarSrc = u?.avatar || null;
+    const avatarSrc = u?.avatar || u?.profile_picture_url || null;
     const fallbackInitial = u?.name?.trim()?.charAt(0)?.toUpperCase() || 'U';
 
     if (!avatarSrc) {
@@ -244,19 +246,18 @@ export default function CreateTask({ onCancel }) {
     }
 
     return (
-      <Image
+      <img
         src={avatarSrc}
         alt={u?.name || 'User'}
-        width={40}
-        height={40}
         className={`${className} object-cover shrink-0`}
+        loading="eager"
       />
     );
   };
 
   const renderAssigneePicker = ({ value, onChange, options, placeholder = 'Assignee' }) => {
     const filteredOptions = options.filter((u) => assignees.includes(u.id));
-    const selectedUser = filteredOptions.find((u) => String(u.id) === String(value));
+    const selectedUser = options.find((u) => String(u.id) === String(value));
 
     const handlePick = (nextValue, event) => {
       onChange(nextValue);
@@ -264,41 +265,67 @@ export default function CreateTask({ onCancel }) {
     };
 
     return (
-      <details className="relative inline-block overflow-visible">
+      <details className="relative inline-block overflow-visible group">
         <summary className="list-none cursor-pointer flex items-center focus:outline-none [&::-webkit-details-marker]:hidden">
           {selectedUser ? (
-            <div className="hover:scale-105 transition duration-150" title={selectedUser.name}>
+            <div className="hover:scale-105 transition duration-150 ring-2 ring-transparent group-hover:ring-[#7F40EE]/30 rounded-full" title={selectedUser.name}>
               {renderUserAvatar(selectedUser, 'w-9 h-9 rounded-full border border-slate-100 shadow-sm')}
             </div>
           ) : (
-            <div className="w-9 h-9 rounded-full border border-dashed border-slate-300 hover:border-[#7F40EE] hover:bg-slate-50 flex items-center justify-center text-slate-400 hover:text-[#7F40EE] transition duration-150" title="Assignee">
-              <User size={14} />
+            <div className="w-9 h-9 rounded-full border border-dashed border-slate-350 hover:border-[#7F40EE] bg-purple-50/20 hover:bg-purple-50 flex items-center justify-center text-slate-500 hover:text-[#7F40EE] transition duration-150 shadow-sm" title="Assignee">
+              <User size={14} className="text-[#7F40EE] font-bold" />
             </div>
           )}
         </summary>
-        <div className="absolute left-0 z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl text-left">
-          <button
-            type="button"
-            onClick={(event) => handlePick('', event)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-500 hover:bg-slate-50 border-b border-slate-100"
-          >
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[10px] text-slate-400">
-              -
-            </div>
-            <span>Unassigned</span>
-          </button>
-          <div className="max-h-48 overflow-y-auto">
-            {filteredOptions.map((u) => (
+        <div className="absolute left-0 z-[100] mt-2 w-64 overflow-hidden rounded-2xl border-2 border-purple-100 bg-white shadow-2xl text-left animate-in fade-in-50 slide-in-from-top-1 duration-150">
+          <div className="px-3.5 py-2.5 bg-purple-50/40 border-b border-purple-100/50 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#7F40EE] uppercase tracking-wider">Select Assignee</span>
+            {selectedUser && (
               <button
-                key={u.id}
                 type="button"
-                onClick={(event) => handlePick(u.id, event)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 text-xs font-semibold text-slate-700"
+                onClick={(event) => handlePick('', event)}
+                className="text-[10px] font-bold text-red-500 hover:text-red-700 transition"
               >
-                {renderUserAvatar(u, 'w-5.5 h-5.5 rounded-full')}
-                <span className="truncate">{u.name}</span>
+                Clear
               </button>
-            ))}
+            )}
+          </div>
+          <div className="max-h-56 overflow-y-auto p-1 space-y-0.5">
+            <button
+              type="button"
+              onClick={(event) => handlePick('', event)}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${!value ? 'bg-purple-50 text-[#7F40EE]' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              <div className={`flex h-5.5 w-5.5 items-center justify-center rounded-full text-[10px] font-bold ${!value ? 'bg-[#7F40EE] text-white' : 'bg-slate-100 text-slate-400'}`}>
+                -
+              </div>
+              <span>Unassigned</span>
+            </button>
+            {filteredOptions.length === 0 ? (
+              <div className="px-3.5 py-4 text-center text-xs text-slate-400 font-semibold italic">
+                Please select parent Assign To members first.
+              </div>
+            ) : (
+              filteredOptions.map((u) => {
+                const isSelected = String(u.id) === String(value);
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={(event) => handlePick(u.id, event)}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${isSelected ? 'bg-purple-50 text-[#7F40EE]' : 'text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {renderUserAvatar(u, 'w-5.5 h-5.5 rounded-full')}
+                      <span className="truncate">{u.name}</span>
+                    </div>
+                    {isSelected && (
+                      <Check size={12} className="text-[#7F40EE] font-bold shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
       </details>
@@ -307,7 +334,7 @@ export default function CreateTask({ onCancel }) {
 
   const renderDraftAssigneePicker = () => {
     const assigneeOptions = users.filter((u) => assignees.includes(u.id));
-    const selectedDraftAssigneeUser = assigneeOptions.find(u => u.id === draftSubtaskAssignee);
+    const selectedDraftAssigneeUser = users.find(u => u.id === draftSubtaskAssignee);
 
     const handlePickDraftAssignee = (uid, event) => {
       setDraftSubtaskAssignee(uid);
@@ -315,41 +342,67 @@ export default function CreateTask({ onCancel }) {
     };
 
     return (
-      <details className="relative inline-block overflow-visible">
+      <details className="relative inline-block overflow-visible group">
         <summary className="list-none cursor-pointer flex items-center focus:outline-none [&::-webkit-details-marker]:hidden">
           {selectedDraftAssigneeUser ? (
-            <div className="hover:scale-105 transition duration-150" title={selectedDraftAssigneeUser.name}>
+            <div className="hover:scale-105 transition duration-150 ring-2 ring-transparent group-hover:ring-[#7F40EE]/30 rounded-full" title={selectedDraftAssigneeUser.name}>
               {renderUserAvatar(selectedDraftAssigneeUser, 'w-9 h-9 rounded-full border border-slate-100 shadow-sm')}
             </div>
           ) : (
-            <div className="w-9 h-9 rounded-full border border-dashed border-slate-300 hover:border-[#7F40EE] hover:bg-slate-50 flex items-center justify-center text-slate-400 hover:text-[#7F40EE] transition duration-150" title="Assign">
-              <User size={14} />
+            <div className="w-9 h-9 rounded-full border border-dashed border-slate-350 hover:border-[#7F40EE] bg-purple-50/20 hover:bg-purple-50 flex items-center justify-center text-slate-500 hover:text-[#7F40EE] transition duration-150 shadow-sm" title="Assign">
+              <User size={14} className="text-[#7F40EE] font-bold" />
             </div>
           )}
         </summary>
-        <div className="absolute left-0 z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl text-left">
-          <button
-            type="button"
-            onClick={(e) => handlePickDraftAssignee('', e)}
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-500 hover:bg-slate-50 border-b border-slate-100"
-          >
-            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[10px] text-slate-400">
-              -
-            </div>
-            <span>Unassigned</span>
-          </button>
-          <div className="max-h-48 overflow-y-auto">
-            {assigneeOptions.map((u) => (
+        <div className="absolute left-0 z-[100] mt-2 w-64 overflow-hidden rounded-2xl border-2 border-purple-100 bg-white shadow-2xl text-left animate-in fade-in-50 slide-in-from-top-1 duration-150">
+          <div className="px-3.5 py-2.5 bg-purple-50/40 border-b border-purple-100/50 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#7F40EE] uppercase tracking-wider">Select Assignee</span>
+            {selectedDraftAssigneeUser && (
               <button
-                key={u.id}
                 type="button"
-                onClick={(e) => handlePickDraftAssignee(u.id, e)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 text-xs font-semibold text-slate-700"
+                onClick={(event) => handlePickDraftAssignee('', event)}
+                className="text-[10px] font-bold text-red-500 hover:text-red-700 transition"
               >
-                {renderUserAvatar(u, 'w-5.5 h-5.5 rounded-full')}
-                <span className="truncate">{u.name}</span>
+                Clear
               </button>
-            ))}
+            )}
+          </div>
+          <div className="max-h-56 overflow-y-auto p-1 space-y-0.5">
+            <button
+              type="button"
+              onClick={(event) => handlePickDraftAssignee('', event)}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${!draftSubtaskAssignee ? 'bg-purple-50 text-[#7F40EE]' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              <div className={`flex h-5.5 w-5.5 items-center justify-center rounded-full text-[10px] font-bold ${!draftSubtaskAssignee ? 'bg-[#7F40EE] text-white' : 'bg-slate-100 text-slate-400'}`}>
+                -
+              </div>
+              <span>Unassigned</span>
+            </button>
+            {assigneeOptions.length === 0 ? (
+              <div className="px-3.5 py-4 text-center text-xs text-slate-400 font-semibold italic">
+                Please select parent Assign To members first.
+              </div>
+            ) : (
+              assigneeOptions.map((u) => {
+                const isSelected = String(u.id) === String(draftSubtaskAssignee);
+                return (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={(event) => handlePickDraftAssignee(u.id, event)}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${isSelected ? 'bg-purple-50 text-[#7F40EE]' : 'text-slate-700 hover:bg-slate-50'}`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {renderUserAvatar(u, 'w-5.5 h-5.5 rounded-full')}
+                      <span className="truncate">{u.name}</span>
+                    </div>
+                    {isSelected && (
+                      <Check size={12} className="text-[#7F40EE] font-bold shrink-0" />
+                    )}
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
       </details>
@@ -586,9 +639,13 @@ export default function CreateTask({ onCancel }) {
         }))
         .filter((item) => item.title !== '');
 
+      const formattedTitle = clientName.trim()
+        ? `${clientName.trim()} - ${title.trim()}`
+        : title.trim();
+
       const newTask = {
         id: `t${Date.now()}`,
-        title,
+        title: formattedTitle,
         description,
         label,
         priority,
@@ -721,21 +778,40 @@ export default function CreateTask({ onCancel }) {
       {/* Flat Simple Structure WITH slightly larger fields */}
       <div className="space-y-6">
 
-        {/* Task Title */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5">
-            <FileText size={14} className="text-slate-400" />
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-              Task Title <span className="text-slate-900 font-extrabold ml-0.5">*</span>
-            </label>
+        {/* Client & Task Title */}
+        <div className="flex gap-4">
+          {/* Client */}
+          <div className="flex-initial w-64 space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Briefcase size={14} className="text-slate-400" />
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                Client
+              </label>
+            </div>
+            <input
+              type="text"
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
+              placeholder="e.g. bnc"
+              className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-white hover:bg-slate-50/50 transition text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
+            />
           </div>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Create App UI"
-            className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-white hover:bg-slate-50/50 transition text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
-          />
+          {/* Task Title */}
+          <div className="flex-grow space-y-2">
+            <div className="flex items-center gap-1.5">
+              <FileText size={14} className="text-slate-400" />
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+                Task Title <span className="text-slate-900 font-extrabold ml-0.5">*</span>
+              </label>
+            </div>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Create App UI"
+              className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-white hover:bg-slate-50/50 transition text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
+            />
+          </div>
         </div>
 
         {/* Description */}
@@ -861,6 +937,7 @@ export default function CreateTask({ onCancel }) {
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none text-slate-700 shadow-sm font-semibold"
             >
               <option value="">Never</option>
+              <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
               <option value="yearly">Yearly</option>
@@ -965,9 +1042,9 @@ export default function CreateTask({ onCancel }) {
             <Activity size={14} className="text-slate-400" />
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subtasks</label>
           </div>
-          {/* High Fidelity NON-scrollable Subtasks Table */}
-          <div className="w-full border border-slate-200 bg-white rounded-2xl shadow-sm">
-            <table className="w-full table-fixed border-collapse text-left text-xs text-slate-700">
+          {/* High Fidelity Scrollable Subtasks Table */}
+          <div className="w-full border border-slate-200 bg-white rounded-2xl shadow-sm overflow-visible">
+            <table className="w-full table-fixed border-collapse text-left text-xs text-slate-700 min-w-[950px]">
               <thead>
                 <tr className="border-b border-slate-150 bg-slate-50/60 text-[10px] font-bold text-slate-450 uppercase tracking-wider">
                   <th className="px-4 py-3.5 w-[40%]">NAME</th>
@@ -1016,6 +1093,7 @@ export default function CreateTask({ onCancel }) {
                           className="appearance-none bg-transparent border-none outline-none focus:ring-0 text-sm font-semibold text-slate-700 hover:text-slate-900 cursor-pointer pr-4 pl-0 py-0"
                         >
                           <option value="">Never</option>
+                          <option value="daily">Daily</option>
                           <option value="weekly">Weekly</option>
                           <option value="monthly">Monthly</option>
                           <option value="yearly">Yearly</option>
@@ -1111,6 +1189,7 @@ export default function CreateTask({ onCancel }) {
                         className="appearance-none bg-transparent border-none outline-none focus:ring-0 text-sm font-semibold text-slate-700 hover:text-slate-900 cursor-pointer pr-4 pl-0 py-0"
                       >
                         <option value="">Never</option>
+                        <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
                         <option value="monthly">Monthly</option>
                         <option value="yearly">Yearly</option>

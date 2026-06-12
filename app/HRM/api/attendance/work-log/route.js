@@ -17,6 +17,23 @@ async function requireEmployeeContext() {
   return { employeeId: authContext.employee.id };
 }
 
+function isDateEditable(dateStr) {
+  const todayStr = getCurrentDateInTimeZone();
+  
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const val = Object.fromEntries(parts.map(p => [p.type, p.value]));
+  const yesterdayStr = `${val.year}-${val.month}-${val.day}`;
+
+  return dateStr === todayStr || dateStr === yesterdayStr;
+}
+
 // GET /HRM/api/attendance/work-log?date=YYYY-MM-DD
 export async function GET(request) {
   try {
@@ -49,6 +66,10 @@ export async function POST(request) {
     const body = await request.json();
     const { date, entries } = body;
     const logDate = date || getCurrentDateInTimeZone();
+
+    if (!isDateEditable(logDate)) {
+      return NextResponse.json({ error: 'Work logs can only be modified for today and yesterday.' }, { status: 400 });
+    }
 
     if (!Array.isArray(entries) || entries.length === 0) {
       return NextResponse.json({ error: 'At least one work log entry is required' }, { status: 400 });
@@ -87,6 +108,21 @@ export async function PATCH(request) {
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Log entry ID is required' }, { status: 400 });
 
+    const { data: existingLog, error: fetchError } = await adminClient
+      .from('hrm_daily_work_logs')
+      .select('log_date')
+      .eq('id', id)
+      .eq('employee_id', ctx.employeeId)
+      .single();
+
+    if (fetchError || !existingLog) {
+      return NextResponse.json({ error: 'Work log entry not found' }, { status: 404 });
+    }
+
+    if (!isDateEditable(existingLog.log_date)) {
+      return NextResponse.json({ error: 'Work logs can only be modified for today and yesterday.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { client_name, task_id, task_name_snapshot, hours_spent, remarks } = body;
 
@@ -122,6 +158,21 @@ export async function DELETE(request) {
 
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Log entry ID is required' }, { status: 400 });
+
+    const { data: existingLog, error: fetchError } = await adminClient
+      .from('hrm_daily_work_logs')
+      .select('log_date')
+      .eq('id', id)
+      .eq('employee_id', ctx.employeeId)
+      .single();
+
+    if (fetchError || !existingLog) {
+      return NextResponse.json({ error: 'Work log entry not found' }, { status: 404 });
+    }
+
+    if (!isDateEditable(existingLog.log_date)) {
+      return NextResponse.json({ error: 'Work logs can only be modified for today and yesterday.' }, { status: 403 });
+    }
 
     const { error } = await adminClient
       .from('hrm_daily_work_logs')
