@@ -118,7 +118,7 @@ async function replaceOnboardingEducation(requestId, oldRows, entries, formData)
 
   for (const [index, entry] of entries.entries()) {
     const level = cleanText(entry.educationLevel) || ONBOARDING_EDUCATION_LEVELS[index] || 'graduation';
-    const existing = (oldRows || []).find((row) => row.id === entry.id) || null;
+    const existing = (oldRows || []).find((row) => row.id === entry.id || row.education_level === level) || null;
     const file = formData.get(entry.fileKey || '');
     const uploaded = await uploadOnboardingFile(file, requestId, `education/${level}`, `${level.replace(/_/g, ' ')} education file`);
     const resolved = uploaded || (existing ? {
@@ -166,7 +166,7 @@ async function replaceOnboardingCertifications(requestId, oldRows, entries, form
     const name = cleanText(entry.certificationName);
     if (!name) continue;
 
-    const existing = (oldRows || []).find((row) => row.id === entry.id) || null;
+    const existing = (oldRows || []).find((row) => row.id === entry.id || row.certification_name === name) || null;
     const file = formData.get(entry.fileKey || '');
     const uploaded = await uploadOnboardingFile(file, requestId, 'certifications', `${name} certificate`);
     const resolved = uploaded || (existing ? {

@@ -51,6 +51,7 @@ import {
   CheckCircle2,
   Trash2,
   Eye,
+  AlertCircle,
 } from 'lucide-react';
 
 const STATUS_OPTIONS = [
@@ -732,6 +733,15 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (error && task) {
+      const timer = setTimeout(() => {
+        setError('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, task]);
   const [pendingSubtaskIds, setPendingSubtaskIds] = useState([]);
   const [pendingSubtaskTitleIds, setPendingSubtaskTitleIds] = useState([]);
   const [pendingSubtaskAttachmentIds, setPendingSubtaskAttachmentIds] = useState([]);
@@ -1229,15 +1239,30 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     if (pendingSubtaskIds.includes(subtaskId)) return;
 
     const nextCompleted = !isCompleted;
+    const hasAssignee = !!subtask.assigned_employee_id;
+    const hasInstructions = Array.isArray(subtask.task_subtask_instructions) && subtask.task_subtask_instructions.length > 0;
+    const hasAttachments = Array.isArray(subtask.task_subtask_attachments) && subtask.task_subtask_attachments.length > 0;
+    const hasActivity = hasAssignee || hasInstructions || hasAttachments;
+    const nextStatus = nextCompleted ? 'completed' : (hasActivity ? 'in_progress' : 'to_do');
 
     setPendingSubtaskIds((prev) => [...prev, subtaskId]);
+    setSubtaskMetaDrafts((prev) => ({
+      ...prev,
+      [subtaskId]: {
+        ...(prev[subtaskId] || {}),
+        status: nextStatus,
+      },
+    }));
+
     setTask((prev) => {
       if (!prev) return prev;
+      const updatedSubtasks = (prev.task_subtasks || []).map((s) =>
+        s.id === subtaskId ? { ...s, is_completed: nextCompleted, _statusOverride: nextStatus } : s
+      );
+      setTimeout(() => deriveTaskStatusFromSubtasks(updatedSubtasks), 0);
       return {
         ...prev,
-        task_subtasks: (prev.task_subtasks || []).map((subtask) =>
-          subtask.id === subtaskId ? { ...subtask, is_completed: nextCompleted } : subtask
-        ),
+        task_subtasks: updatedSubtasks,
       };
     });
 
@@ -1245,27 +1270,30 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
       const response = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subtaskId, isCompleted: nextCompleted }),
+        body: JSON.stringify({ subtaskId, isCompleted: nextCompleted, subtaskStatus: nextStatus }),
       });
 
       const result = await response.json();
       if (!response.ok) {
         throw new Error(result.error || 'Failed to update subtask');
       }
-
-      // Derive task status from updated subtasks
-      setTask((prev) => {
-        if (prev) deriveTaskStatusFromSubtasks(prev.task_subtasks || []);
-        return prev;
-      });
     } catch (err) {
+      setSubtaskMetaDrafts((prev) => {
+        const copy = { ...prev };
+        if (copy[subtaskId]) {
+          delete copy[subtaskId].status;
+        }
+        return copy;
+      });
       setTask((prev) => {
         if (!prev) return prev;
+        const revertedSubtasks = (prev.task_subtasks || []).map((s) =>
+          s.id === subtaskId ? { ...s, is_completed: isCompleted, _statusOverride: subtask._statusOverride } : s
+        );
+        setTimeout(() => deriveTaskStatusFromSubtasks(revertedSubtasks), 0);
         return {
           ...prev,
-          task_subtasks: (prev.task_subtasks || []).map((subtask) =>
-            subtask.id === subtaskId ? { ...subtask, is_completed: isCompleted } : subtask
-          ),
+          task_subtasks: revertedSubtasks,
         };
       });
       setError(err.message || 'Failed to update subtask');
@@ -1504,21 +1532,32 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     } else {
       if (!canEditSubtaskMetadata(subtask)) return;
     }
+
+    const previousSubtasks = task?.task_subtasks || [];
+    const previousMetaDrafts = { ...subtaskMetaDrafts };
+
     const body = { subtaskId: subtask.id };
     if (field === 'priority') body.subtaskPriority = value;
     if (field === 'dueDate') body.subtaskDueDate = value || null;
     if (field === 'frequency') body.subtaskFrequency = value || null;
-    if (field === 'status') body.subtaskStatus = value;
+    if (field === 'status') {
+      body.subtaskStatus = value;
+      body.isCompleted = (value === 'completed' || value === 'done');
+    }
+
     setSubtaskMetaDrafts((prev) => ({ ...prev, [subtask.id]: { ...(prev[subtask.id] || {}), [field]: value } }));
+
     if (field === 'status') {
       const nextCompleted = value === 'completed' || value === 'done';
       setTask((prev) => {
         if (!prev) return prev;
+        const updatedSubtasks = (prev.task_subtasks || []).map((s) =>
+          s.id === subtask.id ? { ...s, is_completed: nextCompleted, _statusOverride: value } : s
+        );
+        setTimeout(() => deriveTaskStatusFromSubtasks(updatedSubtasks), 0);
         return {
           ...prev,
-          task_subtasks: (prev.task_subtasks || []).map((s) =>
-            s.id === subtask.id ? { ...s, is_completed: nextCompleted, _statusOverride: value } : s
-          ),
+          task_subtasks: updatedSubtasks,
         };
       });
     }
@@ -1544,12 +1583,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
         };
       });
     }
-    if (field === 'status') {
-      setTask((prev) => {
-        if (prev) setTimeout(() => deriveTaskStatusFromSubtasks(prev.task_subtasks || []), 0);
-        return prev;
-      });
-    }
+
     try {
       const res = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
         method: 'PATCH',
@@ -1559,8 +1593,14 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
       if (!res.ok) {
         const result = await res.json();
         setError(result.error || 'Failed to update subtask');
+        setSubtaskMetaDrafts(previousMetaDrafts);
+        setTask((prev) => (prev ? { ...prev, task_subtasks: previousSubtasks } : prev));
       }
-    } catch (_) { }
+    } catch (err) {
+      setError(err.message || 'Failed to update subtask');
+      setSubtaskMetaDrafts(previousMetaDrafts);
+      setTask((prev) => (prev ? { ...prev, task_subtasks: previousSubtasks } : prev));
+    }
   };
 
   const handleSubtaskDragStart = (event, subtaskId) => {
@@ -2208,11 +2248,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                   })}
                 </div>
 
-                {error && (
-                  <div className='rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
-                    {error}
-                  </div>
-                )}
+
 
                 <section ref={listSectionRef} id='task-list' className={activeTaskSection !== 'list' ? 'hidden' : ''}>
                   <div className='space-y-6'>
@@ -4414,6 +4450,43 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                 onSave={saveEmployeeRatings}
                 saving={saving}
               />
+
+              {error && task && (
+                <>
+                  <style dangerouslySetInnerHTML={{__html: `
+                    @keyframes slideInUp {
+                      from {
+                        transform: translateY(1.5rem);
+                        opacity: 0;
+                      }
+                      to {
+                        transform: translateY(0);
+                        opacity: 1;
+                      }
+                    }
+                    .animate-slide-in-up {
+                      animation: slideInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+                    }
+                  `}} />
+                  <div className='fixed bottom-6 right-6 z-[9999] flex max-w-sm w-[calc(100vw-3rem)] animate-slide-in-up items-start gap-3 rounded-2xl border border-rose-100 bg-white/95 p-4 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.15)] backdrop-blur-md transition-all duration-300'>
+                    <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-500'>
+                      <AlertCircle size={18} />
+                    </div>
+                    <div className='flex-1 min-w-0 pt-0.5'>
+                      <h5 className='text-xs font-bold text-slate-800 uppercase tracking-wider'>Notification</h5>
+                      <p className='mt-1 text-xs font-semibold text-slate-600 leading-normal break-words'>{error}</p>
+                    </div>
+                    <button
+                      type='button'
+                      onClick={() => setError('')}
+                      className='inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition'
+                      aria-label='Close notification'
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

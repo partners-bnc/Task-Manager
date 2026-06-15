@@ -149,16 +149,24 @@ function CompactUploadField({
   helperText,
   fileName,
   hasFile,
+  isUploading = false,
   onChange,
 }) {
   return (
-    <label htmlFor={id} className={compactUploadCardClassName(hasFile)}>
-      <span className={`mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl transition group-hover:scale-[1.02] ${hasFile ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
-        <UploadArrowIcon />
+    <label htmlFor={id} className={compactUploadCardClassName(hasFile || isUploading)}>
+      <span className={`mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl transition group-hover:scale-[1.02] ${hasFile ? 'bg-emerald-100 text-emerald-700' : isUploading ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-700'}`}>
+        {isUploading ? (
+          <svg className="animate-spin h-6 w-6 text-indigo-700" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+        ) : (
+          <UploadArrowIcon />
+        )}
       </span>
-      <span className="text-sm font-semibold text-slate-900">{fileName || title}</span>
+      <span className="text-sm font-semibold text-slate-900">{isUploading ? 'Uploading file...' : fileName || title}</span>
       <span className="mt-2 text-xs text-slate-500">{helperText}</span>
-      <input id={id} type="file" className="hidden" accept={accept} onChange={onChange} />
+      <input id={id} type="file" className="hidden" accept={accept} disabled={isUploading} onChange={onChange} />
     </label>
   );
 }
@@ -214,6 +222,8 @@ export default function OnboardingFormClient({ token }) {
       return acc;
     }, {})
   );
+  const [uploadingFields, setUploadingFields] = useState({});
+  const [validationErrors, setValidationErrors] = useState([]);
 
   function hydrateFromBundle(bundle) {
     const request = bundle?.request || {};
@@ -391,6 +401,192 @@ export default function OnboardingFormClient({ token }) {
     setModal({ type, title, text });
   }
 
+  async function uploadFileImmediately(file, uploadType, extraParams = {}) {
+    if (!file) return;
+
+    let fieldKey = uploadType;
+    if (uploadType === 'education') {
+      fieldKey = `education_${extraParams.educationLevel}`;
+    } else if (uploadType === 'certification') {
+      fieldKey = `certification_${extraParams.certificationId}`;
+    } else if (uploadType === 'document') {
+      fieldKey = `document_${extraParams.documentType}`;
+    }
+
+    setUploadingFields((prev) => ({ ...prev, [fieldKey]: true }));
+    setError('');
+
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('uploadType', uploadType);
+      Object.entries(extraParams).forEach(([k, v]) => {
+        formData.set(k, v);
+      });
+
+      const response = await fetch(`/api/onboarding/${token}/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const rawText = await response.text();
+      let result = null;
+      try {
+        result = JSON.parse(rawText);
+      } catch {
+        throw new Error(rawText || 'Failed to upload file.');
+      }
+
+      if (!response.ok) {
+        throw new Error(result?.error || 'Failed to upload file.');
+      }
+
+      if (uploadType === 'profilePicture') {
+        setForm((prev) => ({
+          ...prev,
+          profilePictureName: result.file.file_name,
+          profilePictureUrl: result.file.file_url,
+        }));
+      } else if (uploadType === 'education') {
+        setEducationEntries((prev) =>
+          prev.map((entry) =>
+            entry.educationLevel === extraParams.educationLevel
+              ? {
+                  ...entry,
+                  id: result.record.id,
+                  fileName: result.record.degree_file_name,
+                  file: null,
+                }
+              : entry
+          )
+        );
+      } else if (uploadType === 'certification') {
+        setCertificationEntries((prev) =>
+          prev.map((entry) =>
+            entry.id === extraParams.certificationId
+              ? {
+                  ...entry,
+                  id: result.record.id,
+                  fileName: result.record.certificate_file_name,
+                  file: null,
+                }
+              : entry
+          )
+        );
+      } else if (uploadType === 'document') {
+        setDocuments((prev) => ({
+          ...prev,
+          [extraParams.documentType]: {
+            id: result.record.id,
+            file: null,
+            fileName: result.record.file_name,
+            fileUrl: result.record.file_url,
+          },
+        }));
+      }
+    } catch (uploadError) {
+      const msg = uploadError instanceof Error ? uploadError.message : 'Upload failed';
+      setError(msg);
+      showModal('error', 'Upload Failed', msg);
+    } finally {
+      setUploadingFields((prev) => ({ ...prev, [fieldKey]: false }));
+    }
+  }
+
+  function validateForm() {
+    const errors = [];
+
+    if (!form.personalEmail?.trim()) {
+      errors.push('Personal Email is required.');
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.personalEmail.trim())) {
+      errors.push('Personal Email format is invalid.');
+    }
+    if (!form.phone?.trim()) {
+      errors.push('Phone Number is required.');
+    }
+    if (!form.dateOfBirth) {
+      errors.push('Date Of Birth is required.');
+    }
+    if (!form.gender) {
+      errors.push('Gender is required.');
+    }
+    if (!form.bloodGroup) {
+      errors.push('Blood Group is required.');
+    }
+    if (!form.fatherName?.trim()) {
+      errors.push('Father Name is required.');
+    }
+    if (!form.maritalStatus) {
+      errors.push('Marital Status is required.');
+    }
+
+    if (!form.address?.trim()) {
+      errors.push('Current Address is required.');
+    }
+    if (!form.city?.trim()) {
+      errors.push('Current Address City is required.');
+    }
+    if (!form.pincode?.trim()) {
+      errors.push('Current Address Pincode is required.');
+    }
+    if (!form.permanentAddress?.trim()) {
+      errors.push('Permanent Address is required.');
+    }
+    if (!form.permanentCity?.trim()) {
+      errors.push('Permanent Address City is required.');
+    }
+    if (!form.permanentPincode?.trim()) {
+      errors.push('Permanent Address Pincode is required.');
+    }
+
+    if (!form.aadhaarNumber?.trim()) {
+      errors.push('Aadhaar Number is required.');
+    } else if (!/^\d{12}$/.test(form.aadhaarNumber.trim().replace(/\s/g, ''))) {
+      errors.push('Aadhaar Number must be exactly 12 digits.');
+    }
+    if (!form.panNumber?.trim()) {
+      errors.push('PAN Number is required.');
+    } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/i.test(form.panNumber.trim())) {
+      errors.push('PAN Number must be a valid 10-character alphanumeric PAN format (e.g. ABCDE1234F).');
+    }
+    if (!form.bankAccountNumber?.trim()) {
+      errors.push('Bank Account Number is required.');
+    }
+    if (!form.bankAccountHolderName?.trim()) {
+      errors.push('Bank Account Holder Name is required.');
+    }
+    if (!form.bankIfscCode?.trim()) {
+      errors.push('Bank IFSC Code is required.');
+    }
+    if (!form.bankName?.trim()) {
+      errors.push('Bank Name is required.');
+    }
+
+    const missingDocs = [];
+    if (!form.profilePictureUrl && !form.profilePictureName) {
+      missingDocs.push('Profile Picture');
+    }
+    if (!documents.aadhaar_card?.fileName) {
+      missingDocs.push('Aadhaar Card Document');
+    }
+    if (!documents.pan_card?.fileName) {
+      missingDocs.push('PAN Card Document');
+    }
+
+    if (missingDocs.length > 0) {
+      errors.push(`Please upload the following required documents: ${missingDocs.join(', ')}.`);
+    }
+
+    if (!form.declarationName?.trim()) {
+      errors.push('Declaration Name is required.');
+    }
+    if (!form.declarationAccepted) {
+      errors.push('You must accept the declaration checkbox.');
+    }
+
+    return errors;
+  }
+
   function buildPayload(action, uploadTargets = []) {
       const payload = new FormData();
       payload.set('action', action);
@@ -495,37 +691,23 @@ export default function OnboardingFormClient({ token }) {
     return result;
   }
 
-  async function uploadPendingFilesInChunks() {
-    const pendingTargets = getPendingUploadTargets();
-    if (!pendingTargets.length) {
-      return null;
-    }
-
-    let latestResult = null;
-    for (const target of pendingTargets) {
-      latestResult = await sendOnboardingRequest('save_draft', [target]);
-    }
-
-    return latestResult;
-  }
-
   async function submitForm(action) {
     setSaving(true);
     setError('');
     setMessage('');
+    setValidationErrors([]);
 
-    try {
-      const stagedUploadResult = await uploadPendingFilesInChunks();
-      if (stagedUploadResult && action === 'save_draft') {
-        hydrateFromBundle(stagedUploadResult);
-        setMessage(stagedUploadResult?.message || 'Draft saved successfully.');
+    if (action === 'submit') {
+      const errors = validateForm();
+      if (errors.length > 0) {
+        setValidationErrors(errors);
+        setSaving(false);
+        showModal('error', 'Validation Failed', 'Please fix the field errors listed at the top of the form.');
         return;
       }
+    }
 
-      if (stagedUploadResult && action === 'submit') {
-        hydrateFromBundle(stagedUploadResult);
-      }
-
+    try {
       const result = await sendOnboardingRequest(action, []);
 
       setMessage(result?.message || (action === 'submit' ? 'Submitted successfully.' : 'Draft saved successfully.'));
@@ -611,6 +793,25 @@ export default function OnboardingFormClient({ token }) {
           </p>
           {message && !submitted ? <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div> : null}
           {error ? <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+          {validationErrors.length > 0 ? (
+            <div className="mt-4 rounded-[1.5rem] border border-rose-200 bg-rose-50/85 p-5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-100 text-rose-700">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-extrabold text-rose-950">Please correct the following issues before submitting:</p>
+                  <ul className="mt-3 list-disc pl-5 text-sm space-y-1.5 text-rose-900/90 font-medium">
+                    {validationErrors.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <Section title="Personal Information" subtitle="Capture your core identity and personal details.">
@@ -623,16 +824,26 @@ export default function OnboardingFormClient({ token }) {
             </Field>
             <Field label="Professional Profile Picture">
               <div className="space-y-3">
-                <label className={fileButtonClassName(Boolean(profilePicture || form.profilePictureName))}>
-                  <span>{profilePicture ? profilePicture.name : form.profilePictureName || 'Choose Profile Image'}</span>
+                <label className={fileButtonClassName(Boolean(uploadingFields.profilePicture || form.profilePictureName))}>
+                  <span>
+                    {uploadingFields.profilePicture
+                      ? 'Uploading profile picture...'
+                      : form.profilePictureName || 'Choose Profile Image'}
+                  </span>
                   <input
                     type="file"
                     className="hidden"
                     accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                    onChange={(event) => setProfilePicture(event.target.files?.[0] || null)}
+                    disabled={uploadingFields.profilePicture}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        uploadFileImmediately(file, 'profilePicture');
+                      }
+                    }}
                   />
                 </label>
-                {form.profilePictureUrl && !profilePicture ? (
+                {form.profilePictureUrl && !uploadingFields.profilePicture ? (
                   <a
                     href={form.profilePictureUrl}
                     target="_blank"
@@ -828,9 +1039,24 @@ export default function OnboardingFormClient({ token }) {
                     <input className={inputClass()} value={entry.score} onChange={(event) => updateEducation(index, 'score', event.target.value)} />
                   </Field>
                   <Field label="Upload Degree / Marksheet">
-                    <label className={fileButtonClassName(Boolean(entry.file || entry.fileName))}>
-                      <span>{entry.file ? entry.file.name : entry.fileName || 'Choose File'}</span>
-                      <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => updateEducation(index, 'file', event.target.files?.[0] || null)} />
+                    <label className={fileButtonClassName(Boolean(uploadingFields[`education_${entry.educationLevel}`] || entry.fileName))}>
+                      <span>
+                        {uploadingFields[`education_${entry.educationLevel}`]
+                          ? 'Uploading document...'
+                          : entry.fileName || 'Choose File'}
+                      </span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                        disabled={uploadingFields[`education_${entry.educationLevel}`]}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) {
+                            uploadFileImmediately(file, 'education', { educationLevel: entry.educationLevel });
+                          }
+                        }}
+                      />
                     </label>
                   </Field>
                 </div>
@@ -883,9 +1109,27 @@ export default function OnboardingFormClient({ token }) {
                     <input className={inputClass()} value={entry.issuedYear} onChange={(event) => updateCertification(entry.id, 'issuedYear', event.target.value)} />
                   </Field>
                   <Field label="Upload Certificate">
-                    <label className={fileButtonClassName(Boolean(entry.file || entry.fileName))}>
-                      <span>{entry.file ? entry.file.name : entry.fileName || 'Choose File'}</span>
-                      <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => updateCertification(entry.id, 'file', event.target.files?.[0] || null)} />
+                    <label className={fileButtonClassName(Boolean(uploadingFields[`certification_${entry.id}`] || entry.fileName))}>
+                      <span>
+                        {uploadingFields[`certification_${entry.id}`]
+                          ? 'Uploading certificate...'
+                          : entry.fileName || 'Choose File'}
+                      </span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                        disabled={uploadingFields[`certification_${entry.id}`]}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) {
+                            uploadFileImmediately(file, 'certification', {
+                              certificationId: entry.id,
+                              certificationName: entry.certificationName,
+                            });
+                          }
+                        }}
+                      />
                     </label>
                   </Field>
                 </div>
@@ -898,7 +1142,8 @@ export default function OnboardingFormClient({ token }) {
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {DOCUMENT_TYPES.map((document) => {
               const currentDocument = documents[document.key];
-              const selectedFileName = currentDocument?.file ? currentDocument.file.name : currentDocument?.fileName || '';
+              const selectedFileName = currentDocument?.fileName || '';
+              const isUploading = Boolean(uploadingFields[`document_${document.key}`]);
               return (
                 <Field key={document.key} label={document.label}>
                   <CompactUploadField
@@ -908,10 +1153,13 @@ export default function OnboardingFormClient({ token }) {
                     helperText="PDF, JPG, PNG, WebP • Max 10 MB"
                     fileName={selectedFileName}
                     hasFile={Boolean(selectedFileName)}
-                    onChange={(event) => setDocuments((current) => ({
-                      ...current,
-                      [document.key]: { ...current[document.key], file: event.target.files?.[0] || null },
-                    }))}
+                    isUploading={isUploading}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        uploadFileImmediately(file, 'document', { documentType: document.key });
+                      }
+                    }}
                   />
                 </Field>
               );
