@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { AUDIT_TEMPLATES } from "./templateLibrary";
 import PdplWorkspace from "./PdplWorkspace";
 import CstAuditWorkspace from "./CstAuditWorkspace";
+import SaudiAuditWorkspace from "./SaudiAuditWorkspace";
 
 // ─── FONTS ───────────────────────────────────────────────────────────────────
 const FontLink = () => (
@@ -1337,6 +1338,7 @@ export default function AuditFlow(){
   const selectedTemplate = AUDIT_TEMPLATES.find(t=>t.id===selectedTemplateId) || null;
   const isPdplTemplate = selectedTemplateId === 'pdpl-template';
   const isCstTemplate = selectedTemplateId === 'cst-audit-template';
+  const isSaudiTemplate = selectedTemplateId === 'saudi-audit-template';
   const templateProjects = selectedTemplateId ? projects.filter(p=>p.templateId===selectedTemplateId) : [];
   const backToTemplateLibrary = ()=>{setSelectedTemplateId(null);setCurrentProjId(null);setView('templates');setSearch('');};
   const currentProj=projects.find(p=>p.id===currentProjId);
@@ -1496,6 +1498,17 @@ export default function AuditFlow(){
           />
         ) : isCstTemplate && view!=='templates' ? (
           <CstAuditWorkspace
+            selectedTemplate={selectedTemplate}
+            projects={projects}
+            setProjects={setProjects}
+            auditMembers={auditMembers}
+            search={search}
+            setSearch={setSearch}
+            showToast={showToast}
+            onBackToTemplates={backToTemplateLibrary}
+          />
+        ) : isSaudiTemplate && view!=='templates' ? (
+          <SaudiAuditWorkspace
             selectedTemplate={selectedTemplate}
             projects={projects}
             setProjects={setProjects}
@@ -1690,14 +1703,14 @@ export default function AuditFlow(){
       </main>
 
       {/* Task Drawer */}
-      {!isPdplTemplate && !isCstTemplate && currentProj&&<TaskDrawer open={drawerOpen} task={drawerTask} procName={currentProj.procedures[drawerProcIdx]?.name||''} members={members} onClose={()=>setDrawerOpen(false)} onSave={saveTask}/>}
+      {!isPdplTemplate && !isCstTemplate && !isSaudiTemplate && currentProj&&<TaskDrawer open={drawerOpen} task={drawerTask} procName={currentProj.procedures[drawerProcIdx]?.name||''} members={members} onClose={()=>setDrawerOpen(false)} onSave={saveTask}/>}
 
       {/* Import Modal (from project header) */}
-      {!isPdplTemplate && !isCstTemplate && importModal&&<ImportModal open={importModal} onClose={()=>setImportModal(false)} onImport={importToCurrent}/>}
+      {!isPdplTemplate && !isCstTemplate && !isSaudiTemplate && importModal&&<ImportModal open={importModal} onClose={()=>setImportModal(false)} onImport={importToCurrent}/>}
 
       {/* Modals */}
-      {!isPdplTemplate && !isCstTemplate && <NewProjectModal open={newProjModal} members={members} onClose={()=>setNewProjModal(false)} onCreate={createProject}/>}
-      {!isPdplTemplate && !isCstTemplate && <AddMemberModal open={addMemberModal} onClose={()=>setAddMemberModal(false)} onAdd={addMember}/>}
+      {!isPdplTemplate && !isCstTemplate && !isSaudiTemplate && <NewProjectModal open={newProjModal} members={members} onClose={()=>setNewProjModal(false)} onCreate={createProject}/>}
+      {!isPdplTemplate && !isCstTemplate && !isSaudiTemplate && <AddMemberModal open={addMemberModal} onClose={()=>setAddMemberModal(false)} onAdd={addMember}/>}
       <ToastContainer toasts={toasts}/>
     </div>
   );

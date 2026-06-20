@@ -394,6 +394,21 @@ async function taskHasIncompleteSubtasks(taskId) {
   return (count || 0) > 0;
 }
 
+async function taskHasIncompleteSubtasksForEmployee(taskId, employeeId) {
+  const { count, error } = await adminClient
+    .from('task_subtasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('task_id', taskId)
+    .eq('is_completed', false)
+    .eq('assigned_employee_id', employeeId);
+
+  if (error) {
+    throw error;
+  }
+
+  return (count || 0) > 0;
+}
+
 function getCompletionTimestamp(currentStatus, nextStatus, existingCompletedAt, timestamp) {
   if (nextStatus === 'completed') {
     return existingCompletedAt || timestamp;
@@ -1066,13 +1081,14 @@ export async function PATCH(request, { params }) {
       }
 
       const assignedEmployeeId = body.assignedEmployeeId || null;
-      if (assignedEmployeeId) {
-        const employee = await findEmployeeById(assignedEmployeeId, adminClient, {
-          taskManagerOnly: true,
-        });
-        if (!employee) {
-          return NextResponse.json({ error: 'Assigned employee not found' }, { status: 400 });
-        }
+      if (!assignedEmployeeId) {
+        return NextResponse.json({ error: 'Subtask assignee is required' }, { status: 400 });
+      }
+      const employee = await findEmployeeById(assignedEmployeeId, adminClient, {
+        taskManagerOnly: true,
+      });
+      if (!employee) {
+        return NextResponse.json({ error: 'Assigned employee not found' }, { status: 400 });
       }
 
       const cleanTitle = title.replace(/\s+\[status:(to_do|in_progress|completed)\]$/, '');
@@ -1146,7 +1162,11 @@ export async function PATCH(request, { params }) {
     if (typeof body?.status === 'string' && Object.keys(body).length === 1) {
       const normalizedStatus = ['pending', 'in_progress', 'completed'].includes(body.status) ? body.status : 'pending';
       if (normalizedStatus === 'completed') {
-        const hasIncompleteSubtasks = await taskHasIncompleteSubtasks(taskId);
+        const isCreator = isTaskCreator(currentTask, actor);
+        const isAdminOrCreator = actor.type === 'admin' || isCreator;
+        const hasIncompleteSubtasks = isAdminOrCreator
+          ? await taskHasIncompleteSubtasks(taskId)
+          : await taskHasIncompleteSubtasksForEmployee(taskId, actor.employeeId);
         if (hasIncompleteSubtasks) {
           return NextResponse.json({ error: 'Complete all subtasks before marking the task as completed' }, { status: 400 });
         }
@@ -1320,11 +1340,41 @@ export async function PATCH(request, { params }) {
     if (typeof body?.progressPercentage === 'number') {
       const progress = Math.min(100, Math.max(0, Math.round(body.progressPercentage)));
 
+      const { data: currentTaskData, error: fetchError } = await adminClient
+        .from('tasks')
+        .select('status, completed_at, created_by, created_by_employee_id, assigned_by_employee_id')
+        .eq('id', taskId)
+        .single();
+
+      if (fetchError) {
+        return NextResponse.json({ error: fetchError.message }, { status: 500 });
+      }
+
+      let nextStatus = currentTaskData.status;
+
+      if (progress === 100) {
+        const isCreator = isTaskCreator(currentTaskData, actor);
+        const isAdminOrCreator = actor.type === 'admin' || isCreator;
+        const hasIncompleteSubtasks = isAdminOrCreator
+          ? await taskHasIncompleteSubtasks(taskId)
+          : await taskHasIncompleteSubtasksForEmployee(taskId, actor.employeeId);
+
+        if (hasIncompleteSubtasks) {
+          return NextResponse.json({ error: 'Complete all subtasks before marking the task as completed' }, { status: 400 });
+        }
+        nextStatus = 'completed';
+      } else if (currentTaskData.status === 'completed' && progress < 100) {
+        nextStatus = 'in_progress';
+      }
+
+      const nextUpdatedAt = new Date().toISOString();
       const { error: updateError } = await adminClient
         .from('tasks')
         .update({
           progress_percentage: progress,
-          updated_at: new Date().toISOString(),
+          status: nextStatus,
+          completed_at: getCompletionTimestamp(currentTaskData.status, nextStatus, currentTaskData.completed_at, nextUpdatedAt),
+          updated_at: nextUpdatedAt,
         })
         .eq('id', taskId);
 

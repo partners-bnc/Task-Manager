@@ -192,6 +192,8 @@ const normalizeTask = (task, fallbackAssignees = [], currentUserId = null) => {
     rawStatus: task.status,
     rawPriority: task.priority,
     createdAt: task.created_at,
+    completedAt: task.completed_at || null,
+    updatedAt: task.updated_at || null,
   };
 };
 

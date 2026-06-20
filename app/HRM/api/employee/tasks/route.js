@@ -411,13 +411,14 @@ export async function PATCH(request) {
         return NextResponse.json({ error: 'Task is not assigned to you or created by you' }, { status: 403 });
       }
 
-      if (nextAssignedEmployeeId) {
-        const employeeRecord = await findEmployeeById(nextAssignedEmployeeId, adminClient, {
-          taskManagerOnly: true,
-        });
-        if (!employeeRecord) {
-          return NextResponse.json({ error: 'Assigned employee not found' }, { status: 400 });
-        }
+      if (!nextAssignedEmployeeId) {
+        return NextResponse.json({ error: 'Subtask assignee is required' }, { status: 400 });
+      }
+      const employeeRecord = await findEmployeeById(nextAssignedEmployeeId, adminClient, {
+        taskManagerOnly: true,
+      });
+      if (!employeeRecord) {
+        return NextResponse.json({ error: 'Assigned employee not found' }, { status: 400 });
       }
 
       const { data: subtask, error: subtaskInsertError } = await adminClient

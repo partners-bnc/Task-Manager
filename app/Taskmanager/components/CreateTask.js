@@ -120,6 +120,7 @@ export default function CreateTask({ onCancel }) {
   const [draftSubtaskPriority, setDraftSubtaskPriority] = useState('medium');
   const [draftSubtaskDueDate, setDraftSubtaskDueDate] = useState('');
   const [draftSubtaskFrequency, setDraftSubtaskFrequency] = useState('');
+  const [subtaskError, setSubtaskError] = useState('');
 
   const [viewingSubtaskIndex, setViewingSubtaskIndex] = useState(null);
   const [subtaskInstructionDraft, setSubtaskInstructionDraft] = useState('');
@@ -338,6 +339,7 @@ export default function CreateTask({ onCancel }) {
 
     const handlePickDraftAssignee = (uid, event) => {
       setDraftSubtaskAssignee(uid);
+      if (subtaskError) setSubtaskError('');
       event.currentTarget.closest('details')?.removeAttribute('open');
     };
 
@@ -477,6 +479,16 @@ export default function CreateTask({ onCancel }) {
 
   const handleAddDraftSubtask = () => {
     const titleClean = draftSubtaskTitle.trim();
+    if (!titleClean) {
+      setSubtaskError('Subtask name is required.');
+      setError('Subtask name is required.');
+      return;
+    }
+    if (!draftSubtaskAssignee) {
+      setSubtaskError('Subtask assignee is required.');
+      setError('Subtask assignee is required.');
+      return;
+    }
 
     setSubtasks([
       ...subtasks,
@@ -495,6 +507,7 @@ export default function CreateTask({ onCancel }) {
     setDraftSubtaskPriority('medium');
     setDraftSubtaskDueDate('');
     setDraftSubtaskFrequency('');
+    setSubtaskError('');
   };
 
   const handleKeyDownSubtask = (event) => {
@@ -616,7 +629,19 @@ export default function CreateTask({ onCancel }) {
       // Automatically push active draft subtask if they forgot to click 'Add'
       let finalSubtasks = [...subtasks];
       const draftTitleClean = draftSubtaskTitle.trim();
-      if (draftTitleClean) {
+      if (draftTitleClean || draftSubtaskAssignee) {
+        if (!draftTitleClean) {
+          setSubtaskError('Active subtask draft is missing a name.');
+          setError('Active subtask draft is missing a name.');
+          setSubmitting(false);
+          return;
+        }
+        if (!draftSubtaskAssignee) {
+          setSubtaskError('Active subtask draft is missing an assignee.');
+          setError('Active subtask draft is missing an assignee.');
+          setSubmitting(false);
+          return;
+        }
         finalSubtasks.push({
           title: draftTitleClean,
           assignedEmployeeId: draftSubtaskAssignee,
@@ -624,6 +649,23 @@ export default function CreateTask({ onCancel }) {
           dueDate: draftSubtaskDueDate,
           frequency: draftSubtaskFrequency,
         });
+      }
+
+      // Validate all subtasks
+      for (let i = 0; i < finalSubtasks.length; i++) {
+        const sub = finalSubtasks[i];
+        if (!sub.title || !String(sub.title).trim()) {
+          setSubtaskError(`Subtask #${i + 1} must have a name.`);
+          setError(`Subtask #${i + 1} must have a name.`);
+          setSubmitting(false);
+          return;
+        }
+        if (!sub.assignedEmployeeId) {
+          setSubtaskError(`Subtask "${sub.title}" must have an assignee.`);
+          setError(`Subtask "${sub.title}" must have an assignee.`);
+          setSubmitting(false);
+          return;
+        }
       }
 
       const cleanedSubtasks = finalSubtasks
@@ -636,8 +678,7 @@ export default function CreateTask({ onCancel }) {
           instructions: (item?.instructions || []).map((ins) => ins.text).filter(Boolean),
           documents: (item?.documents || []).map((doc) => ({ name: doc.name, size: doc.size })),
           comments: (item?.comments || []).map((c) => ({ text: c.text, author: c.author, time: c.time })),
-        }))
-        .filter((item) => item.title !== '');
+        }));
 
       const formattedTitle = clientName.trim()
         ? `${clientName.trim()} - ${title.trim()}`
@@ -1038,9 +1079,16 @@ export default function CreateTask({ onCancel }) {
 
         {/* Subtasks Table Section */}
         <div className="space-y-3 pt-2">
-          <div className="flex items-center gap-1.5">
-            <Activity size={14} className="text-slate-400" />
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subtasks</label>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Activity size={14} className="text-slate-400" />
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Subtasks</label>
+            </div>
+            {subtaskError && (
+              <span className="text-xs font-bold text-red-500 flex items-center gap-1 animate-pulse">
+                ⚠️ {subtaskError}
+              </span>
+            )}
           </div>
           {/* High Fidelity Scrollable Subtasks Table */}
           <div className="w-full border border-slate-200 bg-white rounded-2xl shadow-sm overflow-visible">
@@ -1162,12 +1210,15 @@ export default function CreateTask({ onCancel }) {
                 <tr className="bg-slate-50/50 font-medium">
                   {/* Title Input */}
                   <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2.5">
+                    <div className={`flex items-center gap-2.5 p-1 rounded-lg transition duration-200 ${subtaskError && !draftSubtaskTitle.trim() ? 'ring-2 ring-red-500/20 bg-red-50/30' : ''}`}>
                       <div className="h-4.5 w-4.5 shrink-0 rounded-full border-2 border-dashed border-[#7F40EE]/40 flex items-center justify-center bg-white" />
                       <input
                         type="text"
                         value={draftSubtaskTitle}
-                        onChange={(e) => setDraftSubtaskTitle(e.target.value)}
+                        onChange={(e) => {
+                          setDraftSubtaskTitle(e.target.value);
+                          if (subtaskError) setSubtaskError('');
+                        }}
                         onKeyDown={handleKeyDownSubtask}
                         placeholder="Type subtask name and press Enter..."
                         className="w-full bg-transparent border-none outline-none focus:ring-0 text-sm text-slate-700 font-semibold p-0 placeholder-slate-400"
@@ -1177,7 +1228,9 @@ export default function CreateTask({ onCancel }) {
 
                   {/* Assignee */}
                   <td className="px-4 py-3.5 overflow-visible">
-                    {renderDraftAssigneePicker()}
+                    <div className={`inline-block p-1 rounded-xl transition duration-200 ${subtaskError && !draftSubtaskAssignee ? 'ring-2 ring-red-500/20 bg-red-50/30' : ''}`}>
+                      {renderDraftAssigneePicker()}
+                    </div>
                   </td>
 
                   {/* Repeat Frequency */}
@@ -1233,8 +1286,7 @@ export default function CreateTask({ onCancel }) {
                       <button
                         type="button"
                         onClick={handleAddDraftSubtask}
-                        disabled={!draftSubtaskTitle.trim()}
-                        className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition shrink-0"
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-600 text-white transition shrink-0"
                         title="Add Subtask"
                       >
                         <Check size={14} strokeWidth={3} />
@@ -1247,6 +1299,7 @@ export default function CreateTask({ onCancel }) {
                           setDraftSubtaskPriority('medium');
                           setDraftSubtaskDueDate('');
                           setDraftSubtaskFrequency('');
+                          setSubtaskError('');
                         }}
                         className="flex h-7 w-7 items-center justify-center rounded-full bg-red-100 hover:bg-red-500 text-red-400 hover:text-white transition shrink-0"
                         title="Clear"

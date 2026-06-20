@@ -108,6 +108,21 @@ async function taskHasIncompleteSubtasks(taskId, supabase) {
   return (count || 0) > 0;
 }
 
+async function taskHasIncompleteSubtasksForEmployee(taskId, employeeId, supabase) {
+  const { count, error } = await supabase
+    .from('task_subtasks')
+    .select('id', { count: 'exact', head: true })
+    .eq('task_id', taskId)
+    .eq('is_completed', false)
+    .eq('assigned_employee_id', employeeId);
+
+  if (error) {
+    throw error;
+  }
+
+  return (count || 0) > 0;
+}
+
 
 export async function GET() {
   try {
@@ -205,7 +220,9 @@ export async function POST(request) {
 
     await ensureTaskLabelExists(supabase, normalizedLabel);
 
-    const validatedAssignedByEmployeeId = assignedByEmployeeId || null;
+    const validatedAssignedByEmployeeId = (assignedByEmployeeId && validEmployeeIds.has(assignedByEmployeeId))
+      ? assignedByEmployeeId
+      : null;
 
     const taskInsertPayload = {
       task_name: taskName,
@@ -398,7 +415,19 @@ export async function PUT(request) {
       .single();
 
     if (status === 'completed') {
-      const hasIncompleteSubtasks = await taskHasIncompleteSubtasks(taskId, supabase);
+      const { data: taskToCheck } = await supabase
+        .from('tasks')
+        .select('created_by, created_by_employee_id, assigned_by_employee_id')
+        .eq('id', taskId)
+        .single();
+
+      const isCreator = taskToCheck && isTaskCreator(taskToCheck, actor);
+      const isAdminOrCreator = actor.type === 'admin' || isCreator;
+
+      const hasIncompleteSubtasks = isAdminOrCreator
+        ? await taskHasIncompleteSubtasks(taskId, supabase)
+        : await taskHasIncompleteSubtasksForEmployee(taskId, actor.employeeId, supabase);
+
       if (hasIncompleteSubtasks) {
         return NextResponse.json({ error: 'Complete all subtasks before marking the task as completed' }, { status: 400 });
       }

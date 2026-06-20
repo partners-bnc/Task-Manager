@@ -846,15 +846,8 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
   );
 
   const visibleSubtasks = useMemo(() => {
-    const allSubtasks = Array.isArray(task?.task_subtasks) ? task.task_subtasks : [];
-    if (!viewer) return [];
-    if (viewer.isTaskCreator || viewer.type === 'admin') {
-      return allSubtasks;
-    }
-    return allSubtasks.filter(
-      (subtask) => subtask.assigned_employee_id && String(subtask.assigned_employee_id) === String(viewer.employeeId)
-    );
-  }, [task?.task_subtasks, viewer]);
+    return Array.isArray(task?.task_subtasks) ? task.task_subtasks : [];
+  }, [task?.task_subtasks]);
 
   const completion = useMemo(() => {
     const subtasks = visibleSubtasks;
@@ -1352,7 +1345,15 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     const draft = draftSubtasks.find((d) => d.id === draftId);
     if (!draft) return;
 
-    const title = draft.title.trim() || 'New Subtask';
+    const title = draft.title.trim();
+    if (!title) {
+      setError('Subtask name is required.');
+      return;
+    }
+    if (!draft.assigneeId) {
+      setError('Subtask assignee is required.');
+      return;
+    }
     if (!viewer) return;
 
     const existingSubtaskIds = new Set((task?.task_subtasks || []).map((s) => s.id));

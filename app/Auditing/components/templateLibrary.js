@@ -35,4 +35,16 @@ export const AUDIT_TEMPLATES = [
       "CST audit workspace focused on Gantt execution, task ownership, progress tracking, and dashboard completion insights.",
     status: "Ready",
   },
+  {
+    id: "saudi-audit-template",
+    name: "Saudi Audit",
+    shortCode: "SAUDI",
+    icon: "🇸🇦",
+    accent: "#1e3a8a",
+    bg: "#eff6ff",
+    border: "#bfdbfe",
+    description:
+      "Saudi Arabia internal audit workspace covering planning, Master RCM, data request tracker, and organisational charts.",
+    status: "Ready",
+  },
 ];

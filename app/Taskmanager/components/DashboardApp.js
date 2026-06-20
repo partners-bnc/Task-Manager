@@ -56,7 +56,7 @@ function AppContent({ initialView = 'dashboard', mode = 'employee' }) {
       case 'dashboard':
         return <Dashboard onNavigate={setCurrentView} />;
       case 'tasks':
-        return <ManageTasks />;
+        return <ManageTasks onNavigate={setCurrentView} />;
       case 'todos':
         return isAdminMode ? <Dashboard onNavigate={setCurrentView} /> : <Todos />;
       case 'create-task':
