@@ -1,0 +1,82 @@
+/* Tailwind overrides for React Big Calendar to support Dark Mode */
+
+.event-calendar-wrapper .rbc-calendar {
+  min-height: 600px;
+}
+
+/* Base structural coloring */
+.event-calendar-wrapper .rbc-month-view,
+.event-calendar-wrapper .rbc-time-view,
+.event-calendar-wrapper .rbc-header,
+.event-calendar-wrapper .rbc-day-bg,
+.event-calendar-wrapper .rbc-month-row,
+.event-calendar-wrapper .rbc-time-content,
+.event-calendar-wrapper .rbc-timeslot-group,
+.event-calendar-wrapper .rbc-day-slot .rbc-time-slot {
+  border-color: #e2e8f0; /* slate-200 */
+}
+
+.dark .event-calendar-wrapper .rbc-month-view,
+.dark .event-calendar-wrapper .rbc-time-view,
+.dark .event-calendar-wrapper .rbc-header,
+.dark .event-calendar-wrapper .rbc-day-bg,
+.dark .event-calendar-wrapper .rbc-month-row,
+.dark .event-calendar-wrapper .rbc-time-content,
+.dark .event-calendar-wrapper .rbc-timeslot-group,
+.dark .event-calendar-wrapper .rbc-day-slot .rbc-time-slot {
+  border-color: #334155; /* slate-700 */
+}
+
+/* Header Text */
+.event-calendar-wrapper .rbc-header {
+  padding: 8px;
+  font-weight: 600;
+}
+
+/* Today Background */
+.event-calendar-wrapper .rbc-today {
+  background-color: #f8fafc; /* slate-50 */
+}
+
+.dark .event-calendar-wrapper .rbc-today {
+  background-color: #0f172a; /* slate-900 */
+}
+
+/* Off-range dates */
+.event-calendar-wrapper .rbc-off-range-bg {
+  background-color: #f1f5f9; /* slate-100 */
+}
+
+.dark .event-calendar-wrapper .rbc-off-range-bg {
+  background-color: #1e293b; /* slate-800 darker shade / equivalent */
+  opacity: 0.5;
+}
+
+/* Toolbar Buttons */
+.event-calendar-wrapper .rbc-toolbar button {
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.dark .event-calendar-wrapper .rbc-toolbar button {
+  color: #cbd5e1;
+  border-color: #475569;
+}
+
+.event-calendar-wrapper .rbc-toolbar button:active,
+.event-calendar-wrapper .rbc-toolbar button.rbc-active {
+  box-shadow: inset 0 3px 5px rgba(0,0,0,0.125);
+  background-color: #e2e8f0;
+}
+
+.dark .event-calendar-wrapper .rbc-toolbar button:active,
+.dark .event-calendar-wrapper .rbc-toolbar button.rbc-active,
+.dark .event-calendar-wrapper .rbc-toolbar button:hover {
+  background-color: #334155;
+}
+
+/* Event overrides */
+.event-calendar-wrapper .rbc-event {
+  padding: 3px 6px;
+  margin-top: 2px;
+}

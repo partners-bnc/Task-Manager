@@ -1,0 +1,695 @@
+{
+  "leads": [
+    {
+      "id": 1,
+      "company": "Acme Corp",
+      "contact": "John Doe",
+      "value": "$10,000",
+      "status": "New",
+      "assigneeId": "u3",
+      "date": "2026-04-10",
+      "priority": "High",
+      "source": "Organic"
+    },
+    {
+      "id": 2,
+      "company": "Global Tech",
+      "contact": "Sarah Connor",
+      "value": "$25,500",
+      "status": "Contacted",
+      "assigneeId": "u1",
+      "date": "2026-04-11",
+      "priority": "Medium",
+      "source": "Referral"
+    },
+    {
+      "id": 3,
+      "company": "Stark Industries",
+      "contact": "Tony Stark",
+      "value": "$105,000",
+      "status": "Qualified",
+      "assigneeId": "u2",
+      "date": "2026-04-12",
+      "priority": "High",
+      "source": "Cold Call"
+    },
+    {
+      "id": 4,
+      "company": "Wayne Enterprises",
+      "contact": "Bruce Wayne",
+      "value": "$45,200",
+      "status": "Qualified",
+      "assigneeId": "u3",
+      "date": "2026-04-09",
+      "priority": "Medium",
+      "source": "Organic"
+    },
+    {
+      "id": 5,
+      "company": "Oscorp",
+      "contact": "Norman Osborn",
+      "value": "$88,000",
+      "status": "Won",
+      "assigneeId": "u1",
+      "date": "2026-04-08",
+      "priority": "High",
+      "source": "Referral"
+    },
+    {
+      "id": 6,
+      "company": "LexCorp",
+      "contact": "Lex Luthor",
+      "value": "$120,000",
+      "status": "New",
+      "assigneeId": "u2",
+      "date": "2026-04-15",
+      "priority": "High",
+      "source": "Organic"
+    },
+    {
+      "id": 7,
+      "company": "Cyberdyne",
+      "contact": "Miles Dyson",
+      "value": "$200,000",
+      "status": "Qualified",
+      "assigneeId": "u3",
+      "date": "2026-04-14",
+      "priority": "High",
+      "source": "Cold Call"
+    },
+    {
+      "id": 8,
+      "company": "Umbrella Corp",
+      "contact": "Albert Wesker",
+      "value": "$15,000",
+      "status": "Contacted",
+      "assigneeId": "u1",
+      "date": "2026-04-16",
+      "priority": "Low",
+      "source": "Referral"
+    },
+    {
+      "id": 9,
+      "company": "Massive Dynamic",
+      "contact": "William Bell",
+      "value": "$50,000",
+      "status": "Won",
+      "assigneeId": "u2",
+      "date": "2026-04-10",
+      "priority": "Medium",
+      "source": "Organic"
+    },
+    {
+      "id": 10,
+      "company": "InGen",
+      "contact": "John Hammond",
+      "value": "$500,000",
+      "status": "Qualified",
+      "assigneeId": "u3",
+      "date": "2026-04-05",
+      "priority": "High",
+      "source": "Cold Call"
+    },
+    {
+      "id": 11,
+      "company": "Buy n Large",
+      "contact": "Shelby Forthright",
+      "value": "$95,000",
+      "status": "Qualified",
+      "assigneeId": "u1",
+      "date": "2026-04-01",
+      "priority": "Low",
+      "source": "Organic"
+    },
+    {
+      "id": 12,
+      "company": "Soylent Corp",
+      "contact": "William R. Simonson",
+      "value": "$8,500",
+      "status": "New",
+      "assigneeId": "u3",
+      "date": "2026-04-13",
+      "priority": "Low",
+      "source": "Referral"
+    },
+    {
+      "id": 13,
+      "company": "Tyrell Corp",
+      "contact": "Eldon Tyrell",
+      "value": "$320,000",
+      "status": "Contacted",
+      "assigneeId": "u2",
+      "date": "2026-04-03",
+      "priority": "High",
+      "source": "Organic"
+    },
+    {
+      "id": 14,
+      "company": "Hooli",
+      "contact": "Gavin Belson",
+      "value": "$40,000",
+      "status": "Won",
+      "assigneeId": "u3",
+      "date": "2026-04-02",
+      "priority": "Medium",
+      "source": "Cold Call"
+    },
+    {
+      "id": 15,
+      "company": "Pied Piper",
+      "contact": "Richard Hendricks",
+      "value": "$12,000",
+      "status": "Qualified",
+      "assigneeId": "u1",
+      "date": "2026-04-17",
+      "priority": "Medium",
+      "source": "Organic"
+    }
+  ],
+  "customers": [
+    {
+      "id": 101,
+      "company": "Goliath National Bank",
+      "contact": "Barney Stinson",
+      "email": "b.stinson@gnb.com",
+      "notes": "Key enterprise account"
+    },
+    {
+      "id": 102,
+      "company": "MacMillan Toys",
+      "contact": "Josh Baskin",
+      "email": "josh@macmillan.com",
+      "notes": "Requires quarterly review"
+    },
+    {
+      "id": 103,
+      "company": "Globex Corp",
+      "contact": "Hank Scorpio",
+      "email": "h.scorpio@globex.com",
+      "notes": "High retention risk"
+    },
+    {
+      "id": 104,
+      "company": "Initech",
+      "contact": "Bill Lumbergh",
+      "email": "blumbergh@initech.com",
+      "notes": "Upsell opportunity in Q3"
+    },
+    {
+      "id": 105,
+      "company": "Vandelay Industries",
+      "contact": "George Costanza",
+      "email": "art@vandelay.com",
+      "notes": "Frequent support tickets"
+    }
+  ],
+  "products": [
+    {
+      "id": 201,
+      "name": "Basic SLA Sandbox",
+      "category": "Service",
+      "pricing": "$4,000/yr",
+      "availability": "Active"
+    },
+    {
+      "id": 202,
+      "name": "Enterprise Audit Package",
+      "category": "Software",
+      "pricing": "$15,000/yr",
+      "availability": "Active"
+    },
+    {
+      "id": 203,
+      "name": "Data Migration Module",
+      "category": "Add-on",
+      "pricing": "$2,500 flat",
+      "availability": "Sunset coming"
+    },
+    {
+      "id": 204,
+      "name": "Cloud Storage 5TB",
+      "category": "Infrastructure",
+      "pricing": "$6,000/yr",
+      "availability": "Active"
+    },
+    {
+      "id": 205,
+      "name": "AI Copilot Beta",
+      "category": "Software",
+      "pricing": "Invite Only",
+      "availability": "Waitlisted"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TSK014",
+      "title": "Call for portfolio discussion",
+      "type": "Follow Up Call",
+      "leadId": 14,
+      "dueDate": "2026-02-11",
+      "dueTime": "11:00 AM",
+      "priority": "Low",
+      "status": "Overdue",
+      "assigneeId": "u2",
+      "created": "Feb 09, 2026",
+      "notes": ""
+    },
+    {
+      "id": "TSK007",
+      "title": "Send thank you note",
+      "type": "Send Email",
+      "leadId": 7,
+      "dueDate": "2026-02-13",
+      "dueTime": "-",
+      "priority": "Low",
+      "status": "Overdue",
+      "assigneeId": "u3",
+      "created": "Feb 02, 2026",
+      "notes": ""
+    },
+    {
+      "id": "TSK019",
+      "title": "Review competitor pricing",
+      "type": "Other",
+      "leadId": 5,
+      "dueDate": "2026-02-14",
+      "dueTime": "-",
+      "priority": "Medium",
+      "status": "Cancelled",
+      "assigneeId": "u1",
+      "created": "Feb 14, 2026",
+      "notes": ""
+    },
+    {
+      "id": "TSK016",
+      "title": "Send CRM comparison document",
+      "type": "Send Email",
+      "leadId": 1,
+      "dueDate": "2026-02-15",
+      "dueTime": "-",
+      "priority": "Medium",
+      "status": "Completed",
+      "assigneeId": "u1",
+      "created": "Feb 11, 2026",
+      "notes": ""
+    },
+    {
+      "id": "TSK006",
+      "title": "Send project invoice",
+      "type": "Send Email",
+      "leadId": 6,
+      "dueDate": "2026-02-16",
+      "dueTime": "04:00 PM",
+      "priority": "Medium",
+      "status": "Completed",
+      "assigneeId": "u2",
+      "created": "Feb 01, 2026",
+      "notes": "Deal closed, send invoice"
+    },
+    {
+      "id": "TSK002",
+      "title": "Send mockup revisions",
+      "type": "Send Email",
+      "leadId": 2,
+      "dueDate": "2026-02-17",
+      "dueTime": "02:00 PM",
+      "priority": "Medium",
+      "status": "In Progress",
+      "assigneeId": "u2",
+      "created": "Jan 28, 2026",
+      "notes": ""
+    },
+    {
+      "id": "TSK005",
+      "title": "Send revised quotation",
+      "type": "Prepare Quote",
+      "leadId": 5,
+      "dueDate": "2026-02-17",
+      "dueTime": "09:00 AM",
+      "priority": "High",
+      "status": "In Progress",
+      "assigneeId": "u1",
+      "created": "Jan 31, 2026",
+      "notes": ""
+    },
+    {
+      "id": "TSK009",
+      "title": "Send technical specifications",
+      "type": "Send Email",
+      "leadId": 9,
+      "dueDate": "2026-02-17",
+      "dueTime": "10:30 AM",
+      "priority": "High",
+      "status": "In Progress",
+      "assigneeId": "u1",
+      "created": "Feb 04, 2026",
+      "notes": ""
+    },
+    {
+      "id": "TSK001",
+      "title": "Follow up on CRM demo",
+      "type": "Follow Up Call",
+      "leadId": 1,
+      "dueDate": "2026-02-18",
+      "dueTime": "10:00 AM",
+      "priority": "High",
+      "status": "Pending",
+      "assigneeId": "u1",
+      "created": "Jan 27, 2026",
+      "notes": ""
+    },
+    {
+      "id": "TSK008",
+      "title": "Schedule introductory call",
+      "type": "Follow Up Call",
+      "leadId": 8,
+      "dueDate": "2026-02-18",
+      "dueTime": "03:00 PM",
+      "priority": "Medium",
+      "status": "Pending",
+      "assigneeId": "u2",
+      "created": "Feb 03, 2026",
+      "notes": ""
+    }
+  ],
+  "activities": [
+    {
+      "id": "ACT005",
+      "type": "Email",
+      "date": "2026-01-31",
+      "subject": "Proposal sent",
+      "description": "Sent final pricing proposal to customer.",
+      "outcome": "Neutral",
+      "duration": "-",
+      "assigneeId": "u3",
+      "leadId": 4
+    },
+    {
+      "id": "ACT004",
+      "type": "Call",
+      "date": "2026-01-30",
+      "subject": "Follow-up on referral",
+      "description": "Follow-up call regarding referral status.",
+      "outcome": "Interested",
+      "duration": "15 min",
+      "assigneeId": "u1",
+      "leadId": 3
+    },
+    {
+      "id": "ACT003",
+      "type": "Meeting",
+      "date": "2026-01-29",
+      "subject": "Design requirements meeting",
+      "description": "Full design requirements walkthrough.",
+      "outcome": "Positive",
+      "duration": "45 min",
+      "assigneeId": "u2",
+      "leadId": 2
+    },
+    {
+      "id": "ACT002",
+      "type": "Email",
+      "date": "2026-01-28",
+      "subject": "Sent product brochure",
+      "description": "Emailed latest product brochure.",
+      "outcome": "Neutral",
+      "duration": "-",
+      "assigneeId": "u1",
+      "leadId": 1
+    },
+    {
+      "id": "ACT001",
+      "type": "Call",
+      "date": "2026-01-27",
+      "subject": "Initial discovery call",
+      "description": "First introductory call with prospect.",
+      "outcome": "Positive",
+      "duration": "25 min",
+      "assigneeId": "u1",
+      "leadId": 1
+    },
+    {
+      "id": "ACT010",
+      "type": "Email",
+      "date": "2026-02-15",
+      "subject": "Mockup delivery",
+      "description": "Sent design mockups for review.",
+      "outcome": "Positive",
+      "duration": "-",
+      "assigneeId": "u2",
+      "leadId": 2
+    },
+    {
+      "id": "ACT019",
+      "type": "Call",
+      "date": "2026-02-14",
+      "subject": "Decision maker call",
+      "description": "Called decision maker for final sign-off.",
+      "outcome": "Interested",
+      "duration": "35 min",
+      "assigneeId": "u1",
+      "leadId": 9
+    },
+    {
+      "id": "ACT018",
+      "type": "Email",
+      "date": "2026-02-13",
+      "subject": "Revised quotation sent",
+      "description": "Sent revised pricing quotation.",
+      "outcome": "Positive",
+      "duration": "-",
+      "assigneeId": "u1",
+      "leadId": 5
+    },
+    {
+      "id": "ACT017",
+      "type": "Video Call",
+      "date": "2026-02-12",
+      "subject": "Project scope review",
+      "description": "Video call to review project scope.",
+      "outcome": "Positive",
+      "duration": "55 min",
+      "assigneeId": "u1",
+      "leadId": 3
+    },
+    {
+      "id": "ACT016",
+      "type": "Call",
+      "date": "2026-02-11",
+      "subject": "Demo scheduling call",
+      "description": "Scheduled product demo.",
+      "outcome": "Interested",
+      "duration": "10 min",
+      "assigneeId": "u3",
+      "leadId": 13
+    }
+  ],
+  "payments": [
+    {
+      "id": 501,
+      "leadId": 5,
+      "amount": "$44,000",
+      "type": "Installment",
+      "status": "Paid",
+      "date": "2026-04-10"
+    },
+    {
+      "id": 502,
+      "leadId": 9,
+      "amount": "$50,000",
+      "type": "Full",
+      "status": "Paid",
+      "date": "2026-04-12"
+    },
+    {
+      "id": 503,
+      "leadId": 14,
+      "amount": "$20,000",
+      "type": "Installment",
+      "status": "Pending",
+      "date": "2026-04-18"
+    },
+    {
+      "id": 504,
+      "leadId": 101,
+      "amount": "$15,000",
+      "type": "Full",
+      "status": "Paid",
+      "date": "2026-03-15"
+    }
+  ],
+  "email_templates": [
+    {
+      "id": 601,
+      "name": "Initial Outreach",
+      "subject": "Connecting with {{CompanyName}}",
+      "body": "Hi {{ContactName}},\n\nI noticed {{CompanyName}} might be looking for solutions regarding..."
+    },
+    {
+      "id": 602,
+      "name": "Pricing Follow-up",
+      "subject": "Your Custom Quote - {{CompanyName}}",
+      "body": "Hello {{ContactName}},\n\nAttached is the tiered pricing model we discussed..."
+    },
+    {
+      "id": 603,
+      "name": "Contract Execution",
+      "subject": "Next Steps for {{CompanyName}}",
+      "body": "{{ContactName}},\n\nPlease review and sign the attached MSA to kick off onboarding..."
+    }
+  ],
+  "lead_sources": [
+    {
+      "id": "SRC010",
+      "name": "Walk-in",
+      "description": "In-person office visits",
+      "type": "Offline",
+      "category": "Other",
+      "cost": "-",
+      "status": "Active",
+      "created": "Feb 14, 2026"
+    },
+    {
+      "id": "SRC009",
+      "name": "WhatsApp",
+      "description": "WhatsApp Business inquiries",
+      "type": "Online",
+      "category": "Social Media",
+      "cost": "30",
+      "status": "Active",
+      "created": "Feb 12, 2026"
+    },
+    {
+      "id": "SRC008",
+      "name": "Google Ads",
+      "description": "Google PPC advertising campaigns",
+      "type": "Paid",
+      "category": "Search Engine",
+      "cost": "200",
+      "status": "Active",
+      "created": "Feb 10, 2026"
+    },
+    {
+      "id": "SRC007",
+      "name": "Trade Show",
+      "description": "Industry events and trade shows",
+      "type": "Offline",
+      "category": "Event",
+      "cost": "500",
+      "status": "Active",
+      "created": "Feb 08, 2026"
+    },
+    {
+      "id": "SRC006",
+      "name": "Social Media",
+      "description": "Facebook, Instagram, Twitter leads",
+      "type": "Online",
+      "category": "Social Media",
+      "cost": "100",
+      "status": "Active",
+      "created": "Feb 06, 2026"
+    },
+    {
+      "id": "SRC005",
+      "name": "Email Campaign",
+      "description": "Email marketing and newsletters",
+      "type": "Online",
+      "category": "Email Campaign",
+      "cost": "25",
+      "status": "Active",
+      "created": "Feb 04, 2026"
+    },
+    {
+      "id": "SRC004",
+      "name": "Cold Call",
+      "description": "Outbound cold calling campaigns",
+      "type": "Direct",
+      "category": "Other",
+      "cost": "75",
+      "status": "Active",
+      "created": "Feb 02, 2026"
+    },
+    {
+      "id": "SRC003",
+      "name": "Referral",
+      "description": "Word of mouth and client referrals",
+      "type": "Direct",
+      "category": "Partner",
+      "cost": "-",
+      "status": "Active",
+      "created": "Jan 31, 2026"
+    },
+    {
+      "id": "SRC002",
+      "name": "LinkedIn",
+      "description": "Leads generated through LinkedIn outreach",
+      "type": "Online",
+      "category": "Social Media",
+      "cost": "150",
+      "status": "Active",
+      "created": "Jan 29, 2026"
+    },
+    {
+      "id": "SRC001",
+      "name": "Website",
+      "description": "Leads from company website contact form",
+      "type": "Online",
+      "category": "Search Engine",
+      "cost": "50",
+      "status": "Active",
+      "created": "Jan 27, 2026"
+    }
+  ],
+  "email_triggers": [
+    {
+      "id": "TRG01",
+      "name": "New Lead Welcome",
+      "event": "Lead Created",
+      "condition": "Source = 'Website'",
+      "templateId": 601,
+      "status": "Active"
+    },
+    {
+      "id": "TRG02",
+      "name": "Qualified Follow-up",
+      "event": "Lead Status Changed to 'Qualified'",
+      "condition": "None",
+      "templateId": 602,
+      "status": "Active"
+    },
+    {
+      "id": "TRG03",
+      "name": "Closing MSA Packet",
+      "event": "Lead Status Changed to 'Won'",
+      "condition": "Priority = 'High'",
+      "templateId": 603,
+      "status": "Paused"
+    }
+  ],
+  "campaigns": [
+    {
+      "id": "CAMP-1",
+      "name": "Cold Lead Nurture",
+      "targetAudience": "Leads",
+      "status": "Active",
+      "steps": [
+        {
+          "stepNumber": 1,
+          "delayDays": 0,
+          "templateId": "Initial Outreach"
+        },
+        {
+          "stepNumber": 2,
+          "delayDays": 3,
+          "templateId": "Warm Follow-up"
+        },
+        {
+          "stepNumber": 3,
+          "delayDays": 7,
+          "templateId": "No-response Re-engagement"
+        }
+      ]
+    }
+  ],
+  "enrollments": []
+}
