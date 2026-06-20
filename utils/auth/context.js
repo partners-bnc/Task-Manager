@@ -62,7 +62,7 @@ export function buildModuleAccessState(authContext) {
     },
     crm: {
       enabled: crmEnabled,
-      href: crmEnabled ? null : null,
+      href: crmEnabled ? '/other-modules/crm' : null,
     },
   };
 }
