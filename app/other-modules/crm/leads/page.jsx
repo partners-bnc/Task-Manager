@@ -1,322 +1,2962 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useCrm } from '../context/CrmContext';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createClient } from '@/utils/supabase/client';
 import { useToast } from '../context/ToastContext';
-import MOCK_DATA from '../data/mockData.json';
-import KanbanBoard from '../components/KanbanBoard';
-import AddLeadModal from '../components/AddLeadModal';
-import LeadProfilePanel from '../components/LeadProfilePanel';
-import { exportToExcel } from '../utils/excel-helpers';
-import ExcelImportButton from '../components/ExcelImportButton';
-import { Search, Filter, Phone, Mail, MessageSquarePlus, CalendarPlus } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import {
+  Search,
+  Filter,
+  ArrowUpDown,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
+  AlertTriangle,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  User,
+  Phone,
+  Mail,
+  Building2,
+  MapPin,
+  Calendar,
+  Briefcase,
+  Globe,
+  Tag,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  HelpCircle,
+  UserCheck,
+  Upload,
+  Database,
+  Sparkles,
+  RefreshCw,
+  Play,
+  FileText,
+  Check,
+  ArrowRight,
+  Flag,
+  SlidersHorizontal
+} from 'lucide-react';
+
+const supabase = createClient();
+
+// Hardcoded Options
+const SOURCES = ["Website", "CA Data", "Saudi Data", "Client Data", "Referral", "Cold List", "Other"];
+const CATEGORIES = ["Hot", "Warm", "Cold"];
+const TYPES = ["B2B", "B2C", "New Lead", "Existing Client"];
+const STATUSES = ["New", "Contacted", "Follow-up", "Qualified", "Converted", "Lost"];
+const PRIORITIES = ["High", "Medium", "Low", "Urgent"];
+const COMPANY_SIZES = ["1-10", "11-50", "51-200", "200+"];
+
+const COLUMNS = [
+  { key: 'lead_id', label: 'ID' },
+  { key: 'full_name', label: 'Name' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'phone_alt', label: 'Alt Phone' },
+  { key: 'whatsapp', label: 'WhatsApp' },
+  { key: 'email', label: 'Email' },
+  { key: 'email_alt', label: 'Alt Email' },
+  { key: 'company_name', label: 'Company' },
+  { key: 'designation', label: 'Designation' },
+  { key: 'industry', label: 'Industry' },
+  { key: 'website', label: 'Website' },
+  { key: 'company_size', label: 'Company Size' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State' },
+  { key: 'country', label: 'Country' },
+  { key: 'business_city', label: 'Biz City' },
+  { key: 'business_country', label: 'Biz Country' },
+  { key: 'lead_source', label: 'Source' },
+  { key: 'lead_category', label: 'Category' },
+  { key: 'lead_type', label: 'Lead Type' },
+  { key: 'lead_status', label: 'Status' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'tags', label: 'Tags' },
+  { key: 'assigned_to', label: 'Assigned To' },
+  { key: 'source_batch', label: 'Source Batch' },
+  { key: 'notes', label: 'Notes' },
+  { key: 'next_followup_date', label: 'Next Followup' },
+  { key: 'last_contacted', label: 'Last Contacted' },
+  { key: 'created_at', label: 'Created At' },
+  { key: 'created_by', label: 'Created By' },
+  { key: 'updated_at', label: 'Updated At' },
+  { key: 'updated_by', label: 'Updated By' },
+];
+
+const DB_COLUMNS_MAPPING = [
+  { key: 'full_name', label: 'Full Name', required: true },
+  { key: 'phone', label: 'Primary Phone', note: 'At least Phone or Email required' },
+  { key: 'email', label: 'Primary Email', note: 'At least Phone or Email required' },
+  { key: 'phone_alt', label: 'Alternate Phone' },
+  { key: 'whatsapp', label: 'WhatsApp Number' },
+  { key: 'email_alt', label: 'Alternate Email' },
+  { key: 'country', label: 'Country' },
+  { key: 'city', label: 'City' },
+  { key: 'state', label: 'State' },
+  { key: 'company_name', label: 'Company Name' },
+  { key: 'designation', label: 'Designation' },
+  { key: 'industry', label: 'Industry' },
+  { key: 'website', label: 'Website' },
+  { key: 'company_size', label: 'Company Size' },
+  { key: 'business_country', label: 'Business Country' },
+  { key: 'business_city', label: 'Business City' },
+  { key: 'lead_source', label: 'Lead Source' },
+  { key: 'lead_category', label: 'Lead Category' },
+  { key: 'lead_type', label: 'Lead Type' },
+  { key: 'lead_status', label: 'Lead Status' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'tags', label: 'Tags (comma separated)' },
+  { key: 'assigned_to', label: 'Assigned To' },
+  { key: 'notes', label: 'Notes' },
+  { key: 'next_followup_date', label: 'Next Follow-up Date' },
+  { key: 'last_contacted', label: 'Last Contacted' },
+];
+
+const parseDateString = (str) => {
+  if (!str) return null;
+  const s = String(str).trim();
+  if (!s || s.toLowerCase() === 'n/a' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') {
+    return null;
+  }
+
+  // Try YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return s;
+  }
+
+  // Try DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = s.match(/^(\d{1,2})[\-\/](\d{1,2})[\-\/](\d{4})$/);
+  if (dmyMatch) {
+    const day = parseInt(dmyMatch[1], 10);
+    const month = parseInt(dmyMatch[2], 10) - 1; // 0-indexed month
+    const year = parseInt(dmyMatch[3], 10);
+    const d = new Date(year, month, day);
+    if (!isNaN(d.getTime()) && d.getDate() === day && d.getMonth() === month) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  // Try standard JS Date parsing
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return null; // invalid date string
+};
+
+const formatExcelValue = (val) => {
+  if (val === undefined || val === null) return '';
+  if (val instanceof Date) {
+    const yyyy = val.getFullYear();
+    const mm = String(val.getMonth() + 1).padStart(2, '0');
+    const dd = String(val.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // Check if it's a number or numeric string in Excel serial range (30000 - 60000)
+  const num = Number(val);
+  if (!isNaN(num) && num >= 30000 && num <= 60000) {
+    const excelEpoch = new Date(1899, 11, 30);
+    const date = new Date(excelEpoch.getTime() + num * 24 * 60 * 60 * 1000);
+    if (!isNaN(date.getTime())) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+  return String(val).trim();
+};
 
 export default function LeadsPage() {
-  const { currentUser, permissions, leads, setLeads, followups, campaigns, enrollLead } = useCrm();
   const { toast } = useToast();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [selectedLead, setSelectedLead] = useState(null);
 
-  // Filter States
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("All");
-  const [filterPriority, setFilterPriority] = useState("All");
-  const [filterSource, setFilterSource] = useState("All");
-  const [filterDate, setFilterDate] = useState("");
+  // Data state
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  const handleDelete = (id) => {
-    if (!permissions.canDeleteLeads) {
-      toast.error("Permission Denied: You cannot delete leads.");
-      return;
-    }
-    setLeads(leads.filter(l => l.id !== id));
-  };
+  // Dynamic unique option lists — derived ONLY from actual database values (no static mixing)
+  const allUniqueSources = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.lead_source?.trim()).filter(Boolean))).sort();
+  }, [leads]);
 
-  const handleAddLeadSubmit = async (newLeadData) => {
-    const freshLead = {
-      ...newLeadData,
-      assigneeId: currentUser.id
+  const allUniqueStatuses = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.lead_status?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueCategories = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.lead_category?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniquePriorities = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.priority?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueTypes = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.lead_type?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueTags = useMemo(() => {
+    // Tags may contain comma-separated values in a single field
+    const tagSet = new Set();
+    leads.forEach(l => {
+      if (l.tags) {
+        l.tags.split(',').map(t => t.trim()).filter(Boolean).forEach(t => tagSet.add(t));
+      }
+    });
+    return Array.from(tagSet).sort();
+  }, [leads]);
+
+  // Search & Filter State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [sourceFilter, setSourceFilter] = useState('All');
+  const [categoryFilter, setCategoryFilter] = useState('All');
+  const [priorityFilter, setPriorityFilter] = useState('All');
+  const [typeFilter, setTypeFilter] = useState('All');
+  const [tagsFilter, setTagsFilter] = useState('All');
+
+  // Column Visibility State
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    const defaultVisible = {
+      lead_id: true,
+      full_name: true,
+      phone: true,
+      phone_alt: false,
+      whatsapp: true,
+      email: true,
+      email_alt: false,
+      company_name: true,
+      designation: false,
+      industry: false,
+      website: false,
+      company_size: false,
+      city: false,
+      state: false,
+      country: false,
+      business_city: false,
+      business_country: false,
+      lead_source: true,
+      lead_category: true,
+      lead_type: true,
+      lead_status: true,
+      priority: true,
+      tags: true,
+      assigned_to: false,
+      source_batch: false,
+      notes: false,
+      next_followup_date: true,
+      last_contacted: false,
+      created_at: false,
+      created_by: false,
+      updated_at: false,
+      updated_by: false,
     };
-    setLeads([freshLead, ...leads]);
-    setIsModalOpen(false);
-
-    try {
-      await fetch('/other-modules/crm/api/email/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event: 'Lead Created', lead: freshLead, action: 'CREATE' })
-      });
-    } catch (e) {
-      console.error("Trigger error:", e);
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('crm_leads_columns');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && 'lead_id' in parsed) {
+            return { ...defaultVisible, ...parsed };
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
     }
-  };
+    return defaultVisible;
+  });
+  const [showColumnDropdown, setShowColumnDropdown] = useState(false);
 
-  const handleOpenProfile = (lead) => {
-    setSelectedLead(lead);
-    setIsProfileOpen(true);
-  };
+  // Sync visible columns to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('crm_leads_columns', JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
 
-  const handleSaveFromProfile = (updatedLead) => {
-    setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-  };
+  // Sorting
+  const [sortField, setSortField] = useState('created_at');
+  const [sortDirection, setSortDirection] = useState('desc');
 
-  const handleImport = (importedData) => {
-    const mappedLeads = importedData.map((row, index) => ({
-      id: row.LeadID || row.id || `IMP-${Date.now()}-${index}`,
-      company: row.company || row.Company || 'Unknown Company',
-      contact: row.contact || row.Contact || 'Unknown Contact',
-      status: row.status || row.Status || 'New',
-      value: row.value || row.Value || '$0',
-      assigneeId: row.AssignedTo || row.assigneeId || currentUser.id,
-      date: row.date || row.Date || new Date().toISOString().split('T')[0],
-      source: row.SourceID || row.source || row.Source || 'Import',
-      priority: row.priority || row.Priority || 'Medium'
-    }));
-    setLeads(prev => [...mappedLeads, ...prev]);
-  };
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 25;
 
-  const totalLeads = leads.length;
-  const activeCustomers = leads.filter(l => l.status === "Won").length;
-  const computedRevenue = leads.filter(l => l.status === "Won").reduce((acc, l) => {
-    const numericStr = String(l.value ?? "").replace(/[^0-9.-]+/g,"");
-    return acc + (parseFloat(numericStr) || 0);
-  }, 0);
+  // Modals state
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState('create'); // 'create' or 'edit'
+  const [currentLeadId, setCurrentLeadId] = useState(null);
 
-  // Filtering Logic
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch = lead.company.toLowerCase().includes(searchTerm.toLowerCase()) || lead.contact.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === "All" || lead.status === filterStatus;
-    const matchesPriority = filterPriority === "All" || lead.priority === filterPriority;
-    const matchesSource = filterSource === "All" || lead.source === filterSource;
-    const matchesDate = !filterDate || (lead.date && lead.date === filterDate);
+  // Form input state
+  const [formData, setFormData] = useState(getDefaultFormData());
+  const [customSource, setCustomSource] = useState('');
+  const [customType, setCustomType] = useState('');
 
-    return matchesSearch && matchesStatus && matchesPriority && matchesSource && matchesDate;
+  // Expandable form sections
+  const [expandedSections, setExpandedSections] = useState({
+    1: true,  // Personal
+    2: false, // Business
+    3: false, // Classification
+    4: false  // Tracking
   });
 
-  return (
-    <div className="p-8 text-slate-800 dark:text-slate-100 transition-colors duration-300">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold dark:text-white">Lead Tracking & Pipeline</h1>
-        <div className="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 px-4 py-2 rounded-lg font-medium shadow-sm transition border border-transparent dark:border-blue-900">
-          Welcome, {currentUser.name} ({currentUser.role})
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors duration-300">
-          <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1">Total Leads (Pipeline)</h3>
-          <p className="text-3xl font-bold text-slate-800 dark:text-white">{totalLeads}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors duration-300">
-          <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1">Active Customers (Won)</h3>
-          <p className="text-3xl font-bold text-green-600 dark:text-green-400">{activeCustomers}</p>
-        </div>
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors duration-300">
-          <h3 className="text-sm font-semibold text-slate-500 dark:text-slate-400 mb-1">Generated Revenue</h3>
-          <p className="text-3xl font-bold text-slate-800 dark:text-white">${computedRevenue.toLocaleString()}</p>
-        </div>
-      </div>
+  // Duplicate Warning Modal state
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 transition-colors duration-300 overflow-x-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold dark:text-white">Lead Tracking</h2>
+  // Delete Confirmation Modal
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+
+  // Bulk Importer premium wizard state
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importFileName, setImportFileName] = useState('');
+  const [importFileType, setImportFileType] = useState(''); // 'csv' | 'xlsx' | 'json'
+  const [uploadedHeaders, setUploadedHeaders] = useState([]);
+  const [uploadedRows, setUploadedRows] = useState([]);
+  const [columnMappings, setColumnMappings] = useState({});
+  const [importStep, setImportStep] = useState(1); // 1: Source Selection, 2: Preview & Clean, 3: Schema Mapping, 4: Conflict Resolution, 5: Animated Loading, 6: Success
+  const [duplicateLeadsFound, setDuplicateLeadsFound] = useState([]);
+  const [importConflictStrategy, setImportConflictStrategy] = useState('skip'); // 'skip', 'overwrite', 'anyway'
+  const [animatedProgress, setAnimatedProgress] = useState(0);
+  const [currentImportPhase, setCurrentImportPhase] = useState('');
+  const [importResults, setImportResults] = useState({ inserted: 0, updated: 0, skipped: 0 });
+  const [importTicker, setImportTicker] = useState([]);
+  const [importErrors, setImportErrors] = useState([]);
+
+  // Load Leads from Central Server API
+  const fetchLeads = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/other-modules/crm/api/leads?sortField=${sortField}&sortDirection=${sortDirection}`);
+      if (!response.ok) {
+        const errJson = await response.json();
+        throw new Error(errJson.error || 'Failed to fetch leads');
+      }
+      const data = await response.json();
+      setLeads(data.leads || []);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load leads from database.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLeads();
+  }, [sortField, sortDirection]);
+
+  function getDefaultFormData() {
+    return {
+      full_name: '',
+      phone: '',
+      phone_alt: '',
+      whatsapp: '',
+      email: '',
+      email_alt: '',
+      country: '',
+      city: '',
+      state: '',
+      company_name: '',
+      designation: '',
+      industry: '',
+      website: '',
+      company_size: '',
+      business_country: '',
+      business_city: '',
+      lead_source: 'Website',
+      lead_category: 'Warm',
+      lead_type: 'B2B',
+      lead_status: 'New',
+      priority: 'Medium',
+      tags: '',
+      assigned_to: '',
+      notes: '',
+      next_followup_date: '',
+      last_contacted: ''
+    };
+  }
+
+  // Handle Input Changes
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const toggleSection = (sectionIndex) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionIndex]: !prev[sectionIndex]
+    }));
+  };
+
+  // Toggle Sorting
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  // Form Validation
+  const validateForm = (data) => {
+    if (!data.full_name?.trim()) {
+      toast.error('Full Name is required.');
+      return false;
+    }
+    if (!data.phone?.trim() && !data.email?.trim()) {
+      toast.error('At least one of Primary Phone or Primary Email must be provided.');
+      return false;
+    }
+    return true;
+  };
+
+  // Check manual duplicates before saving
+  const checkDuplicateAndSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm(formData)) return;
+
+    setActionLoading(true);
+    try {
+      const finalSource = formData.lead_source === 'Other' ? customSource : formData.lead_source;
+      const finalType = formData.lead_type === 'Other' ? customType : formData.lead_type;
+
+      const finalLeadData = {
+        ...formData,
+        lead_source: finalSource,
+        lead_type: finalType,
+        // Trim strings
+        full_name: formData.full_name.trim(),
+        phone: formData.phone ? formData.phone.trim() : null,
+        email: formData.email ? formData.email.trim() : null,
+      };
+
+      // Check duplicate phone or email (only if they are filled)
+      let existingLead = null;
+      if (finalLeadData.phone || finalLeadData.email) {
+        const queryParams = new URLSearchParams();
+        if (finalLeadData.phone) queryParams.set('phones', finalLeadData.phone);
+        if (finalLeadData.email) queryParams.set('emails', finalLeadData.email);
+
+        const response = await fetch(`/other-modules/crm/api/leads?${queryParams.toString()}`);
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to check duplicates');
+        }
+        let { leads: fetchedLeads } = await response.json();
+        if (formMode === 'edit' && currentLeadId) {
+          fetchedLeads = fetchedLeads.filter(item => item.lead_id !== currentLeadId);
+        }
+        if (fetchedLeads && fetchedLeads.length > 0) {
+          existingLead = fetchedLeads[0];
+        }
+      }
+
+      if (existingLead) {
+        // Duplicate found! Show warning prompt
+        setDuplicateWarning({
+          existing: existingLead,
+          pending: finalLeadData
+        });
+        setActionLoading(false);
+      } else {
+        // No duplicate, save directly
+        await saveLead(finalLeadData);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error checking duplicate records.');
+      setActionLoading(false);
+    }
+  };
+
+  const saveLead = async (leadData) => {
+    setActionLoading(true);
+    try {
+      if (formMode === 'create') {
+        const response = await fetch('/other-modules/crm/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(leadData)
+        });
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to create lead');
+        }
+        toast.success('Lead created successfully!');
+      } else {
+        const response = await fetch('/other-modules/crm/api/leads', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...leadData, lead_id: currentLeadId })
+        });
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to update lead');
+        }
+        toast.success('Lead updated successfully!');
+      }
+
+      setIsFormOpen(false);
+      setFormData(getDefaultFormData());
+      setDuplicateWarning(null);
+      fetchLeads();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Database Error: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDuplicateResolve = async (strategy) => {
+    if (!duplicateWarning) return;
+    const { existing, pending } = duplicateWarning;
+
+    if (strategy === 'skip') {
+      toast.info('Operation cancelled. Duplicate skipped.');
+      setDuplicateWarning(null);
+    } else if (strategy === 'overwrite') {
+      // Overwrite the existing lead details
+      setActionLoading(true);
+      try {
+        const response = await fetch('/other-modules/crm/api/leads', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...pending, lead_id: existing.lead_id })
+        });
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to overwrite lead');
+        }
+
+        toast.success('Existing lead overwritten successfully!');
+        setIsFormOpen(false);
+        setFormData(getDefaultFormData());
+        setDuplicateWarning(null);
+        fetchLeads();
+      } catch (err) {
+        console.error(err);
+        toast.error(`Failed to overwrite lead: ${err.message}`);
+      } finally {
+        setActionLoading(false);
+      }
+    } else if (strategy === 'anyway') {
+      // Insert anyway (will create another record)
+      await saveLead(pending);
+    }
+  };
+
+  // Open Create Form
+  const openCreateForm = () => {
+    setFormMode('create');
+    setFormData(getDefaultFormData());
+    setCustomSource('');
+    setCustomType('');
+    setExpandedSections({ 1: true, 2: false, 3: false, 4: false });
+    setIsFormOpen(true);
+  };
+
+  // Open Edit Form
+  const openEditForm = (lead) => {
+    setFormMode('edit');
+    setCurrentLeadId(lead.lead_id);
+
+    // Set form fields
+    const sourceExists = SOURCES.includes(lead.lead_source);
+    const typeExists = TYPES.includes(lead.lead_type);
+
+    setFormData({
+      full_name: lead.full_name || '',
+      phone: lead.phone || '',
+      phone_alt: lead.phone_alt || '',
+      whatsapp: lead.whatsapp || '',
+      email: lead.email || '',
+      email_alt: lead.email_alt || '',
+      country: lead.country || '',
+      city: lead.city || '',
+      state: lead.state || '',
+      company_name: lead.company_name || '',
+      designation: lead.designation || '',
+      industry: lead.industry || '',
+      website: lead.website || '',
+      company_size: lead.company_size || '',
+      business_country: lead.business_country || '',
+      business_city: lead.business_city || '',
+      lead_source: sourceExists ? lead.lead_source : (lead.lead_source ? 'Other' : 'Website'),
+      lead_category: lead.lead_category || 'Warm',
+      lead_type: typeExists ? lead.lead_type : (lead.lead_type ? 'Other' : 'B2B'),
+      lead_status: lead.lead_status || 'New',
+      priority: lead.priority || 'Medium',
+      tags: lead.tags || '',
+      assigned_to: lead.assigned_to || '',
+      notes: lead.notes || '',
+      next_followup_date: lead.next_followup_date || '',
+      last_contacted: lead.last_contacted || ''
+    });
+
+    setCustomSource(sourceExists ? '' : (lead.lead_source || ''));
+    setCustomType(typeExists ? '' : (lead.lead_type || ''));
+
+    setExpandedSections({ 1: true, 2: true, 3: true, 4: true });
+    setIsFormOpen(true);
+  };
+
+  // Delete Handler
+  const confirmDeleteLead = (lead) => {
+    setDeleteConfirmId(lead.lead_id);
+    setDeleteConfirmName(lead.full_name);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirmId) return;
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/other-modules/crm/api/leads?lead_id=${deleteConfirmId}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to delete lead');
+      }
+      toast.success('Lead deleted successfully!');
+      setDeleteConfirmId(null);
+      fetchLeads();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Failed to delete lead: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Bulk Importer Methods
+  const handleImportFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportFileName(file.name);
+    const extension = file.name.split('.').pop().toLowerCase();
+    setImportFileType(extension);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        let headers = [];
+        let rows = [];
+
+        if (extension === 'json') {
+          // Parse JSON
+          const json = JSON.parse(bstr);
+          let rawData = [];
+          if (Array.isArray(json)) {
+            rawData = json;
+          } else {
+            // Find first key which is an array
+            const arrayKey = Object.keys(json).find(key => Array.isArray(json[key]));
+            if (arrayKey) {
+              rawData = json[arrayKey];
+            } else {
+              rawData = [json];
+            }
+          }
+          if (rawData.length === 0) {
+            toast.error("JSON file contains no records.");
+            return;
+          }
+          const headerSet = new Set();
+          rawData.forEach(item => {
+            Object.keys(item).forEach(k => headerSet.add(k));
+          });
+          headers = Array.from(headerSet);
+          rows = rawData;
+        } else {
+          // Parse Excel / CSV using XLSX
+          const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+          const wsname = wb.SheetNames[0];
+          const ws = wb.Sheets[wsname];
+          const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+          if (rawData.length === 0) {
+            toast.error("Spreadsheet is empty.");
+            return;
+          }
+
+          headers = rawData[0].map(h => String(h || '').trim());
+          rows = rawData.slice(1).map(row => {
+            const obj = {};
+            headers.forEach((header, index) => {
+              obj[header] = row[index] !== undefined && row[index] !== null ? formatExcelValue(row[index]) : '';
+            });
+            return obj;
+          });
+        }
+
+        setUploadedHeaders(headers);
+        setUploadedRows(rows);
+
+        // Prepopulate mapping guesses
+        const mappingGuesses = {};
+        DB_COLUMNS_MAPPING.forEach(dbCol => {
+          const target = dbCol.key.replace(/_/g, '').toLowerCase();
+          const match = headers.find(h => {
+            const normalizedH = h.replace(/[\s_-]/g, '').toLowerCase();
+            return normalizedH === target || normalizedH.includes(target) || target.includes(normalizedH);
+          });
+          if (match) mappingGuesses[dbCol.key] = match;
+        });
+        setColumnMappings(mappingGuesses);
+        setImportStep(2); // Go to Preview
+      } catch (err) {
+        toast.error("Error reading file: " + err.message);
+      }
+    };
+
+    if (extension === 'json') {
+      reader.readAsText(file);
+    } else {
+      reader.readAsBinaryString(file);
+    }
+  };
+
+  const autoMatchColumns = () => {
+    const mappingGuesses = {};
+    DB_COLUMNS_MAPPING.forEach(dbCol => {
+      const target = dbCol.key.replace(/_/g, '').toLowerCase();
+      const match = uploadedHeaders.find(h => {
+        const normalizedH = h.replace(/[\s_-]/g, '').toLowerCase();
+        return normalizedH === target || normalizedH.includes(target) || target.includes(normalizedH);
+      });
+      if (match) mappingGuesses[dbCol.key] = match;
+    });
+    setColumnMappings(mappingGuesses);
+    toast.success("Auto-mapped columns based on headers.");
+  };
+
+  const resetImportState = () => {
+    setImportFile(null);
+    setImportFileName('');
+    setImportFileType('');
+    setUploadedHeaders([]);
+    setUploadedRows([]);
+    setColumnMappings({});
+    setDuplicateLeadsFound([]);
+    setImportConflictStrategy('skip');
+    setImportStep(1);
+    setAnimatedProgress(0);
+    setCurrentImportPhase('');
+    setImportErrors([]);
+  };
+
+  // Map raw imported rows to schema-compliant leads (converting empty dates/fields to null)
+  const getMappedLeads = () => {
+    return uploadedRows.map(row => {
+      const item = {
+        source_batch: importFileName || 'Bulk Import'
+      };
+
+      DB_COLUMNS_MAPPING.forEach(col => {
+        const mappedHeader = columnMappings[col.key];
+        if (mappedHeader && row[mappedHeader] !== undefined && row[mappedHeader] !== null) {
+          const val = String(row[mappedHeader]).trim();
+
+          if (val === "" || val.toLowerCase() === "n/a" || val.toLowerCase() === "null" || val.toLowerCase() === "undefined") {
+            item[col.key] = null;
+          } else if (col.key === 'next_followup_date' || col.key === 'last_contacted') {
+            // Parse date to ensure standard format (YYYY-MM-DD) or null
+            item[col.key] = parseDateString(val);
+          } else {
+            item[col.key] = val;
+          }
+        } else {
+          // System default values for empty column slots
+          if (col.key === 'lead_status') item[col.key] = 'New';
+          else if (col.key === 'lead_category') item[col.key] = 'Warm';
+          else if (col.key === 'priority') item[col.key] = 'Medium';
+          else if (col.key === 'lead_type') item[col.key] = 'B2B';
+          else item[col.key] = null;
+        }
+      });
+
+      return item;
+    });
+  };
+
+  const performImportValidation = () => {
+    const errors = [];
+
+    if (!columnMappings.full_name) {
+      errors.push("Destination field 'Full Name' must be mapped to a source column.");
+    }
+
+    const nameSrc = columnMappings.full_name;
+    const phoneSrc = columnMappings.phone;
+    const emailSrc = columnMappings.email;
+    const nextFollowupSrc = columnMappings.next_followup_date;
+    const lastContactedSrc = columnMappings.last_contacted;
+
+    uploadedRows.forEach((row, idx) => {
+      const rowNum = idx + 1;
+
+      // Check name
+      if (nameSrc) {
+        const val = String(row[nameSrc] || '').trim();
+        if (!val) {
+          errors.push(`Row ${rowNum}: Name column "${nameSrc}" is empty.`);
+        }
+      }
+
+      // Check contact details (either email or phone is required)
+      const phoneVal = phoneSrc ? String(row[phoneSrc] || '').trim() : '';
+      const emailVal = emailSrc ? String(row[emailSrc] || '').trim() : '';
+      if (!phoneVal && !emailVal) {
+        errors.push(`Row ${rowNum}: Both phone and email fields are empty. At least one is required.`);
+      }
+
+      // Check dates
+      if (nextFollowupSrc) {
+        const val = String(row[nextFollowupSrc] || '').trim();
+        if (val && val.toLowerCase() !== 'n/a' && val.toLowerCase() !== 'null' && val.toLowerCase() !== 'undefined') {
+          const parsed = parseDateString(val);
+          if (!parsed) {
+            errors.push(`Row ${rowNum}: "Next Followup Date" contains invalid date/text: "${val}".`);
+          }
+        }
+      }
+
+      if (lastContactedSrc) {
+        const val = String(row[lastContactedSrc] || '').trim();
+        if (val && val.toLowerCase() !== 'n/a' && val.toLowerCase() !== 'null' && val.toLowerCase() !== 'undefined') {
+          const parsed = parseDateString(val);
+          if (!parsed) {
+            errors.push(`Row ${rowNum}: "Last Contacted" contains invalid date/text: "${val}".`);
+          }
+        }
+      }
+    });
+
+    setImportErrors(errors);
+    return errors.length === 0;
+  };
+
+  const validateAndRouteToDuplicateCheck = async () => {
+    setImportErrors([]);
+    const isValid = performImportValidation();
+    if (!isValid) {
+      toast.error("Validation failed. Please review the errors at the top of the mapping screen.");
+      return;
+    }
+    await handleMappingSubmit();
+  };
+  const handleMappingSubmit = async () => {
+    setActionLoading(true);
+    try {
+      const mappedLeads = getMappedLeads();
+      // Filter out invalid rows (must have a name, and at least a phone or email)
+      const validLeads = mappedLeads.filter(l => l.full_name && (l.phone || l.email));
+
+      if (validLeads.length === 0) {
+        toast.error("No valid leads found in import file. (Required: Name + Phone or Email)");
+        setActionLoading(false);
+        return;
+      }
+
+      // Check for duplicates in the DB based on phone or email
+      const phonesToCheck = validLeads.map(l => l.phone).filter(Boolean);
+      const emailsToCheck = validLeads.map(l => l.email).filter(Boolean);
+
+      let existingInDb = [];
+
+      if (phonesToCheck.length > 0 || emailsToCheck.length > 0) {
+        const queryParams = new URLSearchParams();
+        if (phonesToCheck.length > 0) queryParams.set('phones', phonesToCheck.join(','));
+        if (emailsToCheck.length > 0) queryParams.set('emails', emailsToCheck.join(','));
+
+        const response = await fetch(`/other-modules/crm/api/leads?${queryParams.toString()}`);
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to check duplicates');
+        }
+        const data = await response.json();
+        existingInDb = data.leads || [];
+      }
+
+      const duplicates = [];
+      existingInDb.forEach(dbItem => {
+        const matchingLead = validLeads.find(l =>
+          (l.phone && l.phone === dbItem.phone) ||
+          (l.email && l.email === dbItem.email)
+        );
+        if (matchingLead) {
+          duplicates.push({
+            imported: matchingLead,
+            existing: dbItem
+          });
+        }
+      });
+
+      if (duplicates.length > 0) {
+        setDuplicateLeadsFound(duplicates);
+        setImportStep(4); // Duplicate resolution selection
+      } else {
+        // Go straight to import pipeline
+        executeBulkImportDirectly(validLeads, existingInDb);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(`Validation failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const executeBulkImportWithResolution = async () => {
+    setActionLoading(true);
+    try {
+      const mappedLeads = getMappedLeads();
+      const validLeads = mappedLeads.filter(l => l.full_name && (l.phone || l.email));
+
+      // Re-fetch duplicate matches
+      const phonesToCheck = validLeads.map(l => l.phone).filter(Boolean);
+      const emailsToCheck = validLeads.map(l => l.email).filter(Boolean);
+
+      let existingInDb = [];
+
+      if (phonesToCheck.length > 0 || emailsToCheck.length > 0) {
+        const queryParams = new URLSearchParams();
+        if (phonesToCheck.length > 0) queryParams.set('phones', phonesToCheck.join(','));
+        if (emailsToCheck.length > 0) queryParams.set('emails', emailsToCheck.join(','));
+
+        const response = await fetch(`/other-modules/crm/api/leads?${queryParams.toString()}`);
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.error || 'Failed to check duplicates');
+        }
+        const data = await response.json();
+        existingInDb = data.leads || [];
+      }
+
+      executeBulkImportDirectly(validLeads, existingInDb);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Import failed: ${err.message}`);
+      setActionLoading(false);
+    }
+  };
+
+  const executeBulkImportDirectly = async (validLeads, existingInDb) => {
+    setImportStep(5); // Animated full-screen load stage
+    setAnimatedProgress(5);
+    setCurrentImportPhase("Analyzing data feed headers...");
+    setImportTicker([]);
+
+    try {
+      await new Promise(r => setTimeout(r, 450));
+      setAnimatedProgress(20);
+      setCurrentImportPhase("Sanitizing phone/email structures and auditing columns...");
+
+      let userDetails = 'System';
+      try {
+        const ctxRes = await fetch('/api/auth/context');
+        const ctxData = await ctxRes.json();
+        if (ctxData.authenticated && ctxData.user) {
+          userDetails = `${ctxData.user.name} (${ctxData.user.email})`;
+        }
+      } catch (e) {
+        console.error("Failed to fetch client auth context:", e);
+      }
+
+      await new Promise(r => setTimeout(r, 450));
+      setAnimatedProgress(40);
+      setCurrentImportPhase("Mapping to active schema metadata and matching duplicates...");
+
+      const leadsToInsert = [];
+      const leadsToUpdate = [];
+      let skippedCount = 0;
+
+      validLeads.forEach(lead => {
+        const duplicateMatch = existingInDb.find(dbItem =>
+          (lead.phone && dbItem.phone === lead.phone) ||
+          (lead.email && dbItem.email === lead.email)
+        );
+
+        if (duplicateMatch) {
+          if (importConflictStrategy === 'overwrite') {
+            leadsToUpdate.push(lead);
+          } else if (importConflictStrategy === 'anyway') {
+            leadsToInsert.push(lead);
+          } else {
+            skippedCount++;
+          }
+        } else {
+          leadsToInsert.push(lead);
+        }
+      });
+
+      // Show real-time ticker feedback
+      setAnimatedProgress(60);
+      setCurrentImportPhase(`Ingesting transactions (${leadsToInsert.length} insert, ${leadsToUpdate.length} update)...`);
+
+      const allOps = [
+        ...leadsToInsert.map(l => ({ type: 'INSERT', name: l.full_name })),
+        ...leadsToUpdate.map(l => ({ type: 'UPDATE', name: l.full_name }))
+      ];
+
+      // Quick ticker simulation for lead pipeline UX feedback
+      const tickerSampleCount = Math.min(allOps.length, 12);
+      for (let i = 0; i < tickerSampleCount; i++) {
+        const op = allOps[i];
+        setImportTicker(prev => [
+          ...prev.slice(-6),
+          `[${op.type}] Syncing: "${op.name}" ... OK`
+        ]);
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      setAnimatedProgress(80);
+      setCurrentImportPhase("Committing transactions to crm_leads in database via secure api...");
+
+      const response = await fetch('/other-modules/crm/api/leads/bulk-import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          leads: validLeads,
+          strategy: importConflictStrategy,
+          userDetails
+        })
+      });
+
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData.error || 'Failed to complete transaction in backend.');
+      }
+
+      setAnimatedProgress(95);
+      setCurrentImportPhase("Rebuilding indices and refreshing Central database views...");
+      await new Promise(r => setTimeout(r, 400));
+
+      setAnimatedProgress(100);
+      setImportResults({
+        inserted: resData.inserted || 0,
+        updated: resData.updated || 0,
+        skipped: resData.skipped || 0
+      });
+      setImportStep(6);
+      fetchLeads();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Import failed: ${err.message}`);
+      setImportStep(3);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+
+
+  // Fuzzy Search & Filters applied locally/client-side on top of fetched leads
+  const processedLeads = useMemo(() => {
+    const res = leads.filter(lead => {
+      // Search term match: name, phone, email
+      const searchStr = searchTerm.toLowerCase().trim();
+      const nameMatch = lead.full_name?.toLowerCase().includes(searchStr);
+      const phoneMatch = lead.phone?.toLowerCase().includes(searchStr);
+      const emailMatch = lead.email?.toLowerCase().includes(searchStr);
+      const matchesSearch = !searchStr || nameMatch || phoneMatch || emailMatch;
+
+      // Filter matches (case-insensitive & trimmed comparison to handle messy/imported data)
+      const matchesStatus = statusFilter === 'All' ||
+        (lead.lead_status?.trim().toLowerCase() === statusFilter.trim().toLowerCase());
+      const matchesSource = sourceFilter === 'All' ||
+        (lead.lead_source?.trim().toLowerCase() === sourceFilter.trim().toLowerCase());
+      const matchesCategory = categoryFilter === 'All' ||
+        (lead.lead_category?.trim().toLowerCase() === categoryFilter.trim().toLowerCase());
+      const matchesPriority = priorityFilter === 'All' ||
+        (lead.priority?.trim().toLowerCase() === priorityFilter.trim().toLowerCase());
+      const matchesType = typeFilter === 'All' ||
+        (lead.lead_type?.trim().toLowerCase() === typeFilter.trim().toLowerCase());
+      const matchesTags = tagsFilter === 'All' ||
+        (lead.tags && lead.tags.split(',').map(t => t.trim().toLowerCase()).includes(tagsFilter.trim().toLowerCase()));
+
+      return matchesSearch && matchesStatus && matchesSource && matchesCategory && matchesPriority && matchesType && matchesTags;
+    });
+
+    return res;
+  }, [leads, searchTerm, statusFilter, sourceFilter, categoryFilter, priorityFilter, typeFilter, tagsFilter]);
+
+  // Pagination Slice
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return processedLeads.slice(startIndex, startIndex + itemsPerPage);
+  }, [processedLeads, currentPage]);
+
+  const totalPages = Math.ceil(processedLeads.length / itemsPerPage) || 1;
+
+  // Stats Counters
+  const stats = useMemo(() => {
+    const total = leads.length;
+    const hotLeads = leads.filter(l => l.lead_category === 'Hot').length;
+    const converted = leads.filter(l => l.lead_status === 'Converted').length;
+    const followupTodayOrFuture = leads.filter(l => {
+      if (!l.next_followup_date) return false;
+      const fDate = new Date(l.next_followup_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return fDate >= today;
+    }).length;
+
+    return { total, hotLeads, converted, followupTodayOrFuture };
+  }, [leads]);
+
+  // Priority Flag Badge
+  const getPriorityFlag = (priority) => {
+    switch (priority) {
+      case 'Urgent':
+        return (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 dark:text-slate-200">
+            <Flag className="w-3.5 h-3.5 fill-red-500 text-red-500 shrink-0" />
+            Urgent
+          </span>
+        );
+      case 'High':
+        return (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 dark:text-slate-200">
+            <Flag className="w-3.5 h-3.5 fill-amber-500 text-amber-500 shrink-0" />
+            High
+          </span>
+        );
+      case 'Medium':
+        return (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 dark:text-slate-200">
+            <Flag className="w-3.5 h-3.5 fill-blue-500 text-blue-500 shrink-0" />
+            Medium
+          </span>
+        );
+      case 'Low':
+        return (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 dark:text-slate-200">
+            <Flag className="w-3.5 h-3.5 fill-slate-400 text-slate-400 shrink-0" />
+            Low
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-800 dark:text-slate-200">
+            <Flag className="w-3.5 h-3.5 fill-slate-400 text-slate-400 shrink-0" />
+            {priority}
+          </span>
+        );
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const base = "inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider ";
+    switch (status) {
+      case 'New':
+        return <span className={base + "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 border border-blue-100 dark:border-blue-800"}>New</span>;
+      case 'Contacted':
+        return <span className={base + "bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800"}>Contacted</span>;
+      case 'Follow-up':
+        return <span className={base + "bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300 border border-amber-100 dark:border-amber-800"}>Follow-up</span>;
+      case 'Qualified':
+        return <span className={base + "bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-300 border border-teal-100 dark:border-teal-800"}>Qualified</span>;
+      case 'Converted':
+        return <span className={base + "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300 border border-green-100 dark:border-green-800"}>Converted</span>;
+      case 'Lost':
+        return <span className={base + "bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-300 border border-rose-100 dark:border-rose-800"}>Lost</span>;
+      default:
+        return <span className={base + "bg-slate-50 text-slate-700 dark:bg-slate-900/20 dark:text-slate-300 border border-slate-100 dark:border-slate-800"}>{status}</span>;
+    }
+  };
+
+  const getCategoryBadge = (category) => {
+    switch (category) {
+      case 'Hot':
+        return <span className="text-red-600 dark:text-red-400 font-bold">🔥 Hot</span>;
+      case 'Warm':
+        return <span className="text-orange-500 dark:text-orange-400 font-semibold">☀️ Warm</span>;
+      case 'Cold':
+        return <span className="text-blue-500 dark:text-blue-400">❄️ Cold</span>;
+      default:
+        return category;
+    }
+  };
+
+  if (isImportOpen) {
+    return (
+      <div className="p-6 md:p-8 min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300 text-slate-800 dark:text-slate-100">
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          @keyframes bounceBubble {
+            0%, 100% { transform: translateY(0px) scale(1); opacity: 0.4; }
+            50% { transform: translateY(-20px) scale(1.1); opacity: 0.8; }
+          }
+          @keyframes glowPulse {
+            0%, 100% { filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.4)); }
+            50% { filter: drop-shadow(0 0 35px rgba(99, 102, 241, 0.7)); }
+          }
+          .custom-spinner {
+            border: 3px solid rgba(99, 102, 241, 0.1);
+            border-top: 3px solid rgb(99, 102, 241);
+            border-radius: 50%;
+            width: 70px;
+            height: 70px;
+            animation: spin 1s linear infinite;
+          }
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}} />
+
+        {/* FULL PAGE HEADER */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-5 mb-6 gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 bg-gradient-to-tr from-indigo-500 to-blue-500 text-white rounded-2xl shadow-md">
+              <Database className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Centralized Lead Importer</h1>
+                <span className="px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide uppercase rounded-full bg-indigo-100 text-indigo-850 dark:bg-indigo-950/50 dark:text-indigo-350 border border-indigo-205 dark:border-indigo-800/60">
+                  Multi-Source
+                </span>
+              </div>
+              <p className="text-xs text-slate-450 dark:text-slate-400 mt-0.5">
+                Centralized pipeline to map, validate, and inject spreadsheet and JSON lead databases.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => {
+              resetImportState();
+              setIsImportOpen(false);
+            }}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800/80 rounded-xl transition cursor-pointer border border-slate-250 dark:border-slate-800"
+          >
+            <X className="w-4 h-4" />
+            Exit Importer
+          </button>
+        </div>
+
+        {/* STEP STATUS TRACKER */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 p-5 rounded-2xl mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-5 shadow-sm">
           <div className="flex items-center gap-3">
-             <button 
-               onClick={() => exportToExcel(filteredLeads, 'pipeline_leads_export.xlsx')}
-               className="bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 px-4 py-2 rounded-md font-medium transition shadow-sm text-sm"
-             >
-               Export Excel
-             </button>
-             {!permissions.isReadOnly && (
-               <>
-                 <ExcelImportButton onImport={handleImport} />
-                 <button 
-                   onClick={() => setIsModalOpen(true)}
-                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition shadow-sm text-sm"
-                 >
-                   + Add Lead
-                 </button>
-               </>
-             )}
+            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Current Pipeline Stage:</span>
+            <span className="text-sm font-extrabold text-indigo-650 dark:text-indigo-400">
+              {importStep === 1 && "1. Upload Data Document"}
+              {importStep === 2 && "2. Detailed Data Preview"}
+              {importStep === 3 && "3. Schema Mapping & Overrides"}
+              {importStep === 4 && "4. Conflict Resolution Panel"}
+              {importStep === 5 && "5. Ingesting Database"}
+              {importStep === 6 && "6. Ingestion Success Summary"}
+            </span>
+          </div>
+
+          {/* STEP INDICATORS */}
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { num: 1, label: 'Upload' },
+              { num: 2, label: 'Preview' },
+              { num: 3, label: 'Mapping' },
+              { num: 4, label: 'Conflict' },
+              { num: 5, label: 'Ingest' },
+              { num: 6, label: 'Summary' }
+            ].map((step, idx) => (
+              <React.Fragment key={step.num}>
+                {idx > 0 && (
+                  <div className={`w-6 sm:w-10 h-0.5 ${importStep >= step.num ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
+                )}
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${importStep === step.num
+                      ? 'bg-indigo-600 text-white ring-4 ring-indigo-100 dark:ring-indigo-950/60'
+                      : importStep > step.num
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-450 dark:text-slate-500'
+                    }`}>
+                    {importStep > step.num ? <Check className="w-4.5 h-4.5" /> : step.num}
+                  </div>
+                  <span className={`text-[10.5px] font-bold hidden sm:inline ${importStep === step.num ? 'text-indigo-605 dark:text-indigo-400' : 'text-slate-450 dark:text-slate-500'
+                    }`}>
+                    {step.label}
+                  </span>
+                </div>
+              </React.Fragment>
+            ))}
           </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex flex-wrap gap-3 mb-6 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
-           <div className="relative flex-1 min-w-[200px]">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search company or contact..." 
-                value={searchTerm} 
-                onChange={(e) => setSearchTerm(e.target.value)} 
-                className="w-full pl-9 pr-4 py-2 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
-              />
-           </div>
-           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="border border-slate-300 dark:border-slate-600 rounded px-3 py-2 bg-white dark:bg-slate-700 dark:text-slate-200 text-sm focus:outline-none">
-              <option value="All">All Statuses</option>
-              <option value="New">New</option>
-              <option value="Contacted">Contacted</option>
-              <option value="Qualified">Qualified</option>
-              <option value="Won">Won</option>
-           </select>
-           <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className="border border-slate-300 dark:border-slate-600 rounded px-3 py-2 bg-white dark:bg-slate-700 dark:text-slate-200 text-sm focus:outline-none">
-              <option value="All">All Priorities</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-           </select>
-           <select value={filterSource} onChange={(e) => setFilterSource(e.target.value)} className="border border-slate-300 dark:border-slate-600 rounded px-3 py-2 bg-white dark:bg-slate-700 dark:text-slate-200 text-sm focus:outline-none">
-              <option value="All">All Sources</option>
-              <option value="Service Enquiry">Service Enquiry</option>
-              <option value="Expert Request">Expert Request</option>
-              <option value="Voice Requirement">Voice Requirement</option>
-              <option value="Partner Registration">Partner Registration</option>
-              <option value="Contact Form">Contact Form</option>
-           </select>
-           <input
-             type="date" 
-             value={filterDate} 
-             onChange={(e) => setFilterDate(e.target.value)} 
-             className="border border-slate-300 dark:border-slate-600 rounded px-3 py-2 bg-white dark:bg-slate-700 dark:text-slate-200 text-sm focus:outline-none" 
-           />
-           {/* Clear Filters */}
-           {(searchTerm || filterStatus !== "All" || filterPriority !== "All" || filterSource !== "All" || filterDate) && (
-             <button 
-               onClick={() => {
-                 setSearchTerm("");
-                 setFilterStatus("All");
-                 setFilterPriority("All");
-                 setFilterSource("All");
-                 setFilterDate("");
-               }}
-               className="px-3 py-2 text-sm text-slate-500 hover:text-red-500 transition font-medium flex items-center"
-             >
-               <Filter className="w-3 h-3 mr-1" /> Clear
-             </button>
-           )}
+        {/* MAIN PANEL CONTENT */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 p-6 md:p-8 rounded-3xl shadow-sm transition-colors duration-300">
+
+          {/* STEP 1: SOURCE SELECTION */}
+          {importStep === 1 && (
+            <div className="max-w-2xl mx-auto py-8 text-center space-y-6">
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-slate-850 dark:text-slate-100">Upload your Data Feed</h3>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Select a standard data file format below. We support Microsoft Excel (.xlsx/.xls), Comma Separated Values (.csv), and standard structured JSON lists.
+                </p>
+              </div>
+
+              {/* Drag-and-drop zone */}
+              <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 rounded-3xl p-10 flex flex-col items-center justify-center gap-4 bg-white dark:bg-slate-950/20 cursor-pointer transition shadow-sm hover:shadow-md group">
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv,.json"
+                  onChange={handleImportFileChange}
+                  className="hidden"
+                />
+                <div className="w-16 h-16 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition duration-300">
+                  <Upload className="w-8 h-8" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                    Drag and drop your file here, or <span className="text-indigo-605 hover:underline font-bold">browse files</span>
+                  </p>
+                  <p className="text-[10px] text-slate-455 mt-1">
+                    Supports Excel (XLSX/XLS), CSV, or JSON up to 10MB
+                  </p>
+                </div>
+              </label>
+
+              {/* Format Pills */}
+              <div className="flex items-center justify-center gap-4 text-xs font-semibold text-slate-450">
+                <span className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700 px-3.5 py-1.5 rounded-full shadow-sm">
+                  <FileText className="w-4 h-4 text-emerald-500" /> Excel (.xlsx)
+                </span>
+                <span className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700 px-3.5 py-1.5 rounded-full shadow-sm">
+                  <FileText className="w-4 h-4 text-blue-500" /> CSV (.csv)
+                </span>
+                <span className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-700 px-3.5 py-1.5 rounded-full shadow-sm">
+                  <FileText className="w-4 h-4 text-amber-500" /> JSON (.json)
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: FULL WIDE DATA PREVIEW */}
+          {importStep === 2 && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-white">Import File Preview</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Verify all details and columns of the parsed records before configuring database mapping.
+                  </p>
+                </div>
+                <div className="text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-650 dark:text-indigo-400 px-4 py-2 rounded-xl border border-indigo-100 dark:border-indigo-900/60 self-start">
+                  Total Parsed Rows: {uploadedRows.length}
+                </div>
+              </div>
+
+              {/* Full-width preview table */}
+              <div className="border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto max-h-[500px]">
+                  <table className="w-full text-left border-collapse table-auto">
+                    <thead>
+                      <tr className="border-b border-slate-150 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/50 sticky top-0 backdrop-blur-sm">
+                        {uploadedHeaders.map((header, idx) => (
+                          <th key={idx} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                            {header}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                      {uploadedRows.map((row, rowIdx) => (
+                        <tr key={rowIdx} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/30">
+                          {uploadedHeaders.map((header, colIdx) => (
+                            <td key={colIdx} className="py-2.5 px-4 text-xs text-slate-700 dark:text-slate-350 font-mono whitespace-nowrap">
+                              {row[header] !== undefined && row[header] !== null ? String(row[header]) : ''}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950/20 text-center text-slate-450 font-semibold text-[10.5px] border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-center gap-1.5">
+                  <Check className="w-4 h-4 text-emerald-500" />
+                  Showing all {uploadedRows.length} imported leads with all matching columns.
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={resetImportState}
+                  className="px-4.5 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  Back / Cancel
+                </button>
+                <button
+                  onClick={() => setImportStep(3)}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow cursor-pointer"
+                >
+                  Next: Match Schema <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: SCHEMA MAPPING */}
+          {importStep === 3 && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-white">Central Schema Mapping</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Align your import document headers to the central CRM lead schema. Green indicates successfully mapped fields.
+                  </p>
+                </div>
+                <button
+                  onClick={autoMatchColumns}
+                  className="flex items-center gap-1.5 bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-750 text-indigo-650 dark:text-indigo-400 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" /> Auto-Map Fields
+                </button>
+              </div>
+
+              {/* Validation error display if present */}
+              {importErrors.length > 0 && (
+                <div className="bg-rose-50 dark:bg-rose-950/20 border-l-4 border-rose-500 p-4 rounded-xl shadow-sm">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                    <div className="space-y-1 w-full">
+                      <h4 className="text-sm font-bold text-rose-800 dark:text-rose-350">
+                        Formatting &amp; Validation Conflicts Detected
+                      </h4>
+                      <p className="text-xs text-rose-700 dark:text-rose-450">
+                        We found formatting issues in the fields of your upload. Standardize these fields or map them to different source columns before launching ingestion:
+                      </p>
+                      <div className="mt-3 max-h-[150px] overflow-y-auto bg-white/50 dark:bg-black/30 p-3 rounded-lg border border-rose-200/50 dark:border-rose-900/30 text-rose-900 dark:text-rose-300 font-mono text-[11px] leading-relaxed space-y-1">
+                        {importErrors.map((err, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5">
+                            <span className="text-rose-400 font-bold">•</span>
+                            <span>{err}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Matching schema connector structure */}
+              <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 p-6 rounded-2xl shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+                  {/* Headers */}
+                  <div className="hidden md:flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+                    <Database className="w-4.5 h-4.5 text-blue-500" />
+                    <span className="text-xs font-extrabold text-slate-455 uppercase tracking-wider">CRM Lead Schema Column</span>
+                  </div>
+                  <div className="hidden md:flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+                    <Upload className="w-4.5 h-4.5 text-indigo-500" />
+                    <span className="text-xs font-extrabold text-slate-455 uppercase tracking-wider">Mapped Source Document Column</span>
+                  </div>
+
+                  {/* Mapping Cards Row list */}
+                  {DB_COLUMNS_MAPPING.map((col) => {
+                    const selectedVal = columnMappings[col.key] || '';
+                    const isMapped = !!selectedVal;
+
+                    return (
+                      <React.Fragment key={col.key}>
+                        {/* Database Field Card */}
+                        <div
+                          className={`p-3.5 border rounded-xl flex items-center justify-between transition-all duration-200 ${isMapped
+                              ? 'bg-emerald-50/10 dark:bg-emerald-950/10 border-emerald-500/30'
+                              : col.required
+                                ? 'bg-red-50/10 dark:bg-red-950/10 border-red-500/30'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-805'
+                            }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{col.label}</span>
+                              {col.required ? (
+                                <span className="text-[9px] font-extrabold uppercase bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 px-1.5 py-0.5 rounded">Required</span>
+                              ) : (
+                                <span className="text-[8px] font-bold uppercase bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 px-1.5 py-0.5 rounded">Optional</span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium">
+                              {col.note || `Database column: ${col.key}`}
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isMapped ? (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/40 dark:bg-emerald-900/20 px-2 py-0.5 rounded-lg border border-emerald-200/50">
+                                <Check className="w-3 h-3" /> Mapped
+                              </span>
+                            ) : col.required ? (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-100/40 dark:bg-red-900/20 px-2 py-0.5 rounded-lg border border-red-200/50">
+                                <AlertTriangle className="w-3 h-3" /> Missing
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 font-semibold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">Unmapped</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Mapped Dropdown Option selector - Height & colors styled matching the left card */}
+                        <div
+                          className={`p-3 border rounded-xl flex items-center justify-between transition-all duration-200 ${isMapped
+                              ? 'bg-emerald-50/10 dark:bg-emerald-950/10 border-emerald-500/30'
+                              : col.required
+                                ? 'bg-red-50/10 dark:bg-red-950/10 border-red-500/30'
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-805'
+                            }`}
+                        >
+                          <div className="w-full flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Source Field:</span>
+                            <select
+                              value={selectedVal}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setColumnMappings(prev => ({
+                                  ...prev,
+                                  [col.key]: val
+                                }));
+                              }}
+                              className="w-full px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-850 dark:text-white transition"
+                            >
+                              <option value="">-- Ignore / Skip Column --</option>
+                              {uploadedHeaders.map((header, hIdx) => (
+                                <option key={hIdx} value={header}>
+                                  Column: "{header}"
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-150 dark:border-slate-800">
+                <button
+                  onClick={() => setImportStep(2)}
+                  className="px-4 py-2 border border-slate-350 dark:border-slate-655 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={validateAndRouteToDuplicateCheck}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
+                >
+                  {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  Validate & Process Data <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: DUPLICATE RESOLUTION Strategizing */}
+          {importStep === 4 && (
+            <div className="max-w-2xl mx-auto py-4 space-y-6">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-200/50">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-105">Conflicting Records Found</h3>
+                <p className="text-xs text-slate-400 max-w-md mx-auto">
+                  Our duplicate check identified <strong className="text-slate-800 dark:text-white font-bold">{duplicateLeadsFound.length}</strong> record(s) matching existing email or phone numbers in your database.
+                </p>
+              </div>
+
+              {/* Strategy selection radio group */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-205 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">Conflict Resolution Strategy</span>
+
+                <label className="flex items-start gap-3.5 p-3.5 border border-slate-150 dark:border-slate-800 rounded-xl hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition cursor-pointer">
+                  <input
+                    type="radio"
+                    name="conflict_strategy"
+                    value="skip"
+                    checked={importConflictStrategy === 'skip'}
+                    onChange={(e) => setImportConflictStrategy(e.target.value)}
+                    className="mt-1 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Skip Duplicates (Recommended)</span>
+                    <p className="text-[10.5px] text-slate-450 dark:text-slate-400 mt-0.5">
+                      Ignore imported rows that already match existing contacts. Purely insert brand new leads.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3.5 p-3.5 border border-slate-150 dark:border-slate-800 rounded-xl hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition cursor-pointer">
+                  <input
+                    type="radio"
+                    name="conflict_strategy"
+                    value="overwrite"
+                    checked={importConflictStrategy === 'overwrite'}
+                    onChange={(e) => setImportConflictStrategy(e.target.value)}
+                    className="mt-1 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Overwrite Existing Values</span>
+                    <p className="text-[10.5px] text-slate-455 dark:text-slate-400 mt-0.5">
+                      Merge updates. Replace empty fields and overwrite values of older leads with incoming columns.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3.5 p-3.5 border border-slate-150 dark:border-slate-800 rounded-xl hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition cursor-pointer">
+                  <input
+                    type="radio"
+                    name="conflict_strategy"
+                    value="anyway"
+                    checked={importConflictStrategy === 'anyway'}
+                    onChange={(e) => setImportConflictStrategy(e.target.value)}
+                    className="mt-1 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Create Duplicate Records</span>
+                    <p className="text-[10.5px] text-slate-455 dark:text-slate-400 mt-0.5">
+                      Ignore conflicts. Insert all rows from the document creating brand new leads in every case.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  onClick={() => setImportStep(3)}
+                  className="px-4 py-2 border border-slate-350 dark:border-slate-655 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={executeBulkImportWithResolution}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
+                >
+                  {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  Execute Load Transaction <Play className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5: DETAILED PREMIUM LOADING & TRANSACTION TICKERS */}
+          {importStep === 5 && (
+            <div className="max-w-xl mx-auto py-10 text-center space-y-8">
+
+              {/* Pulsing circular core */}
+              <div className="flex items-center justify-center relative">
+                <div className="absolute w-24 h-24 bg-indigo-550/15 dark:bg-indigo-500/10 rounded-full animate-ping"></div>
+                <div className="absolute w-20 h-20 bg-blue-550/15 dark:bg-blue-500/10 rounded-full animate-pulse"></div>
+                <div className="custom-spinner shadow-[0_0_25px_rgba(99,102,241,0.4)] flex items-center justify-center">
+                  <div className="w-14 h-14 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center">
+                    <Database className="w-6 h-6 text-indigo-550 animate-bounce" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Progress and status reports */}
+              <div className="space-y-3.5">
+                <h4 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-widest">
+                  Central Database Ingesting...
+                </h4>
+
+                {/* Modern HSL progress bar */}
+                <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-205 dark:border-slate-750 p-0.5 shadow-inner">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-500 transition-all duration-300 rounded-full"
+                    style={{ width: `${animatedProgress}%` }}
+                  ></div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] font-bold text-slate-455 dark:text-slate-500 px-1">
+                  <span>Progress: {animatedProgress}%</span>
+                  <span className="italic">"{currentImportPhase}"</span>
+                </div>
+              </div>
+
+              {/* Transaction Stream Console Ticker */}
+              <div className="w-full bg-slate-950 text-slate-350 p-4 rounded-2xl font-mono text-xs text-left h-[200px] overflow-y-auto space-y-1 shadow-2xl border border-slate-850">
+                <div className="text-indigo-400 font-bold border-b border-slate-800 pb-1.5 mb-2 flex items-center justify-between text-[10.5px]">
+                  <span>TRANSACTION LOGS PIPELINE</span>
+                  <span className="animate-pulse flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> ACTIVE RUN
+                  </span>
+                </div>
+                {importTicker.length === 0 && <p className="text-slate-500 italic">Initializing stream console...</p>}
+                {importTicker.map((line, idx) => (
+                  <p key={idx} className={line.includes('INSERT') ? 'text-emerald-400' : 'text-blue-450'}>
+                    {line}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 6: IMPORT TRANSACTION COMPLETED SUMMARY */}
+          {importStep === 6 && (
+            <div className="max-w-md mx-auto py-8 text-center space-y-6">
+
+              <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 rounded-full flex items-center justify-center mx-auto border-2 border-emerald-250 relative shadow-[0_0_40px_rgba(16,185,129,0.25)] animate-bounce">
+                <CheckCircle className="w-10 h-10" />
+              </div>
+
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-extrabold text-slate-800 dark:text-white">Import Transaction Completed</h3>
+                <p className="text-xs text-slate-450">
+                  Leads parsed, audited, and committed to your centralized database successfully.
+                </p>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-3 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-4.5 rounded-2xl shadow-sm">
+                <div className="text-center p-2 border-r border-slate-100 dark:border-slate-800/80">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Inserted</span>
+                  <span className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 block">{importResults.inserted}</span>
+                </div>
+                <div className="text-center p-2 border-r border-slate-100 dark:border-slate-800/80">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Updated</span>
+                  <span className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 mt-1 block">{importResults.updated}</span>
+                </div>
+                <div className="text-center p-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Skipped</span>
+                  <span className="text-2xl font-extrabold text-slate-550 dark:text-slate-450 mt-1 block">{importResults.skipped}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-4">
+                <button
+                  onClick={resetImportState}
+                  className="px-4.5 py-2 border border-slate-350 dark:border-slate-655 hover:bg-slate-105 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  Import More
+                </button>
+                <button
+                  onClick={() => {
+                    resetImportState();
+                    setIsImportOpen(false);
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg text-xs font-bold transition shadow-sm hover:shadow cursor-pointer"
+                >
+                  Close Importer
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
-        
-        <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-700">
-              <th className="py-3 px-4 font-semibold text-sm text-slate-600 dark:text-slate-400">Company</th>
-              <th className="py-3 px-4 font-semibold text-sm text-slate-600 dark:text-slate-400">Contact</th>
-              <th className="py-3 px-4 font-semibold text-sm text-slate-600 dark:text-slate-400">Status</th>
-              <th className="py-3 px-4 font-semibold text-sm text-slate-600 dark:text-slate-400">Value</th>
-              <th className="py-3 px-4 font-semibold text-sm text-slate-600 dark:text-slate-400">Follow-ups</th>
-              <th className="py-3 px-4 font-semibold text-sm text-slate-600 dark:text-slate-400 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredLeads.map(lead => {
-              const isOwner = lead.assigneeId === currentUser.id;
-              const canEdit = !permissions.isReadOnly && (["admin", "manager"].includes(currentUser.role) || (currentUser.role === "sales" && isOwner));
+      </div>
+    );
+  }
 
-              let statusColor = "bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300";
-              if (lead.status === "Won") statusColor = "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400";
-              if (lead.status === "Contacted") statusColor = "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400";
+  return (
+    <div className="p-6 md:p-8 min-h-screen bg-slate-100 dark:bg-slate-900 transition-colors duration-300 text-slate-800 dark:text-slate-100">
 
-              return (
-                <tr key={lead.id} onClick={() => handleOpenProfile(lead)} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-blue-50/60 dark:hover:bg-slate-700/50 transition-colors cursor-pointer group">
-                  <td className="py-3 px-4 font-medium dark:text-slate-200 group-hover:text-blue-700 dark:group-hover:text-blue-400 transition-colors">{lead.company}</td>
-                  <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-400">{lead.contact}</td>
-                  <td className="py-3 px-4 text-sm">
-                    <span className={`px-2 py-1 rounded font-medium text-xs ${statusColor}`}>
-                      {lead.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-sm font-semibold dark:text-slate-300">{lead.value}</td>
-                  <td className="py-3 px-4 text-sm">
-                    {(() => {
-                      const leadFollowups = followups.filter(f => f.leadId === lead.id && f.status !== 'Completed');
-                      return leadFollowups.length > 0 ? (
-                        <span className="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400 px-2 py-1 rounded font-medium text-xs">
-                          {leadFollowups.length} Active
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>
-                      );
-                    })()}
-                  </td>
-                  <td className="py-3 px-4 text-right whitespace-nowrap">
-                     <div className="flex items-center justify-end gap-1">
-                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                         <button
-                           onClick={(e) => { e.stopPropagation(); handleOpenProfile(lead); }}
-                           className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-all"
-                           title="Log Call"
-                         >
-                           <Phone className="w-4 h-4" />
-                         </button>
-                         <button
-                           onClick={(e) => { e.stopPropagation(); handleOpenProfile(lead); }}
-                           className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-all"
-                           title="Send Email"
-                         >
-                           <Mail className="w-4 h-4" />
-                         </button>
-                         <button
-                           onClick={(e) => { e.stopPropagation(); handleOpenProfile(lead); }}
-                           className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-all"
-                           title="Add Note"
-                         >
-                           <MessageSquarePlus className="w-4 h-4" />
-                         </button>
-                         <button
-                           onClick={(e) => { e.stopPropagation(); handleOpenProfile(lead); }}
-                           className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-all"
-                           title="Schedule Follow-up"
-                         >
-                           <CalendarPlus className="w-4 h-4" />
-                         </button>
-                       </div>
-                       <button 
-                         onClick={(e) => { e.stopPropagation(); handleOpenProfile(lead); }}
-                         className="text-sm px-3 py-1 rounded font-medium transition bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                         title="View Lead Profile"
-                       >
-                         View
-                       </button>
-                       {permissions.canDeleteLeads && (
-                         <button 
-                           onClick={(e) => { e.stopPropagation(); handleDelete(lead.id); }}
-                           className="text-sm px-3 py-1 bg-white border border-red-200 hover:bg-red-50 text-red-600 dark:bg-slate-800 dark:border-red-900/50 dark:hover:bg-red-900/30 dark:text-red-400 rounded font-medium transition opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                         >
-                           Delete
-                         </button>
-                       )}
-                     </div>
-                  </td>
-                </tr>
-              );
-            })}
-            {filteredLeads.length === 0 && (
-              <tr>
-                <td colSpan="6" className="py-8 text-center text-slate-500 dark:text-slate-400">
-                  {leads.length === 0 ? "No leads found." : "No leads match your active filters."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      {/* Header and Add Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight dark:text-white bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">
+            Centralized Lead Database
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Build and manage high-quality customer relationships with unified leads tracking.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={() => {
+              resetImportState();
+              setIsImportOpen(true);
+            }}
+            className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-755 border border-slate-200/60 dark:bg-slate-800 dark:hover:bg-slate-750 dark:text-slate-200 dark:border-slate-700 px-4.5 py-2 rounded-lg font-medium transition shadow-sm hover:shadow-md text-sm cursor-pointer"
+          >
+            <Upload className="w-4 h-4 text-indigo-500" />
+            Bulk Importer
+          </button>
+          <button
+            onClick={openCreateForm}
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2 rounded-lg font-medium transition shadow-md hover:shadow-lg text-sm"
+          >
+            <Plus className="w-4.5 h-4.5" />
+            Add New Lead
+          </button>
+        </div>
       </div>
 
-      <KanbanBoard leads={leads} setLeads={setLeads} onLeadClick={handleOpenProfile} />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group hover:scale-[1.01] border-none">
+          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
+            <User className="w-16 h-16 text-blue-600" />
+          </div>
+          <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Leads</span>
+          <h3 className="text-3xl font-extrabold text-slate-800 dark:text-white mt-1">{stats.total}</h3>
+          <p className="text-xs text-slate-450 mt-2">Active database records</p>
+        </div>
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group hover:scale-[1.01] border-none">
+          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
+            <AlertCircle className="w-16 h-16 text-red-500" />
+          </div>
+          <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Hot Leads</span>
+          <h3 className="text-3xl font-extrabold text-red-600 dark:text-red-400 mt-1">{stats.hotLeads}</h3>
+          <p className="text-xs text-slate-450 mt-2">High conversion probability</p>
+        </div>
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group hover:scale-[1.01] border-none">
+          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
+            <CheckCircle className="w-16 h-16 text-green-500" />
+          </div>
+          <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Converted Leads</span>
+          <h3 className="text-3xl font-extrabold text-green-600 dark:text-green-400 mt-1">{stats.converted}</h3>
+          <p className="text-xs text-slate-450 mt-2">Closed deal success rate</p>
+        </div>
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group hover:scale-[1.01] border-none">
+          <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
+            <Calendar className="w-16 h-16 text-amber-500" />
+          </div>
+          <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Followups Scheduled</span>
+          <h3 className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">{stats.followupTodayOrFuture}</h3>
+          <p className="text-xs text-slate-450 mt-2">Pending interactions scheduled</p>
+        </div>
+      </div>
 
-      <AddLeadModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onAdd={handleAddLeadSubmit} 
-      />
+      {/* Main Container Card */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-md overflow-hidden transition-colors duration-300 border-none">
 
-      <LeadProfilePanel 
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-        leadData={selectedLead}
-        onSave={handleSaveFromProfile}
-      />
+        {/* Dynamic Source Pills — only values from database lead_source column */}
+        <div className="px-5 pt-4 pb-2.5 border-b border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800">
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Filter by Source</span>
+          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1.5 -mx-1 px-1">
+            <button
+              onClick={() => { setSourceFilter('All'); setCurrentPage(1); }}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-full border transition cursor-pointer shrink-0 ${sourceFilter === 'All'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700'
+                }`}
+            >
+              All Sources
+            </button>
+            {allUniqueSources.map((source) => (
+              <button
+                key={source}
+                onClick={() => { setSourceFilter(source); setCurrentPage(1); }}
+                className={`px-4 py-1.5 text-xs font-semibold rounded-full border transition cursor-pointer shrink-0 ${sourceFilter === source
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700'
+                  }`}
+              >
+                {source}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Filters and Search Bar Row */}
+        <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+          <div className="flex flex-wrap items-center gap-3">
+
+            {/* Search */}
+            <div className="relative min-w-[180px] max-w-[220px] flex-1">
+              <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search leads..."
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-9 pr-3 py-1.5 border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow dark:text-white"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">Status</span>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+              >
+                <option value="All">All Statuses</option>
+                {allUniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            {/* Category Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">Category</span>
+              <select
+                value={categoryFilter}
+                onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+              >
+                <option value="All">All Categories</option>
+                {allUniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            {/* Lead Type Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">Type</span>
+              <select
+                value={typeFilter}
+                onChange={(e) => { setTypeFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+              >
+                <option value="All">All Types</option>
+                {allUniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            {/* Priority Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">Priority</span>
+              <select
+                value={priorityFilter}
+                onChange={(e) => { setPriorityFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+              >
+                <option value="All">All Priorities</option>
+                {allUniquePriorities.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+
+            {/* Tags Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">Tags</span>
+              <select
+                value={tagsFilter}
+                onChange={(e) => { setTagsFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+              >
+                <option value="All">All Tags</option>
+                {allUniqueTags.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            {/* Columns Adjuster Popover */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-200 transition cursor-pointer select-none bg-white dark:bg-slate-800"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                <span>Columns</span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </button>
+
+              {showColumnDropdown && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowColumnDropdown(false)}
+                  />
+                  <div className="absolute right-0 mt-1.5 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-20 py-2.5 px-3 select-none transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                    <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pb-1.5 mb-2 border-b border-slate-100 dark:border-slate-700">
+                      Show/Hide Columns
+                    </div>
+                    <div className="flex flex-col gap-1.5 max-h-[240px] overflow-y-auto scrollbar-thin">
+                      {COLUMNS.map((col) => (
+                        <label
+                          key={col.key}
+                          className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg cursor-pointer transition select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns[col.key] !== false}
+                            onChange={() => {
+                              setVisibleColumns(prev => ({
+                                ...prev,
+                                [col.key]: prev[col.key] === false ? true : false
+                              }));
+                            }}
+                            className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 shrink-0 cursor-pointer"
+                          />
+                          <span>{col.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Reset Filters */}
+            {(searchTerm || statusFilter !== 'All' || sourceFilter !== 'All' || categoryFilter !== 'All' || priorityFilter !== 'All' || typeFilter !== 'All' || tagsFilter !== 'All') && (
+              <button
+                onClick={() => {
+                  setSearchTerm('');
+                  setStatusFilter('All');
+                  setSourceFilter('All');
+                  setCategoryFilter('All');
+                  setPriorityFilter('All');
+                  setTypeFilter('All');
+                  setTagsFilter('All');
+                  setCurrentPage(1);
+                }}
+                className="text-xs font-semibold px-3 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-lg transition shrink-0 cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            )}
+
+          </div>
+        </div>
+
+        {/* Data Grid Table */}
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-sm text-slate-400 mt-4 font-medium animate-pulse">Loading leads from Supabase...</p>
+            </div>
+          ) : processedLeads.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
+              <HelpCircle className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-700" />
+              <p className="font-semibold text-slate-600 dark:text-slate-400 text-base">No Leads Found</p>
+              <p className="text-xs mt-1 text-center max-w-xs">
+                Try modifying your search query or filters, or add a lead to get started.
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse table-auto min-w-[1200px]">
+              <thead>
+                <tr className="border-b border-slate-150 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40">
+                  {visibleColumns.lead_id !== false && (
+                    <th onClick={() => handleSort('lead_id')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        ID {sortField === 'lead_id' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.full_name !== false && (
+                    <th onClick={() => handleSort('full_name')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Name {sortField === 'full_name' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.phone !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Phone</th>
+                  )}
+                  {visibleColumns.phone_alt !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Alt Phone</th>
+                  )}
+                  {visibleColumns.whatsapp !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">WhatsApp</th>
+                  )}
+                  {visibleColumns.email !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Email</th>
+                  )}
+                  {visibleColumns.email_alt !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Alt Email</th>
+                  )}
+                  {visibleColumns.company_name !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Company</th>
+                  )}
+                  {visibleColumns.designation !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Designation</th>
+                  )}
+                  {visibleColumns.industry !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Industry</th>
+                  )}
+                  {visibleColumns.website !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Website</th>
+                  )}
+                  {visibleColumns.company_size !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Company Size</th>
+                  )}
+                  {visibleColumns.city !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">City</th>
+                  )}
+                  {visibleColumns.state !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">State</th>
+                  )}
+                  {visibleColumns.country !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Country</th>
+                  )}
+                  {visibleColumns.business_city !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Biz City</th>
+                  )}
+                  {visibleColumns.business_country !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Biz Country</th>
+                  )}
+                  {visibleColumns.lead_source !== false && (
+                    <th onClick={() => handleSort('lead_source')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Source {sortField === 'lead_source' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.lead_category !== false && (
+                    <th onClick={() => handleSort('lead_category')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Category {sortField === 'lead_category' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.lead_type !== false && (
+                    <th onClick={() => handleSort('lead_type')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Lead Type {sortField === 'lead_type' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.lead_status !== false && (
+                    <th onClick={() => handleSort('lead_status')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Status {sortField === 'lead_status' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.priority !== false && (
+                    <th onClick={() => handleSort('priority')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Priority {sortField === 'priority' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.tags !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Tags</th>
+                  )}
+                  {visibleColumns.assigned_to !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Assigned To</th>
+                  )}
+                  {visibleColumns.source_batch !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Source Batch</th>
+                  )}
+                  {visibleColumns.notes !== false && (
+                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Notes</th>
+                  )}
+                  {visibleColumns.next_followup_date !== false && (
+                    <th onClick={() => handleSort('next_followup_date')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Next Followup {sortField === 'next_followup_date' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.last_contacted !== false && (
+                    <th onClick={() => handleSort('last_contacted')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Last Contacted {sortField === 'last_contacted' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.created_at !== false && (
+                    <th onClick={() => handleSort('created_at')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Created At {sortField === 'created_at' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.created_by !== false && (
+                    <th onClick={() => handleSort('created_by')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Created By {sortField === 'created_by' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.updated_at !== false && (
+                    <th onClick={() => handleSort('updated_at')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Updated At {sortField === 'updated_at' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  {visibleColumns.updated_by !== false && (
+                    <th onClick={() => handleSort('updated_by')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Updated By {sortField === 'updated_by' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
+                  )}
+                  <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none text-right whitespace-nowrap">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                {paginatedLeads.map((lead) => (
+                  <tr key={lead.lead_id} className="hover:bg-blue-50/20 dark:hover:bg-slate-750 transition duration-150">
+                    {visibleColumns.lead_id !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-400">{lead.lead_id}</td>
+                    )}
+                    {visibleColumns.full_name !== false && (
+                      <td className="py-3 px-4 text-xs font-medium text-slate-900 dark:text-white whitespace-nowrap">
+                        <span>{lead.full_name}</span>
+                      </td>
+                    )}
+                    {visibleColumns.phone !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.phone ? (
+                          <a href={`tel:${lead.phone}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                            {lead.phone}
+                          </a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.phone_alt !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.phone_alt ? (
+                          <a href={`tel:${lead.phone_alt}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                            {lead.phone_alt}
+                          </a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.whatsapp !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.whatsapp ? (
+                          <a
+                            href={`https://wa.me/${lead.whatsapp.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-green-600 dark:text-green-400 hover:underline"
+                          >
+                            {lead.whatsapp}
+                          </a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.email !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.email ? (
+                          <a href={`mailto:${lead.email}`} className="text-blue-600 dark:text-blue-400 hover:underline">{lead.email}</a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.email_alt !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.email_alt ? (
+                          <a href={`mailto:${lead.email_alt}`} className="text-blue-600 dark:text-blue-400 hover:underline">{lead.email_alt}</a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.company_name !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.company_name || '-'}</td>
+                    )}
+                    {visibleColumns.designation !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.designation || '-'}</td>
+                    )}
+                    {visibleColumns.industry !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.industry || '-'}</td>
+                    )}
+                    {visibleColumns.website !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.website ? (
+                          <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                            {lead.website}
+                          </a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.company_size !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.company_size || '-'}</td>
+                    )}
+                    {visibleColumns.city !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.city || '-'}</td>
+                    )}
+                    {visibleColumns.state !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.state || '-'}</td>
+                    )}
+                    {visibleColumns.country !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.country || '-'}</td>
+                    )}
+                    {visibleColumns.business_city !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.business_city || '-'}</td>
+                    )}
+                    {visibleColumns.business_country !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.business_country || '-'}</td>
+                    )}
+                    {visibleColumns.lead_source !== false && (
+                      <td className="py-3 px-4 text-xs text-slate-650 dark:text-slate-350 font-normal whitespace-nowrap">{lead.lead_source || '-'}</td>
+                    )}
+                    {visibleColumns.lead_category !== false && (
+                      <td className="py-3 px-4 text-xs text-slate-650 dark:text-slate-350 font-normal whitespace-nowrap">{lead.lead_category || '-'}</td>
+                    )}
+                    {visibleColumns.lead_type !== false && (
+                      <td className="py-3 px-4 text-xs text-slate-650 dark:text-slate-350 font-normal whitespace-nowrap">{lead.lead_type || '-'}</td>
+                    )}
+                    {visibleColumns.lead_status !== false && (
+                      <td className="py-3 px-4 text-xs whitespace-nowrap">{getStatusBadge(lead.lead_status)}</td>
+                    )}
+                    {visibleColumns.priority !== false && (
+                      <td className="py-3 px-4 text-xs whitespace-nowrap">{getPriorityFlag(lead.priority)}</td>
+                    )}
+                    {visibleColumns.tags !== false && (
+                      <td className="py-3 px-4 text-xs max-w-[150px] truncate text-slate-600 dark:text-slate-350 font-normal whitespace-nowrap">
+                        {lead.tags ? lead.tags.split(',').map(t => t.trim()).join(', ') : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.assigned_to !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.assigned_to || '-'}</td>
+                    )}
+                    {visibleColumns.source_batch !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.source_batch || '-'}</td>
+                    )}
+                    {visibleColumns.notes !== false && (
+                      <td className="py-3 px-4 text-xs max-w-[200px] truncate text-slate-600 dark:text-slate-350 font-normal whitespace-nowrap" title={lead.notes || ''}>{lead.notes || '-'}</td>
+                    )}
+                    {visibleColumns.next_followup_date !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-500 whitespace-nowrap">
+                        {lead.next_followup_date ? (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            {new Date(lead.next_followup_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.last_contacted !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-500 whitespace-nowrap">
+                        {lead.last_contacted ? (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            {new Date(lead.last_contacted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.created_at !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-500 whitespace-nowrap">
+                        {lead.created_at ? new Date(lead.created_at).toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.created_by !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-500 whitespace-nowrap">
+                        {lead.created_by ? lead.created_by.split(' (')[0] : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.updated_at !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-500 whitespace-nowrap">
+                        {lead.updated_at ? new Date(lead.updated_at).toLocaleString() : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.updated_by !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-500 whitespace-nowrap">
+                        {lead.updated_by ? lead.updated_by.split(' (')[0] : '-'}
+                      </td>
+                    )}
+                    <td className="py-3 px-4 text-xs text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => openEditForm(lead)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-700 transition"
+                          title="Edit Lead"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => confirmDeleteLead(lead)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-400 dark:hover:bg-slate-700 transition"
+                          title="Delete Lead"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Pagination Bar */}
+        {!loading && processedLeads.length > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 border-t border-slate-150 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40">
+            <span className="text-xs font-medium text-slate-500">
+              Showing <span className="text-slate-800 dark:text-slate-300 font-semibold">{Math.min((currentPage - 1) * itemsPerPage + 1, processedLeads.length)}</span> to{' '}
+              <span className="text-slate-800 dark:text-slate-300 font-semibold">{Math.min(currentPage * itemsPerPage, processedLeads.length)}</span> of{' '}
+              <span className="text-slate-850 dark:text-slate-200 font-bold">{processedLeads.length}</span> leads
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                className="p-2 rounded-lg border border-slate-250 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition bg-white dark:bg-slate-800"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              {Array.from({ length: totalPages }).map((_, idx) => {
+                const pageNum = idx + 1;
+                // Limit page buttons visible
+                if (pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - currentPage) <= 1) {
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-9 h-9 rounded-lg text-xs font-semibold border transition ${currentPage === pageNum
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-250 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                } else if (pageNum === 2 || pageNum === totalPages - 1) {
+                  return <span key={pageNum} className="text-slate-400 dark:text-slate-600 px-1">...</span>;
+                }
+                return null;
+              })}
+              <button
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                className="p-2 rounded-lg border border-slate-250 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition bg-white dark:bg-slate-800"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Add / Edit Form Modal */}
+      {isFormOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-750 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-150 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {formMode === 'create' ? 'Add New Lead' : 'Edit Lead Record'}
+                </h2>
+                <p className="text-xs text-slate-550 dark:text-slate-400 mt-0.5">
+                  Complete the fields below. Accordion sections can be toggled.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsFormOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Form Body */}
+            <form onSubmit={checkDuplicateAndSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+
+              {/* SECTION 1: PERSONAL DETAILS */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(1)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <User className="w-4 h-4" /> Section 1 — Personal Details
+                  </span>
+                  {expandedSections[1] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedSections[1] && (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-white dark:bg-slate-800/40">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Full Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.full_name}
+                        onChange={(e) => handleInputChange('full_name', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="John Doe"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Primary Phone</label>
+                      <input
+                        type="text"
+                        value={formData.phone}
+                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="+123456789"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Alternate Phone</label>
+                      <input
+                        type="text"
+                        value={formData.phone_alt}
+                        onChange={(e) => handleInputChange('phone_alt', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="+987654321"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">WhatsApp</label>
+                      <input
+                        type="text"
+                        value={formData.whatsapp}
+                        onChange={(e) => handleInputChange('whatsapp', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="WhatsApp Number"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Primary Email</label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => handleInputChange('email', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="email@company.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Alternate Email</label>
+                      <input
+                        type="email"
+                        value={formData.email_alt}
+                        onChange={(e) => handleInputChange('email_alt', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="email_alt@company.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Country</label>
+                      <input
+                        type="text"
+                        value={formData.country}
+                        onChange={(e) => handleInputChange('country', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="Country Name"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">City</label>
+                      <input
+                        type="text"
+                        value={formData.city}
+                        onChange={(e) => handleInputChange('city', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="City"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">State</label>
+                      <input
+                        type="text"
+                        value={formData.state}
+                        onChange={(e) => handleInputChange('state', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="State"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 2: BUSINESS DETAILS */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(2)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <Building2 className="w-4 h-4" /> Section 2 — Business Details
+                  </span>
+                  {expandedSections[2] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedSections[2] && (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-white dark:bg-slate-800/40">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Company Name</label>
+                      <input
+                        type="text"
+                        value={formData.company_name}
+                        onChange={(e) => handleInputChange('company_name', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="Acme Corp"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Designation</label>
+                      <input
+                        type="text"
+                        value={formData.designation}
+                        onChange={(e) => handleInputChange('designation', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="Director, Owner, etc."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Industry</label>
+                      <input
+                        type="text"
+                        value={formData.industry}
+                        onChange={(e) => handleInputChange('industry', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="Real Estate, IT, etc."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Website</label>
+                      <input
+                        type="text"
+                        value={formData.website}
+                        onChange={(e) => handleInputChange('website', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="https://example.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Company Size</label>
+                      <select
+                        value={formData.company_size}
+                        onChange={(e) => handleInputChange('company_size', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                      >
+                        <option value="">Select Size</option>
+                        {COMPANY_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Business Country</label>
+                      <input
+                        type="text"
+                        value={formData.business_country}
+                        onChange={(e) => handleInputChange('business_country', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="Business Country"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Business City</label>
+                      <input
+                        type="text"
+                        value={formData.business_city}
+                        onChange={(e) => handleInputChange('business_city', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="Business City"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 3: CLASSIFICATION */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(3)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <Tag className="w-4 h-4" /> Section 3 — Lead Classification
+                  </span>
+                  {expandedSections[3] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedSections[3] && (
+                  <div className="p-4 space-y-4 bg-white dark:bg-slate-800/40">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Lead Source</label>
+                        <select
+                          value={formData.lead_source}
+                          onChange={(e) => handleInputChange('lead_source', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        >
+                          {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        {formData.lead_source === 'Other' && (
+                          <input
+                            type="text"
+                            required
+                            placeholder="Type custom source..."
+                            value={customSource}
+                            onChange={(e) => setCustomSource(e.target.value)}
+                            className="mt-2 w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Lead Category</label>
+                        <select
+                          value={formData.lead_category}
+                          onChange={(e) => handleInputChange('lead_category', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        >
+                          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Lead Type</label>
+                        <select
+                          value={formData.lead_type}
+                          onChange={(e) => handleInputChange('lead_type', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        >
+                          {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                          <option value="Other">Other (custom)</option>
+                        </select>
+                        {formData.lead_type === 'Other' && (
+                          <input
+                            type="text"
+                            required
+                            placeholder="Type custom lead type..."
+                            value={customType}
+                            onChange={(e) => setCustomType(e.target.value)}
+                            className="mt-2 w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Lead Status</label>
+                        <select
+                          value={formData.lead_status}
+                          onChange={(e) => handleInputChange('lead_status', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        >
+                          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Priority</label>
+                        <select
+                          value={formData.priority}
+                          onChange={(e) => handleInputChange('priority', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        >
+                          {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Tags (comma-separated)</label>
+                        <input
+                          type="text"
+                          value={formData.tags}
+                          onChange={(e) => handleInputChange('tags', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                          placeholder="VIP, Callback, Do Not Contact"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 4: NOTES & TRACKING */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(4)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <Calendar className="w-4 h-4" /> Section 4 — Notes & Tracking
+                  </span>
+                  {expandedSections[4] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections[4] && (
+                  <div className="p-4 space-y-4 bg-white dark:bg-slate-800/40">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Assigned To</label>
+                        <input
+                          type="text"
+                          value={formData.assigned_to}
+                          onChange={(e) => handleInputChange('assigned_to', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                          placeholder="Rep Name"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Next Follow-up Date</label>
+                        <input
+                          type="date"
+                          value={formData.next_followup_date}
+                          onChange={(e) => handleInputChange('next_followup_date', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Last Contacted Date</label>
+                        <input
+                          type="date"
+                          value={formData.last_contacted}
+                          onChange={(e) => handleInputChange('last_contacted', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Notes</label>
+                      <textarea
+                        value={formData.notes}
+                        onChange={(e) => handleInputChange('notes', e.target.value)}
+                        rows="3"
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="Write detailed call summaries or interaction logs here..."
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </form>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-150 dark:border-slate-700 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsFormOpen(false)}
+                className="px-4 py-2 border border-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg font-medium text-sm transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                onClick={checkDuplicateAndSubmit}
+                disabled={actionLoading}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium text-sm transition shadow-md disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                {formMode === 'create' ? 'Save Lead' : 'Update Lead'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* DUPLICATE WARNING MODAL FOR MANUAL INPUT */}
+      {duplicateWarning && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-900/60 w-full max-w-lg rounded-2xl shadow-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-amber-500"></div>
+
+            <div className="flex items-start gap-4 mt-2">
+              <div className="p-3 bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 rounded-xl">
+                <AlertTriangle className="w-6 h-6 animate-bounce" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Duplicate Record Warning</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  A lead with matching contact details already exists in the centralized database:
+                </p>
+
+                <div className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-150 dark:border-slate-750 my-4 text-xs space-y-2">
+                  <div>
+                    <span className="font-semibold text-slate-400 uppercase tracking-wider block text-[10px]">Existing Lead</span>
+                    <p className="font-bold text-slate-800 dark:text-slate-200 text-sm mt-0.5">{duplicateWarning.existing.full_name}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <span className="font-semibold text-slate-400 text-[10px] uppercase">Phone</span>
+                      <p className="font-medium text-slate-700 dark:text-slate-350">{duplicateWarning.existing.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-slate-400 text-[10px] uppercase">Email</span>
+                      <p className="font-medium text-slate-700 dark:text-slate-350">{duplicateWarning.existing.email || 'N/A'}</p>
+                    </div>
+                  </div>
+                  {duplicateWarning.existing.company_name && (
+                    <div>
+                      <span className="font-semibold text-slate-400 text-[10px] uppercase">Company</span>
+                      <p className="font-medium text-slate-700 dark:text-slate-350">{duplicateWarning.existing.company_name}</p>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-4 mt-2 border-t border-slate-200/50 dark:border-slate-700/50 pt-2">
+                    <span>Status: {getStatusBadge(duplicateWarning.existing.lead_status)}</span>
+                    <span>Priority: {getPriorityFlag(duplicateWarning.existing.priority)}</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500 font-medium">
+                  How would you like to handle this duplicate?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 mt-6 border-t border-slate-100 dark:border-slate-750 pt-4">
+              <button
+                type="button"
+                onClick={() => handleDuplicateResolve('skip')}
+                className="w-full sm:w-auto px-4 py-2 border border-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition"
+              >
+                Skip / Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDuplicateResolve('overwrite')}
+                className="w-full sm:w-auto px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition shadow-sm"
+              >
+                Overwrite Existing
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDuplicateResolve('anyway')}
+                className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition shadow-sm"
+              >
+                Import Anyway
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 w-full max-w-md rounded-2xl shadow-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-red-500"></div>
+
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-red-500" />
+              Confirm Delete Lead
+            </h3>
+
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">
+              Are you absolutely sure you want to delete lead <strong className="text-slate-800 dark:text-white font-semibold">"{deleteConfirmName}"</strong>? This operation will remove the lead permanently from the centralized database and cannot be undone.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 mt-6 border-t border-slate-100 dark:border-slate-700/60 pt-4">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="px-4 py-2 border border-slate-350 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={actionLoading}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-semibold transition shadow-md disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                Delete Lead
+              </button>
+            </div>
+            {/* Bulk Importer is now handled via an early full-page return at the top of the render statement */}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

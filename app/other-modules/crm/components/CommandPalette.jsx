@@ -10,13 +10,9 @@ import {
   Activity,
   CheckSquare,
   Calendar,
-  Package,
-  UserCircle,
   Link as LinkIcon,
   Mail,
   Zap,
-  Settings,
-  Bot,
   ArrowRight,
   Command,
 } from 'lucide-react';
@@ -24,17 +20,12 @@ import {
 const PAGES = [
   { label: 'Dashboard', path: '/other-modules/crm/dashboard', icon: LayoutDashboard },
   { label: 'Lead Tracking', path: '/other-modules/crm/leads', icon: Users },
-  { label: 'Activities', path: '/other-modules/crm/activities', icon: Activity },
   { label: 'Tasks', path: '/other-modules/crm/tasks', icon: CheckSquare },
   { label: 'Follow-ups', path: '/other-modules/crm/followups', icon: Calendar },
   { label: 'Calendar', path: '/other-modules/crm/calendar', icon: Calendar },
-  { label: 'Products', path: '/other-modules/crm/products', icon: Package },
-  { label: 'Customers', path: '/other-modules/crm/customers', icon: UserCircle },
   { label: 'Lead Sources', path: '/other-modules/crm/sources', icon: LinkIcon },
   { label: 'Email Templates', path: '/other-modules/crm/templates', icon: Mail },
   { label: 'Campaigns', path: '/other-modules/crm/campaigns', icon: Zap },
-  { label: 'Settings', path: '/other-modules/crm/settings', icon: Settings },
-  { label: 'AI Assistant', path: '/other-modules/crm/ai-assistant', icon: Bot },
 ];
 
 const MAX_PER_CATEGORY = 5;

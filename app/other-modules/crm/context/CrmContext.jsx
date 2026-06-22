@@ -58,17 +58,16 @@ export function CrmProvider({ children }) {
   const [enrollments, setEnrollments] = useState(MOCK_DATA.enrollments || []);
 
   const refreshCrmData = useCallback(async () => {
-    const [leadsData, tasksData, activitiesData, followupsData, campaignsData, enrollmentsData] = await Promise.all([
+    const [leadsData, tasksData, followupsData, campaignsData, enrollmentsData] = await Promise.all([
       fetchOrFallback("/other-modules/crm/api/leads", "leads", MOCK_LEADS),
       fetchOrFallback("/other-modules/crm/api/tasks", "tasks", MOCK_DATA.tasks),
-      fetchOrFallback("/other-modules/crm/api/activities", "activities", MOCK_ACTIVITIES),
       fetchOrFallback("/other-modules/crm/api/followups", "followups", MOCK_FOLLOWUPS),
       fetchOrFallback("/other-modules/crm/api/campaigns", "campaigns", MOCK_DATA.campaigns || []),
       fetchOrFallback("/other-modules/crm/api/campaigns/enrollments", "enrollments", MOCK_DATA.enrollments || []),
     ]);
     setLeads(leadsData);
     setTasks(tasksData);
-    setActivities(activitiesData);
+    setActivities(MOCK_ACTIVITIES);
     setFollowups(followupsData);
     setCampaigns(campaignsData);
     setEnrollments(enrollmentsData);
@@ -88,13 +87,6 @@ export function CrmProvider({ children }) {
 
   const addActivity = async (newActivity) => {
     setActivities(prev => [newActivity, ...prev]);
-    try {
-      const res = await fetch("/other-modules/crm/api/activities", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newActivity) });
-      if (res.ok) {
-        const { activity } = await res.json();
-        if (activity) setActivities(prev => [activity, ...prev.filter(a => a !== newActivity)]);
-      }
-    } catch (e) { console.error("addActivity API error:", e); }
   };
 
   const addFollowup = async (newFollowup) => {

@@ -13,6 +13,7 @@ export async function middleware(request) {
   const isEmployeeIntakePath = pathname.startsWith('/employee-intake')
   const isAuditingPath = pathname.startsWith('/Auditing/auditing')
   const isSuperAdminPath = pathname.startsWith('/superadmin')
+  const isOtherModulesPath = pathname.startsWith('/other-modules')
   const isProtectedPath =
     isTaskAdminPath ||
     isTaskDashboardPath ||
@@ -20,7 +21,8 @@ export async function middleware(request) {
     isHRMEmployeePath ||
     isEmployeeIntakePath ||
     isAuditingPath ||
-    isSuperAdminPath
+    isSuperAdminPath ||
+    isOtherModulesPath
 
   let supabaseResponse = NextResponse.next({
     request,
@@ -113,5 +115,5 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/Taskmanager/admin/:path*', '/Taskmanager/dashboard/:path*', '/HRM/hrm/:path*', '/Auditing/auditing/:path*', '/superadmin/:path*', '/employee-intake/:path*', '/login'],
+  matcher: ['/Taskmanager/admin/:path*', '/Taskmanager/dashboard/:path*', '/HRM/hrm/:path*', '/Auditing/auditing/:path*', '/superadmin/:path*', '/employee-intake/:path*', '/other-modules/:path*', '/login'],
 }
