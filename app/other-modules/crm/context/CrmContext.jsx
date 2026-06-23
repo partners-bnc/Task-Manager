@@ -90,44 +90,91 @@ export function CrmProvider({ children }) {
   };
 
   const addFollowup = async (newFollowup) => {
-    setFollowups(prev => [newFollowup, ...prev]);
     try {
-      const res = await fetch("/other-modules/crm/api/followups", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newFollowup) });
+      const res = await fetch("/other-modules/crm/api/followups", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(newFollowup) 
+      });
       if (res.ok) {
         const { followup } = await res.json();
-        if (followup) setFollowups(prev => [followup, ...prev.filter(f => f !== newFollowup)]);
+        if (followup) {
+          setFollowups(prev => [followup, ...prev]);
+          refreshCrmData();
+        }
       }
     } catch (e) { console.error("addFollowup API error:", e); }
   };
 
-  const updateFollowup = async (id, updates) => {
-    setFollowups(prev => prev.map(f => f.id === id ? { ...f, ...updates } : f));
-    try { await fetch("/other-modules/crm/api/followups", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...updates }) }); }
-    catch (e) { console.error("updateFollowup API error:", e); }
+  const updateFollowup = async (followup_id, updates) => {
+    try {
+      const res = await fetch("/other-modules/crm/api/followups", { 
+        method: "PUT", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ followup_id, ...updates }) 
+      });
+      if (res.ok) {
+        const { followup } = await res.json();
+        if (followup) {
+          setFollowups(prev => prev.map(f => f.followup_id === followup_id ? followup : f));
+          refreshCrmData();
+        }
+      }
+    } catch (e) { console.error("updateFollowup API error:", e); }
   };
 
-  const deleteFollowup = async (id) => {
-    setFollowups(prev => prev.filter(f => f.id !== id));
-    try { await fetch(`/other-modules/crm/api/followups?id=${id}`, { method: "DELETE" }); }
-    catch (e) { console.error("deleteFollowup API error:", e); }
+  const deleteFollowup = async (followup_id) => {
+    try {
+      const res = await fetch(`/other-modules/crm/api/followups?followup_id=${followup_id}`, { method: "DELETE" });
+      if (res.ok) {
+        setFollowups(prev => prev.filter(f => f.followup_id !== followup_id));
+        refreshCrmData();
+      }
+    } catch (e) { console.error("deleteFollowup API error:", e); }
   };
 
   const addCampaign = async (campaign) => {
-    setCampaigns(prev => [...prev, campaign]);
-    try { await fetch("/other-modules/crm/api/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(campaign) }); }
-    catch (e) { console.error("addCampaign API error:", e); }
+    try {
+      const res = await fetch("/other-modules/crm/api/campaigns", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(campaign) 
+      });
+      if (res.ok) {
+        const { campaign: newCamp } = await res.json();
+        if (newCamp) {
+          setCampaigns(prev => [newCamp, ...prev]);
+          refreshCrmData();
+        }
+      }
+    } catch (e) { console.error("addCampaign API error:", e); }
   };
 
-  const updateCampaign = async (id, updates) => {
-    setCampaigns(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
-    try { await fetch("/other-modules/crm/api/campaigns", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, ...updates }) }); }
-    catch (e) { console.error("updateCampaign API error:", e); }
+  const updateCampaign = async (campaign_id, updates) => {
+    try {
+      const res = await fetch("/other-modules/crm/api/campaigns", { 
+        method: "PUT", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ campaign_id, ...updates }) 
+      });
+      if (res.ok) {
+        const { campaign: updatedCamp } = await res.json();
+        if (updatedCamp) {
+          setCampaigns(prev => prev.map(c => c.campaign_id === campaign_id ? updatedCamp : c));
+          refreshCrmData();
+        }
+      }
+    } catch (e) { console.error("updateCampaign API error:", e); }
   };
 
-  const deleteCampaign = async (id) => {
-    setCampaigns(prev => prev.filter(c => c.id !== id));
-    try { await fetch(`/other-modules/crm/api/campaigns?id=${id}`, { method: "DELETE" }); }
-    catch (e) { console.error("deleteCampaign API error:", e); }
+  const deleteCampaign = async (campaign_id) => {
+    try {
+      const res = await fetch(`/other-modules/crm/api/campaigns?campaign_id=${campaign_id}`, { method: "DELETE" });
+      if (res.ok) {
+        setCampaigns(prev => prev.filter(c => c.campaign_id !== campaign_id));
+        refreshCrmData();
+      }
+    } catch (e) { console.error("deleteCampaign API error:", e); }
   };
 
   const enrollLead = async (leadId, campaignId) => {

@@ -9,6 +9,7 @@ import './calendar-overrides.css';
 import { useCrm } from '../context/CrmContext';
 import MOCK_DATA from '../data/mockData.json';
 import TaskDetailsModal from '../components/TaskDetailsModal';
+import { CalendarDays } from 'lucide-react';
 
 const locales = {
   'en-US': enUS,
@@ -108,12 +109,15 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="p-8 text-slate-800 dark:text-slate-100 transition-colors duration-300 h-full overflow-y-auto flex flex-col">
-      <div className="mb-6 shrink-0">
-        <h1 className="text-3xl font-bold dark:text-white mb-2">Calendar Overview</h1>
-        <p className="text-slate-500 dark:text-slate-400">
-          Global timeline parsing {events.length} mapped events. Click any <span className="text-amber-500 font-bold">task</span> to view details & edit.
-        </p>
+    <div className="p-8 text-slate-800 dark:text-slate-100 transition-colors duration-300 h-full overflow-y-auto flex flex-col bg-slate-50 dark:bg-slate-900/50 font-sans">
+      <div className="flex items-start gap-3 mb-6 pb-5 border-b border-slate-200 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900/30 p-5 rounded-2xl border border-slate-100 dark:border-slate-800/40">
+        <CalendarDays size={38} className="text-[#6057DA] stroke-[1.8] shrink-0 mt-0.5" />
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight dark:text-white bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent leading-none">Calendar Overview</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mt-1.5">
+            Global timeline parsing {events.length} mapped events. Click any task to view details & edit.
+          </p>
+        </div>
       </div>
 
       <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 min-h-[600px] transition-colors event-calendar-wrapper">

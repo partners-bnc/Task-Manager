@@ -16,6 +16,9 @@ import {
   Sun,
   MessageSquareCode,
   Database,
+  Megaphone,
+  Rocket,
+  LayoutGrid,
 } from 'lucide-react';
 import { useCrm } from '../context/CrmContext';
 
@@ -98,29 +101,25 @@ const Sidebar = () => {
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 flex flex-col pb-4">
-        <SectionLabel label="Main" isCollapsed={isSidebarCollapsed} />
-        <div className="flex flex-col space-y-0.5 mb-1">
-          {canViewDashboard && (
-            <SidebarItem icon={LayoutDashboard} label="Dashboard" href="/other-modules/crm/dashboard" isCollapsed={isSidebarCollapsed} />
-          )}
-          <SidebarItem icon={Users} label="Lead Tracking" href="/other-modules/crm/leads" isCollapsed={isSidebarCollapsed} />
-          <SidebarItem icon={MessageSquareCode} label="Follow-ups" href="/other-modules/crm/followups" isCollapsed={isSidebarCollapsed} />
-          <SidebarItem icon={CalendarIcon} label="Calendar" href="/other-modules/crm/calendar" isCollapsed={isSidebarCollapsed} />
-        </div>
-
+      <div className="flex-1 flex flex-col pb-4 space-y-0.5 mt-2">
+        {canViewDashboard && (
+          <SidebarItem icon={LayoutDashboard} label="Dashboard" href="/other-modules/crm/dashboard" isCollapsed={isSidebarCollapsed} />
+        )}
+        <SidebarItem icon={Users} label="Lead Tracking" href="/other-modules/crm/leads" isCollapsed={isSidebarCollapsed} />
+        <SidebarItem icon={MessageSquareCode} label="Follow-ups" href="/other-modules/crm/followups" isCollapsed={isSidebarCollapsed} />
+        {permissions.canManageEmailTemplates && (
+          <SidebarItem icon={Rocket} label="Campaigns" href="/other-modules/crm/campaigns" isCollapsed={isSidebarCollapsed} />
+        )}
+        {permissions.canManageEmailTemplates && (
+          <SidebarItem icon={Mail} label="Email Templates" href="/other-modules/crm/templates" isCollapsed={isSidebarCollapsed} />
+        )}
+        
         <Divider />
-
-        <SectionLabel label="Tools" isCollapsed={isSidebarCollapsed} />
-        <div className="flex flex-col space-y-0.5">
-          <SidebarItem icon={LinkIcon} label="Lead Sources" href="/other-modules/crm/sources" isCollapsed={isSidebarCollapsed} />
-          {permissions.canManageEmailTemplates && (
-            <SidebarItem icon={Mail} label="Email Templates" href="/other-modules/crm/templates" isCollapsed={isSidebarCollapsed} />
-          )}
-          {permissions.canManageEmailTemplates && (
-            <SidebarItem icon={Mail} label="Campaigns" href="/other-modules/crm/campaigns" isCollapsed={isSidebarCollapsed} />
-          )}
-        </div>
+        
+        <SidebarItem icon={CalendarIcon} label="Calendar" href="/other-modules/crm/calendar" isCollapsed={isSidebarCollapsed} />
+        <SidebarItem icon={LinkIcon} label="Lead Sources" href="/other-modules/crm/sources" isCollapsed={isSidebarCollapsed} />
+        <SidebarItem icon={CheckSquare} label="Task Manager" href="/Taskmanager/dashboard" isCollapsed={isSidebarCollapsed} />
+        <SidebarItem icon={LayoutGrid} label="All Modules" href="/other-modules" isCollapsed={isSidebarCollapsed} />
       </div>
 
       {/* Dark Mode Toggle */}

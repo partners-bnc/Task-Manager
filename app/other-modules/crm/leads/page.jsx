@@ -1782,7 +1782,7 @@ export default function LeadsPage() {
       {/* Header and Add Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight dark:text-white bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">
+          <h1 className="text-3xl font-semibold tracking-tight dark:text-white bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">
             Centralized Lead Database
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -1849,15 +1849,14 @@ export default function LeadsPage() {
       {/* Main Container Card */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-md overflow-hidden transition-colors duration-300 border-none">
 
-        {/* Dynamic Source Pills — only values from database lead_source column */}
-        <div className="px-5 pt-4 pb-2.5 border-b border-slate-100 dark:border-slate-700/60 bg-white dark:bg-slate-800">
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-2">Filter by Source</span>
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1.5 -mx-1 px-1">
+        {/* Dynamic Source Segment Control — Switch Mode */}
+        <div className="px-5 pt-4 pb-2 border-b border-slate-100 dark:border-slate-700 bg-slate-50/20 dark:bg-slate-800/20">
+          <div className="inline-flex items-center bg-slate-100/60 dark:bg-slate-900/60 p-1 rounded-full max-w-full overflow-x-auto scrollbar-none gap-0.5">
             <button
               onClick={() => { setSourceFilter('All'); setCurrentPage(1); }}
-              className={`px-4 py-1.5 text-xs font-semibold rounded-full border transition cursor-pointer shrink-0 ${sourceFilter === 'All'
-                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md'
-                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700'
+              className={`px-4 py-1 text-xs font-semibold rounded-full transition-all duration-200 cursor-pointer shrink-0 select-none ${sourceFilter === 'All'
+                  ? 'bg-white dark:bg-slate-800 text-slate-850 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
             >
               All Sources
@@ -1866,9 +1865,9 @@ export default function LeadsPage() {
               <button
                 key={source}
                 onClick={() => { setSourceFilter(source); setCurrentPage(1); }}
-                className={`px-4 py-1.5 text-xs font-semibold rounded-full border transition cursor-pointer shrink-0 ${sourceFilter === source
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-md'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-700'
+                className={`px-4 py-1 text-xs font-semibold rounded-full transition-all duration-200 cursor-pointer shrink-0 select-none ${sourceFilter === source
+                    ? 'bg-white dark:bg-slate-800 text-slate-850 dark:text-white shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
               >
                 {source}
