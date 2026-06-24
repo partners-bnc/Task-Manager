@@ -12,6 +12,7 @@ import PayoutsPayroll from './views/admin/PayoutsPayroll';
 import RegularizationInbox from './views/admin/RegularizationInbox';
 import HolidayManager from './views/admin/HolidayManager';
 import LeaveManagement from './views/admin/LeaveManagement';
+import CertificateGenerator from './views/admin/CertificateGenerator';
 import EmployeeDirectoryWorkspace from './views/admin/EmployeeDirectoryWorkspace';
 import EmployeeOnboarding from './views/admin/EmployeeOnboarding';
 import OrganizationChart from './views/admin/OrganizationChart';
@@ -177,6 +178,7 @@ export default function AdminApp() {
         setOnboardingRequestId={setPendingOnboardingRequestId}
       />
     ),
+    'admin-certificates': <CertificateGenerator />,
     'admin-onboarding': (
       <EmployeeOnboarding
         currentTab={currentTab}
