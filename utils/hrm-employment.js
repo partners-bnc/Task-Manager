@@ -74,6 +74,10 @@ export function deriveEmploymentFields(row = {}) {
 
   const employeeType = normalizeEmployeeType(row.employee_type);
 
+  if (employeeType === 'intern' && currentStage === 'probation') {
+    currentStage = 'none';
+  }
+
   if (lifecycle === 'separated') {
     currentStage = 'none';
   }

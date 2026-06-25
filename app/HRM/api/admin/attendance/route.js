@@ -82,6 +82,7 @@ async function loadEmployeeRows() {
       employment_lifecycle_status,
       current_stage,
       date_of_joining,
+      separated_at,
       working_days,
       second_saturday_off,
       reporting_manager_id,
@@ -108,6 +109,7 @@ async function loadEmployeeRows() {
       email,
       employee_status,
       date_of_joining,
+      separated_at,
       working_days,
       second_saturday_off,
       reporting_manager_id,
@@ -427,10 +429,27 @@ export async function GET(request) {
       );
     }
 
+    const targetMonth = (mode === 'monthly' || mode === 'individual') ? month : selectedDate.slice(0, 7);
+
     const employeeRows = (employeesResult.data || [])
       .filter((employee) => !isSuperAdminEntity(employee))
       .filter((employee) => {
-        return deriveEmploymentFields(employee).employmentLifecycleStatus === 'active';
+        const empFields = deriveEmploymentFields(employee);
+        if (empFields.employmentLifecycleStatus === 'active') {
+          return true;
+        }
+        if (empFields.employmentLifecycleStatus === 'separated') {
+          const separationDate = employee.separated_at;
+          if (separationDate) {
+            if (mode === 'daily') {
+              return selectedDate <= separationDate;
+            } else {
+              const separationMonth = separationDate.slice(0, 7);
+              return targetMonth <= separationMonth;
+            }
+          }
+        }
+        return false;
       });
 
     const managerIds = [...new Set(employeeRows.map((row) => row.reporting_manager_id).filter(Boolean))];
@@ -539,6 +558,16 @@ export async function GET(request) {
         .map((employee) => {
           const dailyStatuses = calendarDays.map((day) => {
             const isBeforeJoin = employee.date_of_joining && day.date < employee.date_of_joining;
+            const isAfterSeparation = employee.separated_at && day.date > employee.separated_at;
+            if (isAfterSeparation) {
+              return {
+                date: day.date,
+                code: '--',
+                status: 'none',
+                label: 'Separated',
+                notes: `Employee separated on ${employee.separated_at}.`,
+              };
+            }
             const holiday = holidayMap.get(day.date);
             const rawAttendance = attendanceMap.get(`${employee.id}:${day.date}`) || null;
             const leaveRequest = leaveRequestMap.get(`${employee.id}:${day.date}`) || null;
@@ -668,6 +697,22 @@ export async function GET(request) {
 
       const rows = (range ? listDatesInRange(range.start, range.end) : [])
         .map((date) => {
+          const isAfterSeparation = selectedEmployee.separated_at && date > selectedEmployee.separated_at;
+          if (isAfterSeparation) {
+            return {
+              date,
+              status: 'none',
+              statusLabel: 'Separated',
+              checkIn: '--',
+              checkOut: '--',
+              workHours: '--',
+              shiftHours: '--',
+              lateIn: '--',
+              earlyOut: '--',
+              notes: `Employee separated on ${selectedEmployee.separated_at}.`,
+              source: '',
+            };
+          }
           const holiday = holidayMap.get(date);
           const rawAttendance = attendanceMap.get(date) || null;
           const isBeforeJoin = selectedEmployee.date_of_joining && date < selectedEmployee.date_of_joining;

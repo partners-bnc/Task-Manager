@@ -674,7 +674,12 @@ export default function AddEmployee({
           onboardingProfilePictureName = '',
           ...nextFormPatch
         } = rawFormPatch;
-        setForm((current) => ({ ...current, ...(nextFormPatch as Partial<FormState>) }));
+        const formPatch = { ...nextFormPatch } as Partial<FormState>;
+        if (formPatch.employeeType === 'intern') {
+          formPatch.currentStage = 'none';
+          formPatch.probationPeriodDays = '0';
+        }
+        setForm((current) => ({ ...current, ...formPatch }));
         setExistingProfilePicture(
           onboardingProfilePictureUrl
             ? {
@@ -1026,6 +1031,16 @@ export default function AddEmployee({
         [name]: value,
         ...(sameAsCurrentAddress && permanentField ? { [permanentField]: value } : {}),
       };
+
+      if (name === 'employeeType') {
+        if (value === 'intern') {
+          nextForm.currentStage = 'none';
+          nextForm.probationPeriodDays = '0';
+        } else {
+          nextForm.currentStage = 'probation';
+          nextForm.probationPeriodDays = String(DEFAULT_PROBATION_PERIOD_DAYS);
+        }
+      }
 
       return nextForm;
     });
@@ -1614,7 +1629,7 @@ export default function AddEmployee({
                 <input className={inputClassName(false, !!fieldErrors.confirmationDate)} name="confirmationDate" type="date" value={form.confirmationDate} onChange={handleInputChange} />
               </Field>
               <Field label="Probation Period (days)">
-                <input className={inputClassName(true)} value={`${DEFAULT_PROBATION_PERIOD_DAYS} days`} disabled readOnly />
+                <input className={inputClassName(true)} value={form.employeeType === 'intern' ? 'No probation (0 days)' : `${DEFAULT_PROBATION_PERIOD_DAYS} days`} disabled readOnly />
               </Field>
               <Field label="Referred By">
                 <input className={inputClassName()} name="referredBy" value={form.referredBy} onChange={handleInputChange} />
@@ -1622,7 +1637,15 @@ export default function AddEmployee({
               <div className="md:col-span-2 xl:col-span-3 rounded-[1.2rem] border border-slate-200 bg-white px-5 py-5">
                 <p className="text-sm font-bold text-on-surface">Default Lifecycle</p>
                 <p className="mt-2 text-sm text-on-surface-variant">
-                  Employees are created as <span className="font-semibold text-on-surface">Active + Probation</span>. Probation is fixed for {DEFAULT_PROBATION_PERIOD_DAYS} days from the joining date and can be removed later only from the HR employee profile action buttons.
+                  {form.employeeType === 'intern' ? (
+                    <span>
+                      Interns do not have any probation period. They are created in the <span className="font-semibold text-on-surface">Active</span> stage with no probation.
+                    </span>
+                  ) : (
+                    <span>
+                      Employees are created as <span className="font-semibold text-on-surface">Active + Probation</span>. Probation is fixed for {DEFAULT_PROBATION_PERIOD_DAYS} days from the joining date and can be removed later only from the HR employee profile action buttons.
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

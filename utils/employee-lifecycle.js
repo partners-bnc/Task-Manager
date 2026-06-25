@@ -60,14 +60,20 @@ export function normalizeSeparationReasonCode(value, fallback = null) {
 export function deriveLifecycleDates(row = {}, now = new Date()) {
   const employment = deriveEmploymentFields(row);
   const lifecycleStatus = row?.employment_lifecycle_status ?? employment.employmentLifecycleStatus;
-  const currentStage = row?.current_stage ?? employment.currentStage;
+  const employeeType = row?.employee_type ?? row?.employeeType ?? row?.resolved_employee_type ?? null;
+  const isIntern = employeeType === 'intern';
+  let currentStage = row?.current_stage ?? employment.currentStage;
+  if (isIntern && currentStage === 'probation') {
+    currentStage = 'none';
+  }
   const joinDate = cleanText(row?.date_of_joining)?.slice(0, 10) || null;
-  const probationPeriodDays = parseIntegerValue(row?.probation_period_days) || DEFAULT_PROBATION_PERIOD_DAYS;
-  const probationStartedAt = cleanText(row?.probation_started_at) || (currentStage === 'probation' && joinDate ? `${joinDate}T00:00:00.000Z` : null);
+  const probationPeriodDays = isIntern ? 0 : (parseIntegerValue(row?.probation_period_days) || DEFAULT_PROBATION_PERIOD_DAYS);
+  const probationStartedAt = isIntern ? null : (cleanText(row?.probation_started_at) || (currentStage === 'probation' && joinDate ? `${joinDate}T00:00:00.000Z` : null));
   const probationStartDate = probationStartedAt ? probationStartedAt.slice(0, 10) : null;
-  const probationEndsAt =
+  const probationEndsAt = isIntern ? null : (
     cleanText(row?.probation_ends_at)?.slice(0, 10) ||
-    (probationStartDate ? addDays(probationStartDate, DEFAULT_PROBATION_PERIOD_DAYS) : null);
+    (probationStartDate ? addDays(probationStartDate, probationPeriodDays) : null)
+  );
   const noticePeriodDays = parseIntegerValue(row?.notice_period_days);
   const noticeStartedAt = cleanText(row?.notice_started_at) || null;
   const noticeStartDate = noticeStartedAt ? noticeStartedAt.slice(0, 10) : null;
@@ -113,12 +119,18 @@ export function buildLifecycleColumns(source = {}, existingEmployee = {}) {
   const joinDate =
     cleanText(source.joinedOn ?? source.date_of_joining ?? existingEmployee.date_of_joining)?.slice(0, 10) || null;
   const isCreateFlow = !existingEmployee?.id;
-  const currentStage = lifecycleStatus === 'separated'
+  const employeeType = source.employeeType ?? source.employee_type ?? existingEmployee.employee_type ?? existingEmployee.employeeType ?? null;
+  const isIntern = employeeType === 'intern';
+  let currentStage = lifecycleStatus === 'separated'
     ? 'none'
     : normalizeCurrentStage(
         inputCurrentStage,
-        isCreateFlow && joinDate ? 'probation' : currentEmployment.currentStage
+        isCreateFlow && joinDate ? (isIntern ? 'none' : 'probation') : currentEmployment.currentStage
       );
+
+  if (isIntern && currentStage === 'probation') {
+    currentStage = 'none';
+  }
 
   const explicitProbationStartedAt = cleanText(source.probationStartedAt ?? source.probation_started_at);
   const explicitProbationEndsAt = cleanText(source.probationEndsAt ?? source.probation_ends_at)?.slice(0, 10) || null;
@@ -134,15 +146,18 @@ export function buildLifecycleColumns(source = {}, existingEmployee = {}) {
     normalizeSeparationReasonCode(existingEmployee.separation_reason_code ?? existingEmployee.termination_reason_code)
   );
 
-  const probationPeriodDays = DEFAULT_PROBATION_PERIOD_DAYS;
-  const probationStartedAt =
+  const probationPeriodDays = isIntern ? 0 : DEFAULT_PROBATION_PERIOD_DAYS;
+  const probationStartedAt = isIntern ? null : (
     joinDate
       ? `${joinDate}T00:00:00.000Z`
-      : (explicitProbationStartedAt ?? existingEmployee.probation_started_at ?? null);
+      : (explicitProbationStartedAt ?? existingEmployee.probation_started_at ?? null)
+  );
   const probationStartDate = probationStartedAt ? probationStartedAt.slice(0, 10) : null;
-  const probationEndsAt = probationStartDate
-    ? addDays(probationStartDate, DEFAULT_PROBATION_PERIOD_DAYS)
-    : explicitProbationEndsAt;
+  const probationEndsAt = isIntern ? null : (
+    probationStartDate
+      ? addDays(probationStartDate, probationPeriodDays)
+      : explicitProbationEndsAt
+  );
 
   const noticePeriodDays =
     parseIntegerValue(source.noticePeriodDays ?? source.notice_period_days) ??
