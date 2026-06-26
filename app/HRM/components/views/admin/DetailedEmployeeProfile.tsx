@@ -336,10 +336,12 @@ function formatWorkingDays(workingDays: unknown) {
 function normalizeEmployeeToForm(employee: any) {
   const access = Array.isArray(employee?.module_access) ? employee.module_access[0] : employee?.module_access;
   const lifecycleStatus = employee?.resolved_employment_lifecycle_status || employee?.employment_lifecycle_status || 'active';
-  const currentStage = employee?.resolved_current_stage || employee?.current_stage || 'none';
+  const employeeType = employee?.resolved_employee_type || employee?.employee_type || 'full_time_employee';
+  const isIntern = employeeType === 'intern';
+  const currentStage = isIntern ? 'none' : (employee?.resolved_current_stage || employee?.current_stage || 'none');
   const joinedOn = toInputDate(employee?.date_of_joining);
-  const probationStartedAt = deriveProbationStartDate(currentStage, joinedOn, toInputDate(employee?.probation_started_at));
-  const probationEndsAt = deriveProbationEndDate(currentStage, probationStartedAt, toInputDate(employee?.probation_ends_at));
+  const probationStartedAt = isIntern ? '' : deriveProbationStartDate(currentStage, joinedOn, toInputDate(employee?.probation_started_at));
+  const probationEndsAt = isIntern ? '' : deriveProbationEndDate(currentStage, probationStartedAt, toInputDate(employee?.probation_ends_at));
 
   return {
     employeeId: employee?.employee_id || '',
@@ -374,10 +376,10 @@ function normalizeEmployeeToForm(employee: any) {
     emergencyContactNumber: employee?.emergency_contact_number || '',
     joinedOn,
     confirmationDate: toInputDate(employee?.confirmation_date),
-    employeeType: employee?.resolved_employee_type || employee?.employee_type || 'full_time_employee',
+    employeeType,
     lifecycleStatus,
     currentStage,
-    probationPeriodDays: String(DEFAULT_PROBATION_PERIOD_DAYS),
+    probationPeriodDays: isIntern ? '0' : String(DEFAULT_PROBATION_PERIOD_DAYS),
     probationStartedAt,
     probationEndsAt,
     noticePeriodDays: employee?.notice_period_days ? String(employee.notice_period_days) : '',
@@ -617,19 +619,31 @@ export default function DetailedEmployeeProfile({
       const summaryLifecycleStatus = employee?.resolved_employment_lifecycle_status || employee?.employment_lifecycle_status;
       const summaryCurrentStage = employee?.resolved_current_stage || employee?.current_stage || 'none';
 
-      return [
-      { label: 'Employee Type', value: getEmployeeTypeLabel(employee?.resolved_employee_type || employee?.employee_type) },
-      { label: 'Lifecycle Status', value: formatStatus(summaryLifecycleStatus) },
-      { label: 'Current Stage', value: formatStatus(summaryCurrentStage) },
-      { label: 'Department', value: employee?.resolved_department_name || employee?.department?.name || '--' },
-      { label: 'Designation', value: employee?.resolved_designation_title || employee?.designation?.title || '--' },
-      { label: 'Reporting To', value: formatReportingTarget(employee) },
-      { label: 'Working Days', value: formatWorkingDays(employee?.working_days) },
-      { label: 'Created By', value: employee?.created_by_name || 'HR Admin' },
-      { label: 'Date Of Joining', value: toDisplayDate(employee?.date_of_joining) },
-      { label: 'Salary', value: employee?.salary !== null && employee?.salary !== undefined ? `INR ${employee.salary}` : '--' },
-      { label: 'Task Manager', value: form.taskManagerAccess === 'Yes' ? 'Enabled' : 'Disabled' },
-    ];
+      const items = [
+        { label: 'Employee Type', value: getEmployeeTypeLabel(employee?.resolved_employee_type || employee?.employee_type) },
+        { label: 'Lifecycle Status', value: formatStatus(summaryLifecycleStatus) },
+        { label: 'Current Stage', value: formatStatus(summaryCurrentStage) },
+        { label: 'Department', value: employee?.resolved_department_name || employee?.department?.name || '--' },
+        { label: 'Designation', value: employee?.resolved_designation_title || employee?.designation?.title || '--' },
+        { label: 'Reporting To', value: formatReportingTarget(employee) },
+        { label: 'Working Days', value: formatWorkingDays(employee?.working_days) },
+        { label: 'Created By', value: employee?.created_by_name || 'HR Admin' },
+        { label: 'Date Of Joining', value: toDisplayDate(employee?.date_of_joining) },
+      ];
+
+      if (summaryLifecycleStatus === 'separated') {
+        items.push({
+          label: 'Separation Date',
+          value: toDisplayDate(employee?.separated_at || employee?.terminated_at),
+        });
+      }
+
+      items.push(
+        { label: 'Salary', value: employee?.salary !== null && employee?.salary !== undefined ? `INR ${employee.salary}` : '--' },
+        { label: 'Task Manager', value: form.taskManagerAccess === 'Yes' ? 'Enabled' : 'Disabled' }
+      );
+
+      return items;
     },
     [employee, form.taskManagerAccess]
   );
@@ -648,15 +662,22 @@ export default function DetailedEmployeeProfile({
         ...(name === 'lifecycleStatus' && value === 'separated' ? { currentStage: 'none' } : {}),
       };
 
-      const nextStage = name === 'currentStage' ? value : next.currentStage;
+      const nextEmployeeType = name === 'employeeType' ? value : next.employeeType;
+      const isIntern = nextEmployeeType === 'intern';
+
+      let nextStage = name === 'currentStage' ? value : next.currentStage;
+      if (isIntern) {
+        nextStage = 'none';
+      }
       const nextJoinedOn = name === 'joinedOn' ? value : next.joinedOn;
-      const nextProbationStart = deriveProbationStartDate(nextStage, nextJoinedOn, next.probationStartedAt);
+      const nextProbationStart = isIntern ? '' : deriveProbationStartDate(nextStage, nextJoinedOn, next.probationStartedAt);
 
       return {
         ...next,
-        probationPeriodDays: String(DEFAULT_PROBATION_PERIOD_DAYS),
+        currentStage: nextStage,
+        probationPeriodDays: isIntern ? '0' : String(DEFAULT_PROBATION_PERIOD_DAYS),
         probationStartedAt: nextProbationStart,
-        probationEndsAt: deriveProbationEndDate(nextStage, nextProbationStart, next.probationEndsAt),
+        probationEndsAt: isIntern ? '' : deriveProbationEndDate(nextStage, nextProbationStart, next.probationEndsAt),
       };
     });
     setMessage('');
@@ -1617,11 +1638,19 @@ export default function DetailedEmployeeProfile({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-outline-variant/10 bg-surface px-4 py-3">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Probation</p>
-              <p className="mt-2 text-sm font-semibold text-on-surface">{DEFAULT_PROBATION_PERIOD_DAYS} days</p>
-              <p className="mt-1 text-xs text-on-surface-variant">Ends {toDisplayDate(form.probationEndsAt)}</p>
-            </div>
+            {form.employeeType === 'intern' ? (
+              <div className="rounded-2xl border border-outline-variant/10 bg-surface px-4 py-3 opacity-60">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Probation</p>
+                <p className="mt-2 text-sm font-semibold text-on-surface">No Probation</p>
+                <p className="mt-1 text-xs text-on-surface-variant">Exempt (Intern)</p>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-outline-variant/10 bg-surface px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Probation</p>
+                <p className="mt-2 text-sm font-semibold text-on-surface">{DEFAULT_PROBATION_PERIOD_DAYS} days</p>
+                <p className="mt-1 text-xs text-on-surface-variant">Ends {toDisplayDate(form.probationEndsAt)}</p>
+              </div>
+            )}
             <div className="rounded-2xl border border-outline-variant/10 bg-surface px-4 py-3">
               <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">Notice</p>
               <p className="mt-2 text-sm font-semibold text-on-surface">{form.noticePeriodDays ? `${form.noticePeriodDays} days` : 'Not started'}</p>

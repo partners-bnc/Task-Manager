@@ -1493,7 +1493,7 @@ export async function POST(request) {
       date_of_joining: parseDate(formData.get('joinedOn')),
       confirmation_date: parseDate(formData.get('confirmationDate')),
       employee_status: employmentColumns.employee_status,
-      probation_period_days: DEFAULT_PROBATION_PERIOD_DAYS,
+      probation_period_days: formData.get('employeeType') === 'intern' ? 0 : DEFAULT_PROBATION_PERIOD_DAYS,
       notice_period_days: parseIntegerValue(formData.get('noticePeriodDays')),
       experience_company_name: cleanText(formData.get('experienceCompanyName')),
       total_experience: cleanText(formData.get('totalExperience')),
@@ -2094,11 +2094,19 @@ export async function PATCH(request) {
       payload.working_days = normalizeWorkingDaysInput(body.workingDays);
     }
 
-    if (existingEmployee.probation_period_days !== DEFAULT_PROBATION_PERIOD_DAYS || body?.probationPeriodDays !== undefined) {
+    const employmentInputs = getEmploymentInputValues(body);
+    const resolvedEmployeeType = employmentInputs.employeeType || existingEmployee.employee_type || null;
+    const isIntern = resolvedEmployeeType === 'intern';
+
+    if (isIntern) {
+      payload.probation_period_days = 0;
+      payload.probation_started_at = null;
+      payload.probation_ends_at = null;
+      payload.current_stage = 'none';
+    } else if (existingEmployee.probation_period_days !== DEFAULT_PROBATION_PERIOD_DAYS || body?.probationPeriodDays !== undefined) {
       payload.probation_period_days = DEFAULT_PROBATION_PERIOD_DAYS;
     }
 
-    const employmentInputs = getEmploymentInputValues(body);
     const requestedCurrentStage = employmentInputs.currentStage !== null
       ? String(employmentInputs.currentStage || '').trim().toLowerCase()
       : null;
@@ -2111,7 +2119,7 @@ export async function PATCH(request) {
       );
     const todayDate = new Date().toISOString().slice(0, 10);
 
-    if (existingCurrentStage === 'probation' && requestedCurrentStage === 'none' && probationEndDate && todayDate < probationEndDate) {
+    if (!isIntern && existingCurrentStage === 'probation' && requestedCurrentStage === 'none' && probationEndDate && todayDate < probationEndDate) {
       return NextResponse.json(
         {
           error: `You can remove this employee from probation after ${formatFriendlyDate(probationEndDate)}.`,
@@ -2144,15 +2152,22 @@ export async function PATCH(request) {
               employmentInputs.employeeType !== null
                 ? normalizeEmployeeType(employmentInputs.employeeType, existingEmployee.employee_type)
                 : existingEmployee.employee_type,
-            ...buildLifecycleColumns(body, {
-              ...existingEmployee,
-              date_of_joining:
-                payload.date_of_joining !== undefined ? payload.date_of_joining : existingEmployee.date_of_joining,
-              probation_period_days:
-                payload.probation_period_days !== undefined ? payload.probation_period_days : existingEmployee.probation_period_days,
-              notice_period_days:
-                payload.notice_period_days !== undefined ? payload.notice_period_days : existingEmployee.notice_period_days,
-            }),
+            ...buildLifecycleColumns(
+              {
+                ...body,
+                employeeType: resolvedEmployeeType,
+              },
+              {
+                ...existingEmployee,
+                employee_type: resolvedEmployeeType,
+                date_of_joining:
+                  payload.date_of_joining !== undefined ? payload.date_of_joining : existingEmployee.date_of_joining,
+                probation_period_days:
+                  payload.probation_period_days !== undefined ? payload.probation_period_days : existingEmployee.probation_period_days,
+                notice_period_days:
+                  payload.notice_period_days !== undefined ? payload.notice_period_days : existingEmployee.notice_period_days,
+              }
+            ),
           },
           new Set(['employee_status', ...supportedEmploymentColumns])
         )
