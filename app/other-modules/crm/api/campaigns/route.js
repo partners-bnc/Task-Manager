@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { adminClient } from "@/utils/supabase/admin";
 
 const TABLE = "crm_campaigns";
+const ZEPTOMAIL_URL = "https://api.zeptomail.in/v1.1/email";
+const ZEPTOMAIL_FROM = {
+  address: "noreply@bncglobal.in",
+  name: "noreply",
+};
 
 // Helper for template variable substitution
 function substitute(templateStr, lead) {
@@ -20,10 +25,63 @@ function substitute(templateStr, lead) {
   });
 }
 
+function extractProviderMessageId(responseBody) {
+  const data = Array.isArray(responseBody?.data) ? responseBody.data[0] : responseBody?.data;
+  return (
+    responseBody?.message_id ||
+    responseBody?.email_reference ||
+    responseBody?.request_id ||
+    data?.message_id ||
+    data?.email_reference ||
+    data?.request_id ||
+    null
+  );
+}
+
+async function sendZeptoCampaignEmail({ token, lead, subject, htmlBody, campaignId, recipientId, followupId }) {
+  const response = await fetch(ZEPTOMAIL_URL, {
+    method: "POST",
+    headers: {
+      Authorization: token,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      from: ZEPTOMAIL_FROM,
+      to: [
+        {
+          email_address: {
+            address: lead.email,
+            name: lead.full_name || lead.email,
+          },
+        },
+      ],
+      subject,
+      htmlbody: htmlBody || "",
+      client_reference: `campaign_id=${campaignId}&recipient_id=${recipientId}&lead_id=${lead.lead_id}&followup_id=${followupId}`,
+    }),
+  });
+
+  const responseBody = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message =
+      responseBody?.message ||
+      responseBody?.error ||
+      responseBody?.data?.[0]?.message ||
+      `ZeptoMail failed with status ${response.status}`;
+    throw new Error(String(message));
+  }
+
+  return {
+    providerMessageId: extractProviderMessageId(responseBody),
+    responseBody,
+  };
+}
+
 // GET all campaigns or single campaign detail
 export async function GET(request) {
   try {
-    const supabase = await createClient();
+    const supabase = adminClient;
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
@@ -90,6 +148,7 @@ export async function GET(request) {
 
 // Helper to launch a campaign
 async function launchCampaign(supabase, campaignId) {
+  const zohoToken = process.env.ZOHO_TOKEN;
   // 1. Fetch campaign
   const { data: campaign, error: campErr } = await supabase
     .from(TABLE)
@@ -181,8 +240,13 @@ async function launchCampaign(supabase, campaignId) {
   }
 
   const isScheduled = campaign.scheduled_at && new Date(campaign.scheduled_at) > new Date();
+  if (!isScheduled && !zohoToken) {
+    throw new Error("ZOHO_TOKEN is required to send CRM campaign emails through ZeptoMail");
+  }
 
   // Create campaign_recipients and follow_ups for each matched lead
+  let sentCount = 0;
+  let failedCount = 0;
   for (const lead of matchedLeads) {
     const subSubject = substitute(template.subject, lead);
     const subBody = substitute(template.html_body, lead);
@@ -194,15 +258,15 @@ async function launchCampaign(supabase, campaignId) {
         lead_id: lead.lead_id,
         followup_type: "Email",
         direction: "Outbound",
-        status: isScheduled ? "Scheduled" : "Sent",
+        status: isScheduled ? "Scheduled" : "Pending",
         scheduled_at: isScheduled ? campaign.scheduled_at : new Date().toISOString(),
-        completed_at: isScheduled ? null : new Date().toISOString(),
+        completed_at: null,
         template_id: campaign.template_id,
         campaign_id: campaignId,
         email_sent_to: lead.email,
         email_subject_sent: subSubject,
         email_body_snapshot: subBody,
-        email_delivery_status: isScheduled ? "Pending" : "Sent",
+        email_delivery_status: "Pending",
         assigned_to: lead.assigned_to || null
       })
       .select("*")
@@ -214,29 +278,91 @@ async function launchCampaign(supabase, campaignId) {
     }
 
     // B. Insert campaign_recipient
-    const { error: recErr } = await supabase
+    const { data: recipient, error: recErr } = await supabase
       .from("crm_campaign_recipients")
       .insert({
         campaign_id: campaignId,
         lead_id: lead.lead_id,
         email_sent_to: lead.email,
-        delivery_status: isScheduled ? "Pending" : "Sent",
-        sent_at: isScheduled ? null : new Date().toISOString(),
-        followup_id: followup.followup_id
-      });
+        delivery_status: "Pending",
+        followup_id: followup.followup_id,
+        provider: "zeptomail"
+      })
+      .select("*")
+      .single();
 
     if (recErr) {
       console.error(`Error inserting recipient for lead ${lead.lead_id}:`, recErr.message);
+      continue;
+    }
+
+    if (isScheduled) {
+      continue;
+    }
+
+    try {
+      const sentAt = new Date().toISOString();
+      const { providerMessageId } = await sendZeptoCampaignEmail({
+        token: zohoToken,
+        lead,
+        subject: subSubject,
+        htmlBody: subBody,
+        campaignId,
+        recipientId: recipient.recipient_id,
+        followupId: followup.followup_id,
+      });
+
+      await supabase
+        .from("crm_campaign_recipients")
+        .update({
+          delivery_status: "Sent",
+          sent_at: sentAt,
+          provider: "zeptomail",
+          provider_message_id: providerMessageId,
+        })
+        .eq("recipient_id", recipient.recipient_id);
+
+      await supabase
+        .from("crm_follow_ups")
+        .update({
+          status: "Sent",
+          completed_at: sentAt,
+          email_delivery_status: "Sent",
+        })
+        .eq("followup_id", followup.followup_id);
+
+      sentCount += 1;
+    } catch (sendErr) {
+      failedCount += 1;
+      console.error(`ZeptoMail send failed for lead ${lead.lead_id}:`, sendErr.message);
+
+      await supabase
+        .from("crm_campaign_recipients")
+        .update({
+          delivery_status: "Failed",
+          provider: "zeptomail",
+        })
+        .eq("recipient_id", recipient.recipient_id);
+
+      await supabase
+        .from("crm_follow_ups")
+        .update({
+          status: "Failed",
+          completed_at: new Date().toISOString(),
+          email_delivery_status: "Failed",
+          outcome: sendErr.message,
+        })
+        .eq("followup_id", followup.followup_id);
     }
   }
 
   // Update campaign
   const campaignUpdates = {
     total_recipients: total,
-    status: isScheduled ? "Scheduled" : "Completed",
+    status: isScheduled ? "Scheduled" : failedCount > 0 && sentCount === 0 ? "Paused" : "Completed",
     launched_at: new Date().toISOString(),
-    sent_count: isScheduled ? 0 : total,
-    delivered_count: isScheduled ? 0 : total
+    sent_count: isScheduled ? 0 : sentCount,
+    delivered_count: 0
   };
 
   if (!isScheduled) {
@@ -252,15 +378,30 @@ async function launchCampaign(supabase, campaignId) {
 // POST new campaign
 export async function POST(request) {
   try {
-    const supabase = await createClient();
+    const supabase = adminClient;
     const body = await request.json();
+
+    const templateId = Number(body.template_id);
+    if (!Number.isInteger(templateId) || templateId <= 0) {
+      return NextResponse.json({ error: "A valid template_id is required." }, { status: 400 });
+    }
+
+    const { data: templateExists, error: templateCheckError } = await supabase
+      .from("crm_email_templates")
+      .select("id")
+      .eq("id", templateId)
+      .single();
+
+    if (templateCheckError || !templateExists) {
+      return NextResponse.json({ error: "Selected email template was not found." }, { status: 400 });
+    }
 
     const { data: campaign, error } = await supabase
       .from(TABLE)
       .insert({
         campaign_name: body.campaign_name,
         campaign_type: body.campaign_type || "Email",
-        template_id: body.template_id || null,
+        template_id: templateId,
         target_filter: body.target_filter || {},
         status: body.status || "Draft",
         scheduled_at: body.scheduled_at || null,
@@ -286,7 +427,7 @@ export async function POST(request) {
 // PUT update campaign
 export async function PUT(request) {
   try {
-    const supabase = await createClient();
+    const supabase = adminClient;
     const body = await request.json();
     const { campaign_id, ...updates } = body;
 
@@ -337,7 +478,7 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "campaign_id is required" }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = adminClient;
     const { error } = await supabase.from(TABLE).delete().eq("campaign_id", campaign_id);
     if (error) throw error;
 

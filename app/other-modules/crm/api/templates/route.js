@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { adminClient } from "@/utils/supabase/admin";
 import {
   normalizeVariables,
   sanitizeEmailHtml,
@@ -12,7 +12,7 @@ const TABLE = "crm_email_templates";
 
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const supabase = adminClient;
     const { data, error } = await supabase
       .from(TABLE)
       .select("*")
@@ -27,8 +27,8 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      templates: data?.length ? data : withStarterIds(),
-      fallback: !data?.length,
+      templates: Array.isArray(data) ? data : [],
+      fallback: false,
     });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -37,7 +37,7 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const supabase = await createClient();
+    const supabase = adminClient;
     const payload = normalizeTemplatePayload(await request.json());
 
     const { data, error } = await supabase.from(TABLE).insert(payload).select("*").single();
@@ -51,7 +51,7 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
-    const supabase = await createClient();
+    const supabase = adminClient;
     const body = await request.json();
     if (!body.id) {
       return NextResponse.json({ error: "Template id is required." }, { status: 400 });
@@ -81,7 +81,7 @@ export async function DELETE(request) {
       return NextResponse.json({ error: "Template id is required." }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const supabase = adminClient;
     const { error } = await supabase.from(TABLE).delete().eq("id", id);
     if (error) throw error;
 

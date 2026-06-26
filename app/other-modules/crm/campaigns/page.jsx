@@ -170,10 +170,16 @@ export default function CampaignsPage() {
     if (filterCategories.length > 0) targetFilter.lead_category = filterCategories;
     if (filterTags.trim()) targetFilter.tags = filterTags.trim();
 
+    const templateId = Number(wizardTemplateId);
+    if (!Number.isInteger(templateId) || templateId <= 0) {
+      toast.error("Please select a valid saved email template.");
+      return;
+    }
+
     const payload = {
       campaign_name: wizardName,
       campaign_type: wizardType,
-      template_id: parseInt(wizardTemplateId, 10),
+      template_id: templateId,
       target_filter: targetFilter,
       status: scheduledAt ? "Scheduled" : status,
       scheduled_at: scheduledAt,
@@ -986,7 +992,7 @@ export default function CampaignsPage() {
                       </tr>
                     </thead>
                     <tbody className="text-[14px] font-medium text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900">
-                      {campaigns.map((camp) => {
+                      {campaigns.map((camp, index) => {
                         const total = camp.total_recipients || 0;
                         const sent = camp.sent_count || 0;
                         const opened = camp.opened_count || 0;
@@ -995,7 +1001,7 @@ export default function CampaignsPage() {
 
                         return (
                           <tr
-                            key={camp.campaign_id}
+                            key={camp.campaign_id ?? camp.id ?? index}
                             className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors border-b border-slate-200 dark:border-slate-700"
                           >
                             <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700">
@@ -1050,7 +1056,7 @@ export default function CampaignsPage() {
               {/* 2. CARD STRUCTURE — Matches ManageTasks card view */}
               {campaignViewMode === "card" && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {campaigns.map((camp) => {
+                  {campaigns.map((camp, index) => {
                     const total = camp.total_recipients || 0;
                     const sent = camp.sent_count || 0;
                     const opened = camp.opened_count || 0;
@@ -1059,7 +1065,7 @@ export default function CampaignsPage() {
 
                     return (
                       <div
-                        key={camp.campaign_id}
+                        key={camp.campaign_id ?? camp.id ?? index}
                         onClick={() => {
                           setSelectedCampaignId(camp.campaign_id);
                           setActiveTab("detail");
@@ -1150,7 +1156,7 @@ export default function CampaignsPage() {
                         </div>
 
                         <div className="space-y-3 flex-1 overflow-y-auto max-h-[600px] pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                          {columnCampaigns.map((camp) => {
+                          {columnCampaigns.map((camp, index) => {
                             const total = camp.total_recipients || 0;
                             const sent = camp.sent_count || 0;
                             const opened = camp.opened_count || 0;
@@ -1159,7 +1165,7 @@ export default function CampaignsPage() {
 
                             return (
                               <div
-                                key={camp.campaign_id}
+                                key={camp.campaign_id ?? camp.id ?? index}
                                 onClick={() => {
                                   setSelectedCampaignId(camp.campaign_id);
                                   setActiveTab("detail");

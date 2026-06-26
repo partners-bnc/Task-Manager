@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/utils/supabase/server";
+import { adminClient } from "@/utils/supabase/admin";
 
 const TABLE = "crm_campaign_recipients";
 
 export async function PUT(request) {
   try {
-    const supabase = await createClient();
+    const supabase = adminClient;
     const body = await request.json();
     const { recipient_id, ...updates } = body;
 

@@ -19,7 +19,7 @@ async function fetchOrFallback(url, key, fallback) {
     if (!res.ok) throw new Error("API error");
     const json = await res.json();
     const data = json[key];
-    return data?.length ? data : fallback;
+    return Array.isArray(data) ? data : fallback;
   } catch {
     return fallback;
   }
@@ -140,14 +140,16 @@ export function CrmProvider({ children }) {
         headers: { "Content-Type": "application/json" }, 
         body: JSON.stringify(campaign) 
       });
-      if (res.ok) {
-        const { campaign: newCamp } = await res.json();
-        if (newCamp) {
-          setCampaigns(prev => [newCamp, ...prev]);
-          refreshCrmData();
-        }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create campaign");
       }
-    } catch (e) { console.error("addCampaign API error:", e); }
+      const newCamp = data.campaign;
+      if (newCamp) {
+        setCampaigns(prev => [newCamp, ...prev]);
+        refreshCrmData();
+      }
+    } catch (e) { console.error("addCampaign API error:", e); throw e; }
   };
 
   const updateCampaign = async (campaign_id, updates) => {
