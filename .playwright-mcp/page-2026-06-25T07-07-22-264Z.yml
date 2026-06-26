@@ -1,0 +1,8 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]: Preparing Workspace
+    - heading "Loading page" [level=1] [ref=e11]
+    - paragraph [ref=e12]: Please wait while we prepare the next workspace view.
+  - button "Open Next.js Dev Tools" [ref=e22] [cursor=pointer]:
+    - img [ref=e23]
+  - alert [ref=e26]

@@ -134,6 +134,18 @@ export async function POST(request) {
       }
     }
 
+    const { data: issuerProfile, error: issuerProfileError } = await adminClient
+      .from('hrm_profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (issuerProfileError) {
+      throw issuerProfileError;
+    }
+
+    const issuedByProfileId = issuerProfile?.id || null;
+
     // Insert record
     const { data: inserted, error: insertError } = await adminClient
       .from('hrm_certificates')
@@ -145,7 +157,7 @@ export async function POST(request) {
         designation,
         start_date,
         end_date,
-        issued_by: authContext.hrAdmin.id,
+        issued_by: issuedByProfileId,
       })
       .select()
       .single();
