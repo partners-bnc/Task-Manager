@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '../context/ToastContext';
 import * as XLSX from 'xlsx';
@@ -181,6 +183,7 @@ const formatExcelValue = (val) => {
 };
 
 export default function LeadsPage() {
+  const router = useRouter();
   const { toast } = useToast();
 
   // Data state
@@ -2198,7 +2201,11 @@ export default function LeadsPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
                 {paginatedLeads.map((lead) => (
-                  <tr key={lead.lead_id} className="hover:bg-blue-50/20 dark:hover:bg-slate-750 transition duration-150">
+                  <tr
+                    key={lead.lead_id}
+                    onClick={() => router.push(`/other-modules/crm/leads/${lead.lead_id}`)}
+                    className="hover:bg-blue-50/20 dark:hover:bg-slate-750 transition duration-150 cursor-pointer"
+                  >
                     {visibleColumns.lead_id !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-400">{lead.lead_id}</td>
                     )}
@@ -2210,7 +2217,7 @@ export default function LeadsPage() {
                     {visibleColumns.phone !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
                         {lead.phone ? (
-                          <a href={`tel:${lead.phone}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                          <a href={`tel:${lead.phone}`} onClick={(e) => e.stopPropagation()} className="text-blue-600 dark:text-blue-400 hover:underline">
                             {lead.phone}
                           </a>
                         ) : '-'}
@@ -2219,7 +2226,7 @@ export default function LeadsPage() {
                     {visibleColumns.phone_alt !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
                         {lead.phone_alt ? (
-                          <a href={`tel:${lead.phone_alt}`} className="text-blue-600 dark:text-blue-400 hover:underline">
+                          <a href={`tel:${lead.phone_alt}`} onClick={(e) => e.stopPropagation()} className="text-blue-600 dark:text-blue-400 hover:underline">
                             {lead.phone_alt}
                           </a>
                         ) : '-'}
@@ -2230,6 +2237,7 @@ export default function LeadsPage() {
                         {lead.whatsapp ? (
                           <a
                             href={`https://wa.me/${lead.whatsapp.replace(/\D/g, '')}`}
+                            onClick={(e) => e.stopPropagation()}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-green-600 dark:text-green-400 hover:underline"
@@ -2242,14 +2250,14 @@ export default function LeadsPage() {
                     {visibleColumns.email !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
                         {lead.email ? (
-                          <a href={`mailto:${lead.email}`} className="text-blue-600 dark:text-blue-400 hover:underline">{lead.email}</a>
+                          <a href={`mailto:${lead.email}`} onClick={(e) => e.stopPropagation()} className="text-blue-600 dark:text-blue-400 hover:underline">{lead.email}</a>
                         ) : '-'}
                       </td>
                     )}
                     {visibleColumns.email_alt !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
                         {lead.email_alt ? (
-                          <a href={`mailto:${lead.email_alt}`} className="text-blue-600 dark:text-blue-400 hover:underline">{lead.email_alt}</a>
+                          <a href={`mailto:${lead.email_alt}`} onClick={(e) => e.stopPropagation()} className="text-blue-600 dark:text-blue-400 hover:underline">{lead.email_alt}</a>
                         ) : '-'}
                       </td>
                     )}
@@ -2265,7 +2273,7 @@ export default function LeadsPage() {
                     {visibleColumns.website !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
                         {lead.website ? (
-                          <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                          <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
                             {lead.website}
                           </a>
                         ) : '-'}
@@ -2358,7 +2366,7 @@ export default function LeadsPage() {
                         {lead.updated_by ? lead.updated_by.split(' (')[0] : '-'}
                       </td>
                     )}
-                    <td className="py-3 px-4 text-xs text-right whitespace-nowrap">
+                    <td className="py-3 px-4 text-xs text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           onClick={() => openEditForm(lead)}

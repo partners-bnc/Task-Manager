@@ -56,14 +56,16 @@ export function CrmProvider({ children }) {
   const [followups, setFollowups] = useState(MOCK_FOLLOWUPS);
   const [campaigns, setCampaigns] = useState(MOCK_DATA.campaigns || []);
   const [enrollments, setEnrollments] = useState(MOCK_DATA.enrollments || []);
+  const [calendarEvents, setCalendarEvents] = useState([]);
 
   const refreshCrmData = useCallback(async () => {
-    const [leadsData, tasksData, followupsData, campaignsData, enrollmentsData] = await Promise.all([
+    const [leadsData, tasksData, followupsData, campaignsData, enrollmentsData, calendarData] = await Promise.all([
       fetchOrFallback("/other-modules/crm/api/leads", "leads", MOCK_LEADS),
       fetchOrFallback("/other-modules/crm/api/tasks", "tasks", MOCK_DATA.tasks),
       fetchOrFallback("/other-modules/crm/api/followups", "followups", MOCK_FOLLOWUPS),
       fetchOrFallback("/other-modules/crm/api/campaigns", "campaigns", MOCK_DATA.campaigns || []),
       fetchOrFallback("/other-modules/crm/api/campaigns/enrollments", "enrollments", MOCK_DATA.enrollments || []),
+      fetchOrFallback("/other-modules/crm/api/calendar", "events", []),
     ]);
     setLeads(leadsData);
     setTasks(tasksData);
@@ -71,6 +73,7 @@ export function CrmProvider({ children }) {
     setFollowups(followupsData);
     setCampaigns(campaignsData);
     setEnrollments(enrollmentsData);
+    setCalendarEvents(calendarData || []);
     setLoading(false);
   }, []);
 
@@ -202,6 +205,50 @@ export function CrmProvider({ children }) {
     catch (e) { console.error("addTask API error:", e); }
   };
 
+  const addCalendarEvent = async (newEvent) => {
+    try {
+      const res = await fetch("/other-modules/crm/api/calendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newEvent)
+      });
+      if (res.ok) {
+        const { event } = await res.json();
+        if (event) {
+          setCalendarEvents(prev => [...prev, event]);
+          refreshCrmData();
+        }
+      }
+    } catch (e) { console.error("addCalendarEvent API error:", e); }
+  };
+
+  const updateCalendarEvent = async (event_id, updates) => {
+    try {
+      const res = await fetch("/other-modules/crm/api/calendar", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event_id, ...updates })
+      });
+      if (res.ok) {
+        const { event } = await res.json();
+        if (event) {
+          setCalendarEvents(prev => prev.map(e => e.event_id === event_id ? event : e));
+          refreshCrmData();
+        }
+      }
+    } catch (e) { console.error("updateCalendarEvent API error:", e); }
+  };
+
+  const deleteCalendarEvent = async (event_id) => {
+    try {
+      const res = await fetch(`/other-modules/crm/api/calendar?event_id=${event_id}`, { method: "DELETE" });
+      if (res.ok) {
+        setCalendarEvents(prev => prev.filter(e => e.event_id !== event_id));
+        refreshCrmData();
+      }
+    } catch (e) { console.error("deleteCalendarEvent API error:", e); }
+  };
+
   const toggleDarkMode = () => {
     setIsDarkMode((prev) => {
       const next = !prev;
@@ -268,6 +315,11 @@ export function CrmProvider({ children }) {
         updateEnrollment,
         leads,
         setLeads,
+        calendarEvents,
+        setCalendarEvents,
+        addCalendarEvent,
+        updateCalendarEvent,
+        deleteCalendarEvent,
         refreshCrmData,
         permissions: {
           canManageSystemSettings,

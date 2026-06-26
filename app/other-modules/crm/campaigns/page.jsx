@@ -183,7 +183,7 @@ export default function CampaignsPage() {
     try {
       await addCampaign(payload);
       toast.success(scheduledAt ? "Campaign Scheduled Successfully!" : "Campaign Launched Successfully!");
-      
+
       // Reset Wizard States
       setWizardName("");
       setFilterSources([]);
@@ -194,7 +194,7 @@ export default function CampaignsPage() {
       setWizardTemplateId("");
       setWizardSendImmediately(true);
       setStep(1);
-      
+
       setActiveTab("list");
       refreshCrmData();
     } catch (err) {
@@ -225,7 +225,7 @@ export default function CampaignsPage() {
               : r
           )
         );
-        
+
         // Refresh campaign details
         const detailsRes = await fetch(`/other-modules/crm/api/campaigns?id=${selectedCampaignId}`);
         if (detailsRes.ok) {
@@ -304,7 +304,7 @@ export default function CampaignsPage() {
 
   return (
     <div className="p-6 text-slate-800 dark:text-slate-150 transition-colors duration-300 h-full overflow-y-auto bg-slate-50 dark:bg-slate-900 font-sans">
-      
+
       {/* HEADER ROW */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-slate-200 dark:border-slate-800 pb-5">
         <div className="flex items-start gap-3">
@@ -316,7 +316,7 @@ export default function CampaignsPage() {
             </p>
           </div>
         </div>
-        
+
         {activeTab === "list" && (
           <button
             onClick={() => {
@@ -361,11 +361,10 @@ export default function CampaignsPage() {
                 <button
                   key={tab.id}
                   onClick={() => setCampaignViewMode(tab.id)}
-                  className={`py-3 px-1.5 text-sm font-semibold inline-flex items-center gap-2 transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-                    active 
-                      ? 'border-[#6057DA] text-[#6057DA] dark:border-[#7C74F0] dark:text-[#7C74F0]' 
+                  className={`py-3 px-1.5 text-sm font-semibold inline-flex items-center gap-2 transition-all border-b-2 whitespace-nowrap cursor-pointer ${active
+                      ? 'border-[#6057DA] text-[#6057DA] dark:border-[#7C74F0] dark:text-[#7C74F0]'
                       : 'border-transparent text-slate-505 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
+                    }`}
                 >
                   <Icon size={16} />
                   <span>{tab.label}</span>
@@ -388,9 +387,8 @@ export default function CampaignsPage() {
               {[1, 2, 3, 4].map((s) => (
                 <div
                   key={s}
-                  className={`h-2 w-12 rounded-full transition-all duration-300 ${
-                    s <= step ? "bg-blue-500" : "bg-slate-200 dark:bg-slate-800"
-                  }`}
+                  className={`h-2 w-12 rounded-full transition-all duration-300 ${s <= step ? "bg-blue-500" : "bg-slate-200 dark:bg-slate-800"
+                    }`}
                 />
               ))}
             </div>
@@ -404,7 +402,7 @@ export default function CampaignsPage() {
                   <h3 className="text-base font-extrabold text-slate-800 dark:text-white">Setup Campaign Basics</h3>
                   <p className="text-xs text-slate-400 mt-1">Provide a recognizable name and choose your distribution channel.</p>
                 </div>
-                
+
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-500 dark:text-slate-450 uppercase">Campaign Name *</label>
                   <input
@@ -811,7 +809,7 @@ export default function CampaignsPage() {
                     Template: <span className="font-semibold text-slate-750 dark:text-slate-350">{selectedCampaignDetail.template?.name || "Deleted template"}</span> • Created by: {selectedCampaignDetail.created_by}
                   </p>
                 </div>
-                
+
                 <div className="text-left md:text-right text-xs shrink-0 text-slate-500 dark:text-slate-450 border-t md:border-t-0 border-slate-100 dark:border-slate-850 pt-3 md:pt-0">
                   <div><span className="font-medium text-slate-400 mr-1">Launched:</span> {selectedCampaignDetail.launched_at ? new Date(selectedCampaignDetail.launched_at).toLocaleString() : "Not launched"}</div>
                   {selectedCampaignDetail.completed_at && (
@@ -868,7 +866,7 @@ export default function CampaignsPage() {
                   <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-350 uppercase tracking-widest shrink-0">
                     Recipient Delivery Logs
                   </h3>
-                  
+
                   <div className="relative max-w-sm w-full">
                     <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
                     <input

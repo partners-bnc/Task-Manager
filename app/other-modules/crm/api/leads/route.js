@@ -36,6 +36,18 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const phones = searchParams.get("phones");
     const emails = searchParams.get("emails");
+    const lead_id = searchParams.get("lead_id");
+
+    if (lead_id) {
+      const { data, error } = await adminClient
+        .from(TABLE)
+        .select("*")
+        .eq("lead_id", lead_id)
+        .maybeSingle();
+
+      if (error) throw error;
+      return NextResponse.json({ lead: data });
+    }
 
     if (phones || emails) {
       let queryParts = [];

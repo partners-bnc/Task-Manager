@@ -1,82 +1,357 @@
-/* Tailwind overrides for React Big Calendar to support Dark Mode */
+/* Custom CRM Calendar Styles */
 
-.event-calendar-wrapper .rbc-calendar {
-  min-height: 600px;
+/* Calendar grid base */
+.crm-calendar-grid {
+  display: grid;
+  grid-template-columns: 60px repeat(var(--days), 1fr);
+  border-left: 1px solid var(--border-color, #e2e8f0);
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  position: relative;
 }
 
-/* Base structural coloring */
-.event-calendar-wrapper .rbc-month-view,
-.event-calendar-wrapper .rbc-time-view,
-.event-calendar-wrapper .rbc-header,
-.event-calendar-wrapper .rbc-day-bg,
-.event-calendar-wrapper .rbc-month-row,
-.event-calendar-wrapper .rbc-time-content,
-.event-calendar-wrapper .rbc-timeslot-group,
-.event-calendar-wrapper .rbc-day-slot .rbc-time-slot {
-  border-color: #e2e8f0; /* slate-200 */
+.crm-calendar-grid-day {
+  --days: 1;
 }
 
-.dark .event-calendar-wrapper .rbc-month-view,
-.dark .event-calendar-wrapper .rbc-time-view,
-.dark .event-calendar-wrapper .rbc-header,
-.dark .event-calendar-wrapper .rbc-day-bg,
-.dark .event-calendar-wrapper .rbc-month-row,
-.dark .event-calendar-wrapper .rbc-time-content,
-.dark .event-calendar-wrapper .rbc-timeslot-group,
-.dark .event-calendar-wrapper .rbc-day-slot .rbc-time-slot {
-  border-color: #334155; /* slate-700 */
+.crm-calendar-grid-week {
+  --days: 7;
 }
 
-/* Header Text */
-.event-calendar-wrapper .rbc-header {
-  padding: 8px;
+/* Time label column */
+.crm-time-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  text-align: right;
+  padding-right: 10px;
+  padding-top: 0;
+  height: 60px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-right: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  transform: translateY(-8px);
+  user-select: none;
+}
+
+/* Day columns */
+.crm-day-column {
+  position: relative;
+  min-height: 60px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-right: 1px solid var(--border-color, #e2e8f0);
+}
+
+.crm-day-column:hover {
+  background-color: rgba(241, 245, 249, 0.5);
+}
+
+.dark .crm-day-column:hover {
+  background-color: rgba(30, 41, 59, 0.3);
+}
+
+/* Today highlight */
+.crm-day-today {
+  background-color: rgba(239, 246, 255, 0.6);
+}
+
+.dark .crm-day-today {
+  background-color: rgba(30, 58, 138, 0.08);
+}
+
+/* Day header row */
+.crm-day-header {
+  text-align: center;
+  padding: 12px 4px 8px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-right: 1px solid var(--border-color, #e2e8f0);
+  user-select: none;
+}
+
+.crm-day-header-name {
+  font-size: 11px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
 }
 
-/* Today Background */
-.event-calendar-wrapper .rbc-today {
-  background-color: #f8fafc; /* slate-50 */
+.crm-day-header-number {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-top: 2px;
+  line-height: 1.2;
 }
 
-.dark .event-calendar-wrapper .rbc-today {
-  background-color: #0f172a; /* slate-900 */
+.dark .crm-day-header-number {
+  color: #e2e8f0;
 }
 
-/* Off-range dates */
-.event-calendar-wrapper .rbc-off-range-bg {
-  background-color: #f1f5f9; /* slate-100 */
+.crm-day-header-today .crm-day-header-number {
+  color: #2563eb;
 }
 
-.dark .event-calendar-wrapper .rbc-off-range-bg {
-  background-color: #1e293b; /* slate-800 darker shade / equivalent */
-  opacity: 0.5;
+.dark .crm-day-header-today .crm-day-header-number {
+  color: #60a5fa;
 }
 
-/* Toolbar Buttons */
-.event-calendar-wrapper .rbc-toolbar button {
+/* Event block positioning */
+.crm-event-block {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  z-index: 5;
+  line-height: 1.3;
+  border-left: 3px solid;
+}
+
+.crm-event-block:hover {
+  opacity: 0.9;
+  transform: scale(1.01);
+  z-index: 10;
+}
+
+.crm-event-block .event-time {
+  font-size: 10px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.crm-event-block .event-title {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Month view */
+.crm-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-left: 1px solid var(--border-color, #e2e8f0);
+  border-top: 1px solid var(--border-color, #e2e8f0);
+}
+
+.crm-month-cell {
+  min-height: 100px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  border-right: 1px solid var(--border-color, #e2e8f0);
+  padding: 4px;
+  position: relative;
+}
+
+.crm-month-cell-today {
+  background-color: rgba(239, 246, 255, 0.6);
+}
+
+.dark .crm-month-cell-today {
+  background-color: rgba(30, 58, 138, 0.08);
+}
+
+.crm-month-cell-other {
+  opacity: 0.4;
+}
+
+.crm-month-cell-date {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 2px 6px;
   color: #475569;
+}
+
+.dark .crm-month-cell-date {
+  color: #94a3b8;
+}
+
+.crm-month-cell-today .crm-month-cell-date {
+  color: #fff;
+  background-color: #2563eb;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.crm-month-event-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  margin-top: 2px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.15s;
+}
+
+.crm-month-event-chip:hover {
+  opacity: 0.8;
+}
+
+.crm-month-event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Dark mode border override */
+.dark .crm-calendar-grid,
+.dark .crm-time-label,
+.dark .crm-day-column,
+.dark .crm-day-header,
+.dark .crm-month-grid,
+.dark .crm-month-cell {
+  --border-color: #1e293b;
+}
+
+.dark .crm-time-label {
+  color: #64748b;
+}
+
+/* Current time indicator */
+.crm-now-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #ef4444;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.crm-now-line::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #ef4444;
+}
+
+/* View toggle */
+.crm-view-toggle {
+  display: inline-flex;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.dark .crm-view-toggle {
+  border-color: #334155;
+  background: #1e293b;
+}
+
+.crm-view-toggle button {
+  padding: 6px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.crm-view-toggle button:hover {
+  color: #334155;
+}
+
+.dark .crm-view-toggle button {
+  color: #94a3b8;
+}
+
+.dark .crm-view-toggle button:hover {
+  color: #e2e8f0;
+}
+
+.crm-view-toggle button.active {
+  background: white;
+  color: #1e293b;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+}
+
+.dark .crm-view-toggle button.active {
+  background: #334155;
+  color: #f1f5f9;
+}
+
+/* Scrollable calendar body */
+.crm-calendar-scroll {
+  overflow-y: auto;
+  max-height: calc(100vh - 240px);
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.dark .crm-calendar-scroll {
+  scrollbar-color: #475569 transparent;
+}
+
+.crm-calendar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.crm-calendar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.crm-calendar-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+.dark .crm-calendar-scroll::-webkit-scrollbar-thumb {
+  background-color: #475569;
+}
+
+/* Month navigation */
+.crm-month-nav button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: white;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.crm-month-nav button:hover {
+  background: #f1f5f9;
   border-color: #cbd5e1;
 }
 
-.dark .event-calendar-wrapper .rbc-toolbar button {
-  color: #cbd5e1;
-  border-color: #475569;
+.dark .crm-month-nav button {
+  border-color: #334155;
+  background: #1e293b;
+  color: #94a3b8;
 }
 
-.event-calendar-wrapper .rbc-toolbar button:active,
-.event-calendar-wrapper .rbc-toolbar button.rbc-active {
-  box-shadow: inset 0 3px 5px rgba(0,0,0,0.125);
-  background-color: #e2e8f0;
-}
-
-.dark .event-calendar-wrapper .rbc-toolbar button:active,
-.dark .event-calendar-wrapper .rbc-toolbar button.rbc-active,
-.dark .event-calendar-wrapper .rbc-toolbar button:hover {
-  background-color: #334155;
-}
-
-/* Event overrides */
-.event-calendar-wrapper .rbc-event {
-  padding: 3px 6px;
-  margin-top: 2px;
+.dark .crm-month-nav button:hover {
+  background: #334155;
+  color: #e2e8f0;
 }
