@@ -642,10 +642,6 @@ export default function CampaignsPage() {
                             <p className="text-slate-850 dark:text-slate-150 font-bold bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850">{selectedTemplate.subject}</p>
                           </div>
                           <div>
-                            <strong className="text-slate-500 dark:text-slate-450 uppercase text-[9px] block">Preheader</strong>
-                            <p className="text-slate-800 dark:text-slate-300 bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850">{selectedTemplate.preheader || "None"}</p>
-                          </div>
-                          <div>
                             <strong className="text-slate-500 dark:text-slate-450 uppercase text-[9px] block">Body Preview</strong>
                             <pre className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-850 text-[11px] font-mono text-slate-650 dark:text-slate-350 whitespace-pre-wrap max-h-36 overflow-y-auto">
                               {selectedTemplate.plain_text_body || selectedTemplate.html_body}

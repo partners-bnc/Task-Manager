@@ -58,7 +58,6 @@ export function sanitizeEmailHtml(html) {
 export function buildPreviewDocument(template, variables = SAMPLE_VARIABLES) {
   const html = renderTemplateVariables(sanitizeEmailHtml(template?.html_body || template?.html || ""), variables);
   const subject = renderTemplateVariables(template?.subject || "Email preview", variables);
-  const preheader = renderTemplateVariables(template?.preheader || "", variables);
 
   return `<!doctype html>
 <html>
@@ -78,7 +77,6 @@ export function buildPreviewDocument(template, variables = SAMPLE_VARIABLES) {
     <div class="preview-shell">
       <div class="preview-meta">
         <div><strong>Subject:</strong> ${escapeHtml(subject)}</div>
-        ${preheader ? `<div><strong>Preheader:</strong> ${escapeHtml(preheader)}</div>` : ""}
       </div>
       ${html}
     </div>
@@ -100,7 +98,6 @@ export const STARTER_EMAIL_TEMPLATES = [
     name: "Initial Outreach",
     category: "Outreach",
     subject: "Helping {{CompanyName}} move faster this quarter",
-    preheader: "A short note for {{ContactName}} about {{ProductName}}.",
     status: "Active",
     source: "Seed",
     variables: ["ContactName", "CompanyName", "AgentName", "ProductName"],
@@ -119,7 +116,6 @@ export const STARTER_EMAIL_TEMPLATES = [
     name: "Warm Follow-up",
     category: "Follow-up",
     subject: "Following up on {{CompanyName}}",
-    preheader: "A quick next step after our last conversation.",
     status: "Active",
     source: "Seed",
     variables: ["ContactName", "CompanyName", "AgentName", "FollowupDate"],
@@ -138,7 +134,6 @@ export const STARTER_EMAIL_TEMPLATES = [
     name: "Post-demo Follow-up",
     category: "Follow-up",
     subject: "Demo recap for {{CompanyName}}",
-    preheader: "Key takeaways and recommended next action.",
     status: "Active",
     source: "Seed",
     variables: ["ContactName", "CompanyName", "AgentName", "ProductName"],
@@ -157,7 +152,6 @@ export const STARTER_EMAIL_TEMPLATES = [
     name: "Proposal Follow-up",
     category: "Proposal",
     subject: "Proposal details for {{CompanyName}}",
-    preheader: "A concise recap of value, timing, and next steps.",
     status: "Active",
     source: "Seed",
     variables: ["ContactName", "CompanyName", "EstimatedValue", "AgentName"],
@@ -176,7 +170,6 @@ export const STARTER_EMAIL_TEMPLATES = [
     name: "No-response Re-engagement",
     category: "Reminder",
     subject: "Should I close the loop?",
-    preheader: "A short, respectful re-engagement note.",
     status: "Active",
     source: "Seed",
     variables: ["ContactName", "CompanyName", "AgentName"],
@@ -195,7 +188,6 @@ export const STARTER_EMAIL_TEMPLATES = [
     name: "Customer Onboarding",
     category: "Onboarding",
     subject: "Welcome to the next step, {{CompanyName}}",
-    preheader: "What happens next and who will support you.",
     status: "Active",
     source: "Seed",
     variables: ["ContactName", "CompanyName", "AgentName", "ProductName"],

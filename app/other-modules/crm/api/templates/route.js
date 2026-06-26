@@ -108,7 +108,6 @@ function normalizeTemplatePayload(body) {
     name,
     category,
     subject,
-    preheader: String(body.preheader || "").trim(),
     html_body: htmlBody,
     plain_text_body: String(body.plain_text_body || body.plainText || "").trim(),
     variables: normalizeVariables(body.variables),
