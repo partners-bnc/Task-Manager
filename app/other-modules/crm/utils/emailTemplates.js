@@ -34,8 +34,54 @@ export function normalizeVariables(value) {
 }
 
 export function renderTemplateVariables(content, variables = SAMPLE_VARIABLES) {
-  return String(content || "").replace(/\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g, (match, key) => {
-    return Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : match;
+  if (!content) return "";
+  
+  // Normalize variable keys for matching
+  const normalizedVariables = {};
+  for (const [key, val] of Object.entries(variables || {})) {
+    const norm = key.toLowerCase().replace(/[\s_\-]+/g, '');
+    normalizedVariables[norm] = val;
+  }
+  
+  const getNormalizedValue = (key) => {
+    const norm = key.toLowerCase().replace(/[\s_\-]+/g, '');
+    
+    // Check if key is explicitly in normalizedVariables
+    if (Object.prototype.hasOwnProperty.call(normalizedVariables, norm)) {
+      return normalizedVariables[norm];
+    }
+    
+    // Aliases fallback
+    switch (norm) {
+      case 'contactname':
+      case 'fullname':
+      case 'leadname':
+      case 'name':
+        return normalizedVariables['contactname'] || normalizedVariables['fullname'] || normalizedVariables['leadname'] || normalizedVariables['name'] || '';
+      case 'firstname':
+        const nameVal = normalizedVariables['contactname'] || normalizedVariables['fullname'] || normalizedVariables['leadname'] || normalizedVariables['name'] || '';
+        return nameVal ? String(nameVal).split(' ')[0] : '';
+      case 'companyname':
+      case 'company':
+        return normalizedVariables['companyname'] || normalizedVariables['company'] || '';
+      case 'agentname':
+      case 'agent':
+      case 'assignedto':
+        return normalizedVariables['agentname'] || normalizedVariables['agent'] || normalizedVariables['assignedto'] || '';
+      case 'productname':
+      case 'product':
+        return normalizedVariables['productname'] || normalizedVariables['product'] || '';
+      case 'estimatedvalue':
+      case 'value':
+        return normalizedVariables['estimatedvalue'] || normalizedVariables['value'] || '';
+      default:
+        return null;
+    }
+  };
+
+  return String(content).replace(/\{\{\s*([a-zA-Z0-9_\s\-]+?)\s*\}\}/g, (match, key) => {
+    const val = getNormalizedValue(key);
+    return val !== null ? val : match;
   });
 }
 
