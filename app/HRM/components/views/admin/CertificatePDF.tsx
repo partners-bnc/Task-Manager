@@ -261,6 +261,7 @@ const styles = StyleSheet.create({
   },
   rightColumn: {
     width: CERTIFICATE_CONFIG.rightColumn.width,
+    height: '100%',
     backgroundColor: CERTIFICATE_CONFIG.rightColumn.backgroundColor,
     position: 'relative',
   },
@@ -273,13 +274,13 @@ const styles = StyleSheet.create({
     width: CERTIFICATE_CONFIG.rightColumn.background.width,
     height: CERTIFICATE_CONFIG.rightColumn.background.height,
     objectFit: CERTIFICATE_CONFIG.rightColumn.background.objectFit,
-    zIndex: 1,
   },
   rightContentContainer: {
-    position: 'relative',
-    zIndex: 2,
-    width: '100%',
-    height: '100%',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     paddingTop: CERTIFICATE_CONFIG.rightColumn.paddingTop,
     paddingBottom: CERTIFICATE_CONFIG.rightColumn.paddingBottom,
     paddingLeft: CERTIFICATE_CONFIG.rightColumn.paddingLeft,
@@ -337,7 +338,6 @@ const styles = StyleSheet.create({
     marginTop: CERTIFICATE_CONFIG.rightColumn.issueDate.marginTop,
     marginRight: CERTIFICATE_CONFIG.rightColumn.issueDate.marginRight,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.issueDate.marginBottom,
-    zIndex: 10,
   },
   logoContainer: {
     alignItems: 'center',
@@ -346,7 +346,6 @@ const styles = StyleSheet.create({
     marginBottom: CERTIFICATE_CONFIG.rightColumn.logo.marginBottom,
     marginLeft: CERTIFICATE_CONFIG.rightColumn.logo.marginLeft,
     marginRight: CERTIFICATE_CONFIG.rightColumn.logo.marginRight,
-    zIndex: 10,
   },
   logoImage: {
     width: CERTIFICATE_CONFIG.rightColumn.logo.width,
@@ -363,7 +362,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: CERTIFICATE_CONFIG.rightColumn.title.marginTop,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.title.marginBottom,
-    zIndex: 10,
   },
   subHeader: {
     fontFamily: '001SansSerifDemo',
@@ -374,7 +372,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginTop: CERTIFICATE_CONFIG.rightColumn.subtitle.marginTop,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.subtitle.marginBottom,
-    zIndex: 10,
   },
 
   // Body text
@@ -385,7 +382,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.marginTop,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.marginBottom,
-    zIndex: 10,
   },
   recipientName: {
     fontFamily: 'DecemberCalligraphy',
@@ -394,7 +390,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: CERTIFICATE_CONFIG.rightColumn.recipientName.marginTop,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.recipientName.marginBottom,
-    zIndex: 10,
   },
   dividerLine: {
     width: CERTIFICATE_CONFIG.rightColumn.divider.width,
@@ -402,7 +397,6 @@ const styles = StyleSheet.create({
     height: CERTIFICATE_CONFIG.rightColumn.divider.height,
     marginTop: CERTIFICATE_CONFIG.rightColumn.divider.marginTop,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.divider.marginBottom,
-    zIndex: 10,
   },
   descriptionText: {
     fontFamily: 'Inter',
@@ -412,7 +406,6 @@ const styles = StyleSheet.create({
     lineHeight: CERTIFICATE_CONFIG.rightColumn.description.lineHeight,
     marginTop: CERTIFICATE_CONFIG.rightColumn.description.marginTop,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.description.marginBottom,
-    zIndex: 10,
   },
   courseField: {
     fontFamily: CERTIFICATE_CONFIG.rightColumn.description.courseFont as any,
@@ -433,7 +426,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: CERTIFICATE_CONFIG.rightColumn.signatures.paddingHorizontal,
     marginTop: CERTIFICATE_CONFIG.rightColumn.signatures.marginTop,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.signatures.marginBottom,
-    zIndex: 10,
   },
   signatureCol: {
     alignItems: 'center',
@@ -469,7 +461,6 @@ const styles = StyleSheet.create({
     paddingTop: CERTIFICATE_CONFIG.rightColumn.footer.paddingTop,
     marginTop: CERTIFICATE_CONFIG.rightColumn.footer.marginTop,
     marginBottom: CERTIFICATE_CONFIG.rightColumn.footer.marginBottom,
-    zIndex: 10,
   },
   footerBadgeLeft: {
     width: CERTIFICATE_CONFIG.rightColumn.footer.waxSealWidth,
@@ -543,7 +534,8 @@ export default function CertificatePDF({
   // Format dates: YYYY-MM-DD to DD-MM-YYYY
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '';
-    const parts = dateStr.split('-');
+    const dateOnly = dateStr.slice(0, 10);
+    const parts = dateOnly.split('-');
     if (parts.length === 3) {
       return `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
@@ -719,3 +711,5 @@ export default function CertificatePDF({
     </Document>
   );
 }
+
+

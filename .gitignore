@@ -46,3 +46,8 @@ next-dev-latency.err.log
 next-dev-latency.log
 
 scripts/add-attendance-swipes.mjs
+
+supabase/migrations/20260626080000_add_source_to_crm_email_templates.sql
+supabase/migrations/20260626090000_remove_preheader_from_crm_email_templates.sql
+tmp-next-dev.err.log
+tmp-next-dev.out.log

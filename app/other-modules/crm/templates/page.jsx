@@ -10,6 +10,7 @@ import {
   Copy,
   Eye,
   FileCode2,
+  FileText,
   Loader2,
   Mail,
   Monitor,
@@ -37,7 +38,6 @@ const EMPTY_TEMPLATE = {
   name: "Untitled Template",
   category: "Follow-up",
   subject: "",
-  preheader: "",
   html_body: "",
   plain_text_body: "",
   variables: ["ContactName", "CompanyName", "AgentName"],
@@ -57,6 +57,7 @@ export default function TemplatesPage() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [query, setQuery] = useState("");
   const [previewMode, setPreviewMode] = useState("desktop");
+  const [previewContent, setPreviewContent] = useState("both");
   const [sampleVariables, setSampleVariables] = useState(SAMPLE_VARIABLES);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -84,6 +85,12 @@ export default function TemplatesPage() {
 
   const previewDoc = useMemo(() => buildPreviewDocument(draft, sampleVariables), [draft, sampleVariables]);
   const renderedSubject = renderTemplateVariables(draft.subject, sampleVariables);
+  const renderedPlainText = useMemo(
+    () => renderTemplateVariables(draft.plain_text_body, sampleVariables).trim(),
+    [draft.plain_text_body, sampleVariables]
+  );
+  const showHtmlPreview = previewContent === "html" || previewContent === "both";
+  const showPlainTextPreview = previewContent === "plain" || previewContent === "both";
 
   useEffect(() => {
     let isActive = true;
@@ -423,9 +430,6 @@ export default function TemplatesPage() {
               <Field label="Subject">
                 <input value={draft.subject} onChange={(event) => updateDraft("subject", event.target.value)} className="field-input" />
               </Field>
-              <Field label="Preheader">
-                <input value={draft.preheader} onChange={(event) => updateDraft("preheader", event.target.value)} className="field-input" />
-              </Field>
               <Field label="HTML Body">
                 <textarea value={draft.html_body} onChange={(event) => updateDraft("html_body", event.target.value)} rows={12} className="field-input font-mono text-xs leading-5" />
               </Field>
@@ -440,7 +444,7 @@ export default function TemplatesPage() {
               <Bot className="h-5 w-5 text-blue-500" />
               <h2 className="text-lg font-bold text-slate-950 dark:text-white">AI Template Designer</h2>
             </div>
-            <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} rows={3} className="field-input" placeholder="Describe the email you want OpenAI to design." />
+            <textarea value={aiPrompt} onChange={(event) => setAiPrompt(event.target.value)} rows={3} className="field-input" placeholder="Describe the email you want Groq to design." />
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <select value={aiTone} onChange={(event) => setAiTone(event.target.value)} className="field-input">
                 {TONES.map((tone) => <option key={tone}>{tone}</option>)}
@@ -451,7 +455,7 @@ export default function TemplatesPage() {
             </div>
             <button onClick={generateTemplate} disabled={isGenerating || !aiPrompt.trim()} className="mt-4 inline-flex w-full items-center justify-center rounded-md bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-blue-600 dark:hover:bg-blue-700">
               {isGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-              Generate with OpenAI
+              Generate with Groq
             </button>
           </div>
         </section>
@@ -465,15 +469,30 @@ export default function TemplatesPage() {
               </div>
               <p className="mt-1 truncate text-xs text-slate-500 dark:text-slate-400">{renderedSubject || "Add a subject to preview it here."}</p>
             </div>
-            <div className="flex rounded-md border border-slate-300 bg-slate-50 p-1 dark:border-slate-600 dark:bg-slate-900">
-              <button onClick={() => setPreviewMode("desktop")} className={`rounded px-3 py-1.5 text-xs font-semibold ${previewMode === "desktop" ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300" : "text-slate-500"}`}>
-                <Monitor className="mr-1 inline h-3.5 w-3.5" />
-                Desktop
-              </button>
-              <button onClick={() => setPreviewMode("mobile")} className={`rounded px-3 py-1.5 text-xs font-semibold ${previewMode === "mobile" ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300" : "text-slate-500"}`}>
-                <Smartphone className="mr-1 inline h-3.5 w-3.5" />
-                Mobile
-              </button>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex rounded-md border border-slate-300 bg-slate-50 p-1 dark:border-slate-600 dark:bg-slate-900">
+                <button onClick={() => setPreviewMode("desktop")} className={`rounded px-3 py-1.5 text-xs font-semibold ${previewMode === "desktop" ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300" : "text-slate-500"}`}>
+                  <Monitor className="mr-1 inline h-3.5 w-3.5" />
+                  Desktop
+                </button>
+                <button onClick={() => setPreviewMode("mobile")} className={`rounded px-3 py-1.5 text-xs font-semibold ${previewMode === "mobile" ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300" : "text-slate-500"}`}>
+                  <Smartphone className="mr-1 inline h-3.5 w-3.5" />
+                  Mobile
+                </button>
+              </div>
+              <div className="flex rounded-md border border-slate-300 bg-slate-50 p-1 dark:border-slate-600 dark:bg-slate-900">
+                <button onClick={() => setPreviewContent("html")} className={`rounded px-3 py-1.5 text-xs font-semibold ${previewContent === "html" ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300" : "text-slate-500"}`}>
+                  <Code2 className="mr-1 inline h-3.5 w-3.5" />
+                  HTML
+                </button>
+                <button onClick={() => setPreviewContent("plain")} className={`rounded px-3 py-1.5 text-xs font-semibold ${previewContent === "plain" ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300" : "text-slate-500"}`}>
+                  <FileText className="mr-1 inline h-3.5 w-3.5" />
+                  Plain
+                </button>
+                <button onClick={() => setPreviewContent("both")} className={`rounded px-3 py-1.5 text-xs font-semibold ${previewContent === "both" ? "bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300" : "text-slate-500"}`}>
+                  Both
+                </button>
+              </div>
             </div>
           </div>
 
@@ -496,14 +515,40 @@ export default function TemplatesPage() {
             </div>
           </div>
 
-          <div className="flex justify-center overflow-auto bg-slate-200 p-4 dark:bg-slate-950/60">
-            <div className={`overflow-hidden rounded-md border border-slate-300 bg-white shadow-xl transition-all dark:border-slate-700 ${previewMode === "mobile" ? "w-[390px]" : "w-full max-w-[920px]"}`}>
-              <iframe
-                title="Email template preview"
-                sandbox=""
-                srcDoc={previewDoc}
-                className="h-[720px] w-full bg-white"
-              />
+          <div className="overflow-auto bg-slate-200 p-4 dark:bg-slate-950/60">
+            <div className={`mx-auto grid gap-4 transition-all ${previewMode === "mobile" ? "w-[390px]" : "w-full max-w-[920px]"}`}>
+              {showHtmlPreview && (
+                <div className="overflow-hidden rounded-md border border-slate-300 bg-white shadow-xl dark:border-slate-700">
+                  <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                    <Code2 className="h-3.5 w-3.5" />
+                    HTML Preview
+                  </div>
+                  <iframe
+                    title="Email HTML preview"
+                    sandbox=""
+                    srcDoc={previewDoc}
+                    className="h-[720px] w-full bg-white"
+                  />
+                </div>
+              )}
+
+              {showPlainTextPreview && (
+                <div className="overflow-hidden rounded-md border border-slate-300 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
+                    <FileText className="h-3.5 w-3.5" />
+                    Plain-text Fallback
+                  </div>
+                  <div className="space-y-3 p-4 text-sm text-slate-800 dark:text-slate-100">
+                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Subject</div>
+                      <div className="mt-1 font-semibold">{renderedSubject || "No subject"}</div>
+                    </div>
+                    <pre className="min-h-[260px] whitespace-pre-wrap break-words rounded-md border border-slate-200 bg-white p-4 font-mono text-xs leading-5 text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200">
+                      {renderedPlainText || "No plain-text fallback has been added yet."}
+                    </pre>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
