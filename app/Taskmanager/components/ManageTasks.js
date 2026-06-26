@@ -68,16 +68,20 @@ export default function ManageTasks({ onNavigate }) {
   const [navigatingTaskId, setNavigatingTaskId] = useState(null);
   
   // Sorting & Column Visibility
-  const [sortBy, setSortBy] = useState('dueDate'); // 'dueDate' | 'title' | 'priority' | 'progress' | 'status' | 'member' | 'trackingTime'
+  const [sortBy, setSortBy] = useState('status'); // 'status' (default) | 'dueDate' | 'title' | 'priority' | 'progress' | 'member' | 'trackingTime' | 'recentCreated' | 'upcomingDue' | 'oldestCreated'
   const [hideCompleted, setHideCompleted] = useState(false);
   const [hideProgress, setHideProgress] = useState(false);
   const [hideTrackingTime, setHideTrackingTime] = useState(false);
+
+  // Dropdown States for Date Filter
+  const [showDateSortDropdown, setShowDateSortDropdown] = useState(false);
 
   // References to close dropdowns
   const filtersRef = useRef(null);
   const sortRef = useRef(null);
   const hideRef = useRef(null);
   const employeeRef = useRef(null);
+  const dateSortRef = useRef(null);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -85,6 +89,7 @@ export default function ManageTasks({ onNavigate }) {
       if (sortRef.current && !sortRef.current.contains(event.target)) setShowSortDropdown(false);
       if (hideRef.current && !hideRef.current.contains(event.target)) setShowHideDropdown(false);
       if (employeeRef.current && !employeeRef.current.contains(event.target)) setShowEmployeeDropdown(false);
+      if (dateSortRef.current && !dateSortRef.current.contains(event.target)) setShowDateSortDropdown(false);
       if (activeDropdownTaskId && !event.target.closest('.status-selector-cell')) setActiveDropdownTaskId(null);
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -272,14 +277,29 @@ export default function ManageTasks({ onNavigate }) {
         return (priorities[b.priority] || 0) - (priorities[a.priority] || 0);
       }
       if (sortBy === 'status') {
-        const statusOrder = { 'Stuck': 1, 'In Progress': 2, 'In Review': 3, 'Pending': 4, 'Completed': 5 };
-        return (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0);
+        const statusOrder = { 'In Progress': 1, 'Pending': 2, 'Completed': 3, 'In Review': 4, 'Stuck': 5 };
+        return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
       }
       if (sortBy === 'member') {
         return b.assignees.length - a.assignees.length;
       }
       if (sortBy === 'trackingTime') {
         return getCalculatedTrackingTimeMs(b) - getCalculatedTrackingTimeMs(a);
+      }
+      if (sortBy === 'recentCreated') {
+        const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return db - da; // Descending (recent first)
+      }
+      if (sortBy === 'upcomingDue') {
+        const da = a.dueDate ? new Date(a.dueDate.split(',')[0]).getTime() : 8640000000000000;
+        const db = b.dueDate ? new Date(b.dueDate.split(',')[0]).getTime() : 8640000000000000;
+        return da - db; // Ascending (closest due first)
+      }
+      if (sortBy === 'oldestCreated') {
+        const da = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const db = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return da - db; // Ascending (oldest first)
       }
       // Default: Due date
       const da = new Date(a.dueDate?.split(',')[0] || 0);
@@ -415,10 +435,10 @@ export default function ManageTasks({ onNavigate }) {
       {/* ════ HEADER SECTION ════ */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-3">
         <div className="flex items-start gap-3">
-          <Briefcase size={38} className="text-[#6057DA] stroke-[1.8] shrink-0 mt-0.5" />
+          <Briefcase size={28} className="text-[#6057DA] stroke-[1.8] shrink-0 mt-0.5" />
           <div>
-            <h1 className="text-3xl sm:text-4xl font-semibold text-slate-900 tracking-tight leading-none">Projects</h1>
-            <p className="text-sm text-slate-500 font-medium mt-1.5">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-tight leading-none">Projects</h1>
+            <p className="text-xs text-slate-500 font-medium mt-1.5">
               Manage projects by assigning owners, setting timelines, and tracking progress.
             </p>
           </div>
@@ -711,6 +731,36 @@ export default function ManageTasks({ onNavigate }) {
                   />
                   <span>Hide Tracking Time</span>
                 </label>
+              </div>
+            )}
+          </div>
+
+          {/* Date Filter Dropdown */}
+          <div className="relative" ref={dateSortRef}>
+            <button 
+              onClick={() => setShowDateSortDropdown(!showDateSortDropdown)}
+              className="px-4 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-[13px] font-semibold text-slate-800 rounded-full inline-flex items-center gap-1.5 transition-colors h-[40px] cursor-pointer focus:outline-none"
+            >
+              <CalendarIcon size={15} className="text-black" />
+              <span>Date Filter</span>
+              <ChevronDown size={13} className="text-black ml-1" />
+            </button>
+
+            {showDateSortDropdown && (
+              <div className="absolute left-0 mt-1 w-52 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 text-xs text-slate-600">
+                {[
+                  { key: 'recentCreated', label: 'Recently Assigned' },
+                  { key: 'upcomingDue', label: 'Upcoming Due Date' },
+                  { key: 'oldestCreated', label: 'Oldest Assigned' }
+                ].map(opt => (
+                  <button 
+                    key={opt.key}
+                    onClick={() => { setSortBy(opt.key); setShowDateSortDropdown(false); }}
+                    className={`w-full text-left px-4 py-2 hover:bg-slate-50 font-medium ${sortBy === opt.key ? 'bg-[#7F40EE]/5 text-[#7F40EE] font-bold' : ''}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             )}
           </div>
