@@ -323,6 +323,11 @@ export default function LeadsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
 
+  // Bulk selection state
+  const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
+  const [bulkEditField, setBulkEditField] = useState('');
+  const [bulkEditValue, setBulkEditValue] = useState('');
+
   // Bulk Importer premium wizard state
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importFile, setImportFile] = useState(null);
@@ -362,6 +367,11 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
   }, [sortField, sortDirection]);
+
+  // Reset selected leads on list changes
+  useEffect(() => {
+    setSelectedLeadIds(new Set());
+  }, [statusFilter, sourceFilter, categoryFilter, priorityFilter, typeFilter, tagsFilter, searchTerm, currentPage, sortField, sortDirection]);
 
   function getDefaultFormData() {
     return {
@@ -652,93 +662,249 @@ export default function LeadsPage() {
     }
   };
 
-  // Bulk Importer Methods
-  const handleImportFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setImportFile(file);
-    setImportFileName(file.name);
-    const extension = file.name.split('.').pop().toLowerCase();
-    setImportFileType(extension);
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const bstr = evt.target.result;
-        let headers = [];
-        let rows = [];
-
-        if (extension === 'json') {
-          // Parse JSON
-          const json = JSON.parse(bstr);
-          let rawData = [];
-          if (Array.isArray(json)) {
-            rawData = json;
-          } else {
-            // Find first key which is an array
-            const arrayKey = Object.keys(json).find(key => Array.isArray(json[key]));
-            if (arrayKey) {
-              rawData = json[arrayKey];
-            } else {
-              rawData = [json];
-            }
-          }
-          if (rawData.length === 0) {
-            toast.error("JSON file contains no records.");
-            return;
-          }
-          const headerSet = new Set();
-          rawData.forEach(item => {
-            Object.keys(item).forEach(k => headerSet.add(k));
-          });
-          headers = Array.from(headerSet);
-          rows = rawData;
-        } else {
-          // Parse Excel / CSV using XLSX
-          const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
-          const wsname = wb.SheetNames[0];
-          const ws = wb.Sheets[wsname];
-          const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
-
-          if (rawData.length === 0) {
-            toast.error("Spreadsheet is empty.");
-            return;
-          }
-
-          headers = rawData[0].map(h => String(h || '').trim());
-          rows = rawData.slice(1).map(row => {
-            const obj = {};
-            headers.forEach((header, index) => {
-              obj[header] = row[index] !== undefined && row[index] !== null ? formatExcelValue(row[index]) : '';
-            });
-            return obj;
-          });
-        }
-
-        setUploadedHeaders(headers);
-        setUploadedRows(rows);
-
-        // Prepopulate mapping guesses
-        const mappingGuesses = {};
-        DB_COLUMNS_MAPPING.forEach(dbCol => {
-          const target = dbCol.key.replace(/_/g, '').toLowerCase();
-          const match = headers.find(h => {
-            const normalizedH = h.replace(/[\s_-]/g, '').toLowerCase();
-            return normalizedH === target || normalizedH.includes(target) || target.includes(normalizedH);
-          });
-          if (match) mappingGuesses[dbCol.key] = match;
-        });
-        setColumnMappings(mappingGuesses);
-        setImportStep(2); // Go to Preview
-      } catch (err) {
-        toast.error("Error reading file: " + err.message);
+  // Bulk Actions Methods
+  const handleBulkUpdate = async () => {
+    if (selectedLeadIds.size === 0) return;
+    if (!bulkEditField) {
+      toast.error("Please select a field to update.");
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await fetch('/other-modules/crm/api/leads/bulk', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead_ids: Array.from(selectedLeadIds),
+          updates: { [bulkEditField]: bulkEditValue }
+        })
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to update leads');
       }
+      toast.success(`Successfully updated ${selectedLeadIds.size} leads.`);
+      setSelectedLeadIds(new Set());
+      setBulkEditField('');
+      setBulkEditValue('');
+      fetchLeads();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Bulk update failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLeadIds.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete the ${selectedLeadIds.size} selected leads?`)) {
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const response = await fetch('/other-modules/crm/api/leads/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead_ids: Array.from(selectedLeadIds)
+        })
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to delete leads');
+      }
+      toast.success(`Successfully deleted ${selectedLeadIds.size} leads.`);
+      setSelectedLeadIds(new Set());
+      fetchLeads();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Bulk delete failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Upgraded Importer File/Folder/Sheet Traversals
+  const getAllFilesFromEntries = async (dataTransferItems) => {
+    const files = [];
+    const traverseEntry = (entry) => {
+      return new Promise((resolve) => {
+        if (entry.isFile) {
+          entry.file((file) => {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (['xlsx', 'xls', 'csv', 'json'].includes(ext)) {
+              files.push(file);
+            }
+            resolve();
+          }, () => resolve());
+        } else if (entry.isDirectory) {
+          const dirReader = entry.createReader();
+          const readEntriesPromise = () => {
+            return new Promise((resolveRead) => {
+              dirReader.readEntries(async (entries) => {
+                if (entries.length === 0) {
+                  resolveRead();
+                } else {
+                  for (const childEntry of entries) {
+                    await traverseEntry(childEntry);
+                  }
+                  await readEntriesPromise();
+                  resolveRead();
+                }
+              }, () => resolveRead());
+            });
+          };
+          readEntriesPromise().then(resolve);
+        } else {
+          resolve();
+        }
+      });
     };
 
-    if (extension === 'json') {
-      reader.readAsText(file);
-    } else {
-      reader.readAsBinaryString(file);
+    const promises = [];
+    for (let i = 0; i < dataTransferItems.length; i++) {
+      const item = dataTransferItems[i];
+      if (item.kind === 'file') {
+        const entry = typeof item.webkitGetAsEntry === 'function' ? item.webkitGetAsEntry() : null;
+        if (entry) {
+          promises.push(traverseEntry(entry));
+        } else {
+          const file = item.getAsFile();
+          if (file) {
+            const ext = file.name.split('.').pop().toLowerCase();
+            if (['xlsx', 'xls', 'csv', 'json'].includes(ext)) {
+              files.push(file);
+            }
+          }
+        }
+      }
+    }
+    await Promise.all(promises);
+    return files;
+  };
+
+  const handleMultipleFiles = async (filesList, batchName) => {
+    setActionLoading(true);
+    setImportFileName(batchName);
+    try {
+      const sheetsDataPromises = filesList.map(file => {
+        return new Promise((resolve, reject) => {
+          const extension = file.name.split('.').pop().toLowerCase();
+          const reader = new FileReader();
+          
+          reader.onload = (evt) => {
+            try {
+              const bstr = evt.target.result;
+              const fileSheets = [];
+
+              if (extension === 'json') {
+                const json = JSON.parse(bstr);
+                let rawData = [];
+                if (Array.isArray(json)) {
+                  rawData = json;
+                } else {
+                  const arrayKey = Object.keys(json).find(key => Array.isArray(json[key]));
+                  if (arrayKey) {
+                    rawData = json[arrayKey];
+                  } else {
+                    rawData = [json];
+                  }
+                }
+                const headerSet = new Set();
+                rawData.forEach(item => {
+                  Object.keys(item).forEach(k => headerSet.add(k));
+                });
+                fileSheets.push({
+                  sheetName: file.name,
+                  headers: Array.from(headerSet),
+                  rows: rawData
+                });
+              } else {
+                // Parse Excel / CSV using XLSX
+                const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+                wb.SheetNames.forEach(wsname => {
+                  const ws = wb.Sheets[wsname];
+                  const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                  if (rawData.length > 0) {
+                    const headers = rawData[0].map(h => String(h || '').trim());
+                    const rows = rawData.slice(1).map(row => {
+                      const obj = {};
+                      headers.forEach((header, index) => {
+                        obj[header] = row[index] !== undefined && row[index] !== null ? formatExcelValue(row[index]) : '';
+                      });
+                      return obj;
+                    });
+                    fileSheets.push({
+                      sheetName: `${file.name} - ${wsname}`,
+                      headers,
+                      rows
+                    });
+                  }
+                });
+              }
+              resolve(fileSheets);
+            } catch (err) {
+              reject(new Error(`Error parsing ${file.name}: ${err.message}`));
+            }
+          };
+
+          reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+
+          if (extension === 'json') {
+            reader.readAsText(file);
+          } else {
+            reader.readAsBinaryString(file);
+          }
+        });
+      });
+
+      const allFilesSheets = await Promise.all(sheetsDataPromises);
+      const flattenedSheets = allFilesSheets.flat();
+
+      if (flattenedSheets.length === 0) {
+        toast.error("No valid sheets or records found in selected files.");
+        setActionLoading(false);
+        return;
+      }
+
+      // Combine rows and headers
+      const combinedRows = [];
+      const headerSet = new Set();
+      
+      flattenedSheets.forEach(sheet => {
+        sheet.headers.forEach(h => headerSet.add(h));
+        combinedRows.push(...sheet.rows);
+      });
+
+      const uniqueHeaders = Array.from(headerSet);
+      setUploadedHeaders(uniqueHeaders);
+      setUploadedRows(combinedRows);
+
+      // Prepopulate mapping guesses based on union headers
+      const mappingGuesses = {};
+      DB_COLUMNS_MAPPING.forEach(dbCol => {
+        const target = dbCol.key.replace(/_/g, '').toLowerCase();
+        const match = uniqueHeaders.find(h => {
+          const normalizedH = h.replace(/[\s_-]/g, '').toLowerCase();
+          return normalizedH === target || normalizedH.includes(target) || target.includes(normalizedH);
+        });
+        if (match) mappingGuesses[dbCol.key] = match;
+      });
+      setColumnMappings(mappingGuesses);
+
+      // Set file types to a combined summary
+      const extensions = Array.from(new Set(filesList.map(f => f.name.split('.').pop().toLowerCase())));
+      setImportFileType(extensions.join(', '));
+
+      // Display dynamic summary message
+      toast.success(`Loaded ${filesList.length} file(s) and ${flattenedSheets.length} sheet(s) totaling ${combinedRows.length} rows.`);
+      setImportStep(2); // Go to Preview
+    } catch (err) {
+      console.error(err);
+      toast.error(`Import failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1122,15 +1288,9 @@ export default function LeadsPage() {
     const total = leads.length;
     const hotLeads = leads.filter(l => l.lead_category === 'Hot').length;
     const converted = leads.filter(l => l.lead_status === 'Converted').length;
-    const followupTodayOrFuture = leads.filter(l => {
-      if (!l.next_followup_date) return false;
-      const fDate = new Date(l.next_followup_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return fDate >= today;
-    }).length;
+    const qualifiedLeads = leads.filter(l => l.lead_status === 'Qualified').length;
 
-    return { total, hotLeads, converted, followupTodayOrFuture };
+    return { total, hotLeads, converted, qualifiedLeads };
   }, [leads]);
 
   // Priority Flag Badge
@@ -1326,25 +1486,89 @@ export default function LeadsPage() {
               </div>
 
               {/* Drag-and-drop zone */}
-              <label className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 rounded-3xl p-10 flex flex-col items-center justify-center gap-4 bg-white dark:bg-slate-950/20 cursor-pointer transition shadow-sm hover:shadow-md group">
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.dataTransfer?.items) {
+                    const files = await getAllFilesFromEntries(e.dataTransfer.items);
+                    if (files.length > 0) {
+                      handleMultipleFiles(files, "Dropped items");
+                    } else {
+                      toast.error("No valid CSV, Excel, or JSON files found in dropped items.");
+                    }
+                  }
+                }}
+                className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 rounded-3xl p-10 flex flex-col items-center justify-center gap-4 bg-white dark:bg-slate-950/20 transition shadow-sm hover:shadow-md group"
+              >
                 <input
                   type="file"
+                  id="bulk-file-input"
                   accept=".xlsx,.xls,.csv,.json"
-                  onChange={handleImportFileChange}
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (files.length > 0) {
+                      handleMultipleFiles(files, files.length === 1 ? files[0].name : `${files.length} selected files`);
+                    }
+                  }}
                   className="hidden"
                 />
-                <div className="w-16 h-16 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition duration-300">
+                <input
+                  type="file"
+                  id="bulk-folder-input"
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []).filter(file => {
+                      const ext = file.name.split('.').pop().toLowerCase();
+                      return ['xlsx', 'xls', 'csv', 'json'].includes(ext);
+                    });
+                    if (files.length > 0) {
+                      const relativePath = files[0].webkitRelativePath || '';
+                      const folderName = relativePath.split('/')[0] || 'Selected Folder';
+                      handleMultipleFiles(files, `Folder: ${folderName}`);
+                    } else {
+                      toast.error("No valid CSV, Excel, or JSON files found in selected folder.");
+                    }
+                  }}
+                  className="hidden"
+                />
+
+                <div className="w-16 h-16 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-650 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition duration-300">
                   <Upload className="w-8 h-8" />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                    Drag and drop your file here, or <span className="text-indigo-605 hover:underline font-bold">browse files</span>
+                    Drag and drop files or folders here, or click to browse
                   </p>
                   <p className="text-[10px] text-slate-455 mt-1">
-                    Supports Excel (XLSX/XLS), CSV, or JSON up to 10MB
+                    Supports Excel (XLSX/XLS), CSV, or JSON
                   </p>
                 </div>
-              </label>
+                
+                <div className="flex items-center gap-3 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('bulk-file-input')?.click()}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                  >
+                    Select Files
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById('bulk-folder-input')?.click()}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 dark:bg-slate-750 dark:hover:bg-slate-650 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer border border-slate-700"
+                  >
+                    Select Folder
+                  </button>
+                </div>
+              </div>
 
               {/* Format Pills */}
               <div className="flex items-center justify-center gap-4 text-xs font-semibold text-slate-450">
@@ -1402,7 +1626,7 @@ export default function LeadsPage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-950/20 text-center text-slate-450 font-semibold text-[10.5px] border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-center gap-1.5">
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950/20 text-center text-slate-455 font-semibold text-[10.5px] border-t border-slate-100 dark:border-slate-800/40 flex items-center justify-center gap-1.5">
                   <Check className="w-4 h-4 text-emerald-500" />
                   Showing all {uploadedRows.length} imported leads with all matching columns.
                 </div>
@@ -1841,11 +2065,11 @@ export default function LeadsPage() {
         </div>
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm hover:shadow-md transition relative overflow-hidden group hover:scale-[1.01] border-none">
           <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
-            <Calendar className="w-16 h-16 text-amber-500" />
+            <UserCheck className="w-16 h-16 text-amber-500" />
           </div>
-          <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Followups Scheduled</span>
-          <h3 className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">{stats.followupTodayOrFuture}</h3>
-          <p className="text-xs text-slate-450 mt-2">Pending interactions scheduled</p>
+          <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Qualified Leads</span>
+          <h3 className="text-3xl font-extrabold text-amber-600 dark:text-amber-400 mt-1">{stats.qualifiedLeads}</h3>
+          <p className="text-xs text-slate-450 mt-2">Leads ready for conversion</p>
         </div>
       </div>
 
@@ -2048,6 +2272,27 @@ export default function LeadsPage() {
             <table className="w-full text-left border-collapse table-auto min-w-[1200px]">
               <thead>
                 <tr className="border-b border-slate-150 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40">
+                  <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 select-none whitespace-nowrap w-10 bg-slate-50/70 dark:bg-slate-800/40">
+                    <input
+                      type="checkbox"
+                      checked={paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedLeadIds.has(lead.lead_id))}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setSelectedLeadIds(prev => {
+                          const next = new Set(prev);
+                          paginatedLeads.forEach(lead => {
+                            if (checked) {
+                              next.add(lead.lead_id);
+                            } else {
+                              next.delete(lead.lead_id);
+                            }
+                          });
+                          return next;
+                        });
+                      }}
+                      className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-800"
+                    />
+                  </th>
                   {visibleColumns.lead_id !== false && (
                     <th onClick={() => handleSort('lead_id')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
                       <div className="flex items-center gap-1.5">
@@ -2206,6 +2451,25 @@ export default function LeadsPage() {
                     onClick={() => router.push(`/other-modules/crm/leads/${lead.lead_id}`)}
                     className="hover:bg-blue-50/20 dark:hover:bg-slate-750 transition duration-150 cursor-pointer"
                   >
+                    <td className="py-3 px-4 w-10" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedLeadIds.has(lead.lead_id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSelectedLeadIds(prev => {
+                            const next = new Set(prev);
+                            if (checked) {
+                              next.add(lead.lead_id);
+                            } else {
+                              next.delete(lead.lead_id);
+                            }
+                            return next;
+                          });
+                        }}
+                        className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                      />
+                    </td>
                     {visibleColumns.lead_id !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-400">{lead.lead_id}</td>
                     )}
@@ -2960,6 +3224,125 @@ export default function LeadsPage() {
               </button>
             </div>
             {/* Bulk Importer is now handled via an early full-page return at the top of the render statement */}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bulk Actions Bar */}
+      {selectedLeadIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl border border-slate-700/80 z-50 flex flex-wrap items-center gap-4 animate-in slide-in-from-bottom-5 duration-350 max-w-[95%] sm:max-w-max">
+          <div className="flex items-center gap-2 border-r border-slate-800 pr-4">
+            <div className="w-5 h-5 bg-indigo-600 text-white rounded-full flex items-center justify-center text-xs font-bold">
+              {selectedLeadIds.size}
+            </div>
+            <span className="text-xs font-bold tracking-wide text-slate-300">Selected</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={bulkEditField}
+              onChange={(e) => {
+                setBulkEditField(e.target.value);
+                if (e.target.value === 'lead_status') setBulkEditValue('New');
+                else if (e.target.value === 'lead_category') setBulkEditValue('Warm');
+                else if (e.target.value === 'lead_source') setBulkEditValue('Website');
+                else if (e.target.value === 'lead_type') setBulkEditValue('B2B');
+                else if (e.target.value === 'priority') setBulkEditValue('Medium');
+                else setBulkEditValue('');
+              }}
+              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+            >
+              <option value="">-- Select Field to Edit --</option>
+              <option value="lead_status">Status</option>
+              <option value="lead_category">Category</option>
+              <option value="lead_source">Source</option>
+              <option value="lead_type">Lead Type</option>
+              <option value="priority">Priority</option>
+              <option value="assigned_to">Assigned To</option>
+              <option value="tags">Tags</option>
+            </select>
+
+            {bulkEditField && (
+              <>
+                {bulkEditField === 'lead_status' && (
+                  <select
+                    value={bulkEditValue}
+                    onChange={(e) => setBulkEditValue(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
+                {bulkEditField === 'lead_category' && (
+                  <select
+                    value={bulkEditValue}
+                    onChange={(e) => setBulkEditValue(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+                {bulkEditField === 'lead_source' && (
+                  <select
+                    value={bulkEditValue}
+                    onChange={(e) => setBulkEditValue(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                )}
+                {bulkEditField === 'lead_type' && (
+                  <select
+                    value={bulkEditValue}
+                    onChange={(e) => setBulkEditValue(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                )}
+                {bulkEditField === 'priority' && (
+                  <select
+                    value={bulkEditValue}
+                    onChange={(e) => setBulkEditValue(e.target.value)}
+                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                )}
+                {(bulkEditField === 'assigned_to' || bulkEditField === 'tags') && (
+                  <input
+                    type="text"
+                    value={bulkEditValue}
+                    onChange={(e) => setBulkEditValue(e.target.value)}
+                    placeholder={bulkEditField === 'tags' ? "tag1, tag2" : "Agent Name"}
+                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 w-32 placeholder-slate-500"
+                  />
+                )}
+                <button
+                  onClick={handleBulkUpdate}
+                  disabled={actionLoading}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  Apply
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 border-l border-slate-800/80 pl-4">
+            <button
+              onClick={handleBulkDelete}
+              disabled={actionLoading}
+              className="bg-rose-600 hover:bg-rose-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete
+            </button>
+            <button
+              onClick={() => setSelectedLeadIds(new Set())}
+              className="border border-slate-700 hover:bg-slate-800 text-slate-300 px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
