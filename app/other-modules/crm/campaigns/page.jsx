@@ -337,18 +337,42 @@ export default function CampaignsPage() {
         )}
 
         {activeTab !== "list" && (
-          <button
-            onClick={() => {
-              setSelectedCampaignId(null);
-              setSelectedCampaignDetail(null);
-              setRecipients([]);
-              setActiveTab("list");
-            }}
-            className="px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 hover:border-slate-300 dark:hover:border-slate-700 text-[13px] font-semibold text-slate-800 dark:text-slate-200 rounded-full inline-flex items-center gap-1.5 transition-colors h-[40px] cursor-pointer focus:outline-none"
-          >
-            <ArrowLeft size={15} />
-            <span>Back to Campaigns</span>
-          </button>
+          <div className="flex gap-2">
+            {activeTab === "detail" && selectedCampaignDetail && (
+              <button
+                onClick={async () => {
+                  if (confirm(`Are you sure you want to delete "${selectedCampaignDetail.campaign_name}"?`)) {
+                    try {
+                      await deleteCampaign(selectedCampaignDetail.campaign_id);
+                      toast.success("Campaign deleted successfully");
+                      setSelectedCampaignId(null);
+                      setSelectedCampaignDetail(null);
+                      setRecipients([]);
+                      setActiveTab("list");
+                    } catch (err) {
+                      toast.error("Failed to delete campaign");
+                    }
+                  }
+                }}
+                className="px-4 bg-red-50 hover:bg-red-100 border border-red-200 text-[13px] font-semibold text-red-650 rounded-full inline-flex items-center gap-1.5 transition-colors h-[40px] cursor-pointer focus:outline-none"
+              >
+                <Trash2 size={15} />
+                <span>Delete Campaign</span>
+              </button>
+            )}
+            <button
+              onClick={() => {
+                setSelectedCampaignId(null);
+                setSelectedCampaignDetail(null);
+                setRecipients([]);
+                setActiveTab("list");
+              }}
+              className="px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 hover:border-slate-300 dark:hover:border-slate-700 text-[13px] font-semibold text-slate-800 dark:text-slate-200 rounded-full inline-flex items-center gap-1.5 transition-colors h-[40px] cursor-pointer focus:outline-none"
+            >
+              <ArrowLeft size={15} />
+              <span>Back to Campaigns</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -982,7 +1006,7 @@ export default function CampaignsPage() {
                         <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px] w-32 text-center">Recipients</th>
                         <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px] w-40">Performance</th>
                         <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px] w-36">Created</th>
-                        <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px] w-36 text-center">Visible</th>
+                        <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px] w-48 text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="text-[14px] font-medium text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900">
@@ -1028,16 +1052,35 @@ export default function CampaignsPage() {
                               {dateStr}
                             </td>
                             <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700 text-center">
-                              <button
-                                onClick={() => {
-                                  setSelectedCampaignId(camp.campaign_id);
-                                  setActiveTab("detail");
-                                }}
-                                className="px-4 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750 hover:border-slate-350 text-[12px] font-medium text-slate-800 dark:text-slate-200 rounded-full shadow-sm inline-flex items-center gap-2 transition-all active:scale-[0.97] whitespace-nowrap cursor-pointer"
-                              >
-                                <Eye size={15} className="stroke-[1.8]" />
-                                <span>View Details</span>
-                              </button>
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => {
+                                    setSelectedCampaignId(camp.campaign_id);
+                                    setActiveTab("detail");
+                                  }}
+                                  className="px-4 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750 hover:border-slate-350 text-[12px] font-medium text-slate-800 dark:text-slate-200 rounded-full shadow-sm inline-flex items-center gap-2 transition-all active:scale-[0.97] whitespace-nowrap cursor-pointer"
+                                >
+                                  <Eye size={15} className="stroke-[1.8]" />
+                                  <span>View Details</span>
+                                </button>
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Are you sure you want to delete "${camp.campaign_name}"?`)) {
+                                      try {
+                                        await deleteCampaign(camp.campaign_id);
+                                        toast.success("Campaign deleted successfully");
+                                      } catch (err) {
+                                        toast.error("Failed to delete campaign");
+                                      }
+                                    }
+                                  }}
+                                  className="p-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-650 rounded-full transition-all active:scale-[0.95] cursor-pointer"
+                                  title="Delete Campaign"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1075,6 +1118,23 @@ export default function CampaignsPage() {
                               {camp.campaign_type || "Email"}
                             </span>
                           </div>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (confirm(`Are you sure you want to delete "${camp.campaign_name}"?`)) {
+                                try {
+                                  await deleteCampaign(camp.campaign_id);
+                                  toast.success("Campaign deleted successfully");
+                                } catch (err) {
+                                  toast.error("Failed to delete campaign");
+                                }
+                              }
+                            }}
+                            className="p-1.5 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-655 rounded-full transition-all active:scale-[0.95] cursor-pointer border border-red-200 dark:border-red-900/30 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Delete Campaign"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
 
                         <h3 className="font-medium text-[14px] text-slate-900 dark:text-white mb-2 group-hover:text-[#6057DA] dark:group-hover:text-[#7C74F0] group-hover:underline transition-colors">
@@ -1164,7 +1224,7 @@ export default function CampaignsPage() {
                                   setSelectedCampaignId(camp.campaign_id);
                                   setActiveTab("detail");
                                 }}
-                                className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 p-4 text-left transition-all duration-200 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer"
+                                className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 p-4 text-left transition-all duration-200 bg-white dark:bg-slate-900 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 cursor-pointer group/item"
                               >
                                 {/* Title and arrow */}
                                 <div className="flex items-start justify-between gap-3">
@@ -1173,7 +1233,26 @@ export default function CampaignsPage() {
                                       {camp.campaign_name}
                                     </h4>
                                   </div>
-                                  <ChevronRight size={14} className="mt-0.5 shrink-0 text-slate-400" />
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (confirm(`Are you sure you want to delete "${camp.campaign_name}"?`)) {
+                                          try {
+                                            await deleteCampaign(camp.campaign_id);
+                                            toast.success("Campaign deleted successfully");
+                                          } catch (err) {
+                                            toast.error("Failed to delete campaign");
+                                          }
+                                        }
+                                      }}
+                                      className="p-1 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/40 text-red-650 rounded-md transition-all active:scale-[0.95] cursor-pointer border border-red-200 dark:border-red-900/30 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                      title="Delete Campaign"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                    <ChevronRight size={14} className="mt-0.5 text-slate-400" />
+                                  </div>
                                 </div>
 
                                 {/* Bottom row: pills */}

@@ -103,7 +103,7 @@ function extractProviderMessageId(responseBody) {
   );
 }
 
-async function sendZeptoCampaignEmail({ token, lead, subject, htmlBody, campaignId, recipientId, followupId }) {
+async function sendZeptoCampaignEmail({ token, lead, subject, htmlBody, campaignId, recipientId }) {
   const response = await fetch(ZEPTOMAIL_URL, {
     method: "POST",
     headers: {
@@ -123,7 +123,7 @@ async function sendZeptoCampaignEmail({ token, lead, subject, htmlBody, campaign
       ],
       subject,
       htmlbody: htmlBody || "",
-      client_reference: `campaign_id=${campaignId}&recipient_id=${recipientId}&lead_id=${lead.lead_id}&followup_id=${followupId}`,
+      client_reference: `campaign_id=${campaignId}&recipient_id=${recipientId}&lead_id=${lead.lead_id}`,
     }),
   });
 
@@ -309,40 +309,14 @@ async function launchCampaign(supabase, campaignId) {
     throw new Error("ZOHO_TOKEN is required to send CRM campaign emails through ZeptoMail");
   }
 
-  // Create campaign_recipients and follow_ups for each matched lead
+  // Create campaign_recipients for each matched lead
   let sentCount = 0;
   let failedCount = 0;
   for (const lead of matchedLeads) {
     const subSubject = substitute(template.subject, lead);
     const subBody = substitute(template.html_body, lead);
 
-    // A. Insert followup
-    const { data: followup, error: followErr } = await supabase
-      .from("crm_follow_ups")
-      .insert({
-        lead_id: lead.lead_id,
-        followup_type: "Email",
-        direction: "Outbound",
-        status: isScheduled ? "Scheduled" : "Pending",
-        scheduled_at: isScheduled ? campaign.scheduled_at : new Date().toISOString(),
-        completed_at: null,
-        template_id: campaign.template_id,
-        campaign_id: campaignId,
-        email_sent_to: lead.email,
-        email_subject_sent: subSubject,
-        email_body_snapshot: subBody,
-        email_delivery_status: "Pending",
-        assigned_to: lead.assigned_to || null
-      })
-      .select("*")
-      .single();
-
-    if (followErr) {
-      console.error(`Error inserting followup for lead ${lead.lead_id}:`, followErr.message);
-      continue;
-    }
-
-    // B. Insert campaign_recipient
+    // Insert campaign_recipient
     const { data: recipient, error: recErr } = await supabase
       .from("crm_campaign_recipients")
       .insert({
@@ -350,7 +324,6 @@ async function launchCampaign(supabase, campaignId) {
         lead_id: lead.lead_id,
         email_sent_to: lead.email,
         delivery_status: "Pending",
-        followup_id: followup.followup_id,
         provider: "zeptomail"
       })
       .select("*")
@@ -374,7 +347,6 @@ async function launchCampaign(supabase, campaignId) {
         htmlBody: subBody,
         campaignId,
         recipientId: recipient.recipient_id,
-        followupId: followup.followup_id,
       });
 
       await supabase
@@ -386,15 +358,6 @@ async function launchCampaign(supabase, campaignId) {
           provider_message_id: providerMessageId,
         })
         .eq("recipient_id", recipient.recipient_id);
-
-      await supabase
-        .from("crm_follow_ups")
-        .update({
-          status: "Sent",
-          completed_at: sentAt,
-          email_delivery_status: "Sent",
-        })
-        .eq("followup_id", followup.followup_id);
 
       sentCount += 1;
     } catch (sendErr) {
@@ -408,16 +371,6 @@ async function launchCampaign(supabase, campaignId) {
           provider: "zeptomail",
         })
         .eq("recipient_id", recipient.recipient_id);
-
-      await supabase
-        .from("crm_follow_ups")
-        .update({
-          status: "Failed",
-          completed_at: new Date().toISOString(),
-          email_delivery_status: "Failed",
-          outcome: sendErr.message,
-        })
-        .eq("followup_id", followup.followup_id);
     }
   }
 
