@@ -83,7 +83,15 @@ export async function DELETE(request) {
 
     const supabase = adminClient;
     const { error } = await supabase.from(TABLE).delete().eq("id", id);
-    if (error) throw error;
+    if (error) {
+      if (error.code === "23503" || String(error.message || "").includes("violates foreign key constraint")) {
+        return NextResponse.json(
+          { error: "This template cannot be deleted because it is currently linked to one or more campaigns. Please edit or delete those campaigns first, or archive this template instead." },
+          { status: 400 }
+        );
+      }
+      throw error;
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

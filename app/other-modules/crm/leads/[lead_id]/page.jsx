@@ -33,6 +33,7 @@ export default function LeadDetailPage() {
 
   const [lead, setLead] = useState(null);
   const [followups, setFollowups] = useState([]);
+  const [campaignEmails, setCampaignEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copiedField, setCopiedField] = useState(null);
 
@@ -61,6 +62,7 @@ export default function LeadDetailPage() {
       
       if (leadData.lead) {
         setLead(leadData.lead);
+        setCampaignEmails(leadData.campaignEmails || []);
       } else {
         toast.error('Lead not found');
       }
@@ -117,9 +119,16 @@ export default function LeadDetailPage() {
 
   const analytics = useMemo(() => {
     let calls = 0;
-    let emails = 0;
+    let emails = campaignEmails.length;
     let meetings = 0;
     let lastActive = null;
+
+    campaignEmails.forEach((email) => {
+      const d = new Date(email.created_at || email.sent_at);
+      if (!lastActive || d > lastActive) {
+        lastActive = d;
+      }
+    });
 
     followups.forEach((f) => {
       const type = f.followup_type?.toLowerCase() || '';
@@ -140,7 +149,25 @@ export default function LeadDetailPage() {
     });
 
     return { calls, emails, meetings, lastActive };
-  }, [followups]);
+  }, [followups, campaignEmails]);
+
+  const allActivities = useMemo(() => {
+    const formattedCampaignEmails = campaignEmails.map((email) => ({
+      followup_id: `camp-${email.recipient_id}`,
+      followup_type: 'Email',
+      created_at: email.created_at || email.sent_at,
+      outcome: `Campaign: ${email.campaign?.campaign_name || 'Unnamed Campaign'} ("${email.campaign?.template?.subject || 'No Subject'}")`,
+      notes: `Sent to ${email.email_sent_to}. Delivery Status: ${email.delivery_status || 'Sent'}${email.unsubscribed ? ' (Unsubscribed)' : ''}`,
+      status: email.delivery_status === 'Opened' || email.delivery_status === 'Clicked' || email.delivery_status === 'Delivered' ? 'Completed' : 'Sent'
+    }));
+
+    const combined = [...formattedCampaignEmails, ...followups];
+    return combined.sort((a, b) => {
+      const dateA = new Date(a.created_at || a.scheduled_at || 0);
+      const dateB = new Date(b.created_at || b.scheduled_at || 0);
+      return dateB - dateA;
+    });
+  }, [campaignEmails, followups]);
 
   const detailSections = useMemo(() => {
     if (!lead) return [];
@@ -551,41 +578,39 @@ export default function LeadDetailPage() {
         </div>
 
         {/* Activity Feed & Interaction Notes */}
-        <div className="bg-white dark:bg-[#151f32] rounded-3xl border border-slate-200/70 dark:border-slate-800/60 shadow-sm overflow-hidden flex flex-col max-h-[800px]">
+        <div className="bg-white dark:bg-[#151f32] rounded-3xl border border-slate-200/70 dark:border-slate-800/60 shadow-sm overflow-hidden flex flex-col h-[550px]">
           <div className="p-6 flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/40 shrink-0">
             <MessageSquare className="w-5 h-5 text-indigo-500" />
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-white">ACTIVITY FEED & INTERACTION NOTES</h2>
           </div>
 
-          <div className="p-6 flex-1 flex flex-col">
-            <form onSubmit={handleLogActivity} className="space-y-4 mb-6">
-              <textarea
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                placeholder="Log a call outcome or write an internal note here..."
-                className="w-full p-4 rounded-xl bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-800 outline-none text-sm text-slate-705 dark:text-slate-205 resize-none placeholder:text-slate-400 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
-                rows={2}
-              />
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={loggingAction || !noteText.trim()}
-                  className="rounded-lg bg-indigo-500 px-5 py-2 text-xs font-bold text-white transition hover:bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loggingAction ? 'Saving...' : 'Log Activity Note'}
-                </button>
-              </div>
-            </form>
+          <div className="p-6 flex-1 flex flex-col overflow-hidden">
+            <style dangerouslySetInnerHTML={{ __html: `
+              .light-scrollbar::-webkit-scrollbar {
+                width: 5px;
+                height: 5px;
+              }
+              .light-scrollbar::-webkit-scrollbar-track {
+                background: transparent;
+              }
+              .light-scrollbar::-webkit-scrollbar-thumb {
+                background: rgba(156, 163, 175, 0.25);
+                border-radius: 9999px;
+              }
+              .light-scrollbar::-webkit-scrollbar-thumb:hover {
+                background: rgba(156, 163, 175, 0.45);
+              }
+            ` }} />
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar pt-2">
-              {followups.length === 0 ? (
+            <div className="flex-1 overflow-y-auto light-scrollbar pr-2 pt-2">
+              {allActivities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center h-full">
                   <Activity className="w-8 h-8 text-slate-300 dark:text-slate-700 mb-3" />
                   <p className="text-xs font-bold text-slate-500 dark:text-slate-400">No historical activity recorded yet.</p>
                 </div>
               ) : (
                 <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent dark:before:via-slate-800">
-                  {followups.map((f, i) => {
+                  {allActivities.map((f, i) => {
                     const type = f.followup_type?.toLowerCase() || 'note';
                     let FeedIcon = FileText;
                     let iconColor = 'text-slate-500 dark:text-slate-400';
@@ -623,8 +648,13 @@ export default function LeadDetailPage() {
                             </span>
                           </div>
                           <p className="text-sm font-medium text-slate-700 dark:text-slate-305 break-words leading-relaxed">
-                            {f.outcome || f.notes || 'No description provided.'}
+                            {f.outcome || 'No description provided.'}
                           </p>
+                          {f.notes && (
+                            <p className="text-xs font-normal text-slate-500 dark:text-slate-400 mt-1.5 break-words leading-relaxed">
+                              {f.notes}
+                            </p>
+                          )}
                           {f.status && (
                             <div className="mt-3">
                               <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${

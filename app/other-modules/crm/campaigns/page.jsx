@@ -29,6 +29,10 @@ import {
   LayoutGrid,
   Table,
   Home,
+  Download,
+  Send,
+  MousePointerClick,
+  AlertTriangle,
 } from "lucide-react";
 
 export default function CampaignsPage() {
@@ -247,6 +251,35 @@ export default function CampaignsPage() {
     }
   };
 
+  // Export campaign recipients status to CSV
+  const handleExportCSV = () => {
+    if (!recipients || recipients.length === 0) {
+      toast.error("No recipients to export.");
+      return;
+    }
+
+    const headers = ["Lead Name", "Email Sent To", "Priority", "Delivery Status", "Unsubscribed", "Date"];
+    const rows = recipients.map(r => [
+      r.lead?.full_name || "Unknown Lead",
+      r.email_sent_to || "",
+      r.lead?.priority || "Medium",
+      r.unsubscribed ? "Unsubscribed" : r.delivery_status,
+      r.unsubscribed ? "Yes" : "No",
+      r.created_at ? new Date(r.created_at).toLocaleString() : ""
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `campaign_${selectedCampaignDetail?.campaign_name?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'export'}_recipients.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Recipients status exported successfully.");
+  };
+
   // Filter recipients list by search query
   const filteredRecipients = useMemo(() => {
     return recipients.filter((r) => {
@@ -259,16 +292,20 @@ export default function CampaignsPage() {
 
   // Statistics calculation helpers
   const stats = useMemo(() => {
-    if (!selectedCampaignDetail) return { openRate: 0, clickRate: 0, bounceRate: 0 };
+    if (!selectedCampaignDetail) return { openRate: 0, clickRate: 0, bounceRate: 0, sentRate: 0, deliveryRate: 0 };
+    const enrolled = selectedCampaignDetail.total_recipients || 0;
     const sent = selectedCampaignDetail.sent_count || 0;
     const opened = selectedCampaignDetail.opened_count || 0;
     const clicked = selectedCampaignDetail.clicked_count || 0;
     const bounced = selectedCampaignDetail.bounced_count || 0;
+    const delivered = selectedCampaignDetail.delivered_count || 0;
 
     return {
       openRate: sent > 0 ? Math.round((opened / sent) * 100) : 0,
       clickRate: sent > 0 ? Math.round((clicked / sent) * 100) : 0,
       bounceRate: sent > 0 ? Math.round((bounced / sent) * 100) : 0,
+      sentRate: enrolled > 0 ? Math.round((sent / enrolled) * 100) : 0,
+      deliveryRate: sent > 0 ? Math.round((delivered / sent) * 100) : 0,
     };
   }, [selectedCampaignDetail]);
 
@@ -291,20 +328,21 @@ export default function CampaignsPage() {
   };
 
   const getRecipientStatusColor = (r) => {
-    if (r.unsubscribed) return "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-450 dark:border-rose-800/30";
+    if (r.unsubscribed) return "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30";
     switch (r.delivery_status) {
       case "Pending":
-        return "bg-slate-100 text-slate-650 border-slate-200 dark:bg-slate-800 dark:text-slate-400";
+        return "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700";
       case "Sent":
-        return "bg-blue-50 text-blue-700 border-blue-150 dark:bg-blue-900/20 dark:text-blue-400";
+        return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30";
+      case "Delivered":
       case "Opened":
-        return "bg-emerald-50 text-emerald-700 border-emerald-150 dark:bg-emerald-900/20 dark:text-emerald-400";
+        return "bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30";
       case "Clicked":
-        return "bg-violet-50 text-violet-750 border-violet-200 dark:bg-violet-900/20 dark:text-violet-400";
+        return "bg-violet-50 text-violet-700 border-violet-250 dark:bg-violet-950/20 dark:text-violet-400 dark:border-violet-900/30";
       case "Bounced":
-        return "bg-amber-50 text-amber-750 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400";
+        return "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-455 dark:border-rose-900/30";
       default:
-        return "bg-slate-100 text-slate-600";
+        return "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700";
     }
   };
 
@@ -337,7 +375,7 @@ export default function CampaignsPage() {
         )}
 
         {activeTab !== "list" && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             {activeTab === "detail" && selectedCampaignDetail && (
               <button
                 onClick={async () => {
@@ -358,6 +396,15 @@ export default function CampaignsPage() {
               >
                 <Trash2 size={15} />
                 <span>Delete Campaign</span>
+              </button>
+            )}
+            {activeTab === "detail" && (
+              <button
+                onClick={handleExportCSV}
+                className="px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-semibold rounded-full inline-flex items-center gap-1.5 transition-colors h-[40px] shadow-sm cursor-pointer"
+              >
+                <Download size={15} />
+                <span>Export Status</span>
               </button>
             )}
             <button
@@ -821,74 +868,109 @@ export default function CampaignsPage() {
               <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className={`text-[9px] font-semibold px-2 py-0.5 border rounded-full uppercase tracking-wider ${getCampaignStatusColor(selectedCampaignDetail.status)}`}>
+                    <span className={`text-[9px] font-medium px-2 py-0.5 border rounded-full uppercase tracking-wider ${getCampaignStatusColor(selectedCampaignDetail.status)}`}>
                       {selectedCampaignDetail.status}
                     </span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500 font-medium uppercase">
+                    <span className="text-xs text-slate-400 dark:text-slate-500 font-normal uppercase tracking-wider">
                       {selectedCampaignDetail.campaign_type} Broadcast
                     </span>
                   </div>
-                  <h2 className="text-lg font-semibold text-slate-800 dark:text-white mt-1.5">
+                  <h2 className="text-xl font-medium text-slate-850 dark:text-white mt-2 tracking-tight">
                     {selectedCampaignDetail.campaign_name}
                   </h2>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                    Template: <span className="font-semibold text-slate-750 dark:text-slate-350">{selectedCampaignDetail.template?.name || "Deleted template"}</span> • Created by: {selectedCampaignDetail.created_by}
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1.5 font-normal">
+                    Template: <span className="font-medium text-slate-600 dark:text-slate-400">{selectedCampaignDetail.template?.name || "Deleted template"}</span> • Created by: {selectedCampaignDetail.created_by}
                   </p>
                 </div>
 
-                <div className="text-left md:text-right text-xs shrink-0 text-slate-500 dark:text-slate-450 border-t md:border-t-0 border-slate-100 dark:border-slate-850 pt-3 md:pt-0">
-                  <div><span className="font-medium text-slate-400 mr-1">Launched:</span> {selectedCampaignDetail.launched_at ? new Date(selectedCampaignDetail.launched_at).toLocaleString() : "Not launched"}</div>
+                <div className="text-left md:text-right text-xs shrink-0 text-slate-500 dark:text-slate-450 border-t md:border-t-0 border-slate-100 dark:border-slate-850 pt-3 md:pt-0 space-y-1 font-normal">
+                  <div><span className="font-normal text-slate-400 mr-1">Launched:</span> {selectedCampaignDetail.launched_at ? new Date(selectedCampaignDetail.launched_at).toLocaleString() : "Not launched"}</div>
                   {selectedCampaignDetail.completed_at && (
-                    <div><span className="font-medium text-slate-400 mr-1">Completed:</span> {new Date(selectedCampaignDetail.completed_at).toLocaleString()}</div>
+                    <div><span className="font-normal text-slate-400 mr-1">Completed:</span> {new Date(selectedCampaignDetail.completed_at).toLocaleString()}</div>
                   )}
                   {selectedCampaignDetail.scheduled_at && !selectedCampaignDetail.launched_at && (
-                    <div><span className="font-medium text-slate-400 mr-1">Scheduled for:</span> {new Date(selectedCampaignDetail.scheduled_at).toLocaleString()}</div>
+                    <div><span className="font-normal text-slate-400 mr-1">Scheduled for:</span> {new Date(selectedCampaignDetail.scheduled_at).toLocaleString()}</div>
                   )}
                 </div>
               </div>
-
-              {/* Stats Counters Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs text-center">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase block">Total Enrolled</span>
-                  <span className="text-slate-800 dark:text-white text-lg font-semibold mt-1 block">{selectedCampaignDetail.total_recipients || 0}</span>
+                    {/* Stats Counters Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                {/* Total Enrolled */}
+                <div className="bg-white dark:bg-slate-850 p-4.5 rounded-2xl shadow-xs border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Total Enrolled</span>
+                    <div className="flex items-center justify-between mt-1.5 w-full">
+                      <span className="text-3xl font-medium text-slate-800 dark:text-white leading-none">{selectedCampaignDetail.total_recipients || 0}</span>
+                      <Users className="w-5.5 h-5.5 text-blue-500 shrink-0" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-450 mt-3 block font-normal">Target recipient size</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs text-center">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase block">Sent</span>
-                  <span className="text-slate-800 dark:text-white text-lg font-semibold mt-1 block">{selectedCampaignDetail.sent_count || 0}</span>
+                {/* Sent */}
+                <div className="bg-white dark:bg-slate-850 p-4.5 rounded-2xl shadow-xs border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Sent Broadcasts</span>
+                    <div className="flex items-center justify-between mt-1.5 w-full">
+                      <span className="text-3xl font-medium text-indigo-600 dark:text-indigo-400 leading-none">{selectedCampaignDetail.sent_count || 0}</span>
+                      <Send className="w-5.5 h-5.5 text-indigo-500 shrink-0" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-450 mt-3 block font-normal">{stats.sentRate}% send rate</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs text-center">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase block">Delivered</span>
-                  <span className="text-emerald-600 dark:text-emerald-400 text-lg font-semibold mt-1 block">{selectedCampaignDetail.delivered_count || 0}</span>
+                {/* Delivered */}
+                <div className="bg-white dark:bg-slate-850 p-4.5 rounded-2xl shadow-xs border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Delivered</span>
+                    <div className="flex items-center justify-between mt-1.5 w-full">
+                      <span className="text-3xl font-medium text-emerald-600 dark:text-emerald-400 leading-none">{selectedCampaignDetail.delivered_count || 0}</span>
+                      <CheckCircle className="w-5.5 h-5.5 text-emerald-500 shrink-0" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-450 mt-3 block font-normal">{stats.deliveryRate}% delivery rate</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs text-center">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase block">Opened (Rate)</span>
-                  <span className="text-[#6057DA] dark:text-[#7C74F0] text-lg font-semibold mt-1 block">
-                    {selectedCampaignDetail.opened_count || 0} ({stats.openRate}%)
-                  </span>
+                {/* Opened */}
+                <div className="bg-white dark:bg-slate-850 p-4.5 rounded-2xl shadow-xs border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Open Rate</span>
+                    <div className="flex items-center justify-between mt-1.5 w-full">
+                      <span className="text-3xl font-medium text-[#6057DA] dark:text-[#7C74F0] leading-none">{stats.openRate}%</span>
+                      <Eye className="w-5.5 h-5.5 text-violet-500 shrink-0" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-450 mt-3 block font-normal">{selectedCampaignDetail.opened_count || 0} opened</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs text-center">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase block">Clicked (CTR)</span>
-                  <span className="text-violet-600 dark:text-violet-400 text-lg font-semibold mt-1 block">
-                    {selectedCampaignDetail.clicked_count || 0} ({stats.clickRate}%)
-                  </span>
+                {/* Clicked */}
+                <div className="bg-white dark:bg-slate-850 p-4.5 rounded-2xl shadow-xs border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Click Rate (CTR)</span>
+                    <div className="flex items-center justify-between mt-1.5 w-full">
+                      <span className="text-3xl font-medium text-violet-600 dark:text-violet-400 leading-none">{stats.clickRate}%</span>
+                      <MousePointerClick className="w-5.5 h-5.5 text-fuchsia-500 shrink-0" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-450 mt-3 block font-normal">{selectedCampaignDetail.clicked_count || 0} clicked</p>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-xs text-center">
-                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase block">Bounced (Rate)</span>
-                  <span className="text-rose-500 dark:text-rose-400 text-lg font-semibold mt-1 block">
-                    {selectedCampaignDetail.bounced_count || 0} ({stats.bounceRate}%)
-                  </span>
+                {/* Bounced */}
+                <div className="bg-white dark:bg-slate-850 p-4.5 rounded-2xl shadow-xs border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Bounce Rate</span>
+                    <div className="flex items-center justify-between mt-1.5 w-full">
+                      <span className="text-3xl font-medium text-rose-500 dark:text-rose-400 leading-none">{stats.bounceRate}%</span>
+                      <AlertTriangle className="w-5.5 h-5.5 text-rose-500 shrink-0" />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-450 mt-3 block font-normal">{selectedCampaignDetail.bounced_count || 0} bounced</p>
                 </div>
               </div>
 
               {/* Recipients list */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-                <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-slate-50/40 dark:bg-slate-900/10">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm overflow-hidden flex flex-col mt-6">
+                <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-slate-50/50 dark:bg-slate-800/20">
                   <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-350 uppercase tracking-widest shrink-0">
                     Recipient Delivery Logs
                   </h3>
@@ -906,47 +988,49 @@ export default function CampaignsPage() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left border-collapse min-w-[700px]">
                     <thead>
-                      <tr className="bg-slate-50/30 dark:bg-slate-900/30 text-slate-450 dark:text-slate-500 font-semibold uppercase border-b border-slate-100 dark:border-slate-800/80">
-                        <th className="p-3.5 pl-5">Lead Name</th>
-                        <th className="p-3.5">Email Sent To</th>
-                        <th className="p-3.5">Lead Priority</th>
-                        <th className="p-3.5">Delivery Status</th>
-                        <th className="p-3.5 text-right pr-5">Actions</th>
+                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                        <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Lead Name</th>
+                        <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Email Sent To</th>
+                        <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Lead Priority</th>
+                        <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Delivery Status</th>
+                        <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px] text-right pr-5">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850/60 font-medium">
+                    <tbody className="text-[14px] font-medium text-slate-900 dark:text-slate-105 bg-white dark:bg-slate-900">
                       {filteredRecipients.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-slate-400">
+                          <td colSpan={5} className="p-8 text-center text-slate-400 border border-slate-200 dark:border-slate-700">
                             No recipients found.
                           </td>
                         </tr>
                       ) : (
                         filteredRecipients.map((r) => (
-                          <tr key={r.recipient_id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/20 transition-colors">
-                            <td className="p-3.5 pl-5">
-                              <span className="font-medium text-slate-850 dark:text-slate-150">
+                          <tr key={r.recipient_id} className="hover:bg-slate-50/30 dark:hover:bg-slate-800/20 transition-colors border-b border-slate-200 dark:border-slate-700">
+                            <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700">
+                              <span className="text-[14px] font-medium text-slate-900 dark:text-white">
                                 {r.lead?.full_name || "Unknown Lead"}
                               </span>
                             </td>
-                            <td className="p-3.5 text-slate-500 dark:text-slate-400">{r.email_sent_to}</td>
-                            <td className="p-3.5">
-                              <span className="bg-slate-100 text-slate-600 border border-slate-200 rounded-full px-2.5 py-0.5 text-[10px] uppercase font-medium dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
+                            <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
+                              {r.email_sent_to}
+                            </td>
+                            <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700">
+                              <span className="bg-slate-105 text-slate-600 border border-slate-200 rounded px-2 py-0.5 text-[10px] uppercase font-bold dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
                                 {r.lead?.priority || "Medium"}
                               </span>
                             </td>
-                            <td className="p-3.5">
-                              <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border uppercase tracking-wider ${getRecipientStatusColor(r)}`}>
+                            <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${getRecipientStatusColor(r)}`}>
                                 {r.unsubscribed ? "Unsubscribed" : r.delivery_status}
                               </span>
                             </td>
-                            <td className="p-3.5 text-right pr-5">
+                            <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700 text-right pr-5">
                               {!r.unsubscribed ? (
                                 <button
                                   onClick={() => handleUnsubscribe(r)}
-                                  className="text-[10px] font-semibold px-3 py-1.5 text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100/70 border border-red-100 hover:border-red-200 rounded-full dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30 transition-colors inline-flex items-center gap-1"
+                                  className="text-[10px] font-semibold px-3 py-1 bg-red-50 hover:bg-red-100/70 border border-red-150 hover:border-red-200 text-red-500 rounded dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30 transition-colors inline-flex items-center gap-1 cursor-pointer"
                                   title="Stop future communications to this contact"
                                 >
                                   <UserX className="w-3.5 h-3.5" /> Unsubscribe

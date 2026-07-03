@@ -19,6 +19,7 @@ import {
   Search,
   Smartphone,
   Sparkles,
+  Trash2,
   Wand2,
 } from "lucide-react";
 import { useCrm } from "../context/CrmContext";
@@ -270,6 +271,60 @@ export default function TemplatesPage() {
     await saveTemplate(archived);
   }
 
+  async function deleteTemplate() {
+    if (!draft.id) return;
+
+    const confirmDelete = window.confirm("Are you sure you want to permanently delete this template? This action cannot be undone.");
+    if (!confirmDelete) return;
+
+    setIsSaving(true);
+    setError("");
+    setNotice("");
+
+    const idToDelete = draft.id;
+    const isStarter = String(idToDelete).startsWith("starter-");
+    const isDraft = String(idToDelete).startsWith("draft-");
+    const isLocal = String(idToDelete).startsWith("local-");
+
+    try {
+      if (!isStarter && !isDraft && !isLocal && isRemoteTemplateStoreReady) {
+        const response = await fetch(`/other-modules/crm/api/templates?id=${idToDelete}`, {
+          method: "DELETE",
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Failed to delete template from database.");
+      }
+
+      if (isLocal || !isRemoteTemplateStoreReady) {
+        deleteLocalTemplate(idToDelete);
+      }
+
+      setTemplates((prev) => {
+        const remaining = prev.filter((template) => template.id !== idToDelete);
+        const currentIndex = prev.findIndex((template) => template.id === idToDelete);
+        
+        let nextTemplate = null;
+        if (remaining.length > 0) {
+          const nextIndex = currentIndex < remaining.length ? currentIndex : remaining.length - 1;
+          nextTemplate = remaining[nextIndex];
+        }
+
+        setTimeout(() => {
+          setSelectedId(nextTemplate?.id || null);
+          setDraft(normalizeForDraft(nextTemplate || EMPTY_TEMPLATE));
+        }, 0);
+
+        return remaining;
+      });
+
+      setNotice("Template deleted successfully.");
+    } catch (err) {
+      setError(err.message || "Failed to delete template.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function generateTemplate() {
     if (!aiPrompt.trim()) return;
     setIsGenerating(true);
@@ -402,9 +457,14 @@ export default function TemplatesPage() {
                 <h2 className="text-lg font-bold text-slate-950 dark:text-white">Template Details</h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Edit content, variables, and fallback copy.</p>
               </div>
-              <button onClick={archiveTemplate} className="rounded-md p-2 text-slate-400 transition hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700" title="Archive template">
-                <Archive className="h-4 w-4" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button onClick={archiveTemplate} className="rounded-md p-2 text-slate-400 transition hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-700" title="Archive template">
+                  <Archive className="h-4 w-4" />
+                </button>
+                <button onClick={deleteTemplate} className="rounded-md p-2 text-slate-400 transition hover:bg-slate-100 hover:text-red-600 dark:hover:bg-slate-700" title="Delete template">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -639,6 +699,14 @@ function saveLocalTemplate(template) {
 
   const existing = loadLocalTemplates();
   const next = [template, ...existing.filter((item) => item.id !== template.id)];
+  window.localStorage.setItem(LOCAL_TEMPLATE_KEY, JSON.stringify(next));
+}
+
+function deleteLocalTemplate(id) {
+  if (typeof window === "undefined") return;
+
+  const existing = loadLocalTemplates();
+  const next = existing.filter((item) => item.id !== id);
   window.localStorage.setItem(LOCAL_TEMPLATE_KEY, JSON.stringify(next));
 }
 
