@@ -11,6 +11,7 @@ import {
   Filter,
   ArrowUpDown,
   Plus,
+  Edit,
   Edit2,
   Trash2,
   X,
@@ -291,8 +292,8 @@ export default function LeadsPage() {
   }, [visibleColumns]);
 
   // Sorting
-  const [sortField, setSortField] = useState('created_at');
-  const [sortDirection, setSortDirection] = useState('desc');
+  const [sortField, setSortField] = useState('industry');
+  const [sortDirection, setSortDirection] = useState('asc');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -327,6 +328,54 @@ export default function LeadsPage() {
   const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
   const [bulkEditField, setBulkEditField] = useState('');
   const [bulkEditValue, setBulkEditValue] = useState('');
+
+  const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState(false);
+  const [bulkEditData, setBulkEditData] = useState({
+    company_name: '',
+    designation: '',
+    industry: '',
+    website: '',
+    company_size: '',
+    business_country: '',
+    business_city: '',
+    lead_source: 'Website',
+    lead_category: 'Warm',
+    lead_type: 'New Lead',
+    lead_status: 'New',
+    priority: 'Medium',
+    tags: '',
+    assigned_to: ''
+  });
+  const [bulkEditSelectedFields, setBulkEditSelectedFields] = useState({
+    company_name: false,
+    designation: false,
+    industry: false,
+    website: false,
+    company_size: false,
+    business_country: false,
+    business_city: false,
+    lead_source: false,
+    lead_category: false,
+    lead_type: false,
+    lead_status: false,
+    priority: false,
+    tags: false,
+    assigned_to: false
+  });
+  const [expandedBulkSections, setExpandedBulkSections] = useState({
+    2: true,
+    3: false,
+    4: false
+  });
+  const toggleBulkSection = (sec) => {
+    setExpandedBulkSections(prev => ({
+      ...prev,
+      [sec]: !prev[sec]
+    }));
+  };
+
+  const [bulkCustomSource, setBulkCustomSource] = useState('');
+  const [bulkCustomType, setBulkCustomType] = useState('');
 
   // Bulk Importer premium wizard state
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -591,6 +640,57 @@ export default function LeadsPage() {
 
   // Open Edit Form
   const openEditForm = (lead) => {
+    if (selectedLeadIds.size > 1) {
+      if (!selectedLeadIds.has(lead.lead_id)) {
+        setSelectedLeadIds(prev => {
+          const next = new Set(prev);
+          next.add(lead.lead_id);
+          return next;
+        });
+      }
+      setBulkCustomSource('');
+      setBulkCustomType('');
+      setBulkEditData({
+        company_name: '',
+        designation: '',
+        industry: '',
+        website: '',
+        company_size: '',
+        business_country: '',
+        business_city: '',
+        lead_source: 'Website',
+        lead_category: 'Warm',
+        lead_type: 'New Lead',
+        lead_status: 'New',
+        priority: 'Medium',
+        tags: '',
+        assigned_to: ''
+      });
+      setBulkEditSelectedFields({
+        company_name: false,
+        designation: false,
+        industry: false,
+        website: false,
+        company_size: false,
+        business_country: false,
+        business_city: false,
+        lead_source: false,
+        lead_category: false,
+        lead_type: false,
+        lead_status: false,
+        priority: false,
+        tags: false,
+        assigned_to: false
+      });
+      setExpandedBulkSections({
+        2: true,
+        3: false,
+        4: false
+      });
+      setIsBulkEditModalOpen(true);
+      return;
+    }
+
     setFormMode('edit');
     setCurrentLeadId(lead.lead_id);
 
@@ -687,6 +787,56 @@ export default function LeadsPage() {
       setSelectedLeadIds(new Set());
       setBulkEditField('');
       setBulkEditValue('');
+      fetchLeads();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Bulk update failed: ${err.message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleBulkEditSubmit = async () => {
+    const updates = {};
+    let hasUpdates = false;
+
+    Object.keys(bulkEditSelectedFields).forEach(field => {
+      if (bulkEditSelectedFields[field]) {
+        if (field === 'lead_source' && bulkEditData.lead_source === 'Other') {
+          updates[field] = bulkCustomSource || 'Other';
+        } else if (field === 'lead_type' && bulkEditData.lead_type === 'Other') {
+          updates[field] = bulkCustomType || 'Other';
+        } else {
+          updates[field] = bulkEditData[field];
+        }
+        hasUpdates = true;
+      }
+    });
+
+    if (!hasUpdates) {
+      toast.error("Please select at least one field to update.");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      const response = await fetch('/other-modules/crm/api/leads/bulk', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lead_ids: Array.from(selectedLeadIds),
+          updates
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to update leads');
+      }
+
+      toast.success(`Successfully updated ${selectedLeadIds.size} leads.`);
+      setSelectedLeadIds(new Set());
+      setIsBulkEditModalOpen(false);
       fetchLeads();
     } catch (err) {
       console.error(err);
@@ -2329,7 +2479,11 @@ export default function LeadsPage() {
                     <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Designation</th>
                   )}
                   {visibleColumns.industry !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Industry</th>
+                    <th onClick={() => handleSort('industry')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
+                      <div className="flex items-center gap-1.5">
+                        Industry {sortField === 'industry' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
+                      </div>
+                    </th>
                   )}
                   {visibleColumns.website !== false && (
                     <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Website</th>
@@ -2471,7 +2625,7 @@ export default function LeadsPage() {
                       />
                     </td>
                     {visibleColumns.lead_id !== false && (
-                      <td className="py-3 px-4 text-xs font-normal text-slate-400">{lead.lead_id}</td>
+                      <td className="py-3 px-4 text-xs font-normal text-slate-400 whitespace-nowrap">L-{lead.lead_id}</td>
                     )}
                     {visibleColumns.full_name !== false && (
                       <td className="py-3 px-4 text-xs font-medium text-slate-900 dark:text-white whitespace-nowrap">
@@ -3228,6 +3382,473 @@ export default function LeadsPage() {
         </div>
       )}
 
+      {/* Bulk Edit Form Modal */}
+      {isBulkEditModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 border border-slate-150 dark:border-slate-750 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-150 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Bulk Edit Lead Records
+                </h2>
+                <p className="text-xs text-slate-555 dark:text-slate-400 mt-0.5">
+                  Select which fields to update for the {selectedLeadIds.size} selected leads. Accordion sections can be toggled.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsBulkEditModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Form Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+
+              {/* SECTION 2: BUSINESS DETAILS */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleBulkSection(2)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <Building2 className="w-4 h-4" /> Section 2 — Business Details
+                  </span>
+                  {expandedBulkSections[2] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedBulkSections[2] && (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white dark:bg-slate-800/40">
+                    
+                    {/* Company Name */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-company_name"
+                          checked={bulkEditSelectedFields.company_name}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, company_name: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-company_name" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                          Update Company Name
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={!bulkEditSelectedFields.company_name}
+                        value={bulkEditData.company_name}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, company_name: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                        placeholder="Acme Corp"
+                      />
+                    </div>
+
+                    {/* Designation */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-designation"
+                          checked={bulkEditSelectedFields.designation}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, designation: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-designation" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                          Update Designation
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={!bulkEditSelectedFields.designation}
+                        value={bulkEditData.designation}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, designation: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                        placeholder="Director, Owner, etc."
+                      />
+                    </div>
+
+                    {/* Industry */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-industry"
+                          checked={bulkEditSelectedFields.industry}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, industry: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-industry" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                          Update Industry
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={!bulkEditSelectedFields.industry}
+                        value={bulkEditData.industry}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, industry: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                        placeholder="Real Estate, IT, etc."
+                      />
+                    </div>
+
+                    {/* Website */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-website"
+                          checked={bulkEditSelectedFields.website}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, website: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-website" className="text-xs font-bold text-slate-705 dark:text-slate-300 cursor-pointer select-none">
+                          Update Website
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={!bulkEditSelectedFields.website}
+                        value={bulkEditData.website}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, website: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                        placeholder="https://example.com"
+                      />
+                    </div>
+
+                    {/* Company Size */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-company_size"
+                          checked={bulkEditSelectedFields.company_size}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, company_size: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-company_size" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                          Update Company Size
+                        </label>
+                      </div>
+                      <select
+                        disabled={!bulkEditSelectedFields.company_size}
+                        value={bulkEditData.company_size}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, company_size: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                      >
+                        <option value="">Select Size</option>
+                        {COMPANY_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Business Country */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-business_country"
+                          checked={bulkEditSelectedFields.business_country}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, business_country: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-business_country" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                          Update Business Country
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={!bulkEditSelectedFields.business_country}
+                        value={bulkEditData.business_country}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, business_country: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                        placeholder="Business Country"
+                      />
+                    </div>
+
+                    {/* Business City */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-business_city"
+                          checked={bulkEditSelectedFields.business_city}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, business_city: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-business_city" className="text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                          Update Business City
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={!bulkEditSelectedFields.business_city}
+                        value={bulkEditData.business_city}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, business_city: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                        placeholder="Business City"
+                      />
+                    </div>
+
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 3: LEAD CLASSIFICATION */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleBulkSection(3)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <Tag className="w-4 h-4" /> Section 3 — Lead Classification
+                  </span>
+                  {expandedBulkSections[3] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedBulkSections[3] && (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white dark:bg-slate-800/40">
+
+                    {/* Lead Source */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-lead_source"
+                          checked={bulkEditSelectedFields.lead_source}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, lead_source: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-lead_source" className="text-xs font-bold text-slate-705 dark:text-slate-300 cursor-pointer select-none">
+                          Update Lead Source
+                        </label>
+                      </div>
+                      <select
+                        disabled={!bulkEditSelectedFields.lead_source}
+                        value={bulkEditData.lead_source}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, lead_source: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                      >
+                        {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                      {bulkEditSelectedFields.lead_source && bulkEditData.lead_source === 'Other' && (
+                        <input
+                          type="text"
+                          required
+                          placeholder="Type custom source..."
+                          value={bulkCustomSource}
+                          onChange={(e) => setBulkCustomSource(e.target.value)}
+                          className="mt-1.5 w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      )}
+                    </div>
+
+                    {/* Lead Category */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-lead_category"
+                          checked={bulkEditSelectedFields.lead_category}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, lead_category: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-lead_category" className="text-xs font-bold text-slate-705 dark:text-slate-300 cursor-pointer select-none">
+                          Update Lead Category
+                        </label>
+                      </div>
+                      <select
+                        disabled={!bulkEditSelectedFields.lead_category}
+                        value={bulkEditData.lead_category}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, lead_category: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                      >
+                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Lead Type */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-lead_type"
+                          checked={bulkEditSelectedFields.lead_type}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, lead_type: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-lead_type" className="text-xs font-bold text-slate-705 dark:text-slate-300 cursor-pointer select-none">
+                          Update Lead Type
+                        </label>
+                      </div>
+                      <select
+                        disabled={!bulkEditSelectedFields.lead_type}
+                        value={bulkEditData.lead_type}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, lead_type: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                      >
+                        {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        <option value="Other">Other (custom)</option>
+                      </select>
+                      {bulkEditSelectedFields.lead_type && bulkEditData.lead_type === 'Other' && (
+                        <input
+                          type="text"
+                          required
+                          placeholder="Type custom lead type..."
+                          value={bulkCustomType}
+                          onChange={(e) => setBulkCustomType(e.target.value)}
+                          className="mt-1.5 w-full px-3 py-1.5 border border-slate-355 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      )}
+                    </div>
+
+                    {/* Lead Status */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-lead_status"
+                          checked={bulkEditSelectedFields.lead_status}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, lead_status: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-lead_status" className="text-xs font-bold text-slate-705 dark:text-slate-300 cursor-pointer select-none">
+                          Update Lead Status
+                        </label>
+                      </div>
+                      <select
+                        disabled={!bulkEditSelectedFields.lead_status}
+                        value={bulkEditData.lead_status}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, lead_status: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                      >
+                        {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Priority */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-priority"
+                          checked={bulkEditSelectedFields.priority}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, priority: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-priority" className="text-xs font-bold text-slate-705 dark:text-slate-300 cursor-pointer select-none">
+                          Update Priority
+                        </label>
+                      </div>
+                      <select
+                        disabled={!bulkEditSelectedFields.priority}
+                        value={bulkEditData.priority}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, priority: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-355 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                      >
+                        {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Tags */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-tags"
+                          checked={bulkEditSelectedFields.tags}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, tags: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-tags" className="text-xs font-bold text-slate-705 dark:text-slate-300 cursor-pointer select-none">
+                          Update Tags
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={!bulkEditSelectedFields.tags}
+                        value={bulkEditData.tags}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, tags: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-355 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                        placeholder="VIP, Callback, etc."
+                      />
+                    </div>
+
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 4: TRACKING & OWNERSHIP */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleBulkSection(4)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <UserCheck className="w-4 h-4" /> Section 4 — Tracking & Ownership
+                  </span>
+                  {expandedBulkSections[4] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+                {expandedBulkSections[4] && (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white dark:bg-slate-800/40">
+
+                    {/* Assigned To */}
+                    <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition col-span-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="bulk-chk-assigned_to"
+                          checked={bulkEditSelectedFields.assigned_to}
+                          onChange={(e) => setBulkEditSelectedFields(prev => ({ ...prev, assigned_to: e.target.checked }))}
+                          className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-700"
+                        />
+                        <label htmlFor="bulk-chk-assigned_to" className="text-xs font-bold text-slate-705 dark:text-slate-300 cursor-pointer select-none">
+                          Update Assigned Agent
+                        </label>
+                      </div>
+                      <input
+                        type="text"
+                        disabled={!bulkEditSelectedFields.assigned_to}
+                        value={bulkEditData.assigned_to}
+                        onChange={(e) => setBulkEditData(prev => ({ ...prev, assigned_to: e.target.value }))}
+                        className="w-full px-3 py-2 border border-slate-355 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
+                        placeholder="Rep Name"
+                      />
+                    </div>
+
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-150 dark:border-slate-700 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsBulkEditModalOpen(false)}
+                className="px-4 py-2 border border-slate-350 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-medium transition focus:outline-none"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkEditSubmit}
+                disabled={actionLoading}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition shadow-md disabled:opacity-50 flex items-center gap-1.5 focus:outline-none cursor-pointer"
+              >
+                {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                Update Leads
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Floating Bulk Actions Bar */}
       {selectedLeadIds.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl border border-slate-700/80 z-50 flex flex-wrap items-center gap-4 animate-in slide-in-from-bottom-5 duration-350 max-w-[95%] sm:max-w-max">
@@ -3239,94 +3860,53 @@ export default function LeadsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <select
-              value={bulkEditField}
-              onChange={(e) => {
-                setBulkEditField(e.target.value);
-                if (e.target.value === 'lead_status') setBulkEditValue('New');
-                else if (e.target.value === 'lead_category') setBulkEditValue('Warm');
-                else if (e.target.value === 'lead_source') setBulkEditValue('Website');
-                else if (e.target.value === 'lead_type') setBulkEditValue('B2B');
-                else if (e.target.value === 'priority') setBulkEditValue('Medium');
-                else setBulkEditValue('');
+            <button
+              onClick={() => {
+                setBulkCustomSource('');
+                setBulkCustomType('');
+                setBulkEditData({
+                  company_name: '',
+                  designation: '',
+                  industry: '',
+                  website: '',
+                  company_size: '',
+                  business_country: '',
+                  business_city: '',
+                  lead_source: 'Website',
+                  lead_category: 'Warm',
+                  lead_type: 'New Lead',
+                  lead_status: 'New',
+                  priority: 'Medium',
+                  tags: '',
+                  assigned_to: ''
+                });
+                setBulkEditSelectedFields({
+                  company_name: false,
+                  designation: false,
+                  industry: false,
+                  website: false,
+                  company_size: false,
+                  business_country: false,
+                  business_city: false,
+                  lead_source: false,
+                  lead_category: false,
+                  lead_type: false,
+                  lead_status: false,
+                  priority: false,
+                  tags: false,
+                  assigned_to: false
+                });
+                setExpandedBulkSections({
+                  2: true,
+                  3: false,
+                  4: false
+                });
+                setIsBulkEditModalOpen(true);
               }}
-              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer flex items-center gap-1.5 focus:outline-none"
             >
-              <option value="">-- Select Field to Edit --</option>
-              <option value="lead_status">Status</option>
-              <option value="lead_category">Category</option>
-              <option value="lead_source">Source</option>
-              <option value="lead_type">Lead Type</option>
-              <option value="priority">Priority</option>
-              <option value="assigned_to">Assigned To</option>
-              <option value="tags">Tags</option>
-            </select>
-
-            {bulkEditField && (
-              <>
-                {bulkEditField === 'lead_status' && (
-                  <select
-                    value={bulkEditValue}
-                    onChange={(e) => setBulkEditValue(e.target.value)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                )}
-                {bulkEditField === 'lead_category' && (
-                  <select
-                    value={bulkEditValue}
-                    onChange={(e) => setBulkEditValue(e.target.value)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                )}
-                {bulkEditField === 'lead_source' && (
-                  <select
-                    value={bulkEditValue}
-                    onChange={(e) => setBulkEditValue(e.target.value)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                )}
-                {bulkEditField === 'lead_type' && (
-                  <select
-                    value={bulkEditValue}
-                    onChange={(e) => setBulkEditValue(e.target.value)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                )}
-                {bulkEditField === 'priority' && (
-                  <select
-                    value={bulkEditValue}
-                    onChange={(e) => setBulkEditValue(e.target.value)}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                )}
-                {(bulkEditField === 'assigned_to' || bulkEditField === 'tags') && (
-                  <input
-                    type="text"
-                    value={bulkEditValue}
-                    onChange={(e) => setBulkEditValue(e.target.value)}
-                    placeholder={bulkEditField === 'tags' ? "tag1, tag2" : "Agent Name"}
-                    className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 w-32 placeholder-slate-500"
-                  />
-                )}
-                <button
-                  onClick={handleBulkUpdate}
-                  disabled={actionLoading}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50"
-                >
-                  Apply
-                </button>
-              </>
-            )}
+              <Edit className="w-3.5 h-3.5" /> Edit Selected
+            </button>
           </div>
 
           <div className="flex items-center gap-2 border-l border-slate-800/80 pl-4">

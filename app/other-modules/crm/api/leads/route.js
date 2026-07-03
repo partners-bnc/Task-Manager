@@ -163,14 +163,24 @@ export async function GET(request) {
       }
     }
 
-    const sortField = searchParams.get("sortField") || "created_at";
-    const sortDirection = searchParams.get("sortDirection") || "desc";
+    const sortField = searchParams.get("sortField") || "industry";
+    const sortDirection = searchParams.get("sortDirection") || "asc";
 
     // Query all leads
-    const { data, error } = await adminClient
-      .from(TABLE)
-      .select("*")
-      .order(sortField === "next_followup_date" || sortField === "last_contacted" || sortField === "notes" ? "created_at" : sortField, { ascending: sortDirection === 'asc' });
+    let dbQuery = adminClient.from(TABLE).select("*");
+
+    if (sortField === "industry") {
+      dbQuery = dbQuery
+        .order("industry", { ascending: sortDirection === 'asc', nullsFirst: false })
+        .order("lead_id", { ascending: true });
+    } else {
+      dbQuery = dbQuery.order(
+        sortField === "next_followup_date" || sortField === "last_contacted" || sortField === "notes" ? "created_at" : sortField,
+        { ascending: sortDirection === 'asc' }
+      );
+    }
+
+    const { data, error } = await dbQuery;
 
     if (error) throw error;
 
@@ -208,7 +218,7 @@ export async function POST(request) {
     const body = await request.json();
     const userDetails = await getUserDetails(supabase, user);
 
-    const { notes, next_followup_date, ...leadData } = body;
+    const { notes, next_followup_date, last_contacted, ...leadData } = body;
 
     const { data: lead, error } = await adminClient
       .from(TABLE)
@@ -230,9 +240,22 @@ export async function POST(request) {
           followup_type: "Call",
           direction: "Outbound",
           status: "Completed",
-          scheduled_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
+          scheduled_at: last_contacted ? new Date(last_contacted).toISOString() : new Date().toISOString(),
+          completed_at: last_contacted ? new Date(last_contacted).toISOString() : new Date().toISOString(),
           outcome: notes,
+          assigned_to: userDetails
+        });
+    } else if (last_contacted) {
+      await adminClient
+        .from("crm_follow_ups")
+        .insert({
+          lead_id: lead.lead_id,
+          followup_type: "Call",
+          direction: "Outbound",
+          status: "Completed",
+          scheduled_at: new Date(last_contacted).toISOString(),
+          completed_at: new Date(last_contacted).toISOString(),
+          outcome: "Contacted lead",
           assigned_to: userDetails
         });
     }
@@ -274,7 +297,7 @@ export async function PUT(request) {
       return NextResponse.json({ error: "lead_id is required" }, { status: 400 });
     }
 
-    const { lead_id, notes, next_followup_date, ...updates } = body;
+    const { lead_id, notes, next_followup_date, last_contacted, ...updates } = body;
     const userDetails = await getUserDetails(supabase, user);
 
     const { data: lead, error } = await adminClient
@@ -298,9 +321,22 @@ export async function PUT(request) {
           followup_type: "Call",
           direction: "Outbound",
           status: "Completed",
-          scheduled_at: new Date().toISOString(),
-          completed_at: new Date().toISOString(),
+          scheduled_at: last_contacted ? new Date(last_contacted).toISOString() : new Date().toISOString(),
+          completed_at: last_contacted ? new Date(last_contacted).toISOString() : new Date().toISOString(),
           outcome: notes,
+          assigned_to: userDetails
+        });
+    } else if (last_contacted) {
+      await adminClient
+        .from("crm_follow_ups")
+        .insert({
+          lead_id: lead.lead_id,
+          followup_type: "Call",
+          direction: "Outbound",
+          status: "Completed",
+          scheduled_at: new Date(last_contacted).toISOString(),
+          completed_at: new Date(last_contacted).toISOString(),
+          outcome: "Contacted lead",
           assigned_to: userDetails
         });
     }

@@ -103,7 +103,10 @@ export default function TemplatesPage() {
         if (!response.ok) throw new Error(data.error || "Failed to load templates.");
         if (!isActive) return;
 
-        const loaded = mergeTemplates(loadLocalTemplates(), data.templates?.length ? data.templates : starterFallback());
+        const loaded = mergeTemplates(
+          loadLocalTemplates(),
+          data.fallback ? (data.templates?.length ? data.templates : starterFallback()) : (data.templates || [])
+        );
         setTemplates(loaded);
         setSelectedId(loaded[0]?.id || null);
         setDraft(normalizeForDraft(loaded[0] || EMPTY_TEMPLATE));
@@ -425,6 +428,12 @@ export default function TemplatesPage() {
               <div className="flex items-center justify-center py-16 text-sm text-slate-500">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Loading templates
+              </div>
+            ) : filteredTemplates.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-slate-400 dark:text-slate-500">
+                <FileCode2 className="h-8 w-8 mb-2 text-slate-300 dark:text-slate-700" />
+                <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">No Templates Found</div>
+                <div className="text-[10px] mt-0.5 text-center px-4 text-slate-400">Create a blank template or use AI builder to get started.</div>
               </div>
             ) : (
               filteredTemplates.map((template) => (

@@ -72,16 +72,24 @@ export async function POST(request) {
         (lead.email && dbItem.email === lead.email)
       );
 
+      const { notes, next_followup_date, last_contacted, ...leadData } = lead;
+
       if (duplicateMatch) {
         if (strategy === 'overwrite') {
           leadsToUpdate.push({
             lead_id: duplicateMatch.lead_id,
-            ...lead,
+            ...leadData,
+            notes_original: notes,
+            next_followup_date_original: next_followup_date,
+            last_contacted_original: last_contacted,
             updated_by: resolvedUserDetails
           });
         } else if (strategy === 'anyway') {
           leadsToInsert.push({
-            ...lead,
+            ...leadData,
+            notes_original: notes,
+            next_followup_date_original: next_followup_date,
+            last_contacted_original: last_contacted,
             created_by: resolvedUserDetails
           });
         } else {
@@ -89,7 +97,10 @@ export async function POST(request) {
         }
       } else {
         leadsToInsert.push({
-          ...lead,
+          ...leadData,
+          notes_original: notes,
+          next_followup_date_original: next_followup_date,
+          last_contacted_original: last_contacted,
           created_by: resolvedUserDetails
         });
       }
@@ -103,8 +114,78 @@ export async function POST(request) {
       const chunkSize = 100;
       for (let i = 0; i < leadsToInsert.length; i += chunkSize) {
         const chunk = leadsToInsert.slice(i, i + chunkSize);
-        const { error } = await adminClient.from('crm_leads').insert(chunk);
+        
+        // Strip out the custom tracking fields before database insert
+        const dbChunk = chunk.map(({ notes_original, next_followup_date_original, last_contacted_original, ...rest }) => rest);
+        
+        const { data: insertedRows, error } = await adminClient
+          .from('crm_leads')
+          .insert(dbChunk)
+          .select('lead_id, phone, email, full_name');
+          
         if (error) throw error;
+
+        // Save followups for each successfully inserted lead
+        if (insertedRows && insertedRows.length > 0) {
+          const followupsToInsert = [];
+          
+          insertedRows.forEach(row => {
+            const originalItem = chunk.find(item => 
+              (item.phone && item.phone === row.phone) || 
+              (item.email && item.email === row.email) ||
+              (item.full_name === row.full_name)
+            );
+            
+            if (originalItem) {
+              const notes = originalItem.notes_original;
+              const last_contacted = originalItem.last_contacted_original;
+              const next_followup_date = originalItem.next_followup_date_original;
+              
+              if (notes) {
+                followupsToInsert.push({
+                  lead_id: row.lead_id,
+                  followup_type: "Call",
+                  direction: "Outbound",
+                  status: "Completed",
+                  scheduled_at: last_contacted ? new Date(last_contacted).toISOString() : new Date().toISOString(),
+                  completed_at: last_contacted ? new Date(last_contacted).toISOString() : new Date().toISOString(),
+                  outcome: notes,
+                  assigned_to: resolvedUserDetails
+                });
+              } else if (last_contacted) {
+                followupsToInsert.push({
+                  lead_id: row.lead_id,
+                  followup_type: "Call",
+                  direction: "Outbound",
+                  status: "Completed",
+                  scheduled_at: new Date(last_contacted).toISOString(),
+                  completed_at: new Date(last_contacted).toISOString(),
+                  outcome: "Contacted lead",
+                  assigned_to: resolvedUserDetails
+                });
+              }
+              
+              if (next_followup_date) {
+                followupsToInsert.push({
+                  lead_id: row.lead_id,
+                  followup_type: "Call",
+                  direction: "Outbound",
+                  status: "Scheduled",
+                  scheduled_at: new Date(next_followup_date).toISOString(),
+                  completed_at: null,
+                  outcome: "Scheduled next contact",
+                  next_followup_date,
+                  assigned_to: resolvedUserDetails
+                });
+              }
+            }
+          });
+          
+          if (followupsToInsert.length > 0) {
+            const { error: fErr } = await adminClient.from('crm_follow_ups').insert(followupsToInsert);
+            if (fErr) console.error("Error inserting followups for bulk imported leads:", fErr);
+          }
+        }
       }
       insertedCount = leadsToInsert.length;
     }
@@ -112,9 +193,59 @@ export async function POST(request) {
     // 4. Update individually using adminClient
     if (leadsToUpdate.length > 0) {
       for (let lead of leadsToUpdate) {
-        const { lead_id, ...updates } = lead;
+        const { 
+          lead_id, 
+          notes_original, 
+          next_followup_date_original, 
+          last_contacted_original, 
+          ...updates 
+        } = lead;
+        
         const { error } = await adminClient.from('crm_leads').update(updates).eq('lead_id', lead_id);
         if (error) throw error;
+        
+        // Handle notes / last contacted followup update
+        if (notes_original) {
+          await adminClient.from('crm_follow_ups').insert({
+            lead_id,
+            followup_type: "Call",
+            direction: "Outbound",
+            status: "Completed",
+            scheduled_at: last_contacted_original ? new Date(last_contacted_original).toISOString() : new Date().toISOString(),
+            completed_at: last_contacted_original ? new Date(last_contacted_original).toISOString() : new Date().toISOString(),
+            outcome: notes_original,
+            assigned_to: resolvedUserDetails
+          });
+        } else if (last_contacted_original) {
+          await adminClient.from('crm_follow_ups').insert({
+            lead_id,
+            followup_type: "Call",
+            direction: "Outbound",
+            status: "Completed",
+            scheduled_at: new Date(last_contacted_original).toISOString(),
+            completed_at: new Date(last_contacted_original).toISOString(),
+            outcome: "Contacted lead",
+            assigned_to: resolvedUserDetails
+          });
+        }
+        
+        // Handle next followup date update
+        if (next_followup_date_original) {
+          await adminClient.from('crm_follow_ups').delete().eq('lead_id', lead_id).eq('status', 'Scheduled');
+          
+          await adminClient.from('crm_follow_ups').insert({
+            lead_id,
+            followup_type: "Call",
+            direction: "Outbound",
+            status: "Scheduled",
+            scheduled_at: new Date(next_followup_date_original).toISOString(),
+            completed_at: null,
+            outcome: "Scheduled next contact",
+            next_followup_date: next_followup_date_original,
+            assigned_to: resolvedUserDetails
+          });
+        }
+        
         updatedCount++;
       }
     }
