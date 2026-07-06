@@ -21,6 +21,7 @@ import AdminAttendance from './views/admin/AdminAttendance';
 import Tickets from './views/Tickets';
 import Expenses from './views/Expenses';
 import PolicyManualManager from './views/admin/PolicyManualManager';
+import NoticeManager from './views/admin/NoticeManager';
 import { ShellSkeleton } from './ui/Skeleton';
 import { HrmFeedbackProvider } from './ui/HrmFeedback';
 import CalendarView from '@/app/Taskmanager/components/CalendarView';
@@ -198,6 +199,7 @@ export default function AdminApp() {
     'admin-attendance': <AdminAttendance />,
     'admin-work-logs': <DailyWorkLogs />,
     'admin-policy-manual': <PolicyManualManager />,
+    'admin-notices': <NoticeManager />,
     'admin-regularization': <RegularizationInbox />,
     'admin-tickets': <Tickets variant="admin" />,
     'admin-expenses': <Expenses variant="admin" />,
@@ -254,6 +256,8 @@ export default function AdminApp() {
       ? 'Daily Work Log'
       : currentTab === 'admin-policy-manual'
       ? 'Policy Manual'
+      : currentTab === 'admin-notices'
+      ? 'Notice Board'
       : currentTab === 'admin-regularization'
       ? 'Regularization'
       : currentTab === 'admin-tickets'

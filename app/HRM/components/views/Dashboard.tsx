@@ -232,10 +232,75 @@ export default function Dashboard({
   const [isWorkLogModalOpen, setIsWorkLogModalOpen] = useState(false);
   const [pendingLocationPayload, setPendingLocationPayload] = useState<any>(null);
   const [employeeTasks, setEmployeeTasks] = useState<{ id: string; task_name: string; created_at: string }[]>([]);
-  const attendanceButtonClassName =
-    'group relative flex-1 overflow-hidden rounded-2xl bg-gradient-to-b from-violet-400 via-violet-500 to-violet-600 px-4 py-3 text-xs font-semibold text-white shadow-[0_14px_28px_rgba(139,92,246,0.28)] transition-all duration-200 before:absolute before:inset-x-4 before:top-1 before:h-[42%] before:rounded-full before:bg-white/20 before:blur-md hover:-translate-y-0.5 hover:shadow-[0_18px_32px_rgba(139,92,246,0.34)] active:translate-y-1 active:shadow-[0_8px_18px_rgba(139,92,246,0.22)] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0';
+  const [reporteesData, setReporteesData] = useState<{ isManager: boolean; reportees: any[] }>({ isManager: false, reportees: [] });
+  const [loadingReportees, setLoadingReportees] = useState(false);
+
   const attendanceMonth = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}`;
   const todayDateKey = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
+
+  const yesterdayWarning = useMemo(() => {
+    if (!attendanceRecords || attendanceRecords.length === 0) return null;
+
+    const todayStr = todayDateKey;
+    const pastRecords = attendanceRecords
+      .filter(r => r.date < todayStr && r.status !== 'weekend' && r.status !== 'holiday' && r.status !== 'on_leave')
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    if (pastRecords.length === 0) return null;
+
+    const lastWorkingRecord = pastRecords[0];
+
+    const match = lastWorkingRecord.workHours ? lastWorkingRecord.workHours.match(/(\d+)h\s+(\d+)m/) : null;
+    const workMinutes = match ? (Number(match[1]) * 60) + Number(match[2]) : 0;
+
+    if (workMinutes < 510) {
+      const dateObj = new Date(lastWorkingRecord.date);
+      const formattedDate = dateObj.toLocaleDateString('en-US', {
+        day: 'numeric',
+        month: 'short',
+        weekday: 'short'
+      });
+      return `Yesterday (${formattedDate}), you did not complete the required 8 hours 30 minutes of your shift. You only logged ${lastWorkingRecord.workHours || '0h 00m'}.`;
+    }
+
+    return null;
+  }, [attendanceRecords, todayDateKey]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadReportees() {
+      try {
+        setLoadingReportees(true);
+        const res = await fetch('/HRM/api/manager/reportees/attendance');
+        if (!res.ok) return;
+        const result = await res.json();
+        if (active) {
+          setReporteesData(result);
+        }
+      } catch (err) {
+        console.error('Failed to load reportees data:', err);
+      } finally {
+        if (active) {
+          setLoadingReportees(false);
+        }
+      }
+    }
+
+    loadReportees();
+
+    const handleRefresh = () => {
+      loadReportees();
+    };
+    window.addEventListener('hrm-attendance-updated', handleRefresh);
+
+    return () => {
+      active = false;
+      window.removeEventListener('hrm-attendance-updated', handleRefresh);
+    };
+  }, []);
+
+  const attendanceButtonClassName =
+    'group relative flex-1 overflow-hidden rounded-2xl bg-gradient-to-b from-violet-400 via-violet-500 to-violet-600 px-4 py-3 text-xs font-semibold text-white shadow-[0_14px_28px_rgba(139,92,246,0.28)] transition-all duration-200 before:absolute before:inset-x-4 before:top-1 before:h-[42%] before:rounded-full before:bg-white/20 before:blur-md hover:-translate-y-0.5 hover:shadow-[0_18px_32px_rgba(139,92,246,0.34)] active:translate-y-1 active:shadow-[0_8px_18px_rgba(139,92,246,0.22)] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0';
   const weeklyMotivation = useMemo(() => {
     const weekIndex = getWeekOfYear(new Date()) % WEEKLY_MOTIVATION_MESSAGES.length;
     return WEEKLY_MOTIVATION_MESSAGES[weekIndex];
@@ -698,6 +763,16 @@ export default function Dashboard({
         )}
       />
 
+      {/* Yesterday Shift Warning Banner */}
+      {yesterdayWarning && (
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm transition-all duration-300">
+          <span className="material-symbols-outlined text-[20px] shrink-0 text-amber-700">warning</span>
+          <div className="text-sm">
+            <span className="font-bold">Attendance Notice:</span> {yesterdayWarning}
+          </div>
+        </div>
+      )}
+
       {/* Bento Grid Layout */}
       <div className="grid grid-cols-12 gap-6">
         {/* Attendance Summary Card (Large) */}
@@ -909,6 +984,117 @@ export default function Dashboard({
         </div>
       </div>
 
+      {/* Team Attendance Summary Card */}
+      {reporteesData.isManager && (
+        <section className="col-span-12 bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/10 shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold font-headline text-on-surface">Team Attendance Summary</h3>
+              <p className="text-xs text-on-surface-variant">Real-time status of employees reporting directly to you</p>
+            </div>
+            <span className="px-3 py-1 bg-violet-100 text-violet-700 text-xs font-bold rounded-full">
+              {reporteesData.reportees.length} Direct Reportees
+            </span>
+          </div>
+
+          {loadingReportees ? (
+            <div className="flex items-center justify-center py-12">
+              <span className="animate-spin rounded-full h-8 w-8 border-2 border-violet-500 border-t-transparent" />
+            </div>
+          ) : reporteesData.reportees.length === 0 ? (
+            <div className="text-center py-12 text-on-surface-variant text-sm border border-dashed border-outline-variant/20 rounded-xl bg-slate-50">
+              No direct reports found or active today.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {reporteesData.reportees.map((reportee) => {
+                const statusColor = reportee.status === 'Present'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  : reportee.status === 'Half Day'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : reportee.status === 'Absent'
+                      ? 'bg-rose-50 text-rose-700 border-rose-200'
+                      : 'bg-slate-50 text-slate-600 border-slate-200';
+
+                const borderColor = reportee.status === 'Present'
+                  ? 'border-emerald-500'
+                  : reportee.status === 'Half Day'
+                    ? 'border-amber-500'
+                    : reportee.status === 'Absent' || reportee.status === 'Not Checked In'
+                      ? 'border-rose-500'
+                      : 'border-slate-300';
+
+                return (
+                  <div key={reportee.id} className="rounded-2xl border border-outline-variant/15 p-5 bg-white flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div>
+                      {/* Employee Header */}
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="relative">
+                          {reportee.avatar_url ? (
+                            <img
+                              src={reportee.avatar_url}
+                              alt={reportee.name}
+                              className={`w-12 h-12 rounded-full object-cover border-[3px] ${borderColor}`}
+                            />
+                          ) : (
+                            <div className={`w-12 h-12 rounded-full bg-violet-100/90 text-violet-700 flex items-center justify-center font-bold text-base border-[3px] ${borderColor}`}>
+                              {reportee.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-on-surface leading-snug">{reportee.name}</h4>
+                          <p className="text-xs text-on-surface-variant truncate max-w-[150px]">{reportee.job_title || 'Employee'}</p>
+                        </div>
+                      </div>
+
+                      {/* Stats & Times */}
+                      <div className="space-y-2 mb-4 bg-slate-50 p-3 rounded-xl">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-on-surface-variant">Check In</span>
+                          <span className="font-semibold text-on-surface">
+                            {reportee.checkIn ? new Date(reportee.checkIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-on-surface-variant">Check Out</span>
+                          <span className="font-semibold text-on-surface">
+                            {reportee.checkOut ? new Date(reportee.checkOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) : '-'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-xs">
+                          <span className="text-on-surface-variant">Logged Time</span>
+                          <span className="font-semibold text-on-surface">
+                            {reportee.workHours ? `${Math.floor(reportee.workHours / 60)}h ${String(reportee.workHours % 60).padStart(2, '0')}m` : '0h 00m'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer Status and Swipe details */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[11px] px-2.5 py-1 border rounded-lg font-bold tracking-wide ${statusColor}`}>
+                          {reportee.status}
+                        </span>
+                        
+                        <div className="text-[10px] text-on-surface-variant font-medium">
+                          {reportee.swipes.length > 0 ? (
+                            <span>{reportee.swipes.length} Door Swipe{reportee.swipes.length > 1 ? 's' : ''}</span>
+                          ) : (
+                            <span>No swipes recorded</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
       {isWorkLogModalOpen && (
         <DailyWorkLogModal
           date={todayDateKey}
@@ -937,7 +1123,7 @@ export default function Dashboard({
             <div className="p-6 bg-surface">
               <div className="flex flex-wrap gap-x-8 gap-y-4 items-center text-sm mb-6 text-on-surface-variant">
                 <div>Date <span className="font-semibold text-on-surface ml-1">{formattedShortDate}</span></div>
-                <div>Shift Time <span className="font-semibold text-on-surface ml-1">10:00 to 19:00</span></div>
+                <div>Shift Time <span className="font-semibold text-on-surface ml-1">09:00 to 17:30</span></div>
                 <div>Employee ID <span className="font-semibold text-on-surface ml-1">{loginId}</span></div>
               </div>
               

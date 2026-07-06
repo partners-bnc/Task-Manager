@@ -1,4 +1,5 @@
 import "./globals.css";
+import NoticePopup from "@/app/HRM/components/NoticePopup";
 
 export const metadata = {
   title: "TaskFlow — Internal Task Management",
@@ -21,6 +22,7 @@ export default function RootLayout({ children }) {
       </head>
       <body className="antialiased bg-(--bg) bg-[radial-gradient(circle_at_20%_50%,rgba(200,134,10,0.04)_0%,transparent_50%),radial-gradient(circle_at_80%_20%,rgba(42,114,195,0.04)_0%,transparent_50%)] text-(--text) font-(family-name:--body) min-h-screen overflow-x-hidden">
         {children}
+        <NoticePopup />
       </body>
     </html>
   );

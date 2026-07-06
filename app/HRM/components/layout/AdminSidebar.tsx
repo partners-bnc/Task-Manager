@@ -44,6 +44,7 @@ export default function AdminSidebar({
     { id: 'admin-attendance', label: 'Attendance', icon: 'calendar_clock' },
     { id: 'admin-work-logs', label: 'Daily Work Log', icon: 'assignment' },
     { id: 'admin-policy-manual', label: 'Policy Manual', icon: 'menu_book' },
+    { id: 'admin-notices', label: 'Notice Board', icon: 'campaign' },
     { id: 'admin-holidays', label: 'Holiday', icon: 'calendar_month' },
     { id: 'admin-leaves', label: 'Leave', icon: 'event_busy' },
     { id: 'admin-regularization', label: 'Regularization', icon: 'fact_check' },

@@ -432,7 +432,7 @@ export default function Attendance({ onOpenRegularizeAttendance }: AttendancePro
 
                   <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-5 pb-4 border-b border-outline-variant/10">
                     <span className="material-symbols-outlined text-base">schedule</span>
-                    <span>Shift target: <strong className="text-on-surface">9h 00m</strong></span>
+                    <span>Shift target: <strong className="text-on-surface">{selectedRecord.shiftHours}</strong></span>
                   </div>
 
                   <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">

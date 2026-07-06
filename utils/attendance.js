@@ -2,10 +2,11 @@ const TIME_ZONE = 'Asia/Kolkata';
 const TIME_ZONE_OFFSET = '+05:30';
 
 export const ATTENDANCE_POLICY = {
-  shiftStart: '10:00',
-  shiftEnd: '19:00',
+  shiftStart: '09:00',
+  shiftEnd: '17:30',
   autoCheckout: '22:00',
-  shiftMinutes: 9 * 60,
+  shiftMinutes: 8 * 60 + 30, // 510 minutes (8h 30m)
+  presentMinutes: 8 * 60, // 480 minutes (8h minimum for Present status)
 };
 
 function classifyAttendanceStatus({ checkInMinutes, checkOutMinutes, workHoursMinutes, hasOpenSession = false }) {
@@ -17,7 +18,7 @@ function classifyAttendanceStatus({ checkInMinutes, checkOutMinutes, workHoursMi
     return 'halfday';
   }
 
-  return workHoursMinutes >= ATTENDANCE_POLICY.shiftMinutes ? 'present' : 'halfday';
+  return workHoursMinutes >= ATTENDANCE_POLICY.presentMinutes ? 'present' : 'halfday';
 }
 
 function getFormatter(options) {
@@ -357,7 +358,7 @@ export function buildAttendanceUiRecord(dateString, row, employeeSchedule = {}) 
       lateIn: '-',
       earlyOut: '-',
       workHours: isOffDay ? '-' : '0h 00m',
-      shiftHours: isOffDay ? '-' : '9h 00m',
+      shiftHours: isOffDay ? '-' : '8h 30m',
       notes: isOffDay ? offDayLabel : 'Absent',
     };
   }
@@ -396,7 +397,7 @@ export function buildAttendanceUiRecord(dateString, row, employeeSchedule = {}) 
     lateIn: formatMinutesAsDuration(lateInMinutes),
     earlyOut: formatMinutesAsDuration(earlyOutMinutes),
     workHours: formatMinutesAsDuration(workHoursMinutes),
-    shiftHours: '9h 00m',
+    shiftHours: '8h 30m',
     notes: notes.join(' '),
   };
 }
