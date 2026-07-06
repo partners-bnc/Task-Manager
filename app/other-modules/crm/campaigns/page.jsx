@@ -71,9 +71,11 @@ export default function CampaignsPage() {
   const [filterTags, setFilterTags] = useState("");
   // Template & Schedule
   const [wizardTemplateId, setWizardTemplateId] = useState("");
+  const [wizardEmailFormat, setWizardEmailFormat] = useState("html");
   const [wizardSendImmediately, setWizardSendImmediately] = useState(true);
   const [wizardDate, setWizardDate] = useState("");
   const [wizardTime, setWizardTime] = useState("");
+  const [isSavingCampaign, setIsSavingCampaign] = useState(false);
 
   // Load Templates
   useEffect(() => {
@@ -154,6 +156,8 @@ export default function CampaignsPage() {
 
   // Handle Launch Campaign
   const handleLaunch = async (status = "Running") => {
+    if (isSavingCampaign) return;
+
     if (!wizardName.trim()) {
       toast.error("Please enter a campaign name.");
       return;
@@ -184,6 +188,7 @@ export default function CampaignsPage() {
       campaign_name: wizardName,
       campaign_type: wizardType,
       template_id: templateId,
+      email_format: wizardEmailFormat,
       target_filter: targetFilter,
       status: scheduledAt ? "Scheduled" : status,
       scheduled_at: scheduledAt,
@@ -191,6 +196,7 @@ export default function CampaignsPage() {
     };
 
     try {
+      setIsSavingCampaign(true);
       await addCampaign(payload);
       toast.success(scheduledAt ? "Campaign Scheduled Successfully!" : "Campaign Launched Successfully!");
 
@@ -202,6 +208,7 @@ export default function CampaignsPage() {
       setFilterCategories([]);
       setFilterTags("");
       setWizardTemplateId("");
+      setWizardEmailFormat("html");
       setWizardSendImmediately(true);
       setStep(1);
 
@@ -210,6 +217,8 @@ export default function CampaignsPage() {
     } catch (err) {
       console.error(err);
       toast.error("Failed to create campaign.");
+    } finally {
+      setIsSavingCampaign(false);
     }
   };
 
@@ -658,6 +667,34 @@ export default function CampaignsPage() {
                       </select>
                     </div>
 
+                    <div className="space-y-2 pt-2">
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-450 uppercase">Email Format *</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-350 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="emailFormat"
+                            value="html"
+                            checked={wizardEmailFormat === "html"}
+                            onChange={(e) => setWizardEmailFormat(e.target.value)}
+                            className="text-blue-500 border-slate-200 focus:ring-blue-500"
+                          />
+                          HTML Design
+                        </label>
+                        <label className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-350 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="emailFormat"
+                            value="text"
+                            checked={wizardEmailFormat === "text"}
+                            onChange={(e) => setWizardEmailFormat(e.target.value)}
+                            className="text-blue-500 border-slate-200 focus:ring-blue-500"
+                          />
+                          Plain Text
+                        </label>
+                      </div>
+                    </div>
+
                     <div className="space-y-3 border-t border-slate-100 dark:border-slate-850 pt-4">
                       <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-350 cursor-pointer">
                         <input
@@ -697,28 +734,58 @@ export default function CampaignsPage() {
                   </div>
 
                   {/* Template Preview Column */}
-                  <div className="md:col-span-7 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-950 flex flex-col h-[300px]">
+                  <div className="md:col-span-7 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-950 flex flex-col h-[480px]">
                     <div className="p-3 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-350">Template Preview</span>
-                      <span className="text-[10px] text-slate-450 dark:text-slate-550 italic font-semibold">Variables: Name, Company, Agent</span>
+                      <div className="flex bg-slate-100 dark:bg-slate-855 p-0.5 rounded-lg border border-slate-250 dark:border-slate-750">
+                        <button
+                          type="button"
+                          onClick={() => setWizardEmailFormat("html")}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                            wizardEmailFormat === "html"
+                              ? "bg-white dark:bg-slate-750 text-blue-600 shadow-sm"
+                              : "text-slate-450 hover:text-slate-600 dark:hover:text-slate-300"
+                          }`}
+                        >
+                          HTML
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWizardEmailFormat("text")}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                            wizardEmailFormat === "text"
+                              ? "bg-white dark:bg-slate-750 text-blue-600 shadow-sm"
+                              : "text-slate-450 hover:text-slate-600 dark:hover:text-slate-300"
+                          }`}
+                        >
+                          Text
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    <div className="flex-1 overflow-y-auto p-4 flex flex-col">
                       {selectedTemplate ? (
-                        <div className="space-y-2 text-xs">
-                          <div>
+                        <div className="space-y-3 text-xs flex flex-col flex-1 min-h-0">
+                          <div className="shrink-0">
                             <strong className="text-slate-500 dark:text-slate-450 uppercase text-[9px] block">Subject</strong>
                             <p className="text-slate-850 dark:text-slate-150 font-bold bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850">{selectedTemplate.subject}</p>
                           </div>
-                          <div>
-                            <strong className="text-slate-500 dark:text-slate-450 uppercase text-[9px] block">Body Preview</strong>
-                            <pre className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-850 text-[11px] font-mono text-slate-650 dark:text-slate-350 whitespace-pre-wrap max-h-36 overflow-y-auto">
-                              {selectedTemplate.plain_text_body || selectedTemplate.html_body}
-                            </pre>
+                          <div className="flex-1 flex flex-col min-h-0">
+                            <strong className="text-slate-500 dark:text-slate-450 uppercase text-[9px] block mb-1">Body Preview</strong>
+                            {wizardEmailFormat === "html" ? (
+                              <div 
+                                className="flex-1 bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-850 text-xs text-slate-800 dark:text-slate-200 overflow-y-auto min-h-[220px]"
+                                dangerouslySetInnerHTML={{ __html: selectedTemplate.html_body || "" }}
+                              />
+                            ) : (
+                              <pre className="flex-1 bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-850 text-[11px] font-mono text-slate-650 dark:text-slate-350 whitespace-pre-wrap overflow-y-auto min-h-[220px]">
+                                {selectedTemplate.plain_text_body || ""}
+                              </pre>
+                            )}
                           </div>
                         </div>
                       ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-4">
                           <Eye className="w-8 h-8 text-slate-300 dark:text-slate-700 mb-2" />
                           <p className="text-xs text-slate-400">Select a template to view the design preview.</p>
                         </div>
@@ -749,10 +816,14 @@ export default function CampaignsPage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
+                  <div className="grid grid-cols-3 gap-4 border-b border-slate-200 dark:border-slate-800 pb-3">
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Selected Template</span>
                       <strong className="text-slate-800 dark:text-slate-150">{selectedTemplate?.name || "None"}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Email Format</span>
+                      <strong className="text-slate-800 dark:text-slate-150 uppercase">{wizardEmailFormat}</strong>
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold block">Timing / Launch</span>
@@ -810,7 +881,8 @@ export default function CampaignsPage() {
                 if (step > 1) setStep(step - 1);
                 else setActiveTab("list");
               }}
-              className="px-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-[13px] font-semibold text-slate-800 dark:text-slate-200 rounded-full inline-flex items-center gap-1.5 transition-colors h-[40px] cursor-pointer focus:outline-none"
+              disabled={isSavingCampaign}
+              className="px-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-[13px] font-semibold text-slate-800 dark:text-slate-200 rounded-full inline-flex items-center gap-1.5 transition-colors h-[40px] cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ArrowLeft size={15} /> <span>Back</span>
             </button>
@@ -836,15 +908,26 @@ export default function CampaignsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => handleLaunch("Draft")}
-                  className="px-5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-750 dark:text-slate-250 text-[13px] font-semibold rounded-full transition h-[40px]"
+                  disabled={isSavingCampaign}
+                  className="px-5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-750 dark:text-slate-250 text-[13px] font-semibold rounded-full transition h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Save Draft
+                  {isSavingCampaign ? "Saving..." : "Save Draft"}
                 </button>
                 <button
                   onClick={() => handleLaunch("Running")}
-                  className="px-6 bg-[#6057DA] hover:bg-[#4E46C8] text-white text-[13px] font-semibold rounded-full shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-[0.98] h-[40px]"
+                  disabled={isSavingCampaign}
+                  className="px-6 bg-[#6057DA] hover:bg-[#4E46C8] text-white text-[13px] font-semibold rounded-full shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-[0.98] h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <CheckCircle size={15} /> <span>Launch Campaign</span>
+                  {isSavingCampaign ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Launching...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={15} /> <span>Launch Campaign</span>
+                    </>
+                  )}
                 </button>
               </div>
             )}

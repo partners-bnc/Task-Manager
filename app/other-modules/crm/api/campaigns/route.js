@@ -1,5 +1,31 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/utils/supabase/server";
 import { adminClient } from "@/utils/supabase/admin";
+import { resolveAuthenticatedUserContext } from "@/utils/auth/context";
+
+async function getAuthenticatedUser(supabase) {
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return null;
+  }
+  return user;
+}
+
+async function getUserDetails(supabase, user) {
+  try {
+    const authContext = await resolveAuthenticatedUserContext(supabase, user);
+    const displayName = authContext?.user?.name || user.user_metadata?.full_name || user.email || 'User';
+    const email = authContext?.user?.email || user.email || '';
+    const empId = authContext?.employee?.employee_id;
+    if (empId) {
+      return `${displayName} [${empId}]`;
+    }
+    return `${displayName} (${email})`;
+  } catch (error) {
+    console.error("Error resolving user context on backend:", error);
+    return user.email ? `${user.user_metadata?.full_name || user.email} (${user.email})` : 'System';
+  }
+}
 
 const TABLE = "crm_campaigns";
 const ZEPTOMAIL_URL = "https://api.zeptomail.in/v1.1/email";
@@ -103,7 +129,27 @@ function extractProviderMessageId(responseBody) {
   );
 }
 
-async function sendZeptoCampaignEmail({ token, lead, subject, htmlBody, campaignId, recipientId }) {
+async function sendZeptoCampaignEmail({ token, lead, subject, body, format, campaignId, recipientId }) {
+  const payload = {
+    from: ZEPTOMAIL_FROM,
+    to: [
+      {
+        email_address: {
+          address: lead.email,
+          name: lead.full_name || lead.email,
+        },
+      },
+    ],
+    subject,
+    client_reference: `campaign_id=${campaignId}&recipient_id=${recipientId}&lead_id=${lead.lead_id}`,
+  };
+
+  if (format === "text") {
+    payload.textbody = body || "";
+  } else {
+    payload.htmlbody = body || "";
+  }
+
   const response = await fetch(ZEPTOMAIL_URL, {
     method: "POST",
     headers: {
@@ -111,20 +157,7 @@ async function sendZeptoCampaignEmail({ token, lead, subject, htmlBody, campaign
       "Content-Type": "application/json",
       Accept: "application/json",
     },
-    body: JSON.stringify({
-      from: ZEPTOMAIL_FROM,
-      to: [
-        {
-          email_address: {
-            address: lead.email,
-            name: lead.full_name || lead.email,
-          },
-        },
-      ],
-      subject,
-      htmlbody: htmlBody || "",
-      client_reference: `campaign_id=${campaignId}&recipient_id=${recipientId}&lead_id=${lead.lead_id}`,
-    }),
+    body: JSON.stringify(payload),
   });
 
   const responseBody = await response.json().catch(() => ({}));
@@ -314,7 +347,9 @@ async function launchCampaign(supabase, campaignId) {
   let failedCount = 0;
   for (const lead of matchedLeads) {
     const subSubject = substitute(template.subject, lead);
-    const subBody = substitute(template.html_body, lead);
+    const emailFormat = campaign.email_format || "html";
+    const bodyField = emailFormat === "text" ? (template.plain_text_body || "") : (template.html_body || "");
+    const subBody = substitute(bodyField, lead);
 
     // Insert campaign_recipient
     const { data: recipient, error: recErr } = await supabase
@@ -344,7 +379,8 @@ async function launchCampaign(supabase, campaignId) {
         token: zohoToken,
         lead,
         subject: subSubject,
-        htmlBody: subBody,
+        body: subBody,
+        format: emailFormat,
         campaignId,
         recipientId: recipient.recipient_id,
       });
@@ -396,6 +432,13 @@ async function launchCampaign(supabase, campaignId) {
 // POST new campaign
 export async function POST(request) {
   try {
+    const supabaseClient = await createClient();
+    const user = await getAuthenticatedUser(supabaseClient);
+    let creatorName = "System";
+    if (user) {
+      creatorName = await getUserDetails(supabaseClient, user);
+    }
+
     const supabase = adminClient;
     const body = await request.json();
 
@@ -420,10 +463,11 @@ export async function POST(request) {
         campaign_name: body.campaign_name,
         campaign_type: body.campaign_type || "Email",
         template_id: templateId,
+        email_format: body.email_format || "html",
         target_filter: body.target_filter || {},
         status: body.status || "Draft",
         scheduled_at: body.scheduled_at || null,
-        created_by: body.created_by || "System",
+        created_by: creatorName,
       })
       .select("*")
       .single();

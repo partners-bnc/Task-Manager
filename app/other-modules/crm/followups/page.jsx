@@ -33,7 +33,8 @@ import {
   RefreshCw,
   Flag,
   MousePointerClick,
-  AlertTriangle
+  AlertTriangle,
+  Mail
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
