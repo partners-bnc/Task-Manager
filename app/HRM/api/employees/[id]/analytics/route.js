@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
-import { requireAdmin } from '@/utils/api-helpers';
+import { requireAdminOrSupport } from '@/utils/api-helpers';
 import { buildEmployeeRatingStats, buildEmployeeTaskRatingMap } from '@/utils/task-ratings';
 
 const EMPLOYEE_ANALYTICS_ACTIVITY_SELECT = `
@@ -182,7 +182,7 @@ function buildStats(tasks = [], ratingRows = []) {
 
 export async function GET(request, { params }) {
   try {
-    const auth = await requireAdmin(request);
+    const auth = await requireAdminOrSupport(request);
     if (auth.error) return auth.error;
 
     const { id } = await params;

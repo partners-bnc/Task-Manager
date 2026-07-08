@@ -112,6 +112,30 @@ export async function requireAdmin() {
   return { supabase, user };
 }
 
+export async function requireAdminOrSupport() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+  }
+
+  const { data: profile } = await supabase
+    .from('hrm_profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const role = profile?.role;
+  if (!isHrAdminRole(role) && !isSupportRole(role)) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+  }
+
+  return { supabase, user };
+}
+
 export async function requireTaskManager(request) {
   const actor = await getActor(request, { requireTaskManagerAccess: true });
   if (!actor) {

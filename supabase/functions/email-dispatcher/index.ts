@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { renderEmail } from './templates/index.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -9,7 +10,7 @@ const EMAIL_NOTIFICATIONS_ENABLED = (Deno.env.get('EMAIL_NOTIFICATIONS_ENABLED')
 
 type OutboxRow = {
   id: string;
-  event_type: 'employee_created' | 'task_assigned' | 'task_due' | 'task_repeat_assigned' | 'onboarding_invite';
+  event_type: 'employee_created' | 'task_assigned' | 'task_due' | 'task_repeat_assigned' | 'onboarding_invite' | 'daily_work_log_report';
   recipient_email: string;
   payload: Record<string, unknown>;
 };
@@ -39,67 +40,24 @@ function buildTaskUrl(taskId: string | null): string {
   return `${appRootUrl}/Taskmanager/dashboard/tasks/${taskId}`;
 }
 
-function renderEmail(row: OutboxRow) {
-  if (row.event_type === 'onboarding_invite') {
-    const candidateName = String(row.payload?.candidate_name ?? 'Candidate');
-    const onboardingLink = String(row.payload?.onboarding_link ?? '');
-    const expiresAt = String(row.payload?.expires_at ?? '');
-    const expiryCopy = expiresAt ? new Date(expiresAt).toLocaleString('en-IN') : '';
-    return {
-      subject: 'Complete your onboarding form',
-      text: `Hi ${candidateName},\nPlease complete your onboarding form using this secure link:\n${onboardingLink}\n${expiryCopy ? `This link expires on ${expiryCopy}.\n` : ''}You can submit the form only once.`,
-      html: `<p>Hi ${candidateName},</p><p>Please complete your onboarding form using this secure link:</p><p><a href="${onboardingLink}">${onboardingLink}</a></p><p>${expiryCopy ? `This link expires on <strong>${expiryCopy}</strong>. ` : ''}You can submit the form only once.</p>`,
-    };
-  }
-
-  if (row.event_type === 'employee_created') {
-    const employeeName = String(row.payload?.employee_name ?? 'Employee');
-    const username = String(row.payload?.username ?? '');
-    const tempPassword = String(row.payload?.temp_password ?? '');
-    const loginUrl = getLoginUrl();
-    const settingsUrl = `${getAppRootUrl()}/dashboard`;
-    return {
-      subject: 'Your TaskFlow account credentials',
-      text: `Hi ${employeeName}, your account is ready.\nUsername: ${username}\nTemporary password: ${tempPassword}\nLogin: ${loginUrl}\nAfter signing in, you can change your password from Settings by entering your current temporary password and your new password.\nDashboard: ${settingsUrl}`,
-      html: `<p>Hi ${employeeName},</p><p>Your account is ready.</p><p><strong>Username:</strong> ${username}<br/><strong>Temporary password:</strong> ${tempPassword}</p><p>Login: <a href="${loginUrl}">${loginUrl}</a></p><p>After signing in, you can change your password from Settings by entering your current temporary password and your new password.</p><p>Dashboard: <a href="${settingsUrl}">${settingsUrl}</a></p>`,
-    };
-  }
-
-  const employeeName = String(row.payload?.employee_name ?? 'Employee');
+function renderEmailTemplate(row: OutboxRow) {
+  const loginUrl = getLoginUrl();
+  const settingsUrl = `${getAppRootUrl()}/dashboard`;
   const taskId = row.payload?.task_id ? String(row.payload.task_id) : null;
-  const taskName = String(row.payload?.task_name ?? 'Task');
-  const dueDate = row.payload?.due_date ? String(row.payload.due_date) : '';
-  const priority = String(row.payload?.priority ?? 'medium');
   const taskUrl = buildTaskUrl(taskId);
 
-  if (row.event_type === 'task_assigned') {
-    return {
-      subject: `New task assigned: ${taskName}`,
-      text: `Hi ${employeeName}, a new task was assigned.\nTask: ${taskName}\nPriority: ${priority}\nDue: ${dueDate || 'Not set'}\n${taskUrl}`,
-      html: `<p>Hi ${employeeName},</p><p>A new task was assigned to you.</p><p><strong>Task:</strong> ${taskName}<br/><strong>Priority:</strong> ${priority}<br/><strong>Due:</strong> ${dueDate || 'Not set'}</p><p><a href="${taskUrl}">Open task</a></p>`,
-    };
-  }
-
-  if (row.event_type === 'task_repeat_assigned') {
-    return {
-      subject: `Repeated task started: ${taskName}`,
-      text: `Hi ${employeeName}, a repeating task cycle has started.\nTask: ${taskName}\nPriority: ${priority}\nDue: ${dueDate || 'Not set'}\n${taskUrl}`,
-      html: `<p>Hi ${employeeName},</p><p>A repeating task cycle has started and you are assigned.</p><p><strong>Task:</strong> ${taskName}<br/><strong>Priority:</strong> ${priority}<br/><strong>Due:</strong> ${dueDate || 'Not set'}</p><p><a href="${taskUrl}">Open task</a></p>`,
-    };
-  }
-
-  return {
-    subject: `Task due now: ${taskName}`,
-    text: `Hi ${employeeName}, this task is now due.\nTask: ${taskName}\nDue: ${dueDate || 'Now'}\n${taskUrl}`,
-    html: `<p>Hi ${employeeName},</p><p>This task is now due.</p><p><strong>Task:</strong> ${taskName}<br/><strong>Due:</strong> ${dueDate || 'Now'}</p><p><a href="${taskUrl}">Open task</a></p>`,
-  };
+  return renderEmail(row, {
+    loginUrl,
+    settingsUrl,
+    taskUrl,
+  });
 }
 
 async function sendWithBrevo(row: OutboxRow) {
   const brevoApiKey = String(row.payload?.brevo_api_key ?? '').trim();
   const brevoFromEmail = String(row.payload?.brevo_from_email ?? '').trim();
   const brevoFromName = String(row.payload?.brevo_from_name ?? 'TaskFlow').trim();
-  const { subject, text, html } = renderEmail(row);
+  const { subject, text, html } = renderEmailTemplate(row);
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',

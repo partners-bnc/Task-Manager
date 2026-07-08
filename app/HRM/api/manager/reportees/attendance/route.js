@@ -86,9 +86,14 @@ export async function GET(request) {
       let calculatedStatus = 'Absent';
 
       if (hasCheckedIn) {
-        if (attendance.status === 'present') {
+        let statusValue = attendance?.status || '';
+        if (attendance?.check_in && !attendance?.check_out && statusValue === 'present') {
+          statusValue = 'halfday';
+        }
+
+        if (statusValue === 'present') {
           calculatedStatus = 'Present';
-        } else if (attendance.status === 'halfday' || attendance.status === 'half_day') {
+        } else if (statusValue === 'halfday' || statusValue === 'half_day') {
           calculatedStatus = 'Half Day';
         } else {
           calculatedStatus = 'Present';

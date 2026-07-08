@@ -804,7 +804,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
     assignedMembers: [],
   });
 
-  const backHref = mode === 'admin' ? '/Taskmanager/admin/tasks' : '/Taskmanager/dashboard';
+  const backHref = mode === 'admin' ? '/Taskmanager/admin/tasks' : '/Taskmanager/dashboard/tasks';
 
   const canEditTask = useMemo(() => {
     if (!viewer || !task) return false;

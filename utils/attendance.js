@@ -363,9 +363,14 @@ export function buildAttendanceUiRecord(dateString, row, employeeSchedule = {}) 
     };
   }
 
-  const statusValue = row.attendance_status || row.status;
+  let statusValue = row.attendance_status || row.status;
   const checkInValue = row.check_in_at || row.check_in || null;
   const checkOutValue = row.check_out_at || row.check_out || null;
+  
+  if (checkInValue && !checkOutValue && statusValue === 'present') {
+    statusValue = 'halfday';
+  }
+
   const lateInMinutes = row.late_in_minutes ?? 0;
   const earlyOutMinutes = row.early_out_minutes ?? 0;
   const workHoursMinutes = row.work_hours_minutes ?? 0;

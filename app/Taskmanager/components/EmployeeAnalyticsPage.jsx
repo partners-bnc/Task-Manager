@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, CalendarDays, CircleCheckBig, Clock3, Loader2, Star, TriangleAlert, UserRoundCheck } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CircleCheckBig, Clock3, Loader2, Star, TriangleAlert, UserRoundCheck, FileDown } from 'lucide-react';
 
 const STATUS_STYLES = {
   pending: 'bg-purple-100 text-purple-700',
@@ -242,6 +242,197 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
     [sortedTasks]
   );
 
+  const handleExport = async () => {
+    const ensureXlsxLoaded = () => {
+      if (typeof window !== 'undefined' && window.XLSX) return Promise.resolve(window.XLSX);
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+        script.onload = () => resolve(window.XLSX);
+        script.onerror = () => reject(new Error('Failed to load xlsx-js-style'));
+        document.head.appendChild(script);
+      });
+    };
+
+    try {
+      const XLSX = await ensureXlsxLoaded();
+      const workbook = XLSX.utils.book_new();
+
+      // Define Styles
+      const titleStyle = {
+        font: { bold: true, color: { rgb: '0F172A' }, sz: 14 },
+        alignment: { horizontal: 'left', vertical: 'center' }
+      };
+
+      const sectionHeaderStyle = {
+        fill: { fgColor: { rgb: 'E2E8F0' } },
+        font: { bold: true, color: { rgb: '0F172A' }, sz: 11 },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: {
+          bottom: { style: 'medium', color: { rgb: '94A3B8' } }
+        }
+      };
+
+      const keyStyle = {
+        font: { bold: true, color: { rgb: '1E293B' }, sz: 10 },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: {
+          bottom: { style: 'thin', color: { rgb: 'F1F5F9' } }
+        }
+      };
+
+      const valStyle = {
+        font: { color: { rgb: '475569' }, sz: 10 },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: {
+          bottom: { style: 'thin', color: { rgb: 'F1F5F9' } }
+        }
+      };
+
+      const taskHeaderStyle = {
+        fill: { fgColor: { rgb: '4F46E5' } },
+        font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: 'CBD5E1' } },
+          bottom: { style: 'thin', color: { rgb: 'CBD5E1' } },
+          left: { style: 'thin', color: { rgb: 'CBD5E1' } },
+          right: { style: 'thin', color: { rgb: 'CBD5E1' } }
+        }
+      };
+
+      const taskCellStyle = {
+        font: { color: { rgb: '1E293B' }, sz: 10 },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: {
+          top: { style: 'thin', color: { rgb: 'E2E8F0' } },
+          bottom: { style: 'thin', color: { rgb: 'E2E8F0' } },
+          left: { style: 'thin', color: { rgb: 'E2E8F0' } },
+          right: { style: 'thin', color: { rgb: 'E2E8F0' } }
+        }
+      };
+
+      // --- SHEET 1: Profile & KPIs ---
+      const sheet1Data = [
+        ["Employee Analytics Report", ""],
+        [],
+        ["Profile Information", ""],
+        ["Name", employee?.name || 'N/A'],
+        ["Email", employee?.email || 'N/A'],
+        ["Employee ID", employee?.employee_id || 'N/A'],
+        ["Role", employee?.role || 'N/A'],
+        [],
+        ["Performance KPIs", ""],
+        ["Completion Rate", `${stats?.completionRate ?? 0}%`],
+        ["Average Rating", stats?.averageRating ? stats.averageRating.toFixed(1) : 'N/A'],
+        ["Total Assigned", stats?.totalAssigned ?? 0],
+        ["Pending Tasks", stats?.pending ?? 0],
+        ["In Progress Tasks", stats?.inProgress ?? 0],
+        ["Completed Tasks", stats?.completed ?? 0],
+        ["Rated Tasks", stats?.totalRatedTasks ?? 0],
+        ["Overdue Tasks", stats?.overdue ?? 0],
+        [],
+        ["Support Ticket Metrics", ""],
+        ["Ticket Total", ticketStats?.total ?? 0],
+        ["Ticket Open", ticketStats?.open ?? 0],
+        ["Ticket Late", ticketStats?.late ?? 0],
+        ["Ticket Breached", ticketStats?.breached ?? 0],
+        ["Avg Resolve Hours", ticketStats?.avgResolutionHours ?? 0]
+      ];
+
+      const ws1 = XLSX.utils.aoa_to_sheet(sheet1Data);
+
+      // Apply styles to Sheet 1
+      ws1['!cols'] = [{ wch: 25 }, { wch: 35 }];
+      const range1 = XLSX.utils.decode_range(ws1['!ref'] || 'A1');
+      for (let r = range1.s.r; r <= range1.e.r; r++) {
+        for (let c = range1.s.c; c <= range1.e.c; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          const cell = ws1[addr];
+          if (!cell) continue;
+
+          if (r === 0) {
+            cell.s = titleStyle;
+          } else if (r === 2 || r === 8 || r === 18) {
+            cell.s = sectionHeaderStyle;
+          } else if (r > 0) {
+            cell.s = c === 0 ? keyStyle : valStyle;
+          }
+        }
+      }
+      XLSX.utils.book_append_sheet(workbook, ws1, "Profile & KPIs");
+
+      // --- SHEET 2: Assigned Tasks ---
+      const taskHeaders = [
+        "Task Name",
+        "Priority",
+        "Status",
+        "Due Date",
+        "Due Timeline",
+        "Progress",
+        "Subtasks",
+        "Rating",
+        "Assigned By",
+        "Assigned At"
+      ];
+
+      const taskRows = sortedTasks.map(task => {
+        const dueTiming = getTaskDueTiming(task);
+        const statusLabel = task.status ? String(task.status).replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Pending';
+        const priorityLabel = task.priority ? String(task.priority).replace(/\b\w/g, c => c.toUpperCase()) : 'Medium';
+        const subtasksLabel = `${task.subtasks_completed || 0}/${task.subtasks_total || 0}`;
+        return [
+          task.task_name || 'Untitled task',
+          priorityLabel,
+          statusLabel,
+          formatDate(task.due_date, { includeTime: true }),
+          dueTiming.label,
+          `${task.progress_percentage}%`,
+          subtasksLabel,
+          typeof task.employee_rating === 'number' ? `${task.employee_rating.toFixed(1)} / 5` : 'Not rated',
+          task.assigned_by || 'Assigned',
+          formatDate(task.assigned_at, { includeTime: true })
+        ];
+      });
+
+      const ws2 = XLSX.utils.aoa_to_sheet([taskHeaders, ...taskRows]);
+      ws2['!cols'] = [
+        { wch: 35 }, // Task Name
+        { wch: 12 }, // Priority
+        { wch: 15 }, // Status
+        { wch: 20 }, // Due Date
+        { wch: 22 }, // Due Timeline
+        { wch: 12 }, // Progress
+        { wch: 15 }, // Subtasks
+        { wch: 12 }, // Rating
+        { wch: 20 }, // Assigned By
+        { wch: 20 }  // Assigned At
+      ];
+
+      const range2 = XLSX.utils.decode_range(ws2['!ref'] || 'A1');
+      for (let r = range2.s.r; r <= range2.e.r; r++) {
+        for (let c = range2.s.c; c <= range2.e.c; c++) {
+          const addr = XLSX.utils.encode_cell({ r, c });
+          const cell = ws2[addr];
+          if (!cell) continue;
+
+          if (r === 0) {
+            cell.s = taskHeaderStyle;
+          } else {
+            cell.s = taskCellStyle;
+          }
+        }
+      }
+      XLSX.utils.book_append_sheet(workbook, ws2, "Assigned Tasks");
+
+      // Write File
+      XLSX.writeFile(workbook, `employee_analytics_${employee?.name ? employee.name.toLowerCase().replace(/\s+/g, '_') : 'report'}.xlsx`);
+    } catch (err) {
+      console.error('Failed to export to Excel:', err);
+      alert('Failed to export data to Excel.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 px-6 py-10 md:px-10">
@@ -283,10 +474,19 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
     <div className="min-h-screen bg-slate-50 px-6 py-10 md:px-10">
       <div className="mx-auto max-w-[1560px] space-y-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <Link href="/Taskmanager/admin/team" className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900">
-            <ArrowLeft size={16} />
-            Back to Team Members
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href="/Taskmanager/admin/team" className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900">
+              <ArrowLeft size={16} />
+              Back to Team Members
+            </Link>
+            <button
+              onClick={handleExport}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+            >
+              <FileDown size={16} />
+              Export to Excel
+            </button>
+          </div>
           <div className="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-500 shadow-sm">
             Next due: <span className="font-semibold text-slate-800">{nextDueLabel}</span>
           </div>
