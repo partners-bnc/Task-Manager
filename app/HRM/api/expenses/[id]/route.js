@@ -3,6 +3,7 @@ import { adminClient } from '@/utils/supabase/admin';
 import {
   calculateExpenseTotal,
   canActorEditExpenseClaim,
+  canActorReviewExpenseClaim,
   canActorViewExpenseClaim,
   enrichExpenseClaimSummary,
   extractExpenseFileMap,
@@ -67,7 +68,7 @@ function buildDetail(claim, items, attachments, reviews, actor, directory, repor
     attachments: withExpenseAttachmentUrls(attachments),
     reviews: mapExpenseReviewRows(reviews, directory.byAuthUserId),
     canEdit: canActorEditExpenseClaim(claim, actor),
-    canReview: claim.reviewer_auth_user_id === actor.authUserId && claim.status === 'submitted',
+    canReview: canActorReviewExpenseClaim(claim, actor),
     canResubmit: canActorEditExpenseClaim(claim, actor),
   };
 }

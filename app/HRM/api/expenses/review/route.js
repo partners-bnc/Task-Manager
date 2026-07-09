@@ -25,11 +25,18 @@ export async function GET() {
     const { actor } = auth;
     let claimsResult;
     try {
-      claimsResult = await adminClient
-        .from('hrm_expense_claims')
-        .select('*')
-        .eq('reviewer_auth_user_id', actor.authUserId)
-        .order('updated_at', { ascending: false });
+      if (actor.role === 'hr_admin') {
+        claimsResult = await adminClient
+          .from('hrm_expense_claims')
+          .select('*')
+          .order('updated_at', { ascending: false });
+      } else {
+        claimsResult = await adminClient
+          .from('hrm_expense_claims')
+          .select('*')
+          .eq('reviewer_auth_user_id', actor.authUserId)
+          .order('updated_at', { ascending: false });
+      }
     } catch (error) {
       if (isMissingExpenseSchemaError(error)) {
         return NextResponse.json(createEmptyResponse(actor), { status: 200 });

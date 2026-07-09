@@ -466,7 +466,11 @@ export function withExpenseAttachmentUrls(attachments = []) {
 
 export function canActorViewExpenseClaim(claim, actor) {
   if (!claim || !actor?.authUserId) return false;
-  return claim.employee_auth_user_id === actor.authUserId || claim.reviewer_auth_user_id === actor.authUserId;
+  return (
+    claim.employee_auth_user_id === actor.authUserId ||
+    claim.reviewer_auth_user_id === actor.authUserId ||
+    actor.role === 'hr_admin'
+  );
 }
 
 export function canActorEditExpenseClaim(claim, actor) {
@@ -476,7 +480,10 @@ export function canActorEditExpenseClaim(claim, actor) {
 
 export function canActorReviewExpenseClaim(claim, actor) {
   if (!claim || !actor?.authUserId) return false;
-  return claim.reviewer_auth_user_id === actor.authUserId && normalizeExpenseStatus(claim.status) === 'submitted';
+  return (
+    (claim.reviewer_auth_user_id === actor.authUserId || actor.role === 'hr_admin') &&
+    normalizeExpenseStatus(claim.status) === 'submitted'
+  );
 }
 
 export function mapExpenseClaimSummary(claim) {

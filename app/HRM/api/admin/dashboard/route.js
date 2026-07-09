@@ -169,7 +169,6 @@ async function getPendingTaskMetrics(authContext) {
     adminClient
       .from('hrm_expense_claims')
       .select('id', { count: 'exact', head: true })
-      .eq('reviewer_auth_user_id', authContext.userId)
       .eq('status', 'submitted'),
     adminClient
       .from('hrm_tickets')
@@ -245,6 +244,10 @@ export async function GET() {
     ]);
     const employeesOnLeaveToday = await getEmployeesOnLeaveToday(employees);
 
+    const activeEmployees = employees.filter(
+      (employee) => deriveEmploymentFields(employee).employmentLifecycleStatus === 'active'
+    );
+
     return NextResponse.json({
       success: true,
       admin: {
@@ -256,7 +259,7 @@ export async function GET() {
       metrics: {
         hrAdminCount: hrAdmins.length,
         employeeCount: employees.length,
-        activeEmployeeCount: employees.filter((employee) => deriveEmploymentFields(employee).employmentLifecycleStatus === 'active').length,
+        activeEmployeeCount: activeEmployees.length,
         onLeaveEmployeeCount: employeesOnLeaveToday.length,
         departmentCount,
         designationCount,
@@ -269,8 +272,8 @@ export async function GET() {
       recentEmployees,
       employeesOnLeaveToday,
       recentHrAdmins: hrAdmins.slice(0, 5),
-      upcomingBirthdays: getUpcomingBirthdays(employees),
-      upcomingAnniversaries: getUpcomingAnniversaries(employees),
+      upcomingBirthdays: getUpcomingBirthdays(activeEmployees),
+      upcomingAnniversaries: getUpcomingAnniversaries(activeEmployees),
       lifecycleReminders: buildLifecycleReminders(employees),
     });
   } catch (error) {
