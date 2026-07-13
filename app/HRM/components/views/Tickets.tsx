@@ -748,7 +748,10 @@ export default function Tickets({
     }
   };
 
-  const handleAdminMetaUpdate = async (field: 'priority' | 'category' | 'ownerAuthUserId', value: string) => {
+  const handleAdminMetaUpdate = async (
+    field: 'priority' | 'category' | 'ownerAuthUserId' | 'ccAuthUserIds',
+    value: string | string[]
+  ) => {
     if (!detail?.id) return;
     try {
       setIsSaving(true);
@@ -1304,16 +1307,69 @@ export default function Tickets({
                     </div>
                   </div>
 
-                  {detail.ccPeople.length ? (
+                  {(detail.ccPeople.length > 0 || detail.permissions.canEditMeta) ? (
                     <div>
                       <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-on-surface-variant">CC People</p>
-                      <div className="flex flex-wrap gap-2">
-                        {detail.ccPeople.map((person) => (
-                          <span key={person.authUserId} className="rounded-full bg-surface-container-low px-3 py-1 text-xs font-semibold text-on-surface">
-                            {person.name}
-                          </span>
-                        ))}
-                      </div>
+                      {detail.ccPeople.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {detail.ccPeople.map((person) => (
+                            <span
+                              key={person.authUserId}
+                              className="inline-flex items-center gap-1.5 rounded-full bg-surface-container-low pl-3 pr-2 py-1 text-xs font-semibold text-on-surface"
+                            >
+                              {person.name}
+                              {detail.permissions.canEditMeta && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextCcIds = detail.ccPeople
+                                      .map((p) => p.authUserId)
+                                      .filter((id) => id !== person.authUserId);
+                                    handleAdminMetaUpdate('ccAuthUserIds', nextCcIds);
+                                  }}
+                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                                >
+                                  <span className="material-symbols-outlined text-[12px] font-bold">close</span>
+                                </button>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-on-surface-variant italic mb-2">No people CC'd on this ticket.</p>
+                      )}
+
+                      {detail.permissions.canEditMeta && (
+                        <div className="mt-3 max-w-xs">
+                          <select
+                            value=""
+                            onChange={(event) => {
+                              const newCcUserId = event.target.value;
+                              if (newCcUserId) {
+                                const currentCcIds = detail.ccPeople.map((p) => p.authUserId);
+                                if (!currentCcIds.includes(newCcUserId)) {
+                                  handleAdminMetaUpdate('ccAuthUserIds', [...currentCcIds, newCcUserId]);
+                                }
+                              }
+                            }}
+                            className="w-full rounded-2xl border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs"
+                          >
+                            <option value="">+ Add CC Person</option>
+                            {visiblePeople
+                              .filter(
+                                (person) =>
+                                  person.authUserId !== detail.owner?.authUserId &&
+                                  person.authUserId !== detail.requester?.authUserId &&
+                                  !detail.ccPeople.some((p) => p.authUserId === person.authUserId)
+                              )
+                              .map((person) => (
+                                <option key={person.authUserId} value={person.authUserId}>
+                                  {person.name} {person.employeeCode ? `(${person.employeeCode})` : ''}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   ) : null}
 

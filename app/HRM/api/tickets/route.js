@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { enqueueTicketEmail } from '@/utils/email-outbox';
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -225,6 +226,19 @@ export async function POST(request) {
 
     if (insertedError || !insertedTicket) {
       return NextResponse.json({ error: insertedError?.message || 'Ticket was created but could not be loaded.' }, { status: 201 });
+    }
+
+    try {
+      await enqueueTicketEmail({
+        recipientEmail: owner.email,
+        ticket: insertedTicket,
+        recipientName: owner.name,
+        role: 'support',
+        action: 'created',
+        actorName: actor.name,
+      });
+    } catch (emailErr) {
+      console.error('Failed to enqueue initial ticket creation email:', emailErr);
     }
 
     return NextResponse.json({ ticket: insertedTicket }, { status: 201 });

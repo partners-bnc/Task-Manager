@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { enqueueTicketEmail } from '@/utils/email-outbox';
 import {
   TICKET_PRIORITIES,
   TICKET_STATUSES,
@@ -129,6 +130,14 @@ function buildUpdatePayload(ticket, body, actor, reassignedOwner, escalatedTo, h
   const nextPriority = typeof body.priority === 'string' ? String(body.priority).trim().toLowerCase() : '';
   const nextCategory = typeof body.category === 'string' ? String(body.category).trim().toLowerCase() : '';
   const escalationNote = typeof body.escalationNote === 'string' ? body.escalationNote.trim() : '';
+
+  const nextCcAuthIds = Array.isArray(body.ccAuthUserIds) ? body.ccAuthUserIds : null;
+  if (nextCcAuthIds !== null) {
+    if (!actor.isAdmin) {
+      throw new Error('Only admins can edit the CC list.');
+    }
+    nextPayload.last_activity_at = new Date().toISOString();
+  }
 
   if (nextStatus) {
     if (!TICKET_STATUSES.includes(nextStatus)) {
@@ -363,6 +372,121 @@ export async function PATCH(request, context) {
       if (participantError) {
         return NextResponse.json({ error: participantError.message || 'Ticket owner changed, but participant sync failed.' }, { status: 500 });
       }
+    }
+
+    let newCcAuthIds = [];
+    if (body.ccAuthUserIds !== undefined && Array.isArray(body.ccAuthUserIds)) {
+      const oldCcAuthIds = participants
+        .filter((p) => p.participant_type === 'cc')
+        .map((p) => p.participant_auth_user_id);
+      
+      const uniqueCcAuthIds = Array.from(new Set(body.ccAuthUserIds.map((v) => String(v || '').trim()).filter(Boolean)));
+      newCcAuthIds = uniqueCcAuthIds.filter((id) => !oldCcAuthIds.includes(id));
+
+      await adminClient.from(TICKET_PARTICIPANTS_TABLE).delete().eq('ticket_id', ticketId).eq('participant_type', 'cc');
+      if (uniqueCcAuthIds.length > 0) {
+        const participantRows = uniqueCcAuthIds.map((authUserId) => {
+          const person = directory.byAuthUserId.get(authUserId);
+          return {
+            ticket_id: ticketId,
+            participant_type: 'cc',
+            participant_auth_user_id: person.authUserId,
+            participant_employee_id: person.employeeId || null,
+            participant_role: person.role,
+          };
+        });
+        const { error: participantError } = await adminClient.from(TICKET_PARTICIPANTS_TABLE).insert(participantRows);
+        if (participantError) {
+          return NextResponse.json({ error: participantError.message || 'Failed to update CC participants.' }, { status: 500 });
+        }
+      }
+    }
+
+    try {
+      const latestTicket = updatedTicket || ticket;
+
+      // A. If owner reassigned
+      if (reassignedOwner) {
+        await enqueueTicketEmail({
+          recipientEmail: reassignedOwner.email,
+          ticket: latestTicket,
+          recipientName: reassignedOwner.name,
+          role: 'handler',
+          action: 'reassigned',
+          actorName: actor.name,
+        });
+
+        const { data: latestParticipants } = await adminClient
+          .from(TICKET_PARTICIPANTS_TABLE)
+          .select('*')
+          .eq('ticket_id', ticketId);
+        const currentCcPeople = (latestParticipants || [])
+          .filter((p) => p.participant_type === 'cc')
+          .map((p) => directory.byAuthUserId.get(p.participant_auth_user_id))
+          .filter(Boolean);
+
+        for (const ccPerson of currentCcPeople) {
+          await enqueueTicketEmail({
+            recipientEmail: ccPerson.email,
+            ticket: latestTicket,
+            recipientName: ccPerson.name,
+            role: 'cc',
+            action: 'reassigned',
+            actorName: actor.name,
+          });
+        }
+      }
+
+      // B. If escalated
+      if (escalatedTo) {
+        await enqueueTicketEmail({
+          recipientEmail: escalatedTo.email,
+          ticket: latestTicket,
+          recipientName: escalatedTo.name,
+          role: 'handler',
+          action: 'reassigned',
+          actorName: actor.name,
+        });
+
+        const { data: latestParticipants } = await adminClient
+          .from(TICKET_PARTICIPANTS_TABLE)
+          .select('*')
+          .eq('ticket_id', ticketId);
+        const currentCcPeople = (latestParticipants || [])
+          .filter((p) => p.participant_type === 'cc')
+          .map((p) => directory.byAuthUserId.get(p.participant_auth_user_id))
+          .filter(Boolean);
+
+        for (const ccPerson of currentCcPeople) {
+          await enqueueTicketEmail({
+            recipientEmail: ccPerson.email,
+            ticket: latestTicket,
+            recipientName: ccPerson.name,
+            role: 'cc',
+            action: 'reassigned',
+            actorName: actor.name,
+          });
+        }
+      }
+
+      // C. If new CC people added (and not already covered by owner reassignment / escalation emails)
+      if (!reassignedOwner && !escalatedTo && newCcAuthIds.length > 0) {
+        for (const ccAuthId of newCcAuthIds) {
+          const ccPerson = directory.byAuthUserId.get(ccAuthId);
+          if (ccPerson) {
+            await enqueueTicketEmail({
+              recipientEmail: ccPerson.email,
+              ticket: latestTicket,
+              recipientName: ccPerson.name,
+              role: 'cc',
+              action: 'reassigned',
+              actorName: actor.name,
+            });
+          }
+        }
+      }
+    } catch (emailErr) {
+      console.error('Failed to process ticket notifications:', emailErr);
     }
 
     return NextResponse.json({ ticket: updatedTicket }, { status: 200 });

@@ -10,6 +10,7 @@ import {
 } from '@/utils/attendance';
 import { listHrAdminApprovers } from '@/utils/hr-admins';
 import { mapRegularizationItem } from '@/utils/regularization';
+import { enqueueRegularizationRequestEmail } from '@/utils/email-outbox';
 
 function isMissingRegularizationSchemaError(error) {
   const message = error?.message || '';
@@ -516,6 +517,24 @@ export async function POST(request) {
         );
       }
       return NextResponse.json({ error: recipientInsertError.message || 'Failed to route the regularization request' }, { status: 500 });
+    }
+
+    try {
+      for (const rec of recipientsPayload) {
+        await enqueueRegularizationRequestEmail({
+          recipientEmail: rec.recipient_email,
+          recipientName: rec.recipient_name,
+          employeeName: employeeContext.employeeName,
+          date: regularizationRow.date,
+          requestType: regularizationRow.request_type,
+          requestedCheckIn: regularizationRow.requested_check_in,
+          requestedCheckOut: regularizationRow.requested_check_out,
+          reason: regularizationRow.reason,
+          role: rec.recipient_role,
+        });
+      }
+    } catch (emailErr) {
+      console.error('Failed to enqueue regularization request notification emails:', emailErr);
     }
 
     const responseRequest = {

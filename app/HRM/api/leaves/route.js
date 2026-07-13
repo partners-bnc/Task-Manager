@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
+import { enqueueLeaveRequestEmail } from '@/utils/email-outbox';
 import { hasLinkedEmployeeAccess, resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import {
   buildLeaveSummary,
@@ -348,19 +349,64 @@ export async function POST(request) {
       return NextResponse.json({ error: createError?.message || 'Failed to submit leave request' }, { status: 500 });
     }
 
+    let managerEmail = null;
+    let managerName = null;
     if (created?.reporting_manager_id) {
       const { data: reportingManager } = await adminClient
         .from('hrm_employees')
-        .select('id, name')
+        .select('id, name, email')
         .eq('id', created.reporting_manager_id)
         .maybeSingle();
 
-      if (reportingManager?.name) {
+      if (reportingManager) {
+        managerEmail = reportingManager.email;
+        managerName = reportingManager.name;
+        
         await adminClient
           .from('hrm_leave_requests')
           .update({ reporting_manager_name_snapshot: reportingManager.name })
           .eq('id', created.id);
       }
+    }
+
+    try {
+      if (managerEmail) {
+        await enqueueLeaveRequestEmail({
+          recipientEmail: managerEmail,
+          recipientName: managerName,
+          employeeName: employee.name,
+          leaveType: leaveType.name,
+          startDate: created.start_date,
+          endDate: created.end_date,
+          durationDays: created.duration_days,
+          reason: created.reason,
+          role: 'reporting_manager',
+        });
+      }
+
+      const { data: hrAdmins } = await adminClient
+        .from('privileged_accounts')
+        .select('name, email')
+        .eq('role', 'hr_admin')
+        .eq('status', 'Active');
+
+      if (hrAdmins && hrAdmins.length > 0) {
+        for (const admin of hrAdmins) {
+          await enqueueLeaveRequestEmail({
+            recipientEmail: admin.email,
+            recipientName: admin.name,
+            employeeName: employee.name,
+            leaveType: leaveType.name,
+            startDate: created.start_date,
+            endDate: created.end_date,
+            durationDays: created.duration_days,
+            reason: created.reason,
+            role: 'hr_admin',
+          });
+        }
+      }
+    } catch (emailErr) {
+      console.error('Failed to enqueue leave request notification emails:', emailErr);
     }
 
     return NextResponse.json(

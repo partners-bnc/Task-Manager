@@ -4,6 +4,10 @@ import { render as renderTaskAssigned } from './task-assigned.ts';
 import { render as renderTaskRepeatAssigned } from './task-repeat-assigned.ts';
 import { render as renderTaskDue } from './task-due.ts';
 import { render as renderDailyReport } from './daily-work-log-report.ts';
+import { render as renderTicketAssigned } from './ticket-assigned.ts';
+import { render as renderMissingAttendance } from './missing-attendance.ts';
+import { render as renderLeaveApplied } from './leave-applied.ts';
+import { render as renderRegularizationApplied } from './regularization-applied.ts';
 
 type OutboxRow = {
   id: string;
@@ -28,13 +32,35 @@ export function renderEmail(row: OutboxRow, urls: RenderUrls) {
         settingsUrl: urls.settingsUrl,
       });
     case 'task_assigned':
+      if (row.payload?.is_ticket === true) {
+        const baseAppUrl = urls.loginUrl.replace(/\/login$/, '');
+        const sourceModule = String(row.payload.source_module ?? 'hrm');
+        const ticketUrl = sourceModule === 'task_manager'
+          ? `${baseAppUrl}/Taskmanager/dashboard`
+          : `${baseAppUrl}/HRM/hrm`;
+        return renderTicketAssigned(row.payload, { ticketUrl });
+      }
+      if (row.payload?.is_leave === true) {
+        const baseAppUrl = urls.loginUrl.replace(/\/login$/, '');
+        const leaveUrl = `${baseAppUrl}/HRM/hrm`;
+        return renderLeaveApplied(row.payload, { leaveUrl });
+      }
+      if (row.payload?.is_regularization === true) {
+        const baseAppUrl = urls.loginUrl.replace(/\/login$/, '');
+        const regularizationUrl = `${baseAppUrl}/HRM/hrm`;
+        return renderRegularizationApplied(row.payload, { regularizationUrl });
+      }
       return renderTaskAssigned(row.payload, { taskUrl: urls.taskUrl });
     case 'task_repeat_assigned':
       return renderTaskRepeatAssigned(row.payload, { taskUrl: urls.taskUrl });
     case 'daily_work_log_report':
+      if (row.payload?.report_type === 'missing_attendance') {
+        return renderMissingAttendance(row.payload);
+      }
       return renderDailyReport(row.payload);
     case 'task_due':
     default:
       return renderTaskDue(row.payload, { taskUrl: urls.taskUrl });
   }
 }
+
