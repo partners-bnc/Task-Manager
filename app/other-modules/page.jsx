@@ -1,9 +1,6 @@
 'use client';
 
-'use client';
-
 import { Navbar } from '@/app/components-homepage/Navbar';
-import { Footer } from '@/app/components-homepage/Footer';
 import { OthersSection } from '@/app/components-homepage/OthersSection';
 import { useWorkspaceRouting } from '@/app/components-homepage/useWorkspaceRouting';
 import { useEffect } from 'react';
@@ -34,10 +31,9 @@ export default function OtherModulesPage() {
         isAuthenticated={isAuthenticated}
         user={user}
       />
-      <main className="min-h-screen bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)] pt-20 md:pt-[5.5rem]">
-        <OthersSection modules={modules} loading={loading} className="pt-10 pb-24 md:pt-12 md:pb-24" />
+      <main className="relative h-screen w-screen overflow-hidden flex flex-col pt-14 md:pt-16 bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)]">
+        <OthersSection modules={modules} loading={loading} className="relative z-10 flex-1 flex items-center justify-center py-1 md:py-2" />
       </main>
-      <Footer taskManagerHref={workspaceHref} />
     </>
   );
 }

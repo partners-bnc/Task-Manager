@@ -1,35 +1,30 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { BriefcaseBusiness, ClipboardList, Files, ShieldCheck } from 'lucide-react';
 import { ModuleCardsSkeleton } from './ExperienceLoaders';
 
 const otherModules = [
   {
     id: 'auditing',
     title: 'Auditing',
-    description: 'Plan audits, track procedures, assign reviewers, and follow execution from kickoff to closure.',
-    icon: ClipboardList,
+    image: '/assets/Audit.jpeg',
     accessKey: 'auditing',
   },
   {
     id: 'task-management',
     title: 'Task Management',
-    description: 'Coordinate ownership, due dates, and progress across operational workstreams in one place.',
-    icon: BriefcaseBusiness,
+    image: '/assets/task.jpeg',
     accessKey: 'taskManager',
   },
   {
     id: 'hrm',
     title: 'HRM',
-    description: 'Human Resource Management workspace for the internal BNC team to manage people operations and workflows.',
-    icon: Files,
+    image: '/assets/hrm.jpeg',
     accessKey: 'hrm',
   },
   {
     id: 'crm',
     title: 'CRM',
-    description: 'Manage customer relationship workflows from one place as soon as the module is enabled for your account.',
-    icon: ShieldCheck,
+    image: '/assets/crm.jpeg',
     accessKey: 'crm',
   },
 ];
@@ -47,55 +42,54 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
   );
 
   return (
-    <section id="others-section" className={`relative px-4 py-16 md:py-20 ${className}`.trim()}>
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(196,181,253,0.18),_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(221,214,254,0.22),_transparent_30%)]" />
+    <section id="others-section" className={`w-full flex flex-col gap-4 items-center justify-center bg-transparent ${className}`.trim()}>
 
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-10 flex flex-col gap-4">
-          <div className="max-w-2xl">
-            <span className="inline-flex rounded-full border border-white/60 bg-white/70 px-4 py-1 text-xs font-semibold uppercase tracking-[0.28em] text-slate-600 backdrop-blur">
-              Other Modules
-            </span>
-            <h2 className="mt-4 text-3xl font-semibold tracking-tight text-slate-900 md:text-5xl">
-              Open the workspace your team needs next
-            </h2>
-            <p className="mt-3 text-base text-slate-600 md:text-lg">
-              Keep the homepage aligned with the existing visual language while exposing adjacent workflows from one entry point.
-            </p>
-          </div>
+      {/* Header Block - Fully wide (spans 100% of the screen width, no margins) */}
+      <div className="w-full relative h-[100px] flex flex-col justify-center items-center text-center overflow-visible shrink-0 bg-transparent">
+
+        {/* Stylish Typography - Shifted more upward */}
+        <div className="relative z-20 flex flex-col items-center px-6 mt-[-70px]">
+          <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-1 text-[11px] font-extrabold uppercase tracking-[0.28em] text-black mb-3 bg-white/95 border border-slate-200 shadow-xs">
+            Other Modules
+          </span>
+          
+          <h2 className="text-4xl md:text-5xl font-serif font-medium italic tracking-tight text-black mt-0">
+            Access all your operations in one platform
+          </h2>
         </div>
+      </div>
 
+      {/* Cards Container - Constrained to max-w-[1440px] and centered */}
+      <div className="w-full max-w-[1440px] px-6 md:px-8">
         {loading ? (
           <ModuleCardsSkeleton />
         ) : (
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4 w-full">
             {modules.map((module) => {
-            const Icon = module.icon;
+              const isEnabled = module.enabled;
+              const statusClassName = isEnabled
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200/50'
+                : 'bg-red-50 text-red-600 ring-red-200/50';
 
-            const isEnabled = module.enabled;
-            const statusClassName = isEnabled
-              ? 'bg-emerald-100 text-emerald-700 ring-emerald-200/80'
-              : 'bg-red-100 text-red-700 ring-red-200/80';
+              // Cards preserved at h-[300px]
+              const cardClassName = `relative block w-full h-[300px] overflow-hidden rounded-[28px] border text-left shadow-[0_12px_45px_rgba(15,23,42,0.05),0_3px_0_rgba(226,232,240,0.9)] backdrop-blur transition-all duration-500 [transform-style:preserve-3d] ${isEnabled
+                ? 'border-violet-200/60 bg-white hover:-translate-y-2 hover:[transform:rotateX(6deg)_rotateY(-4deg)_translateZ(10px)] hover:shadow-[0_28px_70px_rgba(124,58,237,0.15),0_4px_0_rgba(221,214,254,0.9)]'
+                : 'border-violet-200/60 bg-white hover:-translate-y-1 hover:[transform:rotateX(4deg)_rotateY(-2deg)_translateZ(5px)]'
+                }`;
 
-            const cardClassName = `relative block h-full overflow-hidden rounded-[28px] border p-6 text-left shadow-[0_18px_60px_rgba(15,23,42,0.08),0_3px_0_rgba(226,232,240,0.9)] backdrop-blur transition-all duration-400 [transform-style:preserve-3d] ${
-              isEnabled
-                ? 'border-violet-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,243,255,0.96))] hover:-translate-y-1.5 hover:shadow-[0_28px_70px_rgba(15,23,42,0.14),0_4px_0_rgba(221,214,254,0.9)]'
-                : 'border-violet-200/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,243,255,0.96))] hover:-translate-y-1'
-            }`;
+              const handleModuleClick = (event) => {
+                if (module.href) {
+                  return;
+                }
 
-            const handleModuleClick = (event) => {
-              if (module.href) {
-                return;
-              }
-
-              event.preventDefault();
-              setActiveDialog({
-                title: isEnabled ? `${module.title} Not Ready Yet` : `No Access To ${module.title}`,
-                message: isEnabled
-                  ? `${module.title} access is enabled for your account, but this module page is not available yet.`
-                  : `You do not have access to the ${module.title} module. Please contact HR Admin if you need access.`,
-              });
-            };
+                event.preventDefault();
+                setActiveDialog({
+                  title: isEnabled ? `${module.title} Not Ready Yet` : `No Access To ${module.title}`,
+                  message: isEnabled
+                    ? `${module.title} access is enabled for your account, but this module page is not available yet.`
+                    : `You do not have access to the ${module.title} module. Please contact HR Admin if you need access.`,
+                });
+              };
 
               return (
                 <div key={module.id} className="group relative [perspective:1400px]">
@@ -104,22 +98,34 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
                     onClick={handleModuleClick}
                     className={cardClassName}
                   >
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.98),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(237,233,254,0.65),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.72),transparent_56%)] opacity-95" />
-                    <div className="absolute inset-x-[10px] inset-y-[10px] rounded-[22px] border border-white/60 opacity-90" />
-                    <div className="relative mb-10 flex items-start justify-between gap-4 [transform:translateZ(18px)]">
-                      <div
-                        className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#a78bfa_0%,#7c3aed_100%)] text-white shadow-[0_14px_28px_rgba(124,58,237,0.24)] ring-1 ring-white/50 transition-transform duration-400 group-hover:scale-[1.03]"
-                      >
-                        <Icon size={24} />
-                      </div>
-                      <span className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] shadow-sm ring-1 ${statusClassName}`}>
-                        {isEnabled ? 'Access On' : 'Access Off'}
+                    {/* Full cover image inside card */}
+                    <div className="absolute inset-0 z-0 h-full w-full">
+                      <img
+                        src={module.image}
+                        alt={module.title}
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-108"
+                      />
+                      <div className="absolute inset-0 bg-slate-950/10 transition-opacity duration-300 group-hover:opacity-0" />
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="absolute top-4 right-4 z-20">
+                      <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider shadow-sm ring-1 flex items-center gap-1.5 ${statusClassName}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${isEnabled ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                        Access {isEnabled ? 'On' : 'Off'}
                       </span>
                     </div>
 
-                    <div className="relative [transform:translateZ(14px)]">
-                      <h3 className="text-2xl font-semibold tracking-tight text-slate-900">{module.title}</h3>
-                      <p className="mt-3 text-sm leading-6 text-slate-600">{module.description}</p>
+                    {/* Taller transparent overlay light white gradient (bottom 35% overlay) containing large title & interactive action button */}
+                    <div className="absolute bottom-0 inset-x-0 h-[35%] bg-gradient-to-t from-white via-white/85 to-transparent flex items-end justify-between pb-6 px-6 z-20">
+                      <h3 className="text-xl md:text-2xl font-black tracking-tight text-slate-800 transition-colors duration-300 group-hover:text-violet-700">
+                        {module.title}
+                      </h3>
+                      
+                      {/* Interactive Action Button indicating clickability */}
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-xs transition-all duration-300 group-hover:border-violet-600 group-hover:bg-violet-600 group-hover:text-white group-hover:scale-110 group-hover:shadow-md">
+                        <span className="material-symbols-outlined text-[20px] font-bold">arrow_forward</span>
+                      </div>
                     </div>
                   </Link>
                 </div>

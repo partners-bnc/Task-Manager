@@ -104,20 +104,19 @@ export function WorkspaceShellLoader({
 
 export function ModuleCardsSkeleton() {
   return (
-    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4 w-full animate-pulse">
       {Array.from({ length: 4 }, (_, index) => (
         <div
           key={index}
-          className="overflow-hidden rounded-[28px] border border-violet-200/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(245,243,255,0.96))] p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08),0_3px_0_rgba(226,232,240,0.9)]"
+          className="relative block w-full h-[300px] overflow-hidden rounded-[28px] border border-violet-200/70 bg-slate-300/30 shadow-[0_18px_60px_rgba(15,23,42,0.08)]"
         >
-          <div className="mb-10 flex items-start justify-between gap-4">
-            <div className="h-14 w-14 rounded-2xl bg-violet-100" />
-            <div className="h-8 w-28 rounded-full bg-slate-100" />
+          {/* Status Badge Placeholder */}
+          <div className="absolute top-4 right-4 z-20 h-6 w-20 rounded-full bg-slate-300/60" />
+
+          {/* White Bottom Overlay Placeholder (35%) */}
+          <div className="absolute bottom-0 inset-x-0 h-[35%] bg-gradient-to-t from-white via-white/80 to-transparent flex items-end pb-5 px-6 z-20">
+            <div className="h-5 w-24 rounded bg-slate-300/60" />
           </div>
-          <div className="h-9 w-40 rounded-2xl bg-slate-100" />
-          <div className="mt-4 h-3 w-full rounded-full bg-slate-100" />
-          <div className="mt-3 h-3 w-5/6 rounded-full bg-slate-100" />
-          <div className="mt-3 h-3 w-4/6 rounded-full bg-slate-100" />
         </div>
       ))}
     </div>
