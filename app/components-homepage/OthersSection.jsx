@@ -42,13 +42,13 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
   );
 
   return (
-    <section id="others-section" className={`w-full flex flex-col gap-4 items-center justify-center bg-transparent ${className}`.trim()}>
+    <section id="others-section" className={`w-full flex flex-col gap-6 md:gap-4 items-center justify-center bg-transparent ${className}`.trim()}>
 
-      {/* Header Block - Fully wide (spans 100% of the screen width, no margins) */}
-      <div className="w-full relative h-[100px] flex flex-col justify-center items-center text-center overflow-visible shrink-0 bg-transparent">
+      {/* Header Block - Dynamic height on mobile (h-auto py-4) and fixed on desktop (md:h-[100px]) */}
+      <div className="w-full relative h-auto py-4 md:py-0 md:h-[100px] flex flex-col justify-center items-center text-center overflow-visible shrink-0 bg-transparent">
 
-        {/* Stylish Typography - Shifted more upward */}
-        <div className="relative z-20 flex flex-col items-center px-6 mt-[-70px]">
+        {/* Stylish Typography - Adjusted margins for mobile clearance */}
+        <div className="relative z-20 flex flex-col items-center px-6 mt-2 md:mt-[-70px]">
           <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-1 text-[11px] font-extrabold uppercase tracking-[0.28em] text-black mb-3 bg-white/95 border border-slate-200 shadow-xs">
             Other Modules
           </span>

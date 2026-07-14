@@ -31,8 +31,8 @@ export default function OtherModulesPage() {
         isAuthenticated={isAuthenticated}
         user={user}
       />
-      <main className="relative h-screen w-screen overflow-hidden flex flex-col pt-14 md:pt-16 bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)]">
-        <OthersSection modules={modules} loading={loading} className="relative z-10 flex-1 flex items-center justify-center py-1 md:py-2" />
+      <main className="relative h-screen w-screen overflow-y-auto md:overflow-hidden flex flex-col pt-24 md:pt-[5.5rem] bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)]">
+        <OthersSection modules={modules} loading={loading} className="relative z-10 flex-1 flex items-center justify-center py-2 pb-16 md:py-2" />
       </main>
     </>
   );
