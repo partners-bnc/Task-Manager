@@ -13,6 +13,23 @@ export function useWorkspaceRouting() {
   const [workspaceState, setWorkspaceState] = useState(() => readCachedWorkspaceState() || buildDefaultWorkspaceState());
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const currentUrl = new URL(window.location.href);
+      const searchParams = currentUrl.searchParams;
+      const hashParams = new URLSearchParams(currentUrl.hash.replace(/^#/, ''));
+      const hasAuthParams =
+        searchParams.has('code') || hashParams.has('code') ||
+        searchParams.has('access_token') || hashParams.has('access_token') ||
+        searchParams.get('type') === 'recovery' || hashParams.get('type') === 'recovery';
+
+      if (hasAuthParams) {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.pathname = '/login';
+        window.location.replace(nextUrl.toString());
+        return;
+      }
+    }
+
     let isMounted = true;
     const supabase = createClient();
 
