@@ -11,7 +11,7 @@ const steps = [
     description:
       'Track operations, verify logs, and maintain regulatory compliance with fully trace-mapped automated audit trails.',
     icon: FileCheck,
-    image: '/assets/Audit.jpeg',
+    image: '/assets/Animation/Audit.svg',
     bg: 'bg-emerald-500/10',
     color: 'text-emerald-600',
     borderColor: 'border-emerald-100',
@@ -25,10 +25,10 @@ const steps = [
     description:
       'Empower your teams to organize, prioritize, and execute tasks across customizable kanbans and interactive timelines.',
     icon: ListTodo,
-    image: '/assets/task.jpeg',
-    bg: 'bg-violet-500/10',
-    color: 'text-violet-600',
-    borderColor: 'border-violet-100',
+    image: '/assets/Animation/Task.svg',
+    bg: 'bg-blue-500/10',
+    color: 'text-[#0372CC]',
+    borderColor: 'border-blue-100',
     features: ['Drag-and-Drop Kanban Boards', 'Real-Time Completion Indicators', 'Collaborative Task Threads'],
   },
   {
@@ -39,10 +39,10 @@ const steps = [
     description:
       'Streamline employee onboarding, automated attendance marking, leave request processing, and workforce logs in one unified system.',
     icon: Users,
-    image: '/assets/hrm.jpeg',
-    bg: 'bg-blue-500/10',
-    color: 'text-blue-600',
-    borderColor: 'border-blue-100',
+    image: '/assets/Animation/HRM.svg',
+    bg: 'bg-sky-500/10',
+    color: 'text-sky-600',
+    borderColor: 'border-sky-100',
     features: ['Digital Employee Onboarding', 'Attendance Marking & Logs', 'Leave & Shift Request Workflows'],
   },
   {
@@ -53,7 +53,7 @@ const steps = [
     description:
       'Maximize client satisfaction and accelerate deals with a visual pipeline, automated email flows, and contact history logs.',
     icon: Handshake,
-    image: '/assets/crm.jpeg',
+    image: '/assets/Animation/CRM.svg',
     bg: 'bg-amber-500/10',
     color: 'text-amber-600',
     borderColor: 'border-amber-100',
@@ -68,7 +68,7 @@ export function FeatureSteps() {
         
         {/* Section Header */}
         <div className="flex flex-col items-center text-center mb-24">
-          <Badge className="mb-4 bg-violet-100 text-violet-700 hover:bg-violet-100 border-none px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">
+          <Badge className="mb-4 bg-blue-50 text-[#0372CC] hover:bg-blue-50 border-none px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">
             Our Module Ecosystem
           </Badge>
           <h2 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900 max-w-3xl leading-tight">
@@ -135,16 +135,16 @@ export function FeatureSteps() {
                 </div>
               </div>
 
-              {/* Graphical Preview Card */}
-              <div className="flex-1 w-full">
-                <div className={`relative rounded-3xl overflow-hidden border ${step.borderColor} shadow-[0_20px_50px_rgba(15,23,42,0.06)] bg-white aspect-[4/3] group transition-all duration-500 hover:shadow-[0_30px_70px_rgba(15,23,42,0.12)] hover:-translate-y-1`}>
-                  <div className={`absolute inset-0 ${step.bg} opacity-20 z-10 transition-opacity duration-300 group-hover:opacity-10`} />
+              {/* Graphical Preview Animation */}
+              <div className="flex-1 w-full flex items-center justify-center">
+                <div className="relative w-full max-w-[480px] aspect-[4/3] flex items-center justify-center">
                   <Image
                     src={step.image}
                     alt={step.title}
                     fill
                     sizes="(max-width: 768px) 100vw, 50vw"
-                    className="object-cover object-top transform group-hover:scale-105 transition-transform duration-700"
+                    className="object-contain"
+                    priority
                   />
                 </div>
               </div>

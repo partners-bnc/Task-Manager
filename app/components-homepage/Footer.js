@@ -39,7 +39,7 @@ export function Footer({ taskManagerHref = '/login' }) {
     <footer className="py-24 px-4 bg-white overflow-hidden relative text-slate-600 border-t border-slate-100" id="contact">
       
       {/* Background radial effects for light theme */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.03),transparent_35%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(3,114,204,0.04),transparent_35%)] pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.02),transparent_35%)] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto relative z-10">
@@ -47,19 +47,19 @@ export function Footer({ taskManagerHref = '/login' }) {
         {/* Corporate Employee CTA Block - Styled in White/Light Slate */}
         <div className="bg-slate-50 rounded-[32px] p-8 md:p-16 text-center mb-20 border border-slate-100 shadow-xs">
           <div className="max-w-3xl mx-auto flex flex-col items-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-violet-100 text-violet-700 mb-4">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-[#0372CC] mb-4">
               Internal Employee Portal
             </span>
             <h2 className="text-3xl md:text-5xl font-extrabold text-slate-900 mb-6 tracking-tight leading-tight">
               Ready to Access Your Workspace?
             </h2>
             <p className="text-slate-600 text-sm md:text-base max-w-xl mb-8 leading-relaxed">
-              Log in with your corporate credentials to access TaskSphere project management, auditing, human resources, and client relationship management modules.
+              Log in with your corporate credentials to access Universe One project management, auditing, human resources, and client relationship management modules.
             </p>
             <Button
               href={taskManagerHref}
               size="xl"
-              className="bg-violet-600 hover:bg-violet-700 text-white border-none shadow-lg shadow-violet-600/20 hover:scale-105 transform duration-300 px-8 py-4 rounded-full font-bold"
+              className="!bg-[#0372CC] hover:!bg-[#025aab] text-white shadow-lg !shadow-[inset_0_1.5px_2.5px_rgba(255,255,255,0.55),_0_8px_24px_rgba(3,114,204,0.35)] border border-white/25 hover:scale-105 active:scale-95 transform duration-300 px-8 py-4 rounded-full font-bold"
             >
               Launch Workspaces
             </Button>
@@ -73,17 +73,16 @@ export function Footer({ taskManagerHref = '/login' }) {
           <div className="space-y-6 lg:col-span-1">
             <div className="flex items-center gap-2">
               <Image
-                src="/assets/logo_color.png"
-                alt="BNC TaskSphere"
-                width={150}
-                height={40}
-                className="h-9 w-auto"
+                src="/assets/6a9fabaa-d09b-4d25-9e8c-75bad4b9389f.png"
+                alt="Universe One"
+                width={180}
+                height={56}
+                className="h-14 w-auto object-contain"
                 priority
               />
-              <span className="text-lg font-black text-slate-900 tracking-tight">TaskSphere</span>
             </div>
             <p className="text-slate-500 text-xs leading-relaxed">
-              BNC Global Services Internal ERP & Operations Suite. Designed exclusively for employee collaboration, compliance tracking, human resources, and client pipeline management.
+              BNC Global Consultech Internal ERP & Operations Suite. Designed exclusively for employee collaboration, compliance tracking, human resources, and client pipeline management.
             </p>
             <div className="flex gap-3">
               {socialLinks.map(({ label, href, icon: Icon }) => (
@@ -93,7 +92,7 @@ export function Footer({ taskManagerHref = '/login' }) {
                   target="_blank"
                   rel="noreferrer"
                   aria-label={label}
-                  className="p-2.5 rounded-full bg-slate-50 text-slate-600 hover:bg-violet-600 hover:text-white transition-all duration-300 shadow-xs border border-slate-100"
+                  className="p-2.5 rounded-full bg-slate-50 text-slate-600 hover:bg-[#0372CC] hover:text-white transition-all duration-300 shadow-xs border border-slate-100"
                 >
                   <Icon size={16} />
                 </a>
@@ -111,7 +110,7 @@ export function Footer({ taskManagerHref = '/login' }) {
                 <li key={label}>
                   <Link
                     href={href}
-                    className="text-slate-500 text-sm font-semibold hover:text-violet-600 transition-colors"
+                    className="text-slate-500 text-sm font-semibold hover:text-[#0372CC] transition-colors"
                   >
                     {label}
                   </Link>
@@ -130,7 +129,7 @@ export function Footer({ taskManagerHref = '/login' }) {
                 <li key={label}>
                   <Link
                     href={href}
-                    className="text-slate-500 text-sm font-semibold hover:text-violet-600 transition-colors"
+                    className="text-slate-500 text-sm font-semibold hover:text-[#0372CC] transition-colors"
                   >
                     {label}
                   </Link>
@@ -151,7 +150,7 @@ export function Footer({ taskManagerHref = '/login' }) {
                     href={href}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-slate-500 text-sm font-semibold hover:text-violet-600 transition-colors"
+                    className="text-slate-500 text-sm font-semibold hover:text-[#0372CC] transition-colors"
                   >
                     {label}
                   </a>

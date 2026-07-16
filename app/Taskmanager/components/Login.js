@@ -207,12 +207,38 @@ export default function Login({ onSuccess }) {
 
   return (
     <div className="min-h-screen flex w-full bg-white">
-      {/* Left Side - Login Form */}
+      {/* Left Side - Design & Connections (Animation) */}
+      <div className="hidden lg:flex w-1/2 bg-slate-50 relative overflow-hidden flex-col justify-center items-center p-12">
+        {/* Curvy Divider SVG (Inside White Mask, on the Right Edge) */}
+        <div className="absolute top-0 bottom-0 right-0 w-24 h-full pointer-events-none z-20">
+          <svg
+            className="h-full w-full text-white fill-current"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
+            <path d="M 100 0 C 20 25 20 75 100 100 L 100 0 Z" />
+          </svg>
+        </div>
+
+        {/* Animated SVG Illustration */}
+        <div className="relative z-10 w-full max-w-lg h-auto flex items-center justify-center p-4">
+          <Image
+            src="/assets/Animation/login.svg"
+            alt="Login Animation"
+            width={429}
+            height={444}
+            className="w-full h-auto object-contain"
+            priority
+          />
+        </div>
+      </div>
+
+      {/* Right Side - Login Form */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 md:px-12 lg:px-28 z-10 bg-white relative">
         <div className="absolute top-6 right-6">
           <Link
             href="/"
-            className="inline-flex items-center justify-center rounded-lg border border-slate-200 w-9 h-9 text-slate-600 hover:bg-slate-50 hover:text-[#7F40EE] transition-colors"
+            className="inline-flex items-center justify-center rounded-lg border border-slate-200 w-9 h-9 text-slate-600 hover:bg-slate-50 hover:text-[#0372CC] transition-colors"
             title="Home"
           >
             <Home size={17} strokeWidth={2} />
@@ -220,13 +246,44 @@ export default function Login({ onSuccess }) {
         </div>
         <div className="mb-12">
           <div className="mb-8">
-            <div className="flex items-center gap-2.5 mb-1">
-              <LayoutGrid size={24} className="text-[#7F40EE] shrink-0" strokeWidth={2} />
-              <h1 className="text-xl lg:text-2xl font-semibold text-slate-900 tracking-tight leading-none">
-                BNC Workspace
-              </h1>
+            <div className="flex items-center gap-3">
+              <div className="relative flex items-center justify-center shrink-0">
+                <svg
+                  width="38"
+                  height="38"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-[#0372CC]"
+                >
+                  <style>{`
+                    @keyframes gridPulse {
+                      0%, 100% { transform: scale(1); opacity: 1; }
+                      50% { transform: scale(0.7); opacity: 0.5; }
+                    }
+                    .animate-grid-sq-1 { animation: gridPulse 2s infinite ease-in-out; }
+                    .animate-grid-sq-2 { animation: gridPulse 2s infinite ease-in-out; animation-delay: 0.3s; }
+                    .animate-grid-sq-3 { animation: gridPulse 2s infinite ease-in-out; animation-delay: 0.6s; }
+                    .animate-grid-sq-4 { animation: gridPulse 2s infinite ease-in-out; animation-delay: 0.9s; }
+                  `}</style>
+                  <rect x="3" y="3" width="7" height="7" rx="1.5" className="animate-grid-sq-1" style={{ transformOrigin: '6.5px 6.5px' }} />
+                  <rect x="14" y="3" width="7" height="7" rx="1.5" className="animate-grid-sq-2" style={{ transformOrigin: '17.5px 6.5px' }} />
+                  <rect x="14" y="14" width="7" height="7" rx="1.5" className="animate-grid-sq-3" style={{ transformOrigin: '17.5px 17.5px' }} />
+                  <rect x="3" y="14" width="7" height="7" rx="1.5" className="animate-grid-sq-4" style={{ transformOrigin: '6.5px 17.5px' }} />
+                </svg>
+              </div>
+              <div className="flex flex-col justify-center">
+                <h1 className="text-xl lg:text-2xl font-semibold text-slate-900 tracking-tight leading-none mb-1">
+                  BNC Workspace
+                </h1>
+                <p className="text-[10px] lg:text-xs font-normal text-slate-400 uppercase tracking-[0.25em] leading-none">
+                  Enterprise Platform
+                </p>
+              </div>
             </div>
-            <p className="text-xs font-normal text-slate-400 uppercase tracking-[0.25em] pl-[2.125rem]">Enterprise Platform</p>
           </div>
           {!isRecoveryMode && !isForgotPasswordMode ? (
             <div className="mb-8">
@@ -235,7 +292,7 @@ export default function Login({ onSuccess }) {
               </p>
               <div className="relative flex w-full rounded-full bg-[#F1F4F5] p-1 md:p-1.5 shadow-[inset_0_1px_1px_rgba(148,163,184,0.16)]">
                 <div
-                  className="pointer-events-none absolute inset-y-1 md:inset-y-1.5 left-1 md:left-1.5 rounded-full bg-[#7F40EE] shadow-[0_12px_28px_rgba(127,64,238,0.22)] transition-transform duration-300 ease-out"
+                  className="pointer-events-none absolute inset-y-1 md:inset-y-1.5 left-1 md:left-1.5 rounded-full bg-[#0372CC] shadow-[inset_0_1px_1px_rgba(255,255,255,0.45),_0_6px_16px_rgba(3,114,204,0.28)] border border-white/20 transition-transform duration-300 ease-out"
                   style={{
                     width: 'calc((100% - 0.5rem) / 4)',
                     transform: `translateX(calc(${activeLoginIndex} * 100%))`,
@@ -248,9 +305,8 @@ export default function Login({ onSuccess }) {
                       key={option.id}
                       type="button"
                       onClick={() => setLoginAs(option.id)}
-                      className={`relative z-10 flex flex-1 items-center justify-center gap-1 md:gap-2 rounded-full px-1 md:px-2.5 py-2 md:py-2.5 text-[11px] md:text-[13px] font-semibold transition-colors duration-300 ${
-                        isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900'
-                      }`}
+                      className={`relative z-10 flex flex-1 items-center justify-center gap-1 md:gap-2 rounded-full px-1 md:px-2.5 py-2 md:py-2.5 text-[11px] md:text-[13px] font-semibold transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-600 hover:text-slate-900'
+                        }`}
                     >
                       {isActive ? <Lock size={14} strokeWidth={2.2} className="hidden sm:inline" /> : null}
                       <span className="whitespace-nowrap">{option.label}</span>
@@ -298,7 +354,7 @@ export default function Login({ onSuccess }) {
                   onChange={(event) => setIdentifier(event.target.value)}
                   required
                   placeholder="john@example.com"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0372CC] focus:ring-2 focus:ring-[#0372CC]/10 outline-none transition-all text-black placeholder-slate-400"
                 />
               </div>
 
@@ -313,7 +369,7 @@ export default function Login({ onSuccess }) {
                     onChange={(event) => setPassword(event.target.value)}
                     required
                     placeholder="Min 8 Characters"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0372CC] focus:ring-2 focus:ring-[#0372CC]/10 outline-none transition-all text-black placeholder-slate-400"
                   />
                   <button
                     type="button"
@@ -336,7 +392,7 @@ export default function Login({ onSuccess }) {
                 onChange={(event) => setIdentifier(event.target.value)}
                 required
                 placeholder="john@example.com"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0372CC] focus:ring-2 focus:ring-[#0372CC]/10 outline-none transition-all text-black placeholder-slate-400"
               />
             </div>
           ) : (
@@ -354,7 +410,7 @@ export default function Login({ onSuccess }) {
                     minLength={8}
                     disabled={!recoveryReady || loading}
                     placeholder="Minimum 8 characters"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-400"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0372CC] focus:ring-2 focus:ring-[#0372CC]/10 outline-none transition-all text-black placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-400"
                   />
                   <button
                     type="button"
@@ -379,7 +435,7 @@ export default function Login({ onSuccess }) {
                     minLength={8}
                     disabled={!recoveryReady || loading}
                     placeholder="Repeat your new password"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#7F40EE] focus:ring-2 focus:ring-[#7F40EE]/10 outline-none transition-all text-black placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-400"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0372CC] focus:ring-2 focus:ring-[#0372CC]/10 outline-none transition-all text-black placeholder-slate-400 disabled:bg-slate-100 disabled:text-slate-400"
                   />
                   <button
                     type="button"
@@ -408,7 +464,7 @@ export default function Login({ onSuccess }) {
           <button
             type="submit"
             disabled={loading || (isRecoveryMode && !recoveryReady)}
-            className="flex w-full items-center justify-center gap-3 rounded-xl bg-linear-to-r from-[#7F40EE] to-[#6B2FD4] py-3.5 font-bold text-white text-base transition-all duration-300 hover:shadow-[0_20px_40px_rgba(127,64,238,0.32)] hover:from-[#6B2FD4] hover:to-[#5A1FB5] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+            className="flex w-full items-center justify-center gap-3 rounded-xl bg-[#0372CC] hover:bg-[#025aab] py-3.5 font-bold text-white text-base transition-all duration-300 shadow-[inset_0_1.5px_2.5px_rgba(255,255,255,0.55),_0_8px_24px_rgba(3,114,204,0.35)] border border-white/25 hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
           >
             {loading ? <ButtonSpinner /> : null}
             <span>
@@ -430,221 +486,12 @@ export default function Login({ onSuccess }) {
                 setError('');
                 setInfo('');
               }}
-              className="text-xs font-normal text-slate-400 hover:text-[#7F40EE] transition-colors duration-200 uppercase tracking-widest"
+              className="text-xs font-normal text-slate-400 hover:text-[#0372CC] transition-colors duration-200 uppercase tracking-widest"
             >
               {isForgotPasswordMode ? 'Back to login' : 'Forgot password?'}
             </button>
           </div>
         )}
-      </div>
-
-      {/* Right Side - Design & Connections */}
-      <div className="hidden lg:flex w-1/2 bg-[#7F40EE] relative overflow-hidden flex-col justify-between p-12">
-        {/* Ambient Background Blobs */}
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl opacity-20 translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-blue-400 rounded-full blur-3xl opacity-20 -translate-x-1/2 translate-y-1/2"></div>
-
-        {/* Subtle Shiny Reflection / Glass Effect */}
-        <div className="absolute inset-0 z-0 pointer-events-none">
-          <div className="absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-linear-to-r from-transparent to-white opacity-10 left-0" />
-          <div className="absolute inset-0 bg-linear-to-br from-white/10 via-transparent to-transparent opacity-30" />
-        </div>
-
-        {/* Connecting Lines (SVG Layer) */}
-        {/* We use absolute positioning to draw lines between the flex areas */}
-        {/* Connecting Lines (SVG Layer) */}
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-50"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-        >
-          {/* Line from Top Card (Right Edge) to User Group (Top-Left) */}
-          <path
-            d="M 89 25 H 96 V 42 H 16 V 48"
-            fill="none"
-            stroke="white"
-            strokeWidth="0.3"
-            strokeDasharray="1 1"
-            className="drop-shadow-sm"
-          />
-
-          {/* Line from User Group (Bottom-Left) to Bottom Card (Left Edge) */}
-          <path
-            d="M 16 52 V 70 H 55"
-            fill="none"
-            stroke="white"
-            strokeWidth="0.3"
-            strokeDasharray="1 1"
-            className="drop-shadow-sm"
-          />
-
-          <path
-            d="M 60 52 V 70 H 55"
-            fill="none"
-            stroke="white"
-            strokeWidth="0.3"
-            strokeDasharray="1 1"
-            className="drop-shadow-sm"
-          />
-        </svg>
-
-        {/* Grid/Flex Container for Cards */}
-        <div className="relative z-10 flex flex-col h-full justify-center gap-10">
-          {/* TOP CARD (Right Aligned) */}
-          <div className="flex justify-end pr-10">
-            <div className="bg-white p-6 rounded-2xl shadow-2xl w-96 transform transition-transform hover:scale-105 duration-300">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex gap-2">
-                  <span className="px-2 py-1 bg-purple-100 text-purple-600 text-xs rounded font-medium">
-                    Pending
-                  </span>
-                  <span className="px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded font-medium">
-                    Medium Priority
-                  </span>
-                </div>
-                <div className="flex -space-x-2">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] text-gray-500 font-bold overflow-hidden"
-                    >
-                      <Image
-                        src={`https://picsum.photos/id/${10 + i}/50/50`}
-                        alt="avatar"
-                        width={24}
-                        height={24}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <h3 className="font-bold text-slate-800 mb-2">
-                Social Media Campaign
-              </h3>
-              <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-                Develop a content plan for the upcoming product launch.
-              </p>
-              <div className="flex justify-between items-center text-xs text-slate-400 mb-2">
-                <span>Task Done 4/10</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-1.5 mb-4">
-                <div className="bg-blue-500 h-1.5 rounded-full w-[40%]"></div>
-              </div>
-              <div className="flex justify-between items-center text-xs font-medium text-slate-500">
-                <div>
-                  <div className="text-slate-400 text-[10px]">Start Date</div>
-                  <div>16th Mar 2025</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-slate-400 text-[10px]">Due Date</div>
-                  <div>21th Mar 2025</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* MIDDLE USERS (Left Aligned) */}
-          <div className="flex justify-start pl-10 gap-6">
-            <div className="bg-white p-4 rounded-xl shadow-xl flex items-center gap-3 w-64 transform transition-transform hover:scale-105 duration-300">
-              <Image
-                src="https://picsum.photos/id/11/50/50"
-                alt="Adam"
-                width={40}
-                height={40}
-                className="w-10 h-10 rounded-full"
-              />
-              <div>
-                <div className="font-bold text-sm text-slate-800">
-                  Adam Cole
-                </div>
-                <div className="text-xs text-slate-500">
-                  adam@timetoprogram.com
-                </div>
-              </div>
-            </div>
-            <div className="bg-white p-4 rounded-xl shadow-xl flex items-center gap-3 w-64 transform transition-transform hover:scale-105 duration-300">
-              <Image
-                src="https://picsum.photos/id/12/50/50"
-                alt="Luke"
-                width={40}
-                height={40}
-                className="w-10 h-10 rounded-full"
-              />
-              <div>
-                <div className="font-bold text-sm text-slate-800">
-                  Luke Ryan
-                </div>
-                <div className="text-xs text-slate-500">
-                  luke@timetoprogram.com
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* BOTTOM CARD (Right Aligned) */}
-          <div className="flex justify-end pr-10">
-            <div className="bg-white p-6 rounded-2xl shadow-2xl w-96 transform transition-transform hover:scale-105 duration-300">
-              <div className="flex justify-between items-start mb-4">
-                <div className="flex gap-2">
-                  <span className="px-2 py-1 bg-sky-100 text-sky-600 text-xs rounded font-medium">
-                    In progress
-                  </span>
-                  <span className="px-2 py-1 bg-orange-100 text-orange-600 text-xs rounded font-medium">
-                    Medium Priority
-                  </span>
-                </div>
-                <div className="flex -space-x-2">
-                  {[4, 5].map((i) => (
-                    <div
-                      key={i}
-                      className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white flex items-center justify-center text-[10px] text-gray-500 font-bold overflow-hidden"
-                    >
-                      <Image
-                        src={`https://picsum.photos/id/${15 + i}/50/50`}
-                        alt="avatar"
-                        width={24}
-                        height={24}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <h3 className="font-bold text-slate-800 mb-2">Create App UI</h3>
-              <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-                Design and implement the main dashboard user interface with
-                responsive components.
-              </p>
-              <div className="flex justify-between items-center text-xs text-slate-400 mb-2">
-                <span>Task Done 7/10</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-1.5 mb-4">
-                <div className="bg-blue-500 h-1.5 rounded-full w-[70%]"></div>
-              </div>
-              <div className="flex justify-between items-center text-xs font-medium text-slate-500">
-                <div>
-                  <div className="text-slate-400 text-[10px]">Start Date</div>
-                  <div>10th Dec 2025</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-slate-400 text-[10px]">Due Date</div>
-                  <div>15th Jan 2026</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Grid Pattern Overlay */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-20 z-0"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle, #fff 1px, transparent 1px)",
-            backgroundSize: "30px 30px",
-          }}
-        ></div>
       </div>
     </div>
   );

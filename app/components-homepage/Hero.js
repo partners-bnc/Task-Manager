@@ -21,19 +21,15 @@ export function Hero({ taskManagerHref = '/login' }) {
           className="absolute inset-0"
           style={{
             background:
-              // UPDATED GRADIENT:
-              // 0-20%: Distinct Pink for the header text
-              // 40%: rapidly transitions to Purple
-              // 60-100%: Deep Blue/Indigo dominates the lower half
-              'linear-gradient(180deg, #FCE7F3 0%, #F0ABFC 20%, #8B5CF6 45%, #4C1D95 75%, #1E1B4B 100%)',
+              'linear-gradient(180deg, #FFFFFF 0%, #FFFFFF 30%, #0372CC 65%, #0B2D58 95%)',
           }}
         />
 
-        {/* Top Glow: Refined to enhance the pink at the very top */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] h-[30%] bg-[#FBCFE8]/60 blur-[100px]" />
+        {/* Top Glow: Pure white / subtle glow to remove pink */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[90%] h-[30%] bg-white/20 blur-[100px]" />
 
-        {/* Bottom Glow: Deepened to match the extended blue/purple */}
-        <div className="absolute inset-x-0 bottom-0 h-[60%] bg-[#2E1065]/50 blur-[100px]" />
+        {/* Bottom Glow: Darker blue glow adjusted slightly down */}
+        <div className="absolute inset-x-0 bottom-0 h-[65%] bg-[#0B2D58]/55 blur-[110px]" />
       </div>
 
       <div className="max-w-7xl mx-auto w-full flex flex-col items-center text-center">
@@ -49,11 +45,15 @@ export function Hero({ taskManagerHref = '/login' }) {
 
           {/* Text Color: Darkened to slate-900 for better contrast on the darker pink/purple transition */}
           <p className="text-lg md:text-xl text-slate-900 max-w-2xl mx-auto mb-8 font-medium">
-            Ship Tasks faster, collaborate smarter, and achieve more with TaskSphere
+            Ship Tasks faster, collaborate smarter, and achieve more with Universe One
             collaboration and success
           </p>
 
-          <Button href={taskManagerHref} size="lg" className="mb-10 shadow-2xl shadow-violet-900/40 border border-white/20">
+          <Button
+            href={taskManagerHref}
+            size="lg"
+            className="mb-10 !bg-[#0372CC] hover:!bg-[#025aab] text-white font-bold shadow-2xl !shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.6),_0_6px_20px_rgba(3,114,204,0.4)] border border-white/25 hover:scale-105 active:scale-95 transition-all duration-300"
+          >
             Get Access
           </Button>
         </div>

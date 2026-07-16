@@ -2,12 +2,12 @@ import "./globals.css";
 import NoticePopup from "@/app/HRM/components/NoticePopup";
 
 export const metadata = {
-  title: "TaskFlow — Internal Task Management",
+  title: "Universe One — Internal Task Management",
   description: "Secure task management built for internal teams",
   icons: {
-    icon: "/assets/favicon.jpeg",
-    shortcut: "/assets/favicon.jpeg",
-    apple: "/assets/favicon.jpeg",
+    icon: "/assets/universe one favicon.jpg.jpeg",
+    shortcut: "/assets/universe one favicon.jpg.jpeg",
+    apple: "/assets/universe one favicon.jpg.jpeg",
   },
 };
 

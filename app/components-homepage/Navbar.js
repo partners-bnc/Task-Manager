@@ -19,11 +19,16 @@ export function Navbar({
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+    const handleScroll = (event) => {
+      const target = event.target;
+      const scrollTop =
+        target === document || target === window
+          ? window.scrollY
+          : target?.scrollTop || 0;
+      setIsScrolled(scrollTop > 20);
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
   }, []);
 
   const navLinks = [
@@ -59,39 +64,40 @@ export function Navbar({
 
   return (
     <nav
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 max-md:bg-white/95 max-md:backdrop-blur-md max-md:border-b max-md:border-gray-100 max-md:py-3 ${
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         isScrolled
-          ? 'bg-white/80 backdrop-blur-md border-b border-gray-100 py-3'
+          ? 'bg-white/70 backdrop-blur-md border-b border-slate-100 shadow-sm py-3'
           : 'bg-transparent py-5'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-15 h-15 flex items-center justify-center bg-transparent transform transition-transform group-hover:rotate-12">
+            <div className="h-16 w-52 flex items-center justify-start bg-transparent transition-transform duration-300 group-hover:scale-105">
               <Image
-                src="/assets/logo_color.png"
-                alt="BNC logo"
-                width={100}
-                height={100}
-                className="w-full h-full object-cover"
+                src="/assets/6a9fabaa-d09b-4d25-9e8c-75bad4b9389f.png"
+                alt="Universe One logo"
+                width={208}
+                height={64}
+                className="h-full w-auto object-contain"
                 priority
               />
             </div>
-            <span className="text-xl font-bold text-dark">TaskSphere</span>
           </Link>
 
           {isAuthenticated ? (
-            <div className="hidden md:flex items-center gap-3 rounded-full border border-gray-100 bg-white/80 px-3 py-2 backdrop-blur-sm">
+            <div className="hidden md:flex items-center gap-2.5 rounded-full border border-slate-200/80 bg-slate-100/60 px-3 py-1.5 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] backdrop-blur-sm">
               <Link
                 href={othersHref}
-                className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
-                  isOthersActive ? 'bg-dark text-white' : 'text-dark hover:bg-dark hover:text-white'
+                className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-300 hover:scale-105 active:scale-95 ${
+                  isOthersActive
+                    ? 'bg-[#0372CC] text-white shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.6),_0_2px_6px_rgba(3,114,204,0.3)]'
+                    : 'text-slate-700 hover:text-white hover:bg-[#0372CC] hover:shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.6),_0_2px_6px_rgba(3,114,204,0.3)]'
                 }`}
               >
                 Others
               </Link>
-              <div className="flex items-center gap-3 rounded-full bg-slate-50 px-3 py-1.5">
+              <div className="flex items-center gap-3 rounded-full bg-slate-50 px-3 py-1.5 shadow-xs">
                 <div className="relative h-9 w-9 overflow-hidden rounded-full border border-violet-100 bg-violet-100">
                   {avatarSrc ? (
                     <Image src={avatarSrc} alt={user?.name || 'User'} fill className="object-cover" unoptimized />
@@ -107,27 +113,29 @@ export function Navbar({
                 type="button"
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-dark transition-colors hover:bg-dark hover:text-white disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-slate-700 transition-all duration-300 hover:text-white hover:bg-[#0372CC] hover:shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.6),_0_2px_6px_rgba(3,114,204,0.3)] hover:scale-105 active:scale-95 disabled:opacity-60"
               >
                 <LogOut size={16} />
                 {isLoggingOut ? 'Logging out...' : 'Logout'}
               </button>
             </div>
           ) : (
-            <div className="hidden md:flex items-center gap-1 bg-gray-50/50 p-1 rounded-full border border-gray-100 backdrop-blur-sm">
+            <div className="hidden md:flex items-center gap-1.5 bg-slate-100/60 p-1.5 rounded-full border border-slate-200/80 shadow-[inset_0_2px_4px_rgba(0,0,0,0.06)] backdrop-blur-sm">
               {navLinks.map((link) => (
                 <Link
                   key={link.name}
                   href={link.href}
-                  className="px-4 py-2 text-sm font-medium text-dark hover:bg-dark hover:text-white rounded-full transition-colors"
+                  className="px-4 py-2 text-sm font-semibold text-slate-700 rounded-full transition-all duration-300 hover:text-white hover:bg-[#0372CC] hover:shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.6),_0_2px_6px_rgba(3,114,204,0.3)] hover:scale-105 active:scale-95"
                 >
                   {link.name}
                 </Link>
               ))}
               <Link
                 href={othersHref}
-                className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${
-                  isOthersActive ? 'bg-dark text-white' : 'text-dark hover:bg-dark hover:text-white'
+                className={`px-4 py-2 text-sm font-semibold rounded-full transition-all duration-300 hover:scale-105 active:scale-95 ${
+                  isOthersActive
+                    ? 'bg-[#0372CC] text-white shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.6),_0_2px_6px_rgba(3,114,204,0.3)]'
+                    : 'text-slate-700 hover:text-white hover:bg-[#0372CC] hover:shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.6),_0_2px_6px_rgba(3,114,204,0.3)]'
                 }`}
               >
                 Others

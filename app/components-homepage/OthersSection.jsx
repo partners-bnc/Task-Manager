@@ -7,24 +7,28 @@ const otherModules = [
     id: 'auditing',
     title: 'Auditing',
     image: '/assets/Audit.jpeg',
+    video: '/assets/gif 4th.mp4',
     accessKey: 'auditing',
   },
   {
     id: 'task-management',
     title: 'Task Management',
     image: '/assets/task.jpeg',
+    video: '/assets/gif 3rd.mp4',
     accessKey: 'taskManager',
   },
   {
     id: 'hrm',
     title: 'HRM',
     image: '/assets/hrm.jpeg',
+    video: '/assets/WhatsApp Video 2026-07-15 at 1.21.57 PM.mp4',
     accessKey: 'hrm',
   },
   {
     id: 'crm',
     title: 'CRM',
     image: '/assets/crm.jpeg',
+    video: '/assets/gif 2nd.mp4',
     accessKey: 'crm',
   },
 ];
@@ -73,8 +77,8 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
 
               // Cards preserved at h-[300px]
               const cardClassName = `relative block w-full h-[300px] overflow-hidden rounded-[28px] border text-left shadow-[0_12px_45px_rgba(15,23,42,0.05),0_3px_0_rgba(226,232,240,0.9)] backdrop-blur transition-all duration-500 [transform-style:preserve-3d] ${isEnabled
-                ? 'border-violet-200/60 bg-white hover:-translate-y-2 hover:[transform:rotateX(6deg)_rotateY(-4deg)_translateZ(10px)] hover:shadow-[0_28px_70px_rgba(124,58,237,0.15),0_4px_0_rgba(221,214,254,0.9)]'
-                : 'border-violet-200/60 bg-white hover:-translate-y-1 hover:[transform:rotateX(4deg)_rotateY(-2deg)_translateZ(5px)]'
+                ? 'border-blue-200/60 bg-white hover:-translate-y-2 hover:[transform:rotateX(6deg)_rotateY(-4deg)_translateZ(10px)] hover:shadow-[0_28px_70px_rgba(3,114,204,0.15),0_4px_0_rgba(147,197,253,0.9)]'
+                : 'border-blue-200/60 bg-white hover:-translate-y-1 hover:[transform:rotateX(4deg)_rotateY(-2deg)_translateZ(5px)]'
                 }`;
 
               const handleModuleClick = (event) => {
@@ -98,13 +102,26 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
                     onClick={handleModuleClick}
                     className={cardClassName}
                   >
-                    {/* Full cover image inside card */}
+                    {/* Full cover image or video inside card */}
                     <div className="absolute inset-0 z-0 h-full w-full">
-                      <img
-                        src={module.image}
-                        alt={module.title}
-                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-108"
-                      />
+                      {module.video ? (
+                        <video
+                          src={module.video}
+                          poster={module.image}
+                          preload="auto"
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-108"
+                        />
+                      ) : (
+                        <img
+                          src={module.image}
+                          alt={module.title}
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-108"
+                        />
+                      )}
                       <div className="absolute inset-0 bg-slate-950/10 transition-opacity duration-300 group-hover:opacity-0" />
                     </div>
 
@@ -118,12 +135,12 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
 
                     {/* Taller transparent overlay light white gradient (bottom 35% overlay) containing large title & interactive action button */}
                     <div className="absolute bottom-0 inset-x-0 h-[35%] bg-gradient-to-t from-white via-white/85 to-transparent flex items-end justify-between pb-6 px-6 z-20">
-                      <h3 className="text-xl md:text-2xl font-black tracking-tight text-slate-800 transition-colors duration-300 group-hover:text-violet-700">
+                      <h3 className="text-xl md:text-2xl font-black tracking-tight text-slate-800 transition-colors duration-300 group-hover:text-[#0372CC]">
                         {module.title}
                       </h3>
                       
                       {/* Interactive Action Button indicating clickability */}
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-xs transition-all duration-300 group-hover:border-violet-600 group-hover:bg-violet-600 group-hover:text-white group-hover:scale-110 group-hover:shadow-md">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-xs transition-all duration-300 group-hover:border-[#0372CC] group-hover:bg-[#0372CC] group-hover:text-white group-hover:scale-110 group-hover:shadow-md">
                         <span className="material-symbols-outlined text-[20px] font-bold">arrow_forward</span>
                       </div>
                     </div>
