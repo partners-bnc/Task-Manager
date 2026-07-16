@@ -52,8 +52,18 @@ export default function Login({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
-  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
-  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [isRecoveryMode, setIsRecoveryMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('recovery') === '1';
+    }
+    return false;
+  });
+  const [recoveryReady, setRecoveryReady] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('recovery') === '1';
+    }
+    return false;
+  });
   const activeLoginIndex = Math.max(0, LOGIN_OPTIONS.findIndex((option) => option.id === loginAs));
 
   useEffect(() => {
@@ -67,8 +77,8 @@ export default function Login({ onSuccess }) {
       const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
       const recoveryType = searchParams.get('type') || hashParams.get('type');
       const code = searchParams.get('code');
-      const accessToken = hashParams.get('access_token');
-      const refreshToken = hashParams.get('refresh_token');
+      const accessToken = searchParams.get('access_token') || hashParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token') || hashParams.get('refresh_token');
 
       if (recoveryType !== 'recovery' && !code && !accessToken) {
         return;
