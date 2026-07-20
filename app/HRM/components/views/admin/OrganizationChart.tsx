@@ -248,6 +248,7 @@ export default function OrganizationChart({
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [zoom, setZoom] = useState(MIN_ZOOM);
+  const [viewMode, setViewMode] = useState<'reporting' | 'department'>('reporting');
   const [expandedNodeIds, setExpandedNodeIds] = useState<string[]>([]);
   const [dragState, setDragState] = useState<{
     active: boolean;
@@ -352,10 +353,14 @@ export default function OrganizationChart({
     return expanded;
   }, [expandedNodeIds, searchExpandedNodeIds]);
 
+  const filteredRoots = useMemo(() => {
+    return (data?.roots || []).filter((id) => !id.startsWith('group:'));
+  }, [data?.roots]);
+
   const rootChildIds = useMemo(() => {
     const ids = new Set<string>();
 
-    (data?.roots || []).forEach((rootId) => {
+    filteredRoots.forEach((rootId) => {
       const rootNode = nodes.get(rootId);
       (rootNode?.childIds || []).forEach((childId) => ids.add(childId));
     });
@@ -365,7 +370,57 @@ export default function OrganizationChart({
       const right = nodes.get(rightId);
       return String(left?.name || '').localeCompare(String(right?.name || ''), 'en', { sensitivity: 'base' });
     });
-  }, [data?.roots, nodes]);
+  }, [filteredRoots, nodes]);
+
+  // Group employees by department for Department View
+  const departmentData = useMemo(() => {
+    if (!data?.nodes) return [];
+
+    // Filter out super admins and group nodes
+    const allEmployees = data.nodes.filter(node => node.kind === 'employee');
+
+    // Get all unique departments
+    const departments = Array.from(new Set(allEmployees.map(node => node.departmentName || 'Other')));
+
+    return departments.map(deptName => {
+      const deptEmployees = allEmployees.filter(node => (node.departmentName || 'Other') === deptName);
+
+      // Find roots for this department:
+      // Employees in this department who either have no manager, or their manager is outside this department (or is a super admin).
+      const deptRoots = deptEmployees.filter(emp => {
+        if (!emp.reportingManagerId) return true;
+        const managerNodeId = `employee:${emp.reportingManagerId}`;
+        const manager = nodes.get(managerNodeId);
+        return !manager || manager.departmentName !== deptName;
+      }).map(emp => emp.id);
+
+      // Create a filtered nodes map for this department where children are restricted to the same department
+      const deptNodesMap = new Map<string, OrgChartNode>();
+      data.nodes.forEach(node => {
+        if (node.kind === 'super_admin') {
+          deptNodesMap.set(node.id, node);
+        } else {
+          // Filter children to only same-department employees
+          const filteredChildren = (node.childIds || []).filter(childId => {
+            const childNode = nodes.get(childId);
+            return childNode && childNode.departmentName === deptName;
+          });
+          deptNodesMap.set(node.id, {
+            ...node,
+            childIds: filteredChildren,
+            directReportCount: filteredChildren.length
+          });
+        }
+      });
+
+      return {
+        name: deptName,
+        roots: deptRoots,
+        nodesMap: deptNodesMap,
+        count: deptEmployees.length
+      };
+    }).sort((a, b) => b.count - a.count); // Show departments with most members first
+  }, [data?.nodes, nodes]);
 
   useEffect(() => {
     if (!searchMatches.length) {
@@ -521,6 +576,41 @@ export default function OrganizationChart({
                 className="h-11 w-full rounded-lg border border-black bg-transparent pl-11 pr-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-black"
               />
             </label>
+
+            {/* View Mode Toggle */}
+            <div className="relative inline-grid grid-cols-2 items-center overflow-hidden rounded-xl bg-slate-100 p-1 shadow-[inset_0_1px_1px_rgba(148,163,184,0.05)] w-72 h-11">
+              {/* Sliding background */}
+              <div
+                className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/2)] rounded-lg bg-white shadow-sm border border-slate-200/50 transition-transform duration-300 ease-out"
+                style={{
+                  transform: `translateX(${viewMode === 'department' ? '100%' : '0%'})`
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setViewMode('reporting')}
+                className={`relative z-10 py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                  viewMode === 'reporting'
+                    ? 'text-violet-950'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">account_tree</span>
+                Reporting Tree
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('department')}
+                className={`relative z-10 py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                  viewMode === 'department'
+                    ? 'text-violet-950'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">schema</span>
+                Dept Hierarchy
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-1 lg:justify-end lg:pr-6">
@@ -608,14 +698,112 @@ export default function OrganizationChart({
             >
               <div className="flex min-w-[1650px] justify-center px-0 pb-0 pt-1">
                 <div className="space-y-8">
-                  {data.roots.length > 1 ? (
+                  {viewMode === 'department' ? (
+                    <div ref={topClusterRef} className="flex flex-col items-center">
+                      {/* Level 1: Executives */}
+                      <div className="relative flex items-start justify-center gap-14 pb-9">
+                        {filteredRoots.length > 1 ? (
+                          <>
+                            <div className="absolute left-[130px] right-[130px] bottom-4 h-[2px] bg-slate-400" />
+                            <div className="absolute left-[130px] bottom-4 h-5 w-[2px] -translate-x-1/2 bg-slate-400" />
+                            <div className="absolute right-[130px] bottom-4 h-5 w-[2px] translate-x-1/2 bg-slate-400" />
+                            <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-slate-400" />
+                          </>
+                        ) : (
+                          <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-slate-400" />
+                        )}
+                        {filteredRoots.map((rootId) => {
+                          const rootNode = nodes.get(rootId);
+                          if (!rootNode) return null;
+                          return (
+                            <div key={rootId} className="flex flex-col items-center">
+                              <OrgNodeCard
+                                node={rootNode}
+                                registerNodeRef={registerNodeRef}
+                                onToggle={handleToggle}
+                                hasChildren={false}
+                                showChildren={false}
+                                isHighlighted={highlightedNodeIds.has(rootId)}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Level 2: Department Cards connected below the Executives */}
+                      <div className="relative pt-0">
+                        {departmentData.length > 1 ? (
+                          <div className="absolute left-[130px] right-[130px] top-0 h-[2px] bg-slate-400" />
+                        ) : null}
+                        <div className="absolute left-1/2 top-0 h-5 w-[2px] -translate-x-1/2 bg-slate-400" />
+                        
+                        <div className="flex items-start justify-center gap-14 px-2 pt-0">
+                          {departmentData.map((dept) => (
+                            <div key={dept.name} className="flex flex-col items-center">
+                              <div className="h-6 w-[2px] bg-slate-400" />
+                              
+                              {/* Department Card */}
+                              <div className="w-[260px] rounded-[24px] border border-violet-200 bg-[linear-gradient(180deg,#fcfaff_0%,#f5f0ff_100%)] p-4 text-center shadow-[0_8px_20px_rgba(139,92,246,0.04)]">
+                                <span className="material-symbols-outlined text-violet-600 text-[20px] mb-1">corporate_fare</span>
+                                <p className="text-sm font-bold uppercase tracking-wider text-violet-800">{dept.name}</p>
+                                <p className="text-xs font-semibold text-slate-500 mt-1">{dept.count} members</p>
+                              </div>
+
+                              {/* Level 3: Department Employee Trees */}
+                              {dept.roots.length > 0 ? (
+                                dept.roots.length === 1 ? (
+                                  <div className="flex flex-col items-center">
+                                    <div className="h-6 w-[2px] bg-slate-400" />
+                                    <TreeNode
+                                      nodeId={dept.roots[0]}
+                                      nodes={dept.nodesMap}
+                                      expandedNodeIds={effectiveExpandedNodeIds}
+                                      highlightedNodeIds={highlightedNodeIds}
+                                      registerNodeRef={registerNodeRef}
+                                      onToggle={handleToggle}
+                                      depth={1}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="relative pt-0 flex flex-col items-center">
+                                    <div className="h-6 w-[2px] bg-slate-400" />
+                                    <div className="relative">
+                                      <div className="absolute left-[130px] right-[130px] top-0 h-[2px] bg-slate-400" />
+                                      <div className="flex items-start justify-center gap-6 px-2 pt-0">
+                                        {dept.roots.map((childId) => (
+                                          <div key={childId} className="flex flex-col items-center">
+                                            <div className="h-5 w-[2px] bg-slate-400" />
+                                            <TreeNode
+                                              nodeId={childId}
+                                              nodes={dept.nodesMap}
+                                              expandedNodeIds={effectiveExpandedNodeIds}
+                                              highlightedNodeIds={highlightedNodeIds}
+                                              registerNodeRef={registerNodeRef}
+                                              onToggle={handleToggle}
+                                              depth={1}
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              ) : (
+                                <p className="text-xs text-slate-400 mt-2 italic">No members assigned</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : filteredRoots.length > 1 ? (
                     <div ref={topClusterRef} className="flex flex-col items-center">
                       <div className="relative flex items-start justify-center gap-14 pb-9">
                         <div className="absolute left-[130px] right-[130px] bottom-4 h-[2px] bg-slate-400" />
                         <div className="absolute left-[130px] bottom-4 h-5 w-[2px] -translate-x-1/2 bg-slate-400" />
                         <div className="absolute right-[130px] bottom-4 h-5 w-[2px] translate-x-1/2 bg-slate-400" />
                         <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-slate-400" />
-                        {data.roots.map((rootId) => {
+                        {filteredRoots.map((rootId) => {
                           const rootNode = nodes.get(rootId);
                           if (!rootNode) {
                             return null;
@@ -678,7 +866,7 @@ export default function OrganizationChart({
                     </div>
                   ) : (
                     <div ref={topClusterRef} className="flex items-start justify-center gap-14">
-                      {data.roots.map((rootId) => (
+                      {filteredRoots.map((rootId) => (
                         <TreeNode
                           key={rootId}
                           nodeId={rootId}

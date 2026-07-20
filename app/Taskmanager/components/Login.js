@@ -286,12 +286,9 @@ export default function Login({ onSuccess }) {
                 </svg>
               </div>
               <div className="flex flex-col justify-center">
-                <h1 className="text-xl lg:text-2xl font-semibold text-slate-900 tracking-tight leading-none mb-1">
+                <h1 className="text-xl lg:text-2xl font-semibold text-slate-900 tracking-tight leading-none">
                   BNC Workspace
                 </h1>
-                <p className="text-[10px] lg:text-xs font-normal text-slate-400 uppercase tracking-[0.25em] leading-none">
-                  Enterprise Platform
-                </p>
               </div>
             </div>
           </div>

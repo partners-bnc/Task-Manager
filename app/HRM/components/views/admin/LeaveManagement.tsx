@@ -203,6 +203,40 @@ export default function LeaveManagement() {
     return Array.from(grouped.values()).sort((left, right) => left.employeeName.localeCompare(right.employeeName));
   }, [data?.balances]);
 
+  const exportToExcel = useCallback(() => {
+    if (!balanceRows || balanceRows.length === 0) return;
+
+    // Headers
+    const headers = ['Sl No.', 'Employee Name', 'Employee Code', 'Casual Leave', 'Sick Leave', 'Special Leave', 'Used Days'];
+
+    // Rows
+    const rows = balanceRows.map((row, index) => [
+      index + 1,
+      row.employeeName,
+      row.employeeCode,
+      row.casualLeave,
+      row.sickLeave,
+      row.specialLeave,
+      row.usedDays
+    ]);
+
+    // Construct CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+    ].join('\n');
+
+    // Create a download link and click it
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Leave_Employee_Balance.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [balanceRows]);
+
   const sectionCards = [
     {
       id: 'pending' as const,
@@ -218,7 +252,7 @@ export default function LeaveManagement() {
     },
     {
       id: 'balances' as const,
-      label: 'Live Employee Balance',
+      label: 'Leave Employee Balance',
       count: balanceRows.length,
       description: 'Simple leave balance table.',
     },
@@ -464,16 +498,26 @@ export default function LeaveManagement() {
 
         {!isLoading && activeSection === 'balances' ? (
           <>
-            <div className="mb-5 flex items-center justify-between gap-4">
+            <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h2 className="text-xl font-headline font-bold text-on-background">Live Employee Balance Table</h2>
+                <h2 className="text-xl font-headline font-bold text-on-background">Leave Employee Balance Table</h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
                   Paid leave balance view without mixing in payroll-side attendance LOP.
                 </p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
-                {balanceRows.length} employees
-              </span>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={exportToExcel}
+                  className="inline-flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-low px-4 py-2.5 text-xs font-semibold text-on-surface hover:bg-surface-container-high transition-all"
+                >
+                  <span className="material-symbols-outlined text-[16px]">download</span>
+                  Export to Excel
+                </button>
+                <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">
+                  {balanceRows.length} employees
+                </span>
+              </div>
             </div>
 
             {balanceRows.length === 0 ? (

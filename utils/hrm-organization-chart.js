@@ -143,6 +143,8 @@ function createNodeMap(superAdmins, employees) {
       status: employment.employmentLifecycleStatus || 'active',
       reportingManagerId: employee.reporting_manager_id || null,
       reportingSuperAdminId: employee.reporting_super_admin_id || null,
+      departmentId: employee.department?.id || null,
+      departmentName: employee.department?.name || 'Other',
     });
   });
 
@@ -190,24 +192,8 @@ function buildOrganizationTree(superAdmins, employees) {
     return lifecycleStatus !== 'separated' || visibleManagerIds.has(employee.id);
   });
   const nodes = createNodeMap(superAdmins, employees);
-  const unassignedNodeId = buildGroupNodeId('unassigned');
-  let hasUnassignedEmployees = false;
-
-  nodes.set(unassignedNodeId, {
-    id: unassignedNodeId,
-    entityId: 'unassigned',
-    kind: 'group',
-    name: 'Unassigned / Reporting Not Set',
-    employeeId: null,
-    title: 'Needs reporting mapping',
-    avatarUrl: null,
-    parentId: null,
-    childIds: [],
-    directReportCount: 0,
-    status: 'attention',
-  });
-
   const superAdminNodeIds = new Set(superAdmins.map((item) => buildSuperAdminNodeId(item.id)));
+  const primarySuperAdminId = superAdmins.length > 0 ? buildSuperAdminNodeId(superAdmins[0].id) : null;
 
   scopedEmployees.forEach((employee) => {
     const childNodeId = buildEmployeeNodeId(employee.id);
@@ -231,8 +217,11 @@ function buildOrganizationTree(superAdmins, employees) {
       return;
     }
 
-    hasUnassignedEmployees = true;
-    attachChild(nodes, unassignedNodeId, childNodeId);
+    // Attach to the primary super admin instead of creating an unassigned group
+    if (primarySuperAdminId) {
+      attachChild(nodes, primarySuperAdminId, childNodeId);
+      return;
+    }
   });
 
   nodes.forEach((node) => {
@@ -251,19 +240,9 @@ function buildOrganizationTree(superAdmins, employees) {
     .sort(compareSuperAdmins)
     .map((superAdmin) => buildSuperAdminNodeId(superAdmin.id));
 
-  if (hasUnassignedEmployees) {
-    roots.push(unassignedNodeId);
-  } else {
-    nodes.delete(unassignedNodeId);
-  }
-
   return {
     roots,
-    nodes: Array.from(nodes.values()).map((node) => ({
-      ...node,
-      reportingManagerId: undefined,
-      reportingSuperAdminId: undefined,
-    })),
+    nodes: Array.from(nodes.values()),
   };
 }
 

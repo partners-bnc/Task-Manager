@@ -8,6 +8,7 @@ interface Task {
   id: string;
   task_name: string;
   created_at: string;
+  status?: string;
 }
 
 interface LogEntry {
@@ -140,11 +141,41 @@ export default function DailyWorkLogModal({
     if (!loadingExisting && isEditable) setTimeout(() => clientRef.current?.focus(), 80);
   }, [loadingExisting, isEditable]);
 
+  const extractClientFromProject = (projectName: string) => {
+    if (!projectName) return '';
+    const parts = projectName.split('-');
+    if (parts.length > 1) {
+      return parts[0].trim();
+    }
+    return '';
+  };
+
+  const getStatusLabel = (status?: string) => {
+    switch (String(status || '').toLowerCase()) {
+      case 'completed':
+        return '✅ [Completed] ';
+      case 'in_progress':
+        return '⏳ [In Progress] ';
+      case 'pending':
+        return '📋 [Pending] ';
+      case 'review':
+        return '🔍 [In Review] ';
+      default:
+        return '';
+    }
+  };
+
   const handleFormChange = (field: string, value: string) => {
     setFormError('');
     if (field === 'task_id') {
       const task = localTasks.find((t) => t.id === value);
-      setForm((prev) => ({ ...prev, task_id: value, task_name_snapshot: task?.task_name || '' }));
+      const extractedClient = task ? extractClientFromProject(task.task_name) : '';
+      setForm((prev) => ({
+        ...prev,
+        task_id: value,
+        task_name_snapshot: task?.task_name || '',
+        client_name: extractedClient || prev.client_name,
+      }));
     } else {
       setForm((prev) => ({ ...prev, [field]: value }));
     }
@@ -152,13 +183,13 @@ export default function DailyWorkLogModal({
 
   const handleAddEntry = () => {
     if (!isEditable) return;
+    if (!form.task_id) {
+      setFormError('Please select a project/task.');
+      return;
+    }
     if (!form.client_name.trim()) {
       setFormError('Client name is required.');
       clientRef.current?.focus();
-      return;
-    }
-    if (!form.task_id) {
-      setFormError('Please select a project/task.');
       return;
     }
     const hours = parseFloat(form.hours_spent);
@@ -166,11 +197,7 @@ export default function DailyWorkLogModal({
       setFormError('Enter valid hours (0.5 – 24).');
       return;
     }
-    if (!form.remarks.trim()) {
-      setFormError('Remarks are required.');
-      return;
-    }
-    setEntries((prev) => [...prev, { ...form }]);
+    setEntries((prev) => [...prev, { ...form, client_name: form.client_name.trim(), remarks: form.remarks.trim() }]);
     setForm({ ...EMPTY_FORM });
     setFormError('');
   };
@@ -217,7 +244,13 @@ export default function DailyWorkLogModal({
   const handleEditFormChange = (field: string, value: string) => {
     if (field === 'task_id') {
       const task = localTasks.find((t) => t.id === value);
-      setEditForm((prev) => ({ ...prev, task_id: value, task_name_snapshot: task?.task_name || prev.task_name_snapshot }));
+      const extractedClient = task ? extractClientFromProject(task.task_name) : '';
+      setEditForm((prev) => ({
+        ...prev,
+        task_id: value,
+        task_name_snapshot: task?.task_name || prev.task_name_snapshot,
+        client_name: extractedClient || prev.client_name,
+      }));
     } else {
       setEditForm((prev) => ({ ...prev, [field]: value }));
     }
@@ -226,21 +259,17 @@ export default function DailyWorkLogModal({
   // Save edit — updates DB if existing, else just updates state
   const handleSaveEdit = async (index: number) => {
     if (!isEditable) return;
-    if (!editForm.client_name.trim()) {
-      alert('Client name is required.');
-      return;
-    }
     if (!editForm.task_id) {
       alert('Please select a project/task.');
+      return;
+    }
+    if (!editForm.client_name.trim()) {
+      alert('Client name is required.');
       return;
     }
     const hours = parseFloat(editForm.hours_spent);
     if (isNaN(hours) || hours <= 0 || hours > 24) {
       alert('Enter valid hours.');
-      return;
-    }
-    if (!editForm.remarks.trim()) {
-      alert('Remarks are required.');
       return;
     }
 
@@ -280,7 +309,7 @@ export default function DailyWorkLogModal({
 
   const totalHours = entries.reduce((sum, e) => sum + (parseFloat(e.hours_spent) || 0), 0);
   const newEntriesCount = entries.filter((e) => !e.isExisting).length;
-  const canCheckout = totalHours === 8;
+  const canCheckout = entries.length > 0 && totalHours > 0 && totalHours <= 8;
 
   const handleSubmit = async () => {
     if (!isEditable) return;
@@ -288,8 +317,8 @@ export default function DailyWorkLogModal({
       setSubmitError('Add at least one work log entry.');
       return;
     }
-    if (totalHours !== 8) {
-      setSubmitError('Total hours logged must be exactly 8 hours. Currently: ' + totalHours.toFixed(1) + ' hrs.');
+    if (totalHours > 8) {
+      setSubmitError('Total hours logged cannot exceed 8 hours. Currently: ' + totalHours.toFixed(1) + ' hrs.');
       return;
     }
     setSubmitting(true);
@@ -347,7 +376,35 @@ export default function DailyWorkLogModal({
 
             {isEditable ? (
               <div className="space-y-2.5">
-                <div>
+                <div title="Select the project that you have worked on today.">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Project / Task <span className="text-red-400">*</span>
+                  </label>
+                  <div className="flex flex-col gap-1">
+                    <select
+                      value={form.task_id}
+                      onChange={(e) => handleFormChange('task_id', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 bg-white transition"
+                    >
+                      <option value="">— Select a task —</option>
+                      {localTasks.map((task) => (
+                        <option key={task.id} value={task.id}>
+                          {getStatusLabel(task.status)}{task.task_name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateTaskModal(true)}
+                      className="text-left text-[#7F40EE] hover:text-[#6A31D1] hover:underline text-[11px] font-bold flex items-center gap-1 mt-1 w-fit transition-all animate-none"
+                    >
+                      <span className="material-symbols-outlined text-[14px] font-bold">add</span>
+                      Create New Task
+                    </button>
+                  </div>
+                </div>
+
+                <div title="Client name will be automatically filled from the selected project (text before the first hyphen), or you can edit/type it manually.">
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
                     Client <span className="text-red-400">*</span>
                   </label>
@@ -362,33 +419,7 @@ export default function DailyWorkLogModal({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Project / Task <span className="text-red-400">*</span>
-                  </label>
-                  <div className="flex flex-col gap-1">
-                    <select
-                      value={form.task_id}
-                      onChange={(e) => handleFormChange('task_id', e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 text-xs text-slate-800 outline-none focus:border-violet-400 bg-white transition"
-                    >
-                      <option value="">— Select a task —</option>
-                      {localTasks.map((task) => (
-                        <option key={task.id} value={task.id}>{task.task_name}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setShowCreateTaskModal(true)}
-                      className="text-left text-[#7F40EE] hover:text-[#6A31D1] hover:underline text-[11px] font-bold flex items-center gap-1 mt-1 w-fit transition-all animate-none"
-                    >
-                      <span className="material-symbols-outlined text-[14px] font-bold">add</span>
-                      Create New Task
-                    </button>
-                  </div>
-                </div>
-
-                <div>
+                <div title="Enter the exact hours spent working on this task today (between 0.5 and 24 hours).">
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
                     Hours Spent <span className="text-red-400">*</span>
                   </label>
@@ -404,9 +435,9 @@ export default function DailyWorkLogModal({
                   />
                 </div>
 
-                <div>
+                <div title="Provide optional remarks summarizing your accomplishments for this task today.">
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Remarks <span className="text-red-400">*</span>
+                    Remarks <span className="text-slate-400 font-normal">(Optional)</span>
                   </label>
                   <textarea
                     rows={3}
@@ -491,7 +522,9 @@ export default function DailyWorkLogModal({
                               >
                                 <option value="">— No task —</option>
                                 {localTasks.map((t) => (
-                                  <option key={t.id} value={t.id}>{t.task_name}</option>
+                                  <option key={t.id} value={t.id}>
+                                    {getStatusLabel(t.status)}{t.task_name}
+                                  </option>
                                 ))}
                               </select>
                             </td>
@@ -591,25 +624,20 @@ export default function DailyWorkLogModal({
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 bg-slate-50/60">
           <div className="text-xs leading-relaxed">
             {isEditable ? (
-              totalHours === 8 ? (
+              totalHours > 0 && totalHours <= 8 ? (
                 <span className="text-emerald-600 font-bold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px] font-bold">check_circle</span>
-                  Perfect! Exactly 8 hours of your work logged. Ready to submit.
+                  Ready to submit! ({totalHours.toFixed(1)} hrs logged)
                 </span>
               ) : totalHours === 0 ? (
-                <span className="text-red-500 font-bold flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px] font-bold">warning</span>
-                  You have to fill exactly 8 hours of your work.
-                </span>
-              ) : totalHours < 8 ? (
-                <span className="text-red-500 font-bold flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px] font-bold">warning</span>
-                  You have to fill exactly 8 hours of your work. Currently: {totalHours.toFixed(1)} hrs (Less than 8 hours).
+                <span className="text-amber-600 font-bold flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] font-bold">info</span>
+                  Please log at least one entry. Maximum: 8 hours.
                 </span>
               ) : (
                 <span className="text-red-500 font-bold flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[16px] font-bold">warning</span>
-                  You have to fill exactly 8 hours of your work. Currently: {totalHours.toFixed(1)} hrs (More than 8 hours).
+                  Total hours logged cannot exceed 8 hours. Currently: {totalHours.toFixed(1)} hrs.
                 </span>
               )
             ) : (
