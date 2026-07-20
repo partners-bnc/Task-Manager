@@ -17,6 +17,10 @@ type OrgChartNode = {
   childIds: string[];
   directReportCount: number;
   status?: string | null;
+  departmentName?: string;
+  reportingManagerId?: string | null;
+  reportingSuperAdminId?: string | null;
+  departmentId?: string | null;
 };
 
 type OrgChartResponse = {
