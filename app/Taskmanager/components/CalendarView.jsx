@@ -69,9 +69,9 @@ export default function CalendarView({ taskId = null, isMini = false }) {
       </div>
       
       <h2 className="text-2xl font-extrabold text-slate-800 mb-3">Workspace Calendar Integration</h2>
-      <p className="text-slate-500 max-w-lg mx-auto mb-10 text-sm leading-relaxed">
-        We are developing a fully integrated scheduling module. Soon you will be able to synchronize all workspace activities, deadlines, and events into a single unified calendar interface.
-      </p>
+      <div className="inline-flex px-4 py-1.5 bg-amber-50 border border-amber-200/40 text-amber-700 text-xs font-black uppercase tracking-[0.15em] rounded-full mb-10 shadow-sm">
+        Coming Soon
+      </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left max-w-3xl mx-auto">
         <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all">

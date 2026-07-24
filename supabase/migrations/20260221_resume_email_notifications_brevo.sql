@@ -96,7 +96,7 @@ select cron.schedule(
         'email_notifications_enabled', true,
         'brevo_api_key', (select decrypted_secret from vault.decrypted_secrets where name = 'brevo_api_key'),
         'brevo_from_email', (select decrypted_secret from vault.decrypted_secrets where name = 'brevo_from_email'),
-        'brevo_from_name', coalesce((select decrypted_secret from vault.decrypted_secrets where name = 'brevo_from_name'), 'TaskFlow'),
+        'brevo_from_name', coalesce((select decrypted_secret from vault.decrypted_secrets where name = 'brevo_from_name'), 'Universe One'),
         'app_base_url', coalesce((select decrypted_secret from vault.decrypted_secrets where name = 'app_base_url'), '')
       ),
       timeout_milliseconds := 10000

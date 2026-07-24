@@ -33,7 +33,7 @@ ${employeeLines}
 You can manage and view complete daily attendance reports by logging into your HRM dashboard.
 
 Best regards,
-The HRM Attendance System`;
+The Universe One HRM Team`;
 
   // HTML format matching the exact structure of task-assigned.ts
   const html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0;">
@@ -69,7 +69,7 @@ The HRM Attendance System`;
   
   <p>You can manage and view complete daily attendance reports by logging into your HRM dashboard.</p>
   
-  <p style="margin-top: 24px;">Best regards,<br/><strong>The HRM Attendance System</strong></p>
+  <p style="margin-top: 24px;">Best regards,<br/><strong>The Universe One HRM Team</strong></p>
 </div>`;
 
   return {

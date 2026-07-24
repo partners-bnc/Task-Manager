@@ -36,7 +36,7 @@ Please follow up with them accordingly.
 
 Best regards,
 
-The Task Manager Team`;
+The Universe One Team`;
 
   // 2. Render HTML body
   let employeeRowsHtml = '';
@@ -75,7 +75,7 @@ The Task Manager Team`;
   
   <p>Please follow up with them accordingly.</p>
   
-  <p style="margin-top: 24px;">Best regards,<br/><strong>The Task Manager Team</strong></p>
+  <p style="margin-top: 24px;">Best regards,<br/><strong>The Universe One Team</strong></p>
 </div>`;
 
   return {

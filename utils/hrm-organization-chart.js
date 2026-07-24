@@ -123,6 +123,9 @@ function createNodeMap(superAdmins, employees) {
       childIds: [],
       directReportCount: 0,
       status: cleanText(superAdmin.status) || 'active',
+      email: cleanText(superAdmin.email),
+      phone: null,
+      dateOfJoining: superAdmin.created_at || null,
     });
   });
 
@@ -145,6 +148,9 @@ function createNodeMap(superAdmins, employees) {
       reportingSuperAdminId: employee.reporting_super_admin_id || null,
       departmentId: employee.department?.id || null,
       departmentName: employee.department?.name || 'Other',
+      email: cleanText(employee.email),
+      phone: cleanText(employee.phone) || cleanText(employee.mobile_phone) || null,
+      dateOfJoining: employee.date_of_joining || null,
     });
   });
 
@@ -260,6 +266,9 @@ export async function loadOrganizationChartData() {
     profile_picture_url,
     employee_status,
     reporting_manager_id,
+    phone,
+    mobile_phone,
+    date_of_joining,
     ${reportingSuperAdminSupported ? 'reporting_super_admin_id,' : ''}
     ${lifecycleSupported ? 'employment_lifecycle_status,' : ''}
     ${currentStageSupported ? 'current_stage,' : ''}
@@ -276,7 +285,7 @@ export async function loadOrganizationChartData() {
   const [superAdminsResult, employeesResult] = await Promise.all([
     adminClient
       .from('privileged_accounts')
-      .select('id, auth_user_id, name, email, status, designation, profile_picture_url')
+      .select('id, auth_user_id, name, email, status, designation, profile_picture_url, created_at')
       .eq('role', 'super_admin')
       .order('name', { ascending: true }),
     adminClient

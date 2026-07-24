@@ -37,7 +37,7 @@ If you require any assistance or need to discuss an extension, please contact th
 
 Best regards,
 
-The Task Manager Team`;
+The Universe One Team`;
 
   const html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0;">
   <p>Dear ${employeeName},</p>
@@ -76,7 +76,7 @@ The Task Manager Team`;
     If you require any assistance or need to discuss an extension, please contact the task creator, <strong>${assignerName}</strong>, as soon as possible.
   </p>
   
-  <p style="margin-top: 24px;">Best regards,<br/><strong>The Task Manager Team</strong></p>
+  <p style="margin-top: 24px;">Best regards,<br/><strong>The Universe One Team</strong></p>
 </div>`;
 
   return {

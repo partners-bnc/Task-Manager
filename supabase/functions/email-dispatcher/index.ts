@@ -4,7 +4,7 @@ import { renderEmail } from './templates/index.ts';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const DISPATCHER_SHARED_SECRET = Deno.env.get('DISPATCHER_SHARED_SECRET') ?? '';
-const DEFAULT_APP_BASE_URL = 'https://tasks.bncglobal.in/login';
+const DEFAULT_APP_BASE_URL = 'https://universeone.bncglobal.in/login';
 let APP_BASE_URL = Deno.env.get('APP_BASE_URL') ?? DEFAULT_APP_BASE_URL;
 const EMAIL_NOTIFICATIONS_ENABLED = (Deno.env.get('EMAIL_NOTIFICATIONS_ENABLED') ?? 'true').trim().toLowerCase() === 'true';
 
@@ -56,7 +56,7 @@ function renderEmailTemplate(row: OutboxRow) {
 async function sendWithBrevo(row: OutboxRow) {
   const brevoApiKey = String(row.payload?.brevo_api_key ?? '').trim();
   const brevoFromEmail = String(row.payload?.brevo_from_email ?? '').trim();
-  const brevoFromName = String(row.payload?.brevo_from_name ?? 'TaskFlow').trim();
+  const brevoFromName = String(row.payload?.brevo_from_name ?? 'Universe One').trim();
   const { subject, text, html } = renderEmailTemplate(row);
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -68,7 +68,7 @@ async function sendWithBrevo(row: OutboxRow) {
     },
     body: JSON.stringify({
       sender: {
-        name: brevoFromName || 'TaskFlow',
+        name: brevoFromName || 'Universe One',
         email: brevoFromEmail,
       },
       to: [{ email: row.recipient_email }],
@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
     requestEnabledFlag === 'true' ? true : requestEnabledFlag === 'false' ? false : EMAIL_NOTIFICATIONS_ENABLED;
   const brevoApiKey = String(requestBody?.brevo_api_key ?? '').trim();
   const brevoFromEmail = String(requestBody?.brevo_from_email ?? '').trim();
-  const brevoFromName = String(requestBody?.brevo_from_name ?? 'TaskFlow').trim();
+  const brevoFromName = String(requestBody?.brevo_from_name ?? 'Universe One').trim();
   const requestAppBaseUrl = String(requestBody?.app_base_url ?? '').trim();
   APP_BASE_URL = requestAppBaseUrl || APP_BASE_URL || DEFAULT_APP_BASE_URL;
 

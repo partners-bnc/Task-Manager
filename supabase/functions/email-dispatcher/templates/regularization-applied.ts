@@ -29,7 +29,7 @@ You can review, approve, or reject this request by logging into the HRM Dashboar
 ${urls.regularizationUrl}
 
 Best regards,
-The HRM Attendance System`;
+The Universe One HRM Team`;
 
   const html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0;">
   <p>Dear ${recipientName},</p>
@@ -68,7 +68,7 @@ The HRM Attendance System`;
   <p>You can review, approve, or reject this request by clicking the link below:</p>
   <p><a href="${urls.regularizationUrl}" style="color: #2563eb; font-weight: 600; text-decoration: underline;">${urls.regularizationUrl}</a></p>
   
-  <p style="margin-top: 24px;">Best regards,<br/><strong>The HRM Attendance System</strong></p>
+  <p style="margin-top: 24px;">Best regards,<br/><strong>The Universe One HRM Team</strong></p>
 </div>`;
 
   return {

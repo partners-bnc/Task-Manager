@@ -19,7 +19,7 @@ export function render(payload: Record<string, unknown>, urls: { taskUrl: string
 
   const text = `Dear ${employeeName},
 
-A repeating task cycle has started and a new instance has been assigned to you within the Task Manager. Please review the details below and begin your work accordingly.
+A repeating task cycle has started and a new instance has been assigned to you within Universe One. Please review the details below and begin your work accordingly.
 
 Task Details:
 ----------------------------------------
@@ -37,11 +37,11 @@ ${urls.taskUrl}
 
 Best regards,
 
-The Task Manager Team`;
+The Universe One Team`;
 
   const html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 600px; margin: 0;">
   <p>Dear ${employeeName},</p>
-  <p>A repeating task cycle has started and a new instance has been assigned to you within the Task Manager. Please review the details below and begin your work accordingly.</p>
+  <p>A repeating task cycle has started and a new instance has been assigned to you within Universe One. Please review the details below and begin your work accordingly.</p>
   
   <p style="font-weight: 600; margin-bottom: 8px; color: #000000;">Task Details:</p>
   <div style="border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 12px 0; margin-bottom: 20px;">
@@ -76,7 +76,7 @@ The Task Manager Team`;
   <p>You can view the full task details, manage subtasks, and upload any necessary files by clicking the link below:</p>
   <p><a href="${urls.taskUrl}" style="color: #2563eb; font-weight: 600; text-decoration: underline;">${urls.taskUrl}</a></p>
   
-  <p style="margin-top: 24px;">Best regards,<br/><strong>The Task Manager Team</strong></p>
+  <p style="margin-top: 24px;">Best regards,<br/><strong>The Universe One Team</strong></p>
 </div>`;
 
   return {

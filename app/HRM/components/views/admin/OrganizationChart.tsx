@@ -21,6 +21,9 @@ type OrgChartNode = {
   reportingManagerId?: string | null;
   reportingSuperAdminId?: string | null;
   departmentId?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  dateOfJoining?: string | null;
 };
 
 type OrgChartResponse = {
@@ -118,23 +121,24 @@ function OrgNodeCard({
   node,
   registerNodeRef,
   onToggle,
+  onViewDetail,
   hasChildren,
   showChildren,
   isHighlighted,
 }: {
   node: OrgChartNode;
-  registerNodeRef: (nodeId: string, element: HTMLButtonElement | null) => void;
+  registerNodeRef: (nodeId: string, element: HTMLElement | null) => void;
   onToggle: (nodeId: string) => void;
+  onViewDetail: (node: OrgChartNode) => void;
   hasChildren: boolean;
   showChildren: boolean;
   isHighlighted: boolean;
 }) {
   return (
-    <button
+    <div
       ref={(element) => {
         registerNodeRef(node.id, element);
       }}
-      type="button"
       onClick={() => {
         if (hasChildren) {
           onToggle(node.id);
@@ -144,21 +148,43 @@ function OrgNodeCard({
         hasChildren ? 'cursor-pointer hover:-translate-y-0.5 hover:border-violet-300' : 'cursor-default'
       }`}
     >
+      {node.kind !== 'group' && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewDetail(node);
+          }}
+          title="View Details"
+          className="absolute bottom-3.5 right-3.5 flex h-7 w-7 items-center justify-center rounded-full bg-slate-50/50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 active:scale-95 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover:opacity-100 z-10 transition-all"
+        >
+          <span className="material-symbols-outlined text-[16px] font-light">arrow_outward</span>
+        </button>
+      )}
+
       <div className="flex items-start gap-3">
         <Avatar node={node} />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pr-2">
           <div className="min-w-0">
             <p className="truncate text-[17px] font-bold text-slate-900">{node.name}</p>
-            <p className="mt-1 truncate text-sm font-medium text-slate-500">{node.title}</p>
+            {node.kind !== 'super_admin' && (
+              <p className="mt-1 truncate text-sm font-medium text-slate-500">{node.title}</p>
+            )}
           </div>
 
           <div className="mt-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-            <span>{node.kind === 'super_admin' ? 'Executive' : node.kind === 'group' ? 'Fallback Group' : 'Employee'}</span>
+            <span>
+              {node.kind === 'super_admin'
+                ? (node.title || 'Executive')
+                : node.kind === 'group'
+                  ? 'Fallback Group'
+                  : 'Employee'}
+            </span>
             {node.employeeId ? <span className="truncate tracking-[0.14em] text-slate-500">{node.employeeId}</span> : null}
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }
 
@@ -169,14 +195,16 @@ function TreeNode({
   highlightedNodeIds,
   registerNodeRef,
   onToggle,
+  onViewDetail,
   depth = 0,
 }: {
   nodeId: string;
   nodes: Map<string, OrgChartNode>;
   expandedNodeIds: Set<string>;
   highlightedNodeIds: Set<string>;
-  registerNodeRef: (nodeId: string, element: HTMLButtonElement | null) => void;
+  registerNodeRef: (nodeId: string, element: HTMLElement | null) => void;
   onToggle: (nodeId: string) => void;
+  onViewDetail: (node: OrgChartNode) => void;
   depth?: number;
 }) {
   const node = nodes.get(nodeId);
@@ -195,6 +223,7 @@ function TreeNode({
         node={node}
         registerNodeRef={registerNodeRef}
         onToggle={onToggle}
+        onViewDetail={onViewDetail}
         hasChildren={hasChildren}
         showChildren={showChildren}
         isHighlighted={isHighlighted}
@@ -206,22 +235,22 @@ function TreeNode({
           onClick={() => onToggle(nodeId)}
           className="mt-3 inline-flex flex-col items-center gap-2 text-center"
         >
-          <div className="h-4 w-[2px] bg-slate-400" />
+          <div className="h-4 w-[2px] bg-transparent" />
           <CountBadge count={node.directReportCount} isActive={showChildren} />
         </button>
       ) : null}
 
       {showChildren ? (
         <div className="mt-3 flex w-full flex-col items-center">
-          <div className="h-5 w-[2px] bg-slate-400" />
+          <div className="h-5 w-[2px] bg-transparent" />
           <div className="relative">
             {node.childIds.length > 1 ? (
-              <div className="absolute left-12 right-12 top-0 h-[2px] bg-slate-400" />
+              <div className="absolute left-12 right-12 top-0 h-[2px] bg-transparent" />
             ) : null}
             <div className="flex items-start justify-center gap-6 px-2 pt-0">
               {node.childIds.map((childId) => (
                 <div key={childId} className="flex flex-col items-center">
-                  <div className="h-5 w-[2px] bg-slate-400" />
+                  <div className="h-5 w-[2px] bg-transparent" />
                   <TreeNode
                     nodeId={childId}
                     nodes={nodes}
@@ -229,6 +258,7 @@ function TreeNode({
                     highlightedNodeIds={highlightedNodeIds}
                     registerNodeRef={registerNodeRef}
                     onToggle={onToggle}
+                    onViewDetail={onViewDetail}
                     depth={depth + 1}
                   />
                 </div>
@@ -237,6 +267,485 @@ function TreeNode({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function OrgChartLines({
+  data,
+  nodes,
+  expandedNodeIds,
+  viewMode,
+  filteredRoots,
+  rootChildIds,
+  departmentData,
+  containerRef,
+  nodeRefs,
+  zoom,
+}: {
+  data: OrgChartResponse | null;
+  nodes: Map<string, OrgChartNode>;
+  expandedNodeIds: Set<string>;
+  viewMode: 'reporting' | 'department';
+  filteredRoots: string[];
+  rootChildIds: string[];
+  departmentData: any[];
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  nodeRefs: React.RefObject<Record<string, HTMLElement | null>>;
+  zoom: number;
+}) {
+  const [paths, setPaths] = useState<string[]>([]);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !data) return;
+
+    const updateLines = () => {
+      // 1. Reset existing transforms first to get clean baseline measurements
+      departmentData.forEach((dept) => {
+        const deptCardEl = nodeRefs.current[`department:${dept.name}`];
+        if (deptCardEl) {
+          deptCardEl.style.transform = 'none';
+        }
+      });
+
+      const containerRect = container.getBoundingClientRect();
+      const w = containerRect.width / zoom;
+      const h = containerRect.height / zoom;
+      setDimensions({ width: w, height: h });
+
+      // 2. Center department cards horizontally over their direct child nodes (dept.roots)
+      departmentData.forEach((dept) => {
+        const deptCardId = `department:${dept.name}`;
+        const deptCardEl = nodeRefs.current[deptCardId];
+        if (!deptCardEl || dept.roots.length === 0) return;
+
+        const cardRect = deptCardEl.getBoundingClientRect();
+        const cardCenter = (cardRect.left + cardRect.right) / 2;
+
+        let minLeft = Infinity;
+        let maxRight = -Infinity;
+        let validRootsCount = 0;
+
+        dept.roots.forEach((rootId) => {
+          const rootNodeEl = nodeRefs.current[rootId];
+          if (rootNodeEl) {
+            const rootRect = rootNodeEl.getBoundingClientRect();
+            const rootCardCenter = (rootRect.left + rootRect.right) / 2;
+            minLeft = Math.min(minLeft, rootCardCenter);
+            maxRight = Math.max(maxRight, rootCardCenter);
+            validRootsCount++;
+          }
+        });
+
+        if (validRootsCount > 0) {
+          const targetCenter = (minLeft + maxRight) / 2;
+          const shiftX = (targetCenter - cardCenter) / zoom;
+          if (Math.abs(shiftX) > 0.5) {
+            deptCardEl.style.transform = `translateX(${shiftX}px)`;
+          }
+        }
+      });
+
+      const getElRect = (id: string) => {
+        const el = nodeRefs.current[id];
+        if (!el) return null;
+        const rect = el.getBoundingClientRect();
+        return {
+          left: (rect.left - containerRect.left) / zoom,
+          top: (rect.top - containerRect.top) / zoom,
+          width: rect.width / zoom,
+          height: rect.height / zoom,
+        };
+      };
+
+      const newPaths: string[] = [];
+
+      // Helper to generate rounded orthogonal path
+      const drawCurve = (sx: number, sy: number, tx: number, ty: number, radius = 16, customMidY?: number) => {
+        const midY = customMidY !== undefined ? customMidY : (sy + ty) / 2;
+        if (Math.abs(sx - tx) < 1) {
+          return `M ${sx} ${sy} L ${tx} ${ty}`;
+        }
+        const dx = tx > sx ? 1 : -1;
+
+        // Calculate radius constraint safely
+        const limitY1 = Math.abs(sy - midY) / 2;
+        const limitY2 = Math.abs(midY - ty) / 2;
+        const activeLimitY = (limitY1 > 0 && limitY2 > 0) ? Math.min(limitY1, limitY2) : (limitY1 || limitY2 || radius);
+        const r = Math.min(radius, Math.abs(sx - tx) / 2, activeLimitY);
+
+        if (midY === ty) {
+          // Path ends at horizontal level: curve down to horizontal
+          return `M ${sx} ${sy} L ${sx} ${midY - r} Q ${sx} ${midY} ${sx + dx * r} ${midY} L ${tx} ${midY}`;
+        }
+        if (midY === sy) {
+          // Path starts at horizontal level: run horizontal, curve down
+          return `M ${sx} ${sy} L ${tx - dx * r} ${sy} Q ${tx} ${sy} ${tx} ${sy + r} L ${tx} ${ty}`;
+        }
+
+        return `M ${sx} ${sy} L ${sx} ${midY - r} Q ${sx} ${midY} ${sx + dx * r} ${midY} L ${tx - dx * r} ${midY} Q ${tx} ${midY} ${tx} ${midY + r} L ${tx} ${ty}`;
+      };
+
+      // 1. Gather all connections
+      const connections: { from: string; to: string }[] = [];
+      const junctionConnections: { from: string; toJunction: string }[] = [];
+      const fromJunctionConnections: { fromJunction: string; to: string }[] = [];
+
+      if (viewMode === 'reporting') {
+        if (filteredRoots.length === 1) {
+          const traverse = (nodeId: string) => {
+            const node = nodes.get(nodeId);
+            if (!node) return;
+            const showChildren = node.childIds.length > 0 && expandedNodeIds.has(nodeId);
+            if (showChildren) {
+              node.childIds.forEach((childId) => {
+                connections.push({ from: nodeId, to: childId });
+                traverse(childId);
+              });
+            }
+          };
+          traverse(filteredRoots[0]);
+        } else {
+          filteredRoots.forEach((rootId) => {
+            junctionConnections.push({ from: rootId, toJunction: 'root-junction' });
+          });
+
+          rootChildIds.forEach((childId) => {
+            fromJunctionConnections.push({ fromJunction: 'root-junction', to: childId });
+            const traverse = (nodeId: string) => {
+              const node = nodes.get(nodeId);
+              if (!node) return;
+              const showChildren = node.childIds.length > 0 && expandedNodeIds.has(nodeId);
+              if (showChildren) {
+                node.childIds.forEach((childId) => {
+                  connections.push({ from: nodeId, to: childId });
+                  traverse(childId);
+                });
+              }
+            };
+            traverse(childId);
+          });
+        }
+      } else {
+        filteredRoots.forEach((rootId) => {
+          junctionConnections.push({ from: rootId, toJunction: 'dept-junction' });
+        });
+
+        departmentData.forEach((dept) => {
+          const deptCardId = `department:${dept.name}`;
+          fromJunctionConnections.push({ fromJunction: 'dept-junction', to: deptCardId });
+
+          dept.roots.forEach((rootId: string) => {
+            connections.push({ from: deptCardId, to: rootId });
+
+            const traverse = (nodeId: string) => {
+              const node = dept.nodesMap.get(nodeId);
+              if (!node) return;
+              const showChildren = node.childIds.length > 0 && expandedNodeIds.has(nodeId);
+              if (showChildren) {
+                node.childIds.forEach((childId: string) => {
+                  connections.push({ from: nodeId, to: childId });
+                  traverse(childId);
+                });
+              }
+            };
+            traverse(rootId);
+          });
+        });
+      }
+
+      // 2. Draw connections
+      connections.forEach((conn) => {
+        const fromRect = getElRect(conn.from);
+        const toRect = getElRect(conn.to);
+        if (fromRect && toRect) {
+          const sx = fromRect.left + fromRect.width / 2;
+          const sy = fromRect.top + fromRect.height;
+          const tx = toRect.left + toRect.width / 2;
+          const ty = toRect.top;
+          // Offset the horizontal split so it runs below the count badge (approx 32px above destination card)
+          newPaths.push(drawCurve(sx, sy, tx, ty, 16, ty - 32));
+        }
+      });
+
+      const junctions: Record<string, { x: number; y: number }> = {};
+      const findJunctionY = (jName: string) => {
+        let fromBottoms: number[] = [];
+        let toTops: number[] = [];
+
+        junctionConnections
+          .filter((jc) => jc.toJunction === jName)
+          .forEach((jc) => {
+            const rect = getElRect(jc.from);
+            if (rect) fromBottoms.push(rect.top + rect.height);
+          });
+
+        fromJunctionConnections
+          .filter((fjc) => fjc.fromJunction === jName)
+          .forEach((fjc) => {
+            const rect = getElRect(fjc.to);
+            if (rect) toTops.push(rect.top);
+          });
+
+        const avgFrom = fromBottoms.length ? fromBottoms.reduce((a, b) => a + b, 0) / fromBottoms.length : 0;
+        const avgTo = toTops.length ? toTops.reduce((a, b) => a + b, 0) / toTops.length : 0;
+
+        return (avgFrom + avgTo) / 2;
+      };
+
+      const jNames = Array.from(
+        new Set([
+          ...junctionConnections.map((jc) => jc.toJunction),
+          ...fromJunctionConnections.map((fjc) => fjc.fromJunction),
+        ])
+      );
+
+      jNames.forEach((jName) => {
+        let xs: number[] = [];
+        junctionConnections
+          .filter((jc) => jc.toJunction === jName)
+          .forEach((jc) => {
+            const rect = getElRect(jc.from);
+            if (rect) xs.push(rect.left + rect.width / 2);
+          });
+        fromJunctionConnections
+          .filter((fjc) => fjc.fromJunction === jName)
+          .forEach((fjc) => {
+            const rect = getElRect(fjc.to);
+            if (rect) xs.push(rect.left + rect.width / 2);
+          });
+
+        if (xs.length) {
+          const minX = Math.min(...xs);
+          const maxX = Math.max(...xs);
+          junctions[jName] = {
+            x: (minX + maxX) / 2,
+            y: findJunctionY(jName),
+          };
+        }
+      });
+
+      junctionConnections.forEach((jc) => {
+        const fromRect = getElRect(jc.from);
+        const j = junctions[jc.toJunction];
+        if (fromRect && j) {
+          const sx = fromRect.left + fromRect.width / 2;
+          const sy = fromRect.top + fromRect.height;
+          // Connect vertically to the junction level, then curve into horizontal
+          newPaths.push(drawCurve(sx, sy, j.x, j.y, 16, j.y));
+        }
+      });
+
+      fromJunctionConnections.forEach((fjc) => {
+        const toRect = getElRect(fjc.to);
+        const j = junctions[fjc.fromJunction];
+        if (toRect && j) {
+          const tx = toRect.left + toRect.width / 2;
+          const ty = toRect.top;
+          // Start horizontal at the junction level, then curve down to child card.
+          newPaths.push(drawCurve(j.x, j.y, tx, ty, 16, j.y));
+        }
+      });
+
+      setPaths(newPaths);
+    };
+
+    updateLines();
+
+    // Use ResizeObserver to detect dimension changes of the container
+    const observer = new ResizeObserver(() => {
+      updateLines();
+    });
+    observer.observe(container);
+
+    // Safety fallbacks to ensure lines render after content shifts
+    const t1 = setTimeout(updateLines, 100);
+    const t2 = setTimeout(updateLines, 300);
+    const t3 = setTimeout(updateLines, 700);
+
+    return () => {
+      observer.disconnect();
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [data, expandedNodeIds, viewMode, filteredRoots, rootChildIds, departmentData, zoom]);
+
+  return (
+    <svg
+      width={dimensions.width}
+      height={dimensions.height}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        pointerEvents: 'none',
+        zIndex: 0,
+        overflow: 'visible',
+      }}
+    >
+      {paths.map((d, index) => (
+        <path
+          key={index}
+          d={d}
+          fill="none"
+          stroke="#cbd5e1"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </svg>
+  );
+}
+
+function calculateTenure(dateString?: string | null) {
+  if (!dateString) return 'N/A';
+  const joinDate = new Date(dateString);
+  const now = new Date();
+  
+  let years = now.getFullYear() - joinDate.getFullYear();
+  let months = now.getMonth() - joinDate.getMonth();
+  
+  if (months < 0) {
+    years--;
+    months += 12;
+  }
+  
+  if (years === 0 && months === 0) {
+    return 'Joined this month';
+  }
+  
+  const parts = [];
+  if (years > 0) {
+    parts.push(`${years} year${years > 1 ? 's' : ''}`);
+  }
+  if (months > 0) {
+    parts.push(`${months} month${months > 1 ? 's' : ''}`);
+  }
+  return parts.join(' and ');
+}
+
+function formatJoiningDate(dateString?: string | null) {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+}
+
+function EmployeeDetailModal({
+  node,
+  onClose,
+}: {
+  node: OrgChartNode;
+  onClose: () => void;
+}) {
+  const tenure = calculateTenure(node.dateOfJoining);
+  const formattedJoinDate = formatJoiningDate(node.dateOfJoining);
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all duration-300"
+      onClick={onClose}
+    >
+      <div 
+        className="relative w-full max-w-md transform overflow-hidden rounded-[32px] border border-slate-100 bg-white p-6 shadow-2xl transition-all duration-300 scale-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 active:scale-95 cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-[20px]">close</span>
+        </button>
+
+        {/* Card Header Profile Info (Horizontal Layout) */}
+        <div className="flex items-center gap-4 pb-5 border-b border-slate-100 mt-2">
+          <div className="relative flex-shrink-0">
+            {node.avatarUrl ? (
+              <Image
+                alt={node.name}
+                className="h-20 w-20 rounded-full object-cover ring-4 ring-violet-50"
+                src={node.avatarUrl}
+                width={80}
+                height={80}
+                unoptimized
+              />
+            ) : (
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-indigo-100 text-violet-600 ring-4 ring-violet-50 shadow-inner">
+                <span className="material-symbols-outlined text-[36px]">
+                  {node.kind === 'super_admin' ? 'shield_person' : 'person'}
+                </span>
+              </div>
+            )}
+            <span className={`absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-white ${
+              node.status === 'active' || String(node.status).toLowerCase() === 'active' ? 'bg-emerald-500' : 'bg-slate-400'
+            }`} />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <h3 className="text-2xl font-black text-slate-900 leading-tight tracking-tight truncate">{node.name}</h3>
+            <span className="mt-1 inline-flex px-2.5 py-0.5 bg-violet-50 text-violet-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
+              {node.kind === 'super_admin' ? 'Executive Admin' : 'Employee'}
+            </span>
+          </div>
+        </div>
+
+        {/* Detailed Fields List (Key-Value Format) */}
+        <div className="mt-4 divide-y divide-slate-100">
+          <div className="flex items-center justify-between py-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Designation</span>
+            <span className="text-sm font-semibold text-slate-700">{node.title || 'N/A'}</span>
+          </div>
+
+          <div className="flex items-center justify-between py-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Department</span>
+            <span className="text-sm font-semibold text-slate-700">
+              {node.departmentName || (node.kind === 'super_admin' ? 'Management' : 'Other')}
+            </span>
+          </div>
+
+          {node.kind !== 'super_admin' && (
+            <>
+              <div className="flex items-center justify-between py-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Employee ID</span>
+                <span className="text-sm font-semibold text-slate-700">{node.employeeId || 'N/A'}</span>
+              </div>
+
+              <div className="flex items-center justify-between py-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Tenure</span>
+                <span className="text-sm font-semibold text-slate-700">{tenure}</span>
+              </div>
+            </>
+          )}
+
+          <div className="flex items-center justify-between py-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Email Address</span>
+            <span className="text-sm font-semibold text-slate-700 truncate max-w-[240px]" title={node.email || ''}>
+              {node.email || 'N/A'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between py-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Phone Number</span>
+            <span className="text-sm font-semibold text-slate-700">{node.phone || 'N/A'}</span>
+          </div>
+
+          {node.kind !== 'super_admin' && (
+            <div className="flex items-center justify-between py-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Date of Joining</span>
+              <span className="text-sm font-semibold text-slate-700">{formattedJoinDate}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -254,6 +763,7 @@ export default function OrganizationChart({
   const [zoom, setZoom] = useState(MIN_ZOOM);
   const [viewMode, setViewMode] = useState<'reporting' | 'department'>('reporting');
   const [expandedNodeIds, setExpandedNodeIds] = useState<string[]>([]);
+  const [selectedNode, setSelectedNode] = useState<OrgChartNode | null>(null);
   const [dragState, setDragState] = useState<{
     active: boolean;
     startX: number;
@@ -270,7 +780,8 @@ export default function OrganizationChart({
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const topClusterRef = useRef<HTMLDivElement | null>(null);
-  const nodeRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const nodeRefs = useRef<Record<string, HTMLElement | null>>({});
 
   useEffect(() => {
     let active = true;
@@ -309,6 +820,15 @@ export default function OrganizationChart({
       active = false;
     };
   }, [apiPath]);
+  
+  useEffect(() => {
+    if (data?.nodes?.length) {
+      const parentIds = data.nodes
+        .filter((n) => n.childIds && n.childIds.length > 0)
+        .map((n) => n.id);
+      setExpandedNodeIds(parentIds);
+    }
+  }, [data]);
 
   const nodes = useMemo(
     () => new Map((data?.nodes || []).map((node) => [node.id, node])),
@@ -457,32 +977,56 @@ export default function OrganizationChart({
     }
 
     const viewport = viewportRef.current;
-    const cluster = topClusterRef.current;
+    const container = containerRef.current;
 
-    if (!viewport || !cluster) {
+    if (!viewport || !container) {
       return;
     }
 
     const timer = window.setTimeout(() => {
-      const viewportRect = viewport.getBoundingClientRect();
-      const clusterRect = cluster.getBoundingClientRect();
+      const firstRootId = data.roots[0];
+      const rootEl = nodeRefs.current[firstRootId];
 
-      const nextScrollLeft =
-        viewport.scrollLeft +
-        (clusterRect.left - viewportRect.left) -
-        Math.max(0, (viewport.clientWidth - clusterRect.width) / 2);
+      if (!rootEl) {
+        // Fallback to cluster centering if root element is not found in refs
+        const cluster = topClusterRef.current;
+        if (cluster) {
+          const viewportRect = viewport.getBoundingClientRect();
+          const clusterRect = cluster.getBoundingClientRect();
+          const nextScrollLeft =
+            viewport.scrollLeft +
+            (clusterRect.left - viewportRect.left) -
+            Math.max(0, (viewport.clientWidth - clusterRect.width) / 2);
+          viewport.scrollTo({
+            left: Math.max(0, nextScrollLeft),
+            top: 0,
+            behavior: 'smooth',
+          });
+        }
+        return;
+      }
+
+      const rootRect = rootEl.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const viewportRect = viewport.getBoundingClientRect();
+
+      // Calculate horizontal center of the root element relative to the container canvas
+      const relativeCenterX = (rootRect.left + rootRect.right) / 2 - containerRect.left;
+
+      // Scroll position that aligns the center of the root with the center of the viewport
+      const nextScrollLeft = relativeCenterX - viewportRect.width / 2;
 
       viewport.scrollTo({
         left: Math.max(0, nextScrollLeft),
         top: 0,
         behavior: 'smooth',
       });
-    }, 120);
+    }, 150);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [data?.roots, searchQuery, zoom]);
+  }, [data, searchQuery, zoom]);
 
   function handleToggle(nodeId: string) {
     setExpandedNodeIds((current) =>
@@ -490,7 +1034,7 @@ export default function OrganizationChart({
     );
   }
 
-  function registerNodeRef(nodeId: string, element: HTMLButtonElement | null) {
+  function registerNodeRef(nodeId: string, element: HTMLElement | null) {
     nodeRefs.current = {
       ...nodeRefs.current,
       [nodeId]: element,
@@ -693,13 +1237,26 @@ export default function OrganizationChart({
             }`}
           >
             <div
-              className="origin-top-left"
+              ref={containerRef}
+              className="origin-top-left relative"
               style={{
                 transform: `scale(${zoom})`,
                 width: 'max-content',
                 minWidth: '100%',
               }}
             >
+              <OrgChartLines
+                data={data}
+                nodes={nodes}
+                expandedNodeIds={effectiveExpandedNodeIds}
+                viewMode={viewMode}
+                filteredRoots={filteredRoots}
+                rootChildIds={rootChildIds}
+                departmentData={departmentData}
+                containerRef={containerRef}
+                nodeRefs={nodeRefs}
+                zoom={zoom}
+              />
               <div className="flex min-w-[1650px] justify-center px-0 pb-0 pt-1">
                 <div className="space-y-8">
                   {viewMode === 'department' ? (
@@ -708,13 +1265,13 @@ export default function OrganizationChart({
                       <div className="relative flex items-start justify-center gap-14 pb-9">
                         {filteredRoots.length > 1 ? (
                           <>
-                            <div className="absolute left-[130px] right-[130px] bottom-4 h-[2px] bg-slate-400" />
-                            <div className="absolute left-[130px] bottom-4 h-5 w-[2px] -translate-x-1/2 bg-slate-400" />
-                            <div className="absolute right-[130px] bottom-4 h-5 w-[2px] translate-x-1/2 bg-slate-400" />
-                            <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-slate-400" />
+                            <div className="absolute left-[130px] right-[130px] bottom-4 h-[2px] bg-transparent" />
+                            <div className="absolute left-[130px] bottom-4 h-5 w-[2px] -translate-x-1/2 bg-transparent" />
+                            <div className="absolute right-[130px] bottom-4 h-5 w-[2px] translate-x-1/2 bg-transparent" />
+                            <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-transparent" />
                           </>
                         ) : (
-                          <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-slate-400" />
+                          <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-transparent" />
                         )}
                         {filteredRoots.map((rootId) => {
                           const rootNode = nodes.get(rootId);
@@ -725,6 +1282,7 @@ export default function OrganizationChart({
                                 node={rootNode}
                                 registerNodeRef={registerNodeRef}
                                 onToggle={handleToggle}
+                                onViewDetail={setSelectedNode}
                                 hasChildren={false}
                                 showChildren={false}
                                 isHighlighted={highlightedNodeIds.has(rootId)}
@@ -737,17 +1295,22 @@ export default function OrganizationChart({
                       {/* Level 2: Department Cards connected below the Executives */}
                       <div className="relative pt-0">
                         {departmentData.length > 1 ? (
-                          <div className="absolute left-[130px] right-[130px] top-0 h-[2px] bg-slate-400" />
+                          <div className="absolute left-[130px] right-[130px] top-0 h-[2px] bg-transparent" />
                         ) : null}
-                        <div className="absolute left-1/2 top-0 h-5 w-[2px] -translate-x-1/2 bg-slate-400" />
+                        <div className="absolute left-1/2 top-0 h-5 w-[2px] -translate-x-1/2 bg-transparent" />
                         
                         <div className="flex items-start justify-center gap-14 px-2 pt-0">
                           {departmentData.map((dept) => (
                             <div key={dept.name} className="flex flex-col items-center">
-                              <div className="h-6 w-[2px] bg-slate-400" />
+                              <div className="h-6 w-[2px] bg-transparent" />
                               
                               {/* Department Card */}
-                              <div className="w-[260px] rounded-[24px] border border-violet-200 bg-[linear-gradient(180deg,#fcfaff_0%,#f5f0ff_100%)] p-4 text-center shadow-[0_8px_20px_rgba(139,92,246,0.04)]">
+                              <div
+                                ref={(el) => {
+                                  nodeRefs.current[`department:${dept.name}`] = el;
+                                }}
+                                className="w-[260px] rounded-[24px] border border-violet-200 bg-[linear-gradient(180deg,#fcfaff_0%,#f5f0ff_100%)] p-4 text-center shadow-[0_8px_20px_rgba(139,92,246,0.04)]"
+                              >
                                 <span className="material-symbols-outlined text-violet-600 text-[20px] mb-1">corporate_fare</span>
                                 <p className="text-sm font-bold uppercase tracking-wider text-violet-800">{dept.name}</p>
                                 <p className="text-xs font-semibold text-slate-500 mt-1">{dept.count} members</p>
@@ -757,7 +1320,7 @@ export default function OrganizationChart({
                               {dept.roots.length > 0 ? (
                                 dept.roots.length === 1 ? (
                                   <div className="flex flex-col items-center">
-                                    <div className="h-6 w-[2px] bg-slate-400" />
+                                    <div className="h-6 w-[2px] bg-transparent" />
                                     <TreeNode
                                       nodeId={dept.roots[0]}
                                       nodes={dept.nodesMap}
@@ -765,18 +1328,19 @@ export default function OrganizationChart({
                                       highlightedNodeIds={highlightedNodeIds}
                                       registerNodeRef={registerNodeRef}
                                       onToggle={handleToggle}
+                                      onViewDetail={setSelectedNode}
                                       depth={1}
                                     />
                                   </div>
                                 ) : (
                                   <div className="relative pt-0 flex flex-col items-center">
-                                    <div className="h-6 w-[2px] bg-slate-400" />
+                                    <div className="h-6 w-[2px] bg-transparent" />
                                     <div className="relative">
-                                      <div className="absolute left-[130px] right-[130px] top-0 h-[2px] bg-slate-400" />
+                                      <div className="absolute left-[130px] right-[130px] top-0 h-[2px] bg-transparent" />
                                       <div className="flex items-start justify-center gap-6 px-2 pt-0">
                                         {dept.roots.map((childId) => (
                                           <div key={childId} className="flex flex-col items-center">
-                                            <div className="h-5 w-[2px] bg-slate-400" />
+                                            <div className="h-5 w-[2px] bg-transparent" />
                                             <TreeNode
                                               nodeId={childId}
                                               nodes={dept.nodesMap}
@@ -784,6 +1348,7 @@ export default function OrganizationChart({
                                               highlightedNodeIds={highlightedNodeIds}
                                               registerNodeRef={registerNodeRef}
                                               onToggle={handleToggle}
+                                              onViewDetail={setSelectedNode}
                                               depth={1}
                                             />
                                           </div>
@@ -803,10 +1368,10 @@ export default function OrganizationChart({
                   ) : filteredRoots.length > 1 ? (
                     <div ref={topClusterRef} className="flex flex-col items-center">
                       <div className="relative flex items-start justify-center gap-14 pb-9">
-                        <div className="absolute left-[130px] right-[130px] bottom-4 h-[2px] bg-slate-400" />
-                        <div className="absolute left-[130px] bottom-4 h-5 w-[2px] -translate-x-1/2 bg-slate-400" />
-                        <div className="absolute right-[130px] bottom-4 h-5 w-[2px] translate-x-1/2 bg-slate-400" />
-                        <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-slate-400" />
+                        <div className="absolute left-[130px] right-[130px] bottom-4 h-[2px] bg-transparent" />
+                        <div className="absolute left-[130px] bottom-4 h-5 w-[2px] -translate-x-1/2 bg-transparent" />
+                        <div className="absolute right-[130px] bottom-4 h-5 w-[2px] translate-x-1/2 bg-transparent" />
+                        <div className="absolute left-1/2 bottom-0 h-4 w-[2px] -translate-x-1/2 bg-transparent" />
                         {filteredRoots.map((rootId) => {
                           const rootNode = nodes.get(rootId);
                           if (!rootNode) {
@@ -819,6 +1384,7 @@ export default function OrganizationChart({
                                 node={rootNode}
                                 registerNodeRef={registerNodeRef}
                                 onToggle={handleToggle}
+                                onViewDetail={setSelectedNode}
                                 hasChildren={rootNode.childIds.length > 0}
                                 showChildren={false}
                                 isHighlighted={highlightedNodeIds.has(rootId)}
@@ -832,7 +1398,7 @@ export default function OrganizationChart({
                         <div className="mt-0 flex flex-col items-center">
                           {rootChildIds.length === 1 ? (
                             <div className="flex flex-col items-center">
-                              <div className="h-6 w-[2px] bg-slate-400" />
+                              <div className="h-6 w-[2px] bg-transparent" />
                               <TreeNode
                                 nodeId={rootChildIds[0]}
                                 nodes={nodes}
@@ -840,17 +1406,18 @@ export default function OrganizationChart({
                                 highlightedNodeIds={highlightedNodeIds}
                                 registerNodeRef={registerNodeRef}
                                 onToggle={handleToggle}
+                                onViewDetail={setSelectedNode}
                                 depth={1}
                               />
                             </div>
                           ) : (
                             <div className="relative pt-0">
-                              <div className="absolute left-[130px] right-[130px] top-0 h-[2px] bg-slate-400" />
-                              <div className="absolute left-1/2 top-0 h-5 w-[2px] -translate-x-1/2 bg-slate-400" />
+                              <div className="absolute left-[130px] right-[130px] top-0 h-[2px] bg-transparent" />
+                              <div className="absolute left-1/2 top-0 h-5 w-[2px] -translate-x-1/2 bg-transparent" />
                               <div className="flex items-start justify-center gap-6 px-2 pt-0">
                                 {rootChildIds.map((childId) => (
                                   <div key={childId} className="flex flex-col items-center">
-                                    <div className="h-6 w-[2px] bg-slate-400" />
+                                    <div className="h-6 w-[2px] bg-transparent" />
                                     <TreeNode
                                       nodeId={childId}
                                       nodes={nodes}
@@ -858,6 +1425,7 @@ export default function OrganizationChart({
                                       highlightedNodeIds={highlightedNodeIds}
                                       registerNodeRef={registerNodeRef}
                                       onToggle={handleToggle}
+                                      onViewDetail={setSelectedNode}
                                       depth={1}
                                     />
                                   </div>
@@ -879,6 +1447,7 @@ export default function OrganizationChart({
                           highlightedNodeIds={highlightedNodeIds}
                           registerNodeRef={registerNodeRef}
                           onToggle={handleToggle}
+                          onViewDetail={setSelectedNode}
                         />
                       ))}
                     </div>
@@ -889,6 +1458,13 @@ export default function OrganizationChart({
           </div>
         )}
       </section>
+
+      {selectedNode && (
+        <EmployeeDetailModal
+          node={selectedNode}
+          onClose={() => setSelectedNode(null)}
+        />
+      )}
     </div>
   );
 }

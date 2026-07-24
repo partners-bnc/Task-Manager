@@ -1,4 +1,4 @@
-const DEFAULT_APP_URL = 'https://tasks.bncglobal.in';
+const DEFAULT_APP_URL = 'https://universeone.bncglobal.in';
 
 function normalizeUrl(value) {
   return String(value || '').trim().replace(/\/$/, '');

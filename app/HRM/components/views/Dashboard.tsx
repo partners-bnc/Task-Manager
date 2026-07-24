@@ -6,6 +6,7 @@ import EmployeePageHeader from '../ui/EmployeePageHeader';
 import { useHrmFeedback } from '../ui/HrmFeedback';
 import { captureAttendanceLocationPayload } from '@/utils/attendance-location';
 import DailyWorkLogModal from './DailyWorkLogModal';
+import EyeTracking from '@/components/ui/eye-tracking';
 
 type HolidayItem = {
   id: string;
@@ -234,6 +235,10 @@ export default function Dashboard({
   const [employeeTasks, setEmployeeTasks] = useState<{ id: string; task_name: string; created_at: string }[]>([]);
   const [reporteesData, setReporteesData] = useState<{ isManager: boolean; reportees: any[] }>({ isManager: false, reportees: [] });
   const [loadingReportees, setLoadingReportees] = useState(false);
+  const [dailyMotivation, setDailyMotivation] = useState({
+    title: 'Progress Matters',
+    body: 'You do not need perfection every day. Consistent effort and honest work always create momentum.',
+  });
 
   const attendanceMonth = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}`;
   const todayDateKey = `${currentTime.getFullYear()}-${String(currentTime.getMonth() + 1).padStart(2, '0')}-${String(currentTime.getDate()).padStart(2, '0')}`;
@@ -321,6 +326,23 @@ export default function Dashboard({
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    async function loadMotivation() {
+      try {
+        const res = await fetch('/HRM/api/daily-motivation');
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.title && data.body) {
+            setDailyMotivation(data);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading daily motivation:', err);
+      }
+    }
+    loadMotivation();
   }, []);
 
   useEffect(() => {
@@ -832,13 +854,20 @@ export default function Dashboard({
         </div>
 
         {/* Review Cards (Empty State Placeholder) */}
-        <div className="col-span-12 lg:col-span-4 rounded-2xl bg-[#F6ECFF] p-6 flex flex-col items-center justify-center text-center editorial-shadow">
-          <div className="w-16 h-16 bg-surface-container-lowest rounded-full flex items-center justify-center mb-4 shadow-sm">
-            <span className="material-symbols-outlined text-tertiary text-3xl">auto_awesome</span>
+        <div className="col-span-12 lg:col-span-4 rounded-[28px] bg-[#F6ECFF] p-6 flex flex-col items-center justify-center text-center border border-violet-200/25 shadow-[0_16px_40px_-10px_rgba(139,92,246,0.12),0_8px_20px_-6px_rgba(139,92,246,0.06)] transition-all duration-500 ease-out [transform-style:preserve-3d] [perspective:1000px] hover:[transform:translateY(-12px)_rotateX(6deg)_rotateY(-6deg)] hover:shadow-[0_32px_60px_-12px_rgba(139,92,246,0.22),0_16px_30px_-8px_rgba(139,92,246,0.1)] cursor-pointer">
+          <div className="mb-5 h-16 flex items-center justify-center [transform:translateZ(24px)] transition-transform duration-500 ease-out">
+            <EyeTracking
+              eyeSize={40}
+              gap={12}
+              variant="cartoon"
+              irisColor="#8B5CF6"
+              irisColorSecondary="#A78BFA"
+              scleraColor="#FFFFFF"
+            />
           </div>
-          <h3 className="text-base font-bold font-headline mb-1 text-on-surface">{weeklyMotivation.title}</h3>
-          <p className="text-xs text-on-tertiary-container leading-relaxed">{weeklyMotivation.body}</p>
-          <div className="mt-6 text-xs font-bold uppercase tracking-widest text-tertiary">Take a small pause and keep going</div>
+          <h3 className="text-lg font-black tracking-tight text-violet-950 mb-1.5 [transform:translateZ(16px)] transition-transform duration-500">{dailyMotivation.title}</h3>
+          <p className="text-sm font-serif italic font-medium text-violet-800/90 leading-relaxed max-w-[240px] [transform:translateZ(8px)] transition-transform duration-500">"{dailyMotivation.body}"</p>
+          <div className="mt-6 inline-flex bg-white/60 border border-violet-100/40 px-4 py-1.5 rounded-full shadow-sm text-[10px] font-black uppercase tracking-[0.2em] text-violet-600 [transform:translateZ(4px)] transition-transform duration-500">Daily Inspiration</div>
         </div>
 
         {/* Upcoming Holidays List */}

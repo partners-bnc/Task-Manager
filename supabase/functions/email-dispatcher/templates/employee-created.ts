@@ -4,7 +4,7 @@ export function render(payload: Record<string, unknown>, urls: { loginUrl: strin
   const tempPassword = String(payload.temp_password ?? '');
 
   return {
-    subject: 'Your TaskFlow account credentials',
+    subject: 'Your Universe One account credentials',
     text: `Hi ${employeeName},\n\nyour account is ready.\nUsername: ${username}\nTemporary password: ${tempPassword}\nLogin: ${urls.loginUrl}\n\nAfter signing in, you can change your password from Settings by entering your current temporary password and your new password.\nDashboard: ${urls.settingsUrl}`,
     html: `<p>Hi ${employeeName},</p>
 <p>Your account is ready.</p>
