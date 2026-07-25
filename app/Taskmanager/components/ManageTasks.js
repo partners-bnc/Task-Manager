@@ -435,7 +435,7 @@ export default function ManageTasks({ onNavigate }) {
       {/* ════ HEADER SECTION ════ */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-3">
         <div className="flex items-start gap-3">
-          <Briefcase size={28} className="text-[#6057DA] stroke-[1.8] shrink-0 mt-0.5" />
+          <Briefcase size={28} className="text-[#3170c5] stroke-[1.8] shrink-0 mt-0.5" />
           <div>
             <h1 className="text-2xl sm:text-3xl font-semibold text-slate-900 tracking-tight leading-none">Projects</h1>
             <p className="text-xs text-slate-500 font-medium mt-1.5">
@@ -479,7 +479,7 @@ export default function ManageTasks({ onNavigate }) {
                 onClick={() => setActiveView(tab.id)}
                 className={`py-3 px-1.5 text-sm font-semibold inline-flex items-center gap-2 transition-all border-b-2 whitespace-nowrap ${
                   active 
-                    ? 'border-[#7F40EE] text-[#7F40EE]' 
+                    ? 'border-[#3170c5] text-[#3170c5]' 
                     : 'border-transparent text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -499,7 +499,7 @@ export default function ManageTasks({ onNavigate }) {
           {/* New Task Button */}
           <button 
             onClick={handleNewTaskClick}
-            className="px-6 bg-[#6057DA] hover:bg-[#4E46C8] text-white text-[13px] font-semibold rounded-full shadow-sm inline-flex items-center gap-2 transition-all active:scale-[0.98] h-[40px]"
+            className="px-6 bg-[#3170c5] hover:bg-[#2158a4] text-white text-[13px] font-semibold rounded-full shadow-sm inline-flex items-center gap-2 transition-all active:scale-[0.98] h-[40px]"
           >
             <Plus size={16} />
             <span>New Task</span>
@@ -534,7 +534,7 @@ export default function ManageTasks({ onNavigate }) {
               <div className="absolute left-0 mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-20 py-1 text-xs">
                 <button 
                   onClick={() => { setEmployeeFilter('All'); setShowEmployeeDropdown(false); }}
-                  className={`w-full text-left px-3 py-2 hover:bg-slate-50 font-medium ${employeeFilter === 'All' ? 'bg-[#7F40EE]/5 text-[#7F40EE]' : 'text-slate-600'}`}
+                  className={`w-full text-left px-3 py-2 hover:bg-slate-50 font-medium ${employeeFilter === 'All' ? 'bg-[#3170c5]/5 text-[#3170c5]' : 'text-slate-600'}`}
                 >
                   All Employees
                 </button>
@@ -542,7 +542,7 @@ export default function ManageTasks({ onNavigate }) {
                   <button 
                     key={u.id}
                     onClick={() => { setEmployeeFilter(u.id); setShowEmployeeDropdown(false); }}
-                    className={`w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 font-medium ${employeeFilter === u.id ? 'bg-[#7F40EE]/5 text-[#7F40EE]' : 'text-slate-600'}`}
+                    className={`w-full text-left px-3 py-2 hover:bg-slate-50 flex items-center gap-2 font-medium ${employeeFilter === u.id ? 'bg-[#3170c5]/5 text-[#3170c5]' : 'text-slate-600'}`}
                   >
                     {u.avatar ? (
                       <Image src={u.avatar} width={18} height={18} alt={u.name} className="w-[18px] h-[18px] rounded-full object-cover shrink-0" unoptimized />
@@ -579,7 +579,7 @@ export default function ManageTasks({ onNavigate }) {
                     setLabelFilter('All');
                     setCreatedByFilter('All');
                     setOwnershipFilter('all');
-                  }} className="text-[#7F40EE] font-semibold hover:underline">Clear All</button>
+                  }} className="text-[#3170c5] font-semibold hover:underline">Clear All</button>
                 </div>
                 
                 {/* Status Filter */}
@@ -681,7 +681,7 @@ export default function ManageTasks({ onNavigate }) {
                   <button 
                     key={opt.key}
                     onClick={() => { setSortBy(opt.key); setShowSortDropdown(false); }}
-                    className={`w-full text-left px-4 py-2 hover:bg-slate-50 font-medium ${sortBy === opt.key ? 'bg-[#7F40EE]/5 text-[#7F40EE] font-bold' : ''}`}
+                    className={`w-full text-left px-4 py-2 hover:bg-slate-50 font-medium ${sortBy === opt.key ? 'bg-[#3170c5]/5 text-[#3170c5] font-bold' : ''}`}
                   >
                     Sort by {opt.label}
                   </button>
@@ -709,7 +709,7 @@ export default function ManageTasks({ onNavigate }) {
                     type="checkbox" 
                     checked={hideCompleted}
                     onChange={(e) => setHideCompleted(e.target.checked)}
-                    className="rounded border-slate-300 text-[#7F40EE] focus:ring-[#7F40EE]"
+                    className="rounded border-slate-300 text-[#3170c5] focus:ring-[#3170c5]"
                   />
                   <span>Hide Completed</span>
                 </label>
@@ -718,7 +718,7 @@ export default function ManageTasks({ onNavigate }) {
                     type="checkbox" 
                     checked={hideProgress}
                     onChange={(e) => setHideProgress(e.target.checked)}
-                    className="rounded border-slate-300 text-[#7F40EE] focus:ring-[#7F40EE]"
+                    className="rounded border-slate-300 text-[#3170c5] focus:ring-[#3170c5]"
                   />
                   <span>Hide Progress Column</span>
                 </label>
@@ -727,7 +727,7 @@ export default function ManageTasks({ onNavigate }) {
                     type="checkbox" 
                     checked={hideTrackingTime}
                     onChange={(e) => setHideTrackingTime(e.target.checked)}
-                    className="rounded border-slate-300 text-[#7F40EE] focus:ring-[#7F40EE]"
+                    className="rounded border-slate-300 text-[#3170c5] focus:ring-[#3170c5]"
                   />
                   <span>Hide Tracking Time</span>
                 </label>
@@ -756,7 +756,7 @@ export default function ManageTasks({ onNavigate }) {
                   <button 
                     key={opt.key}
                     onClick={() => { setSortBy(opt.key); setShowDateSortDropdown(false); }}
-                    className={`w-full text-left px-4 py-2 hover:bg-slate-50 font-medium ${sortBy === opt.key ? 'bg-[#7F40EE]/5 text-[#7F40EE] font-bold' : ''}`}
+                    className={`w-full text-left px-4 py-2 hover:bg-slate-50 font-medium ${sortBy === opt.key ? 'bg-[#3170c5]/5 text-[#3170c5] font-bold' : ''}`}
                   >
                     {opt.label}
                   </button>
@@ -914,7 +914,7 @@ export default function ManageTasks({ onNavigate }) {
                                       })
                                     )}
                                     {task.assignees.length > 3 && (
-                                      <div className="w-10 h-10 rounded-full border-2 border-white bg-[#7F40EE] text-white text-[11px] font-bold flex items-center justify-center shrink-0 shadow-sm">
+                                      <div className="w-10 h-10 rounded-full border-2 border-white bg-[#3170c5] text-white text-[11px] font-bold flex items-center justify-center shrink-0 shadow-sm">
                                         +{task.assignees.length - 3}
                                       </div>
                                     )}
@@ -924,7 +924,7 @@ export default function ManageTasks({ onNavigate }) {
                                 {/* Project Title Cell: Title only (no description), normal font weight, compact padding */}
                                 <td className="py-1.5 px-4 border border-slate-200 font-medium text-slate-900">
                                   <span 
-                                    className="hover:text-[#7F40EE] cursor-pointer hover:underline text-[14px]" 
+                                    className="hover:text-[#3170c5] cursor-pointer hover:underline text-[14px]" 
                                     onClick={() => openTaskDetail(task.id)}
                                   >
                                     {task.title}
@@ -950,7 +950,7 @@ export default function ManageTasks({ onNavigate }) {
                                             updateTaskStatus(task.id, opt);
                                             setActiveDropdownTaskId(null);
                                           }}
-                                          className={`w-full text-left px-3 py-1.5 hover:bg-slate-50 font-normal ${task.status === opt ? 'text-[#7F40EE] bg-[#7F40EE]/5' : ''}`}
+                                          className={`w-full text-left px-3 py-1.5 hover:bg-slate-50 font-normal ${task.status === opt ? 'text-[#3170c5] bg-[#3170c5]/5' : ''}`}
                                         >
                                           {opt === 'Pending' ? 'To Do' : opt}
                                         </button>
@@ -1023,7 +1023,7 @@ export default function ManageTasks({ onNavigate }) {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 overflow-hidden">
           <div className="flex justify-between items-center mb-4 border-b pb-3">
             <h3 className="font-semibold text-slate-900 text-base flex items-center gap-2">
-              <Layers size={16} className="text-[#7F40EE]" />
+              <Layers size={16} className="text-[#3170c5]" />
               <span>Project Gantt Timeline</span>
             </h3>
             <span className="text-xs text-slate-400 font-semibold uppercase">{ganttTargetMonth.toUpperCase()} 2026</span>
@@ -1037,7 +1037,7 @@ export default function ManageTasks({ onNavigate }) {
               </div>
               <div className="divide-y divide-slate-100">
                 {displayTasks.map(t => (
-                  <div key={t.id} className="p-3.5 text-[14px] font-medium text-slate-900 truncate hover:bg-slate-50 cursor-pointer hover:text-[#7F40EE] hover:underline" onClick={() => openTaskDetail(t.id)}>
+                  <div key={t.id} className="p-3.5 text-[14px] font-medium text-slate-900 truncate hover:bg-slate-50 cursor-pointer hover:text-[#3170c5] hover:underline" onClick={() => openTaskDetail(t.id)}>
                     {t.title}
                   </div>
                 ))}
@@ -1089,7 +1089,7 @@ export default function ManageTasks({ onNavigate }) {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
           <div className="flex justify-between items-center mb-6 border-b pb-3">
             <h3 className="font-semibold text-slate-900 text-base flex items-center gap-2">
-              <CalendarIcon size={16} className="text-[#7F40EE]" />
+              <CalendarIcon size={16} className="text-[#3170c5]" />
               <span>Project Key Milestones</span>
             </h3>
             <span className="text-xs text-slate-400 font-semibold">Active Timeline</span>
@@ -1105,7 +1105,7 @@ export default function ManageTasks({ onNavigate }) {
 
                 <div className="bg-slate-50 hover:bg-slate-100/75 p-4 rounded-xl border border-slate-100 transition-all cursor-pointer" onClick={() => openTaskDetail(t.id)}>
                   <div className="flex justify-between items-start gap-2 mb-1.5">
-                    <h4 className="font-medium text-[14px] text-slate-900 hover:text-[#7F40EE] hover:underline">{t.title}</h4>
+                    <h4 className="font-medium text-[14px] text-slate-900 hover:text-[#3170c5] hover:underline">{t.title}</h4>
                     <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
                       t.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
                     }`}>
@@ -1115,7 +1115,7 @@ export default function ManageTasks({ onNavigate }) {
                   <p className="text-xs text-slate-400 mb-2">{t.description || 'No description provided.'}</p>
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-semibold text-slate-500">Target Date: {t.dueDate}</span>
-                    <span className="font-bold text-[#7F40EE]">{t.priority} Priority</span>
+                    <span className="font-bold text-[#3170c5]">{t.priority} Priority</span>
                   </div>
                 </div>
               </div>
@@ -1160,7 +1160,7 @@ export default function ManageTasks({ onNavigate }) {
                       {/* Title and arrow on the right */}
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <h4 className="text-sm font-semibold text-slate-800 leading-snug break-words group-hover:text-[#7F40EE]">
+                          <h4 className="text-sm font-semibold text-slate-800 leading-snug break-words group-hover:text-[#3170c5]">
                             {task.title}
                           </h4>
                         </div>
@@ -1257,7 +1257,7 @@ export default function ManageTasks({ onNavigate }) {
                   openTaskDetail(task.id);
                 }
               }}
-              className="relative bg-white p-6 rounded-xl shadow-sm border border-transparent hover:border-[#7F40EE]/25 transition-all hover:shadow-md group cursor-pointer"
+              className="relative bg-white p-6 rounded-xl shadow-sm border border-transparent hover:border-[#3170c5]/25 transition-all hover:shadow-md group cursor-pointer"
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex flex-wrap gap-2">
@@ -1277,7 +1277,7 @@ export default function ManageTasks({ onNavigate }) {
                 </div>
               </div>
 
-              <h3 className="font-medium text-[14px] text-slate-900 mb-2 group-hover:text-[#7F40EE] group-hover:underline transition-colors">{task.title}</h3>
+              <h3 className="font-medium text-[14px] text-slate-900 mb-2 group-hover:text-[#3170c5] group-hover:underline transition-colors">{task.title}</h3>
               <p className="text-xs text-slate-400 mb-4 font-semibold">Created by: {task.createdBy || 'Unknown'}</p>
 
               <div className="mb-6">
@@ -1286,7 +1286,7 @@ export default function ManageTasks({ onNavigate }) {
                     {task.completedSubtasks}/{task.totalSubtasks} Subtasks
                   </span>
                   {task.attachments > 0 && (
-                    <div className="flex items-center text-[#7F40EE] gap-1 bg-[#7F40EE]/10 px-2 py-0.5 rounded-full">
+                    <div className="flex items-center text-[#3170c5] gap-1 bg-[#3170c5]/10 px-2 py-0.5 rounded-full">
                       <Paperclip size={12} />
                       <span>{task.attachments}</span>
                     </div>
@@ -1341,7 +1341,7 @@ export default function ManageTasks({ onNavigate }) {
                   })}
                   {task.assignees.length > 4 && (
                     <div
-                      className="h-10 w-10 rounded-full border-2 border-white bg-[#7F40EE] text-xs font-bold flex items-center justify-center text-white shrink-0 shadow-sm"
+                      className="h-10 w-10 rounded-full border-2 border-white bg-[#3170c5] text-xs font-bold flex items-center justify-center text-white shrink-0 shadow-sm"
                     >
                       +{task.assignees.length - 4}
                     </div>
@@ -1366,7 +1366,7 @@ export default function ManageTasks({ onNavigate }) {
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
           <div className="flex justify-between items-center border-b pb-3">
             <h3 className="font-semibold text-slate-900 text-base flex items-center gap-2">
-              <Clock size={16} className="text-[#7F40EE]" />
+              <Clock size={16} className="text-[#3170c5]" />
               <span>Project Work Hours Summary</span>
             </h3>
           </div>
@@ -1398,7 +1398,7 @@ export default function ManageTasks({ onNavigate }) {
                         <span className="text-[14px] font-semibold text-slate-800">{assignee?.name || 'Unassigned'}</span>
                       </td>
                       <td className="p-3.5 px-4 font-medium text-slate-900 text-[14px]">
-                        <span className="hover:text-[#7F40EE] cursor-pointer hover:underline" onClick={() => openTaskDetail(t.id)}>
+                        <span className="hover:text-[#3170c5] cursor-pointer hover:underline" onClick={() => openTaskDetail(t.id)}>
                           {t.title}
                         </span>
                       </td>

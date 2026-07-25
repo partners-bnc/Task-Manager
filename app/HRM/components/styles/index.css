@@ -3,8 +3,8 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #8b5cf6;
-  --color-primary-container: #a78bfa;
+  --color-primary: #3170c5;
+  --color-primary-container: #4f8be4;
   --color-on-primary: #faf8ff;
   --color-surface: #f8f9fa;
   --color-on-surface: #2d3335;
@@ -14,16 +14,40 @@
   --color-surface-container-high: #e5e9eb;
   --color-on-surface-variant: #5a6062;
   --color-outline-variant: #adb3b5;
-  --color-secondary-container: #efe7ff;
-  --color-on-secondary-container: #5b427d;
-  --color-tertiary-container: #f6ecff;
-  --color-on-tertiary-container: #6a4c8f;
-  --color-tertiary: #8a63c9;
+  --color-secondary-container: #edf4fc;
+  --color-on-secondary-container: #1d4581;
+  --color-tertiary-container: #f0f7ff;
+  --color-on-tertiary-container: #183868;
+  --color-tertiary: #4f8be4;
   --color-error: #a8364b;
   --color-error-container: #f97386;
   --color-on-error-container: #6e0523;
   --color-on-error: #fff7f7;
   --color-surface-dim: #d5dbdd;
+
+  --color-violet-50: #edf4fc;
+  --color-violet-100: #d7e7f9;
+  --color-violet-200: #afd0f4;
+  --color-violet-300: #7eb0ec;
+  --color-violet-400: #4f8be4;
+  --color-violet-500: #3170c5;
+  --color-violet-600: #2558a2;
+  --color-violet-700: #1d4581;
+  --color-violet-800: #183868;
+  --color-violet-900: #142c52;
+  --color-violet-950: #0d1a33;
+
+  --color-purple-50: #edf4fc;
+  --color-purple-100: #d7e7f9;
+  --color-purple-200: #afd0f4;
+  --color-purple-300: #7eb0ec;
+  --color-purple-400: #4f8be4;
+  --color-purple-500: #3170c5;
+  --color-purple-600: #2558a2;
+  --color-purple-700: #1d4581;
+  --color-purple-800: #183868;
+  --color-purple-900: #142c52;
+  --color-purple-950: #0d1a33;
 
   --font-headline: 'Manrope', sans-serif;
   --font-body: 'Inter', sans-serif;

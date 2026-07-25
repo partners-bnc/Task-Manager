@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Loader from '@/components/ui/loader';
 
 export function Skeleton({
   className = '',
@@ -32,17 +33,8 @@ export function LoadingPanel({
   className?: string;
 }) {
   return (
-    <div className={`rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest px-6 py-12 shadow-sm ${className}`}>
-      <div className="flex flex-col items-center justify-center text-center">
-        <div className="relative">
-          <div className="absolute inset-0 scale-150 rounded-full bg-violet-100/70 blur-xl" />
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-[0_18px_40px_rgba(109,40,217,0.12)]">
-            <Spinner />
-          </div>
-        </div>
-        <p className="mt-5 text-lg font-headline font-bold text-on-surface">{title}</p>
-        <p className="mt-2 max-w-md text-sm text-on-surface-variant">{message}</p>
-      </div>
+    <div className={`flex w-full items-center justify-center py-16 ${className}`}>
+      <Loader />
     </div>
   );
 }

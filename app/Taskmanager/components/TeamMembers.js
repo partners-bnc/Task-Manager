@@ -212,7 +212,7 @@ export default function TeamMembers() {
           <button
             type="button"
             onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#7F40EE] text-white hover:bg-[#6A31D1] transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[#3170c5] text-white hover:bg-[#2158a4] transition-colors"
           >
             <Plus size={16} />
             Manage In HR
@@ -285,7 +285,7 @@ export default function TeamMembers() {
                     <Pencil size={16} />
                   </button>
                 )}
-                <div className="w-20 h-20 rounded-full overflow-hidden mb-4 border-4 border-[#7F40EE]/10 bg-slate-200 text-slate-700 text-xl font-semibold flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full overflow-hidden mb-4 border-4 border-[#3170c5]/10 bg-slate-200 text-slate-700 text-xl font-semibold flex items-center justify-center">
                   {avatarSrc ? (
                     <Image src={avatarSrc} alt={user.name} width={80} height={80} className="w-full h-full object-cover" unoptimized />
                   ) : (
@@ -297,11 +297,11 @@ export default function TeamMembers() {
 
                 <div className="w-full grid grid-cols-3 gap-2 border-t border-gray-100 pt-4">
                   <div>
-                    <div className="font-bold text-purple-600 text-lg">{stats.pending}</div>
+                    <div className="font-bold text-[#2558a2] text-lg">{stats.pending}</div>
                     <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Pending</div>
                   </div>
                   <div className="border-l border-r border-gray-100">
-                    <div className="font-bold text-[#7F40EE] text-lg">{stats.inProgress}</div>
+                    <div className="font-bold text-[#3170c5] text-lg">{stats.inProgress}</div>
                     <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">In Progress</div>
                   </div>
                   <div>
@@ -346,7 +346,7 @@ export default function TeamMembers() {
                   <label className="text-sm">
                     <span className="block text-slate-600 mb-1">Employee ID</span>
                     <input
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                       value={form.employeeId}
                       onChange={(e) => setForm((prev) => ({ ...prev, employeeId: e.target.value }))}
                     />
@@ -354,7 +354,7 @@ export default function TeamMembers() {
                   <label className="text-sm">
                     <span className="block text-slate-600 mb-1">Name</span>
                     <input
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                       value={form.name}
                       onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                     />
@@ -362,7 +362,7 @@ export default function TeamMembers() {
                   <label className="text-sm">
                     <span className="block text-slate-600 mb-1">Username</span>
                     <input
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                       value={form.username}
                       onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
                     />
@@ -370,7 +370,7 @@ export default function TeamMembers() {
                   <label className="text-sm">
                     <span className="block text-slate-600 mb-1">Email</span>
                     <input
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                       value={form.email}
                       onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
                     />
@@ -378,7 +378,7 @@ export default function TeamMembers() {
                   <label className="text-sm md:col-span-2">
                     <span className="block text-slate-600 mb-1">Role</span>
                     <input
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                       value={form.role}
                       onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))}
                     />
@@ -422,7 +422,7 @@ export default function TeamMembers() {
                       type="button"
                       onClick={handleSave}
                       disabled={isDeleting || isSaving}
-                      className="px-4 py-2 rounded-lg bg-[#7F40EE] text-white hover:bg-[#6A31D1] disabled:opacity-60"
+                      className="px-4 py-2 rounded-lg bg-[#3170c5] text-white hover:bg-[#2158a4] disabled:opacity-60"
                     >
                       {isSaving ? 'Saving...' : 'Save Changes'}
                     </button>
@@ -462,7 +462,7 @@ export default function TeamMembers() {
               <label className="text-sm">
                 <span className="block text-slate-600 mb-1">Employee ID</span>
                 <input
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                   value={createForm.employeeId}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, employeeId: e.target.value }))}
                 />
@@ -470,7 +470,7 @@ export default function TeamMembers() {
               <label className="text-sm">
                 <span className="block text-slate-600 mb-1">Name</span>
                 <input
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                   value={createForm.name}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
                 />
@@ -478,7 +478,7 @@ export default function TeamMembers() {
               <label className="text-sm">
                 <span className="block text-slate-600 mb-1">Username</span>
                 <input
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                   value={createForm.username}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, username: e.target.value }))}
                 />
@@ -486,7 +486,7 @@ export default function TeamMembers() {
               <label className="text-sm">
                 <span className="block text-slate-600 mb-1">Email</span>
                 <input
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                   value={createForm.email}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, email: e.target.value }))}
                 />
@@ -494,7 +494,7 @@ export default function TeamMembers() {
               <label className="text-sm">
                 <span className="block text-slate-600 mb-1">Role</span>
                 <input
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                   value={createForm.role}
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, role: e.target.value }))}
                 />
@@ -504,7 +504,7 @@ export default function TeamMembers() {
                 <input
                   type="file"
                   accept="image/*"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
                   onChange={(e) => setCreateProfilePicture(e.target.files?.[0] || null)}
                 />
               </label>
@@ -523,7 +523,7 @@ export default function TeamMembers() {
                 type="button"
                 onClick={handleCreateEmployee}
                 disabled={isCreating}
-                className="px-4 py-2 rounded-lg bg-[#7F40EE] text-white hover:bg-[#6A31D1] disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-[#3170c5] text-white hover:bg-[#2158a4] disabled:opacity-60"
               >
                 {isCreating ? 'Creating...' : 'Create Employee'}
               </button>

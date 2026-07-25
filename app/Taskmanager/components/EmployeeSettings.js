@@ -98,7 +98,7 @@ export default function EmployeeSettings() {
             type="password"
             value={currentPassword}
             onChange={(event) => setCurrentPassword(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
           />
         </label>
 
@@ -108,7 +108,7 @@ export default function EmployeeSettings() {
             type="password"
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
           />
         </label>
 
@@ -118,7 +118,7 @@ export default function EmployeeSettings() {
             type="password"
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
           />
         </label>
 
@@ -126,7 +126,7 @@ export default function EmployeeSettings() {
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2.5 rounded-lg bg-[#7F40EE] text-white font-medium hover:bg-[#6A31D1] disabled:opacity-60"
+            className="px-5 py-2.5 rounded-lg bg-[#3170c5] text-white font-medium hover:bg-[#2158a4] disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Change Password'}
           </button>

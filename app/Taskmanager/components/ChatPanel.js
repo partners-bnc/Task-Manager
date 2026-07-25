@@ -631,7 +631,7 @@ export default function ChatPanel() {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Find people..."
-              className="w-full rounded-lg border border-slate-200 px-9 py-2 text-sm outline-none focus:border-[#7F40EE]"
+              className="w-full rounded-lg border border-slate-200 px-9 py-2 text-sm outline-none focus:border-[#3170c5]"
             />
           </div>
 
@@ -646,7 +646,7 @@ export default function ChatPanel() {
                   key={user.key}
                   onClick={() => createOrOpenThreadForUser(user.key)}
                   className={`w-full rounded-lg border px-2 py-2 text-left transition-colors ${
-                    isActive ? 'border-[#7F40EE]/40 bg-[#7F40EE]/5' : 'border-transparent hover:bg-slate-50'
+                    isActive ? 'border-[#3170c5]/40 bg-[#3170c5]/5' : 'border-transparent hover:bg-slate-50'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -659,7 +659,7 @@ export default function ChatPanel() {
                       <p className="truncate text-xs text-slate-500">{thread?.lastMessage?.content || user.email || 'No messages yet'}</p>
                     </div>
                     {(thread?.unreadCount || 0) > 0 && (
-                      <span className="rounded-full bg-[#7F40EE] px-2 py-0.5 text-[10px] font-semibold text-white">
+                      <span className="rounded-full bg-[#3170c5] px-2 py-0.5 text-[10px] font-semibold text-white">
                         {thread.unreadCount}
                       </span>
                     )}
@@ -690,7 +690,7 @@ export default function ChatPanel() {
                     <div key={message.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                       <div
                         className={`max-w-[75%] rounded-xl px-3 py-2 text-sm ${
-                          mine ? 'bg-[#7F40EE] text-white' : 'bg-slate-100 text-slate-800'
+                          mine ? 'bg-[#3170c5] text-white' : 'bg-slate-100 text-slate-800'
                         }`}
                       >
                         {!mine && <p className="mb-1 text-[11px] font-semibold text-slate-500">{message.sender_name}</p>}
@@ -710,7 +710,7 @@ export default function ChatPanel() {
                   value={messageText}
                   onChange={(event) => setMessageText(event.target.value)}
                   placeholder="Type your message..."
-                  className="max-h-32 min-h-10 flex-1 resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#7F40EE]"
+                  className="max-h-32 min-h-10 flex-1 resize-y rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#3170c5]"
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
@@ -722,7 +722,7 @@ export default function ChatPanel() {
                   type="button"
                   onClick={() => void sendMessage()}
                   disabled={sending || !messageText.trim()}
-                  className="inline-flex h-10 items-center justify-center rounded-lg bg-[#7F40EE] px-4 text-white hover:bg-[#6A31D1] disabled:opacity-60"
+                  className="inline-flex h-10 items-center justify-center rounded-lg bg-[#3170c5] px-4 text-white hover:bg-[#2158a4] disabled:opacity-60"
                 >
                   <Send size={16} />
                 </button>

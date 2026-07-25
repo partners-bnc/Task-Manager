@@ -121,7 +121,7 @@ export default function Dashboard({ onNavigate }) {
 
   const pieData = [
     { name: 'Pending', value: stats.pending, color: '#f59e0b' },
-    { name: 'In Progress', value: stats.inProgress, color: '#7F40EE' },
+    { name: 'In Progress', value: stats.inProgress, color: '#3170c5' },
     { name: 'Completed', value: stats.completed, color: '#84cc16' },
   ];
 
@@ -162,9 +162,9 @@ export default function Dashboard({ onNavigate }) {
   const getStatusColor = (s) => {
     switch (s) {
       case 'Pending':
-        return 'bg-purple-100 text-purple-600';
+        return 'bg-[#d7e7f9] text-[#2558a2]';
       case 'In Progress':
-        return 'bg-[#7F40EE]/10 text-[#7F40EE]';
+        return 'bg-[#3170c5]/10 text-[#3170c5]';
       case 'Completed':
         return 'bg-green-100 text-green-600';
       default:

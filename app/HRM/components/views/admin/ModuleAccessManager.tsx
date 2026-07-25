@@ -386,7 +386,7 @@ export default function ModuleAccessManager() {
 
       {selectedAction ? (
         <div className="fixed inset-0 z-[210] flex items-center justify-center bg-slate-950/20 px-4 py-6 backdrop-blur-[2px]">
-          <div className="w-full max-w-md rounded-[1.75rem] border border-white/80 bg-[linear-gradient(165deg,#ffffff_0%,#faf7ff_52%,#f2ecff_100%)] p-6 shadow-[0_30px_70px_rgba(76,29,149,0.22)]">
+          <div className="w-full max-w-md rounded-[1.75rem] border border-white/80 bg-[linear-gradient(165deg,#ffffff_0%,#edf4fc_52%,#d7e7f9_100%)] p-6 shadow-[0_30px_70px_rgba(49,112,197,0.22)]">
             <div className="flex items-start gap-4">
               <div
                 className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ring-1 ${
@@ -432,7 +432,7 @@ export default function ModuleAccessManager() {
                 type="button"
                 onClick={handleAccessUpdate}
                 disabled={saving}
-                className="rounded-full bg-[linear-gradient(180deg,#efe7ff_0%,#d8c7ff_100%)] px-5 py-2.5 text-sm font-extrabold text-violet-950 shadow-[0_12px_22px_rgba(139,92,246,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#7eb0ec_100%)] px-5 py-2.5 text-sm font-extrabold text-violet-950 shadow-[0_12px_22px_rgba(49,112,197,0.18)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving
                   ? 'Saving...'

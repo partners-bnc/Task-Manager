@@ -89,7 +89,7 @@ type AnalyticsResponse = {
   };
 };
 
-const CHART_COLORS = ['#9ec5ff', '#c7b9ff', '#b6e3ff', '#ddd4ff', '#8fb2f5', '#d9c8ff'];
+const CHART_COLORS = ['#9ec5ff', '#afd0f4', '#b6e3ff', '#d7e7f9', '#8fb2f5', '#7eb0ec'];
 const ATTENDANCE_SERIES = [
   { key: 'present', label: 'Present', color: '#8ecfa3' },
   { key: 'absent', label: 'Absent', color: '#9ebbf4' },
@@ -242,7 +242,7 @@ function KpiTile({
   const toneMap = {
     cream: 'bg-[#fbf6ed]',
     blue: 'bg-[#eef5ff]',
-    purple: 'bg-[#f4efff]',
+    purple: 'bg-[#edf4fc]',
   };
 
   function handleMouseMove(event: React.MouseEvent<HTMLDivElement>) {
@@ -638,7 +638,7 @@ export default function EmployeeAnalytics() {
                       <XAxis type="number" allowDecimals={false} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
                       <YAxis dataKey="department" type="category" width={92} tick={{ fill: '#75695e', fontSize: 12 }} axisLine={false} tickLine={false} />
                       <Tooltip content={<ChartTooltip />} />
-                      <Bar dataKey="terminated" name="Terminated Employees" radius={[0, 4, 4, 0]} fill="#bca9ff" />
+                      <Bar dataKey="terminated" name="Terminated Employees" radius={[0, 4, 4, 0]} fill="#7eb0ec" />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

@@ -159,7 +159,7 @@ export function HrmFeedbackProvider({ children }: { children: React.ReactNode })
             aria-modal="true"
             aria-labelledby="hrm-feedback-title"
             aria-describedby="hrm-feedback-message"
-            className="w-full max-w-[640px] overflow-hidden rounded-[2rem] border border-white/80 bg-[linear-gradient(145deg,#ffffff_0%,#fcfbff_40%,#f2ebff_100%)] p-7 shadow-[0_28px_72px_rgba(76,29,149,0.20),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-violet-100/70"
+            className="w-full max-w-[640px] overflow-hidden rounded-[2rem] border border-white/80 bg-[linear-gradient(145deg,#ffffff_0%,#edf4fc_40%,#d7e7f9_100%)] p-7 shadow-[0_28px_72px_rgba(49,112,197,0.20),inset_0_1px_0_rgba(255,255,255,0.95)] ring-1 ring-violet-100/70"
           >
             <div className="flex items-start gap-4">
               <div className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.4rem] ring-1 ${meta.badgeClass}`}>
@@ -176,7 +176,7 @@ export function HrmFeedbackProvider({ children }: { children: React.ReactNode })
             </div>
 
             {activeFeedback.linkValue ? (
-              <div className="mt-6 rounded-[1.6rem] border border-violet-100 bg-[linear-gradient(180deg,rgba(248,245,255,0.95)_0%,rgba(242,236,255,0.98)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+              <div className="mt-6 rounded-[1.6rem] border border-violet-100 bg-[linear-gradient(180deg,rgba(237,244,252,0.95)_0%,rgba(215,231,249,0.98)_100%)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-violet-500">
@@ -226,7 +226,7 @@ export function HrmFeedbackProvider({ children }: { children: React.ReactNode })
                 ref={okButtonRef}
                 type="button"
                 onClick={activeFeedback.mode === 'confirm' ? confirmAction : closeFeedback}
-                className="rounded-full bg-[linear-gradient(180deg,#efe7ff_0%,#d8c7ff_100%)] px-6 py-2.5 text-sm font-extrabold text-violet-950 shadow-[0_12px_22px_rgba(139,92,246,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(139,92,246,0.22)] focus:outline-none focus:ring-2 focus:ring-violet-300"
+                className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#7eb0ec_100%)] px-6 py-2.5 text-sm font-extrabold text-violet-950 shadow-[0_12px_22px_rgba(49,112,197,0.18)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_28px_rgba(49,112,197,0.22)] focus:outline-none focus:ring-2 focus:ring-violet-300"
               >
                 {activeFeedback.mode === 'confirm' ? activeFeedback.confirmLabel || 'Confirm' : activeFeedback.confirmLabel || 'OK'}
               </button>

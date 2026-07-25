@@ -269,18 +269,18 @@ export default function CreateTask({ onCancel }) {
       <details className="relative inline-block overflow-visible group">
         <summary className="list-none cursor-pointer flex items-center focus:outline-none [&::-webkit-details-marker]:hidden">
           {selectedUser ? (
-            <div className="hover:scale-105 transition duration-150 ring-2 ring-transparent group-hover:ring-[#7F40EE]/30 rounded-full" title={selectedUser.name}>
+            <div className="hover:scale-105 transition duration-150 ring-2 ring-transparent group-hover:ring-[#3170c5]/30 rounded-full" title={selectedUser.name}>
               {renderUserAvatar(selectedUser, 'w-9 h-9 rounded-full border border-slate-100 shadow-sm')}
             </div>
           ) : (
-            <div className="w-9 h-9 rounded-full border border-dashed border-slate-350 hover:border-[#7F40EE] bg-purple-50/20 hover:bg-purple-50 flex items-center justify-center text-slate-500 hover:text-[#7F40EE] transition duration-150 shadow-sm" title="Assignee">
-              <User size={14} className="text-[#7F40EE] font-bold" />
+            <div className="w-9 h-9 rounded-full border border-dashed border-slate-350 hover:border-[#3170c5] bg-[#edf4fc]/20 hover:bg-[#edf4fc] flex items-center justify-center text-slate-500 hover:text-[#3170c5] transition duration-150 shadow-sm" title="Assignee">
+              <User size={14} className="text-[#3170c5] font-bold" />
             </div>
           )}
         </summary>
-        <div className="absolute left-0 z-[100] mt-2 w-64 overflow-hidden rounded-2xl border-2 border-purple-100 bg-white shadow-2xl text-left animate-in fade-in-50 slide-in-from-top-1 duration-150">
-          <div className="px-3.5 py-2.5 bg-purple-50/40 border-b border-purple-100/50 flex items-center justify-between">
-            <span className="text-[10px] font-bold text-[#7F40EE] uppercase tracking-wider">Select Assignee</span>
+        <div className="absolute left-0 z-[100] mt-2 w-64 overflow-hidden rounded-2xl border-2 border-[#d7e7f9] bg-white shadow-2xl text-left animate-in fade-in-50 slide-in-from-top-1 duration-150">
+          <div className="px-3.5 py-2.5 bg-[#edf4fc]/40 border-b border-[#d7e7f9]/50 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#3170c5] uppercase tracking-wider">Select Assignee</span>
             {selectedUser && (
               <button
                 type="button"
@@ -295,9 +295,9 @@ export default function CreateTask({ onCancel }) {
             <button
               type="button"
               onClick={(event) => handlePick('', event)}
-              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${!value ? 'bg-purple-50 text-[#7F40EE]' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${!value ? 'bg-[#edf4fc] text-[#3170c5]' : 'text-slate-500 hover:bg-slate-50'}`}
             >
-              <div className={`flex h-5.5 w-5.5 items-center justify-center rounded-full text-[10px] font-bold ${!value ? 'bg-[#7F40EE] text-white' : 'bg-slate-100 text-slate-400'}`}>
+              <div className={`flex h-5.5 w-5.5 items-center justify-center rounded-full text-[10px] font-bold ${!value ? 'bg-[#3170c5] text-white' : 'bg-slate-100 text-slate-400'}`}>
                 -
               </div>
               <span>Unassigned</span>
@@ -314,14 +314,14 @@ export default function CreateTask({ onCancel }) {
                     key={u.id}
                     type="button"
                     onClick={(event) => handlePick(u.id, event)}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${isSelected ? 'bg-purple-50 text-[#7F40EE]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${isSelected ? 'bg-[#edf4fc] text-[#3170c5]' : 'text-slate-700 hover:bg-slate-50'}`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {renderUserAvatar(u, 'w-5.5 h-5.5 rounded-full')}
                       <span className="truncate">{u.name}</span>
                     </div>
                     {isSelected && (
-                      <Check size={12} className="text-[#7F40EE] font-bold shrink-0" />
+                      <Check size={12} className="text-[#3170c5] font-bold shrink-0" />
                     )}
                   </button>
                 );
@@ -347,18 +347,18 @@ export default function CreateTask({ onCancel }) {
       <details className="relative inline-block overflow-visible group">
         <summary className="list-none cursor-pointer flex items-center focus:outline-none [&::-webkit-details-marker]:hidden">
           {selectedDraftAssigneeUser ? (
-            <div className="hover:scale-105 transition duration-150 ring-2 ring-transparent group-hover:ring-[#7F40EE]/30 rounded-full" title={selectedDraftAssigneeUser.name}>
+            <div className="hover:scale-105 transition duration-150 ring-2 ring-transparent group-hover:ring-[#3170c5]/30 rounded-full" title={selectedDraftAssigneeUser.name}>
               {renderUserAvatar(selectedDraftAssigneeUser, 'w-9 h-9 rounded-full border border-slate-100 shadow-sm')}
             </div>
           ) : (
-            <div className="w-9 h-9 rounded-full border border-dashed border-slate-350 hover:border-[#7F40EE] bg-purple-50/20 hover:bg-purple-50 flex items-center justify-center text-slate-500 hover:text-[#7F40EE] transition duration-150 shadow-sm" title="Assign">
-              <User size={14} className="text-[#7F40EE] font-bold" />
+            <div className="w-9 h-9 rounded-full border border-dashed border-slate-350 hover:border-[#3170c5] bg-[#edf4fc]/20 hover:bg-[#edf4fc] flex items-center justify-center text-slate-500 hover:text-[#3170c5] transition duration-150 shadow-sm" title="Assign">
+              <User size={14} className="text-[#3170c5] font-bold" />
             </div>
           )}
         </summary>
-        <div className="absolute left-0 z-[100] mt-2 w-64 overflow-hidden rounded-2xl border-2 border-purple-100 bg-white shadow-2xl text-left animate-in fade-in-50 slide-in-from-top-1 duration-150">
-          <div className="px-3.5 py-2.5 bg-purple-50/40 border-b border-purple-100/50 flex items-center justify-between">
-            <span className="text-[10px] font-bold text-[#7F40EE] uppercase tracking-wider">Select Assignee</span>
+        <div className="absolute left-0 z-[100] mt-2 w-64 overflow-hidden rounded-2xl border-2 border-[#d7e7f9] bg-white shadow-2xl text-left animate-in fade-in-50 slide-in-from-top-1 duration-150">
+          <div className="px-3.5 py-2.5 bg-[#edf4fc]/40 border-b border-[#d7e7f9]/50 flex items-center justify-between">
+            <span className="text-[10px] font-bold text-[#3170c5] uppercase tracking-wider">Select Assignee</span>
             {selectedDraftAssigneeUser && (
               <button
                 type="button"
@@ -373,9 +373,9 @@ export default function CreateTask({ onCancel }) {
             <button
               type="button"
               onClick={(event) => handlePickDraftAssignee('', event)}
-              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${!draftSubtaskAssignee ? 'bg-purple-50 text-[#7F40EE]' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`flex w-full items-center gap-2.5 px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${!draftSubtaskAssignee ? 'bg-[#edf4fc] text-[#3170c5]' : 'text-slate-500 hover:bg-slate-50'}`}
             >
-              <div className={`flex h-5.5 w-5.5 items-center justify-center rounded-full text-[10px] font-bold ${!draftSubtaskAssignee ? 'bg-[#7F40EE] text-white' : 'bg-slate-100 text-slate-400'}`}>
+              <div className={`flex h-5.5 w-5.5 items-center justify-center rounded-full text-[10px] font-bold ${!draftSubtaskAssignee ? 'bg-[#3170c5] text-white' : 'bg-slate-100 text-slate-400'}`}>
                 -
               </div>
               <span>Unassigned</span>
@@ -392,14 +392,14 @@ export default function CreateTask({ onCancel }) {
                     key={u.id}
                     type="button"
                     onClick={(event) => handlePickDraftAssignee(u.id, event)}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${isSelected ? 'bg-purple-50 text-[#7F40EE]' : 'text-slate-700 hover:bg-slate-50'}`}
+                    className={`flex w-full items-center justify-between px-3 py-2 text-left rounded-xl text-xs font-semibold transition ${isSelected ? 'bg-[#edf4fc] text-[#3170c5]' : 'text-slate-700 hover:bg-slate-50'}`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {renderUserAvatar(u, 'w-5.5 h-5.5 rounded-full')}
                       <span className="truncate">{u.name}</span>
                     </div>
                     {isSelected && (
-                      <Check size={12} className="text-[#7F40EE] font-bold shrink-0" />
+                      <Check size={12} className="text-[#3170c5] font-bold shrink-0" />
                     )}
                   </button>
                 );
@@ -429,7 +429,7 @@ export default function CreateTask({ onCancel }) {
     return (
       <details className="relative inline-block overflow-visible">
         <summary className="list-none cursor-pointer flex items-center gap-1 focus:outline-none [&::-webkit-details-marker]:hidden">
-          <div className="flex items-center gap-1 text-sm font-semibold hover:text-[#7F40EE] transition duration-150">
+          <div className="flex items-center gap-1 text-sm font-semibold hover:text-[#3170c5] transition duration-150">
             <Flag size={14} className={`${currentPriority.color}`} />
             <span className={currentPriority.textClass}>{currentPriority.name}</span>
             <span className="text-[8px] text-slate-400 shrink-0">▼</span>
@@ -803,7 +803,7 @@ export default function CreateTask({ onCancel }) {
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="px-7 h-11 flex items-center justify-center text-sm font-extrabold bg-[#7F40EE] hover:bg-[#6A31D1] text-white rounded-2xl shadow-lg hover:shadow-indigo-150 transition duration-200 disabled:opacity-60 cursor-pointer tracking-wide"
+            className="px-7 h-11 flex items-center justify-center text-sm font-extrabold bg-[#3170c5] hover:bg-[#2158a4] text-white rounded-2xl shadow-lg hover:shadow-indigo-150 transition duration-200 disabled:opacity-60 cursor-pointer tracking-wide"
           >
             {submitting ? 'Creating...' : 'Create Task'}
           </button>
@@ -834,7 +834,7 @@ export default function CreateTask({ onCancel }) {
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
               placeholder="e.g. bnc"
-              className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-white hover:bg-slate-50/50 transition text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
+              className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none bg-white hover:bg-slate-50/50 transition text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
             />
           </div>
           {/* Task Title */}
@@ -850,7 +850,7 @@ export default function CreateTask({ onCancel }) {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Create App UI"
-              className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-white hover:bg-slate-50/50 transition text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
+              className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none bg-white hover:bg-slate-50/50 transition text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
             />
           </div>
         </div>
@@ -878,7 +878,7 @@ export default function CreateTask({ onCancel }) {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Develop a dynamic product catalog with filtering and sorting features..."
-                className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-white hover:bg-slate-50/50 transition resize-none text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
+                className="w-full px-4 py-3 text-sm rounded-xl border border-slate-200 focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none bg-white hover:bg-slate-50/50 transition resize-none text-slate-800 font-semibold placeholder-slate-400 shadow-sm"
               />
             </div>
             <button
@@ -887,7 +887,7 @@ export default function CreateTask({ onCancel }) {
               className={`w-14 flex flex-col items-center justify-center rounded-xl border transition-all duration-300 shadow-sm shrink-0 ${
                 isListening
                   ? 'bg-red-500 border-red-500 text-white animate-pulse shadow-md shadow-red-100 hover:bg-red-600'
-                  : 'bg-white hover:bg-slate-50 text-slate-400 hover:text-[#7F40EE] border-slate-200 hover:border-[#7F40EE]'
+                  : 'bg-white hover:bg-slate-50 text-slate-400 hover:text-[#3170c5] border-slate-200 hover:border-[#3170c5]'
               }`}
               title={isListening ? "Stop listening" : "Click to Speak (Voice to Text)"}
             >
@@ -913,7 +913,7 @@ export default function CreateTask({ onCancel }) {
               <select
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
-                className="flex-grow rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none text-slate-700 min-w-0 shadow-sm font-semibold"
+                className="flex-grow rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none text-slate-700 min-w-0 shadow-sm font-semibold"
               >
                 <option value="">Select a label</option>
                 {taskLabels.map((taskLabel) => (
@@ -926,7 +926,7 @@ export default function CreateTask({ onCancel }) {
                   value={newLabelName}
                   onChange={(e) => setNewLabelName(e.target.value)}
                   placeholder="New label"
-                  className="w-28 rounded-xl border border-slate-200 px-3 py-2 text-xs bg-white hover:bg-slate-50/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none text-slate-705 shadow-sm font-semibold"
+                  className="w-28 rounded-xl border border-slate-200 px-3 py-2 text-xs bg-white hover:bg-slate-50/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none text-slate-705 shadow-sm font-semibold"
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.preventDefault();
@@ -938,7 +938,7 @@ export default function CreateTask({ onCancel }) {
                   type="button"
                   onClick={handleCreateLabel}
                   disabled={creatingLabel || !newLabelName.trim()}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-750 hover:border-[#7F40EE] hover:text-[#7F40EE] transition disabled:opacity-60 shrink-0 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-750 hover:border-[#3170c5] hover:text-[#3170c5] transition disabled:opacity-60 shrink-0 shadow-sm"
                 >
                   Add
                 </button>
@@ -955,7 +955,7 @@ export default function CreateTask({ onCancel }) {
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none text-slate-700 shadow-sm font-semibold"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none text-slate-700 shadow-sm font-semibold"
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -975,7 +975,7 @@ export default function CreateTask({ onCancel }) {
             <select
               value={frequency}
               onChange={(e) => setFrequency(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none text-slate-700 shadow-sm font-semibold"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none text-slate-700 shadow-sm font-semibold"
             >
               <option value="">Never</option>
               <option value="daily">Daily</option>
@@ -1001,14 +1001,14 @@ export default function CreateTask({ onCancel }) {
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="flex-grow rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none text-slate-700 min-w-0 shadow-sm font-semibold"
+                className="flex-grow rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none text-slate-700 min-w-0 shadow-sm font-semibold"
               />
               <input
                 type="time"
                 value={dueTime}
                 onChange={(e) => setDueTime(e.target.value)}
                 disabled={!dueDate}
-                className="flex-grow rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none disabled:bg-slate-50 disabled:text-slate-400 min-w-0 text-slate-700 shadow-sm font-semibold"
+                className="flex-grow rounded-xl border border-slate-200 px-4 py-3 text-sm bg-white hover:bg-slate-50/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none disabled:bg-slate-50 disabled:text-slate-400 min-w-0 text-slate-700 shadow-sm font-semibold"
               />
             </div>
           </div>
@@ -1153,7 +1153,7 @@ export default function CreateTask({ onCancel }) {
                     {/* Visible Due Date input overlay */}
                     <td className="px-4 py-3.5">
                       <div className="relative flex items-center gap-1.5 cursor-pointer group text-slate-650 hover:text-slate-900">
-                        <CalendarDays size={14} className="text-slate-400 group-hover:text-[#7F40EE] shrink-0" />
+                        <CalendarDays size={14} className="text-slate-400 group-hover:text-[#3170c5] shrink-0" />
                         <span className="text-sm font-semibold whitespace-nowrap">{item.dueDate ? item.dueDate : 'Set Date'}</span>
                         <input
                           type="date"
@@ -1188,7 +1188,7 @@ export default function CreateTask({ onCancel }) {
                         <button
                           type="button"
                           onClick={() => { setViewingSubtaskIndex(index); setSubtaskInstructionDraft(''); setSubtaskCommentDraft(''); }}
-                          className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 hover:bg-[#7F40EE] text-slate-500 hover:text-white transition shrink-0"
+                          className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 hover:bg-[#3170c5] text-slate-500 hover:text-white transition shrink-0"
                           title="View Subtask"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -1211,7 +1211,7 @@ export default function CreateTask({ onCancel }) {
                   {/* Title Input */}
                   <td className="px-4 py-3.5">
                     <div className={`flex items-center gap-2.5 p-1 rounded-lg transition duration-200 ${subtaskError && !draftSubtaskTitle.trim() ? 'ring-2 ring-red-500/20 bg-red-50/30' : ''}`}>
-                      <div className="h-4.5 w-4.5 shrink-0 rounded-full border-2 border-dashed border-[#7F40EE]/40 flex items-center justify-center bg-white" />
+                      <div className="h-4.5 w-4.5 shrink-0 rounded-full border-2 border-dashed border-[#3170c5]/40 flex items-center justify-center bg-white" />
                       <input
                         type="text"
                         value={draftSubtaskTitle}
@@ -1254,7 +1254,7 @@ export default function CreateTask({ onCancel }) {
                   {/* Visible Date Input overlay */}
                   <td className="px-4 py-3.5">
                     <div className="relative flex items-center gap-1.5 cursor-pointer group text-slate-655 hover:text-slate-900">
-                      <CalendarDays size={14} className="text-slate-400 group-hover:text-[#7F40EE] shrink-0" />
+                      <CalendarDays size={14} className="text-slate-400 group-hover:text-[#3170c5] shrink-0" />
                       <span className="text-sm font-semibold whitespace-nowrap">{draftSubtaskDueDate ? draftSubtaskDueDate : 'Set Date'}</span>
                       <input
                         type="date"
@@ -1344,11 +1344,11 @@ export default function CreateTask({ onCancel }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Left side: Upload Zone */}
             <div>
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-[#7F40EE] bg-white rounded-2xl p-5 text-center cursor-pointer transition duration-205 group shadow-sm min-h-[130px]">
-                <div className="p-2.5 bg-[#7F40EE]/10 rounded-full text-[#7F40EE] group-hover:scale-110 transition duration-205 mb-2">
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-[#3170c5] bg-white rounded-2xl p-5 text-center cursor-pointer transition duration-205 group shadow-sm min-h-[130px]">
+                <div className="p-2.5 bg-[#3170c5]/10 rounded-full text-[#3170c5] group-hover:scale-110 transition duration-205 mb-2">
                   <Paperclip size={18} />
                 </div>
-                <span className="text-xs font-bold text-slate-700">Drag & drop files, or <span className="text-[#7F40EE] underline">browse files</span></span>
+                <span className="text-xs font-bold text-slate-700">Drag & drop files, or <span className="text-[#3170c5] underline">browse files</span></span>
                 <span className="text-[10px] text-slate-400 mt-1 font-semibold">Images, PDFs, docs, spreadsheets</span>
                 <input
                   type="file"
@@ -1543,9 +1543,9 @@ export default function CreateTask({ onCancel }) {
                           onChange={(e) => setSubtaskInstructionDraft(e.target.value)}
                           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSubtaskInstruction(); } }}
                           placeholder="Add instruction..."
-                          className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] transition"
+                          className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 outline-none focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] transition"
                         />
-                        <button type="button" onClick={addSubtaskInstruction} disabled={!subtaskInstructionDraft.trim()} className="rounded-xl bg-[#7F40EE] px-4 py-2 text-xs font-bold text-white hover:bg-[#6A31D1] disabled:opacity-40 transition flex items-center gap-1">
+                        <button type="button" onClick={addSubtaskInstruction} disabled={!subtaskInstructionDraft.trim()} className="rounded-xl bg-[#3170c5] px-4 py-2 text-xs font-bold text-white hover:bg-[#2158a4] disabled:opacity-40 transition flex items-center gap-1">
                           <Plus size={12} /> ADD
                         </button>
                       </div>
@@ -1573,7 +1573,7 @@ export default function CreateTask({ onCancel }) {
                           </div>
                         ))}
                       </div>
-                      <label className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 cursor-pointer hover:border-[#7F40EE] hover:text-[#7F40EE] transition shadow-sm">
+                      <label className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 cursor-pointer hover:border-[#3170c5] hover:text-[#3170c5] transition shadow-sm">
                         <Paperclip size={13} />
                         UPLOAD DOCUMENT
                         <input type="file" multiple className="hidden" onChange={(e) => { handleSubtaskDocUpload(e.target.files); e.target.value = ''; }} />
@@ -1617,9 +1617,9 @@ export default function CreateTask({ onCancel }) {
                       onChange={(e) => setSubtaskCommentDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addSubtaskComment(); } }}
                       placeholder="Type comment..."
-                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] transition"
+                      className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] transition"
                     />
-                    <button type="button" onClick={addSubtaskComment} disabled={!subtaskCommentDraft.trim()} className="rounded-xl bg-[#7F40EE] px-4 py-2 text-xs font-bold text-white hover:bg-[#6A31D1] disabled:opacity-40 transition">Send</button>
+                    <button type="button" onClick={addSubtaskComment} disabled={!subtaskCommentDraft.trim()} className="rounded-xl bg-[#3170c5] px-4 py-2 text-xs font-bold text-white hover:bg-[#2158a4] disabled:opacity-40 transition">Send</button>
                   </div>
                 </div>
               </div>
@@ -1645,7 +1645,7 @@ export default function CreateTask({ onCancel }) {
                 value={assigneeSearch}
                 onChange={(event) => setAssigneeSearch(event.target.value)}
                 placeholder="Search employee"
-                className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-700 outline-none focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] bg-slate-50 hover:bg-slate-100/50 transition"
+                className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-700 outline-none focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] bg-slate-50 hover:bg-slate-100/50 transition"
               />
             </div>
 
@@ -1666,8 +1666,8 @@ export default function CreateTask({ onCancel }) {
                     </div>
                     <div
                       className={`w-4 h-4 rounded border flex items-center justify-center transition ${tempAssignees.includes(u.id)
-                          ? 'bg-[#7F40EE] border-[#7F40EE]'
-                          : 'border-slate-300 group-hover:border-[#7F40EE]'
+                          ? 'bg-[#3170c5] border-[#3170c5]'
+                          : 'border-slate-300 group-hover:border-[#3170c5]'
                         }`}
                     >
                       {tempAssignees.includes(u.id) && <Check size={10} className="text-white" />}
@@ -1688,7 +1688,7 @@ export default function CreateTask({ onCancel }) {
               </button>
               <button
                 onClick={confirmAssignees}
-                className="px-6 py-2 rounded-xl text-xs font-bold bg-[#7F40EE] text-white shadow-md hover:bg-[#6A31D1] transition"
+                className="px-6 py-2 rounded-xl text-xs font-bold bg-[#3170c5] text-white shadow-md hover:bg-[#2158a4] transition"
               >
                 Done
               </button>
@@ -1714,7 +1714,7 @@ export default function CreateTask({ onCancel }) {
                 value={assignedBySearch}
                 onChange={(event) => setAssignedBySearch(event.target.value)}
                 placeholder="Search employee"
-                className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-700 outline-none focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] bg-slate-50 hover:bg-slate-100/50 transition"
+                className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm text-slate-700 outline-none focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] bg-slate-50 hover:bg-slate-100/50 transition"
               />
             </div>
 
@@ -1732,14 +1732,14 @@ export default function CreateTask({ onCancel }) {
                         <div className="font-bold text-xs text-slate-800">
                           {u.name}
                           {u.id === user?.id && (
-                            <span className="ml-1.5 text-[10px] font-normal text-[#7F40EE]">(You)</span>
+                            <span className="ml-1.5 text-[10px] font-normal text-[#3170c5]">(You)</span>
                           )}
                         </div>
                         <div className="text-[10px] text-slate-500">{u.email}</div>
                       </div>
                     </div>
                     {assignedBy === u.id && (
-                      <div className="w-4 h-4 rounded-full bg-[#7F40EE] flex items-center justify-center">
+                      <div className="w-4 h-4 rounded-full bg-[#3170c5] flex items-center justify-center">
                         <Check size={10} className="text-white" />
                       </div>
                     )}

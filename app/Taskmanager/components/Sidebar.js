@@ -90,7 +90,7 @@ export default function Sidebar({
             </h1>
           </div>
         )}
-        <div className={`${isCollapsed ? 'w-12 h-12 mb-2' : 'w-16 h-16 mb-2'} rounded-full border-4 border-[#7F40EE]/20 overflow-hidden relative group`}>
+        <div className={`${isCollapsed ? 'w-12 h-12 mb-2' : 'w-16 h-16 mb-2'} rounded-full border-4 border-[#3170c5]/20 overflow-hidden relative group`}>
           {avatarSrc ? (
             <Image src={avatarSrc} alt={user.name} fill className="object-cover" unoptimized />
           ) : (
@@ -124,7 +124,7 @@ export default function Sidebar({
 
         {!isCollapsed && (
           <>
-            <span className="bg-[#7F40EE] text-white text-[10px] px-3 py-1 rounded-full mb-2">{user.role}</span>
+            <span className="bg-[#3170c5] text-white text-[10px] px-3 py-1 rounded-full mb-2">{user.role}</span>
             <h3 className="font-bold text-base leading-tight text-slate-800 text-center">{user.name}</h3>
             <p className="text-slate-600 text-[13px] text-center break-all leading-tight mt-1">{user.email}</p>
           </>
@@ -144,7 +144,7 @@ export default function Sidebar({
               title={item.label}
               className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 rounded-lg transition-colors ${
                 isActive
-                  ? 'bg-[#7F40EE]/10 text-[#7F40EE] border-r-4 border-[#7F40EE]'
+                  ? 'bg-[#3170c5]/10 text-[#3170c5] border-r-4 border-[#3170c5]'
                   : 'text-slate-700 hover:text-slate-900 hover:bg-slate-100/60'
               }`}
             >
@@ -168,7 +168,7 @@ export default function Sidebar({
         <Link
           href="/"
           title="Home"
-          className={`w-full mb-1 flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 text-slate-700 hover:text-[#7F40EE] hover:bg-[#7F40EE]/10 rounded-lg transition-colors`}
+          className={`w-full mb-1 flex items-center ${isCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-2 text-slate-700 hover:text-[#3170c5] hover:bg-[#3170c5]/10 rounded-lg transition-colors`}
         >
           <Home size={20} className="shrink-0" />
           {!isCollapsed && <span className="font-medium text-[14px] whitespace-nowrap">Home</span>}

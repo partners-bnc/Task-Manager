@@ -290,7 +290,7 @@ export default function EmployeeOnboarding({
   }
 
   const switchAction = (
-    <div className="inline-flex rounded-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] p-1 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+    <div className="inline-grid grid-cols-2 gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm">
       {[
         { id: 'queue', label: 'Current Onboarding', icon: 'how_to_reg' },
         { id: 'add', label: 'Add New Employee', icon: 'person_add' },
@@ -308,10 +308,10 @@ export default function EmployeeOnboarding({
 
               setCurrentTab?.('admin-add-employee');
             }}
-            className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-all ${
+            className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
               isActive
-                ? 'bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] text-violet-950 shadow-[0_10px_18px_rgba(167,139,250,0.16)]'
-                : 'text-slate-500 hover:text-slate-700'
+                ? 'bg-white text-on-surface shadow-sm'
+                : 'text-on-surface-variant hover:text-on-surface'
             }`}
           >
             <span className="material-symbols-outlined text-[18px]">{option.icon}</span>

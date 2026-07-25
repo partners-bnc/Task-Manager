@@ -2,12 +2,12 @@ import "./globals.css";
 import NoticePopup from "@/app/HRM/components/NoticePopup";
 
 export const metadata = {
-  title: "Universe One — Internal Task Management",
-  description: "Secure task management built for internal teams",
+  title: "Universe One — Internal Workstation",
+  description: "Secure workstation built for internal teams",
   icons: {
-    icon: "/assets/universe one favicon.jpg.jpeg",
-    shortcut: "/assets/universe one favicon.jpg.jpeg",
-    apple: "/assets/universe one favicon.jpg.jpeg",
+    icon: "/assets/universe%20one%20favicon.jpg.jpeg",
+    shortcut: "/assets/universe%20one%20favicon.jpg.jpeg",
+    apple: "/assets/universe%20one%20favicon.jpg.jpeg",
   },
 };
 

@@ -788,12 +788,8 @@ export default function AdminAttendance() {
         </p>
       </section>
 
-      <section className="overflow-x-auto">
-        <div className="relative inline-grid min-w-full grid-cols-3 items-center overflow-hidden rounded-[1.35rem] bg-[#F1F4F5] p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.05)] md:min-w-[640px]">
-          <div
-            className="absolute inset-y-1.5 left-1.5 w-[calc((100%-0.75rem)/3)] rounded-[1rem] bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] shadow-[0_8px_18px_rgba(167,139,250,0.20)] transition-transform duration-300 ease-out"
-            style={{ transform: `translateX(calc(${activeIndex} * 100%))` }}
-          />
+      <section className="overflow-x-auto py-3 mb-6">
+        <div className="inline-grid min-w-full grid-cols-3 gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm md:min-w-[640px]">
           {sectionCards.map((section) => {
             const isActive = mode === section.id;
             return (
@@ -801,8 +797,10 @@ export default function AdminAttendance() {
                 key={section.id}
                 type="button"
                 onClick={() => setMode(section.id)}
-                className={`relative z-10 inline-flex items-center justify-center gap-2 rounded-[1rem] px-3 py-2 text-sm font-semibold transition-colors ${
-                  isActive ? 'text-violet-950' : 'text-slate-500 hover:text-slate-700'
+                className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  isActive
+                    ? 'bg-white text-on-surface shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
                 <span className="material-symbols-outlined text-[18px]">

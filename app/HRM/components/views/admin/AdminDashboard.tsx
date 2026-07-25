@@ -436,7 +436,7 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
       {!loading && !error && dashboard && (
         <div className="space-y-7">
           <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard title="Total Employees" value={metrics.employeeCount} subtitle={`${metrics.activeEmployeeCount} active right now`} icon="groups" tone="bg-gradient-to-br from-violet-50 via-white to-fuchsia-100/70" />
+            <MetricCard title="Total Employees" value={metrics.employeeCount} subtitle={`${metrics.activeEmployeeCount} active right now`} icon="groups" tone="bg-gradient-to-br from-violet-50 via-white to-violet-100/70" />
             <MetricCard title="Employees On Leave" value={metrics.onLeaveEmployeeCount} subtitle="Pulled from live employee status" icon="event_busy" tone="bg-gradient-to-br from-amber-50 via-white to-orange-100/60" />
             <MetricCard title="Pending Tasks For HR Admin" value={metrics.pendingTaskCount} subtitle="Leave, regularization, expense review, and tickets" icon="assignment_late" tone="bg-gradient-to-br from-purple-50 via-white to-violet-100/70" />
             <MetricCard title="Today Half Day" value={metrics.todayHalfDayAttendanceCount} subtitle="Employees below the required work hours today" icon="timelapse" tone="bg-gradient-to-br from-emerald-50 via-white to-teal-100/70" />
@@ -699,12 +699,12 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
                                   alt={employee.name || 'Birthday employee'}
                                   width={88}
                                   height={88}
-                                  className="h-[88px] w-[88px] rounded-full border-4 border-white/90 object-cover shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
+                                  className="h-[88px] w-[88px] rounded-full border-4 border-white/90 object-cover shadow-[0_18px_36px_rgba(49,112,197,0.22)]"
                                   unoptimized
                                 />
                               ) : (
                                 <div
-                                  className="flex h-[88px] w-[88px] items-center justify-center rounded-full border-4 border-white/90 bg-white text-2xl font-extrabold text-[#7C3AED] shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
+                                  className="flex h-[88px] w-[88px] items-center justify-center rounded-full border-4 border-white/90 bg-white text-2xl font-extrabold text-[#3170c5] shadow-[0_18px_36px_rgba(49,112,197,0.22)]"
                                 >
                                   {getInitials(employee?.name)}
                                 </div>
@@ -733,13 +733,13 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
                 </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-[2rem] border border-[#E9D8FF] bg-[#F6ECFF] p-5 shadow-[0_22px_70px_rgba(137,92,246,0.16)]">
-                <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-[#D8B4FE]/60 blur-3xl" />
-                <div className="pointer-events-none absolute left-1/2 top-0 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#F0ABFC]/45 blur-2xl" />
+              <div className="relative overflow-hidden rounded-[2rem] border border-[#afd0f4] bg-[#edf4fc] p-5 shadow-[0_22px_70px_rgba(49,112,197,0.16)]">
+                <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-[#afd0f4]/60 blur-3xl" />
+                <div className="pointer-events-none absolute left-1/2 top-0 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#d7e7f9]/45 blur-2xl" />
                 <div className="pointer-events-none absolute -left-8 bottom-12 h-28 w-28 rounded-full bg-[#BFDBFE]/35 blur-3xl" />
-                <div className="pointer-events-none absolute right-6 top-16 h-2.5 w-2.5 rounded-full bg-[#A855F7]/65" />
-                <div className="pointer-events-none absolute right-12 top-24 h-1.5 w-1.5 rounded-full bg-[#EC4899]/70" />
-                <div className="pointer-events-none absolute left-8 top-20 h-2 w-2 rounded-full bg-[#8B5CF6]/60" />
+                <div className="pointer-events-none absolute right-6 top-16 h-2.5 w-2.5 rounded-full bg-[#4f8be4]/65" />
+                <div className="pointer-events-none absolute right-12 top-24 h-1.5 w-1.5 rounded-full bg-[#8fb2f5]/70" />
+                <div className="pointer-events-none absolute left-8 top-20 h-2 w-2 rounded-full bg-[#3170c5]/60" />
 
                 <div className="relative flex h-full flex-col">
                   <div className="flex items-start justify-between gap-4">
@@ -770,12 +770,12 @@ export default function AdminDashboard({ admin, setCurrentTab, setSelectedEmploy
                                 alt={employee.name || 'Anniversary employee'}
                                 width={88}
                                 height={88}
-                                className="h-[88px] w-[88px] rounded-full border-4 border-white/90 object-cover shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
+                                className="h-[88px] w-[88px] rounded-full border-4 border-white/90 object-cover shadow-[0_18px_36px_rgba(49,112,197,0.22)]"
                                 unoptimized
                               />
                             ) : (
                               <div
-                                className="flex h-[88px] w-[88px] items-center justify-center rounded-full border-4 border-white/90 bg-white text-2xl font-extrabold text-[#7C3AED] shadow-[0_18px_36px_rgba(139,92,246,0.22)]"
+                                className="flex h-[88px] w-[88px] items-center justify-center rounded-full border-4 border-white/90 bg-white text-2xl font-extrabold text-[#3170c5] shadow-[0_18px_36px_rgba(49,112,197,0.22)]"
                               >
                                 {getInitials(employee?.name)}
                               </div>

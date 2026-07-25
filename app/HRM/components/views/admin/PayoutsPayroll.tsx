@@ -963,12 +963,8 @@ export default function PayoutsPayroll() {
           </p>
         </div>
 
-        <section className="pb-1">
-          <div className="relative grid w-full grid-cols-5 gap-1 rounded-full border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.94)_0%,rgba(244,246,250,0.98)_100%)] p-1 shadow-[0_12px_28px_rgba(15,23,42,0.06)] backdrop-blur">
-            <div
-              className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem-1rem)/5)] rounded-full bg-[linear-gradient(135deg,rgba(245,238,255,1)_0%,rgba(224,210,255,1)_55%,rgba(208,186,255,1)_100%)] shadow-[0_10px_22px_rgba(167,139,250,0.24)] ring-1 ring-white/70 transition-transform duration-300 ease-out"
-              style={{ transform: `translateX(calc(${activeSectionIndex} * (100% + 0.25rem)))` }}
-            />
+        <section className="pb-1 mb-6 py-3">
+          <div className="inline-grid w-full grid-cols-5 gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm">
             {SECTIONS.map((section) => {
               const isActive = activeSection === section.id;
 
@@ -977,8 +973,10 @@ export default function PayoutsPayroll() {
                   key={section.id}
                   type="button"
                   onClick={() => setActiveSection(section.id)}
-                  className={`relative z-10 inline-flex min-w-0 items-center justify-center gap-1.5 rounded-full px-2 py-2.5 text-[12px] font-semibold transition-colors ${
-                    isActive ? 'text-violet-950' : 'text-slate-600 hover:text-slate-900'
+                  className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-full px-2 py-2.5 text-[12px] font-semibold transition ${
+                    isActive
+                      ? 'bg-white text-on-surface shadow-sm'
+                      : 'text-on-surface-variant hover:text-on-surface'
                   }`}
                 >
                   <span className="material-symbols-outlined text-[16px]">{section.icon}</span>
@@ -1252,7 +1250,7 @@ export default function PayoutsPayroll() {
                   <button
                     type="button"
                     onClick={() => setDirectoryDetailOpen(false)}
-                    className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(180deg,#faf5ff_0%,#efe7ff_100%)] px-4 py-2.5 text-sm font-semibold text-violet-950 shadow-[0_10px_18px_rgba(167,139,250,0.14)]"
+                    className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(180deg,#edf4fc_0%,#d7e7f9_100%)] px-4 py-2.5 text-sm font-semibold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.14)]"
                   >
                     <span className="material-symbols-outlined text-[18px]">arrow_back</span>
                     Back
@@ -1323,7 +1321,7 @@ export default function PayoutsPayroll() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="rounded-full bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(167,139,250,0.16)]"
+                        className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
                       >
                         {submitting ? 'Saving...' : 'Save Payroll Settings'}
                       </button>
@@ -1366,7 +1364,7 @@ export default function PayoutsPayroll() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="rounded-full bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(167,139,250,0.16)]"
+                        className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
                       >
                         Add Revision
                       </button>
@@ -1418,7 +1416,7 @@ export default function PayoutsPayroll() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="rounded-full bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(167,139,250,0.16)]"
+                        className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
                       >
                         Save Retention Schedule
                       </button>
@@ -1465,7 +1463,7 @@ export default function PayoutsPayroll() {
                       <button
                         type="submit"
                         disabled={submitting}
-                        className="rounded-full bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(167,139,250,0.16)]"
+                        className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
                       >
                         Save Retention Release
                       </button>

@@ -7,7 +7,7 @@ export default function CalendarView({ taskId = null, isMini = false }) {
   if (isMini) {
     return (
       <div className="max-w-2xl mx-auto py-2 text-center">
-        <div className="inline-flex items-center justify-center p-3 bg-purple-50 rounded-2xl mb-4 text-[#7F40EE]">
+        <div className="inline-flex items-center justify-center p-3 bg-[#edf4fc] rounded-2xl mb-4 text-[#3170c5]">
           <CalendarPlus className="w-8 h-8" />
         </div>
         
@@ -18,7 +18,7 @@ export default function CalendarView({ taskId = null, isMini = false }) {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-left">
           <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-            <div className="w-8 h-8 rounded-lg bg-purple-100 text-[#7F40EE] flex items-center justify-center mb-2">
+            <div className="w-8 h-8 rounded-lg bg-[#d7e7f9] text-[#3170c5] flex items-center justify-center mb-2">
               <RefreshCw className="w-4 h-4" />
             </div>
             <h4 className="font-semibold text-slate-800 text-xs mb-0.5">Two-Way Sync</h4>
@@ -64,7 +64,7 @@ export default function CalendarView({ taskId = null, isMini = false }) {
   // Dashboard / Full Page View
   return (
     <div className="py-12 px-6 max-w-4xl mx-auto text-center">
-      <div className="inline-flex items-center justify-center p-4 bg-purple-50 rounded-2xl mb-5 text-[#7F40EE]">
+      <div className="inline-flex items-center justify-center p-4 bg-[#edf4fc] rounded-2xl mb-5 text-[#3170c5]">
         <CalendarPlus className="w-10 h-10" />
       </div>
       
@@ -75,7 +75,7 @@ export default function CalendarView({ taskId = null, isMini = false }) {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left max-w-3xl mx-auto">
         <div className="p-6 rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all">
-          <div className="w-12 h-12 rounded-xl bg-purple-100 text-[#7F40EE] flex items-center justify-center mb-4">
+          <div className="w-12 h-12 rounded-xl bg-[#d7e7f9] text-[#3170c5] flex items-center justify-center mb-4">
             <RefreshCw className="w-6 h-6" />
           </div>
           <h3 className="font-bold text-slate-800 text-base mb-1.5">Two-Way Calendar Sync</h3>

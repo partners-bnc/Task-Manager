@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { ArrowLeft, CalendarDays, CircleCheckBig, Clock3, Loader2, Star, TriangleAlert, UserRoundCheck, FileDown } from 'lucide-react';
 
 const STATUS_STYLES = {
-  pending: 'bg-purple-100 text-purple-700',
+  pending: 'bg-[#d7e7f9] text-[#1d4581]',
   in_progress: 'bg-sky-100 text-sky-700',
   completed: 'bg-emerald-100 text-emerald-700',
 };
@@ -141,7 +141,7 @@ function getAvatarInitial(name) {
 function MetricCard({ icon: Icon, label, value, tone = 'slate' }) {
   const toneClass = {
     slate: 'text-slate-700',
-    purple: 'text-purple-700',
+    purple: 'text-[#1d4581]',
     sky: 'text-sky-700',
     emerald: 'text-emerald-700',
     rose: 'text-rose-700',
@@ -554,7 +554,7 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                 <h2 className="text-lg font-bold tracking-tight text-slate-900">Pending Focus</h2>
                 <p className="mt-1 text-sm text-slate-500">Outstanding work and due-date pressure.</p>
               </div>
-              <div className="rounded-full bg-purple-100 px-3 py-1 text-sm font-semibold text-purple-700">
+              <div className="rounded-full bg-[#d7e7f9] px-3 py-1 text-sm font-semibold text-[#1d4581]">
                 {pendingTasks.length}
               </div>
             </div>
@@ -568,7 +568,7 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                 <div key={task.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <Link href={`/Taskmanager/admin/tasks/${task.id}`} className="font-semibold text-slate-900 hover:text-[#7F40EE]">
+                      <Link href={`/Taskmanager/admin/tasks/${task.id}`} className="font-semibold text-slate-900 hover:text-[#3170c5]">
                         {task.task_name}
                       </Link>
                       <p className="mt-1 text-xs text-slate-500">Due {formatDate(task.due_date, { includeTime: true })}</p>
@@ -602,7 +602,7 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                 <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <Link href={`/Taskmanager/admin/tasks/${item.taskId}`} className="font-semibold text-slate-900 hover:text-[#7F40EE]">
+                      <Link href={`/Taskmanager/admin/tasks/${item.taskId}`} className="font-semibold text-slate-900 hover:text-[#3170c5]">
                         {item.taskName}
                       </Link>
                       <p className="mt-1 text-xs text-slate-500">Rated {formatDate(item.ratedAt, { includeTime: true })}</p>
@@ -688,7 +688,7 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                           <tr key={task.id} className="align-top">
                             <td className="py-4 pr-4">
                               <div>
-                                <Link href={`/Taskmanager/admin/tasks/${task.id}`} className="wrap-break-word font-semibold text-slate-900 hover:text-[#7F40EE]">
+                                <Link href={`/Taskmanager/admin/tasks/${task.id}`} className="wrap-break-word font-semibold text-slate-900 hover:text-[#3170c5]">
                                   {task.task_name}
                                 </Link>
                                 <div className="mt-2 flex flex-wrap gap-2">
@@ -719,7 +719,7 @@ export default function EmployeeAnalyticsPage({ employeeId }) {
                                 </div>
                                 <div className="h-2 rounded-full bg-slate-100">
                                   <div
-                                    className="h-2 rounded-full bg-[#7F40EE]"
+                                    className="h-2 rounded-full bg-[#3170c5]"
                                     style={{ width: `${task.progress_percentage}%` }}
                                   ></div>
                                 </div>

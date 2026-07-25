@@ -160,7 +160,7 @@ function PersonAvatar({
 }) {
   return (
     <div
-      className={`flex shrink-0 items-center justify-center overflow-hidden border border-violet-200 bg-violet-100 text-sm font-bold text-violet-700 shadow-[0_10px_22px_rgba(109,40,217,0.08)] ${rounded}`}
+      className={`flex shrink-0 items-center justify-center overflow-hidden border border-violet-200 bg-violet-100 text-sm font-bold text-violet-700 shadow-[0_10px_22px_rgba(49,112,197,0.08)] ${rounded}`}
       style={{ width: size, height: size }}
     >
       {person?.avatarUrl ? (
@@ -229,7 +229,7 @@ function ClaimCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-6 text-left transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_20px_40px_rgba(76,29,149,0.08)]"
+      className="w-full rounded-[2rem] border border-outline-variant/10 bg-surface-container-lowest p-6 text-left transition hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_20px_40px_rgba(49,112,197,0.08)]"
     >
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="space-y-3">
@@ -243,7 +243,7 @@ function ClaimCard({
           </div>
         </div>
 
-        <div className="rounded-[1.75rem] bg-[linear-gradient(180deg,#fbf7ff_0%,#f5f2ff_100%)] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+        <div className="rounded-[1.75rem] bg-[linear-gradient(180deg,#edf4fc_0%,#d7e7f9_100%)] px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Total</p>
           <p className="mt-2 text-2xl font-headline font-bold text-violet-900">
             {formatExpenseMoney(claim.totalAmount, claim.currency)}
@@ -825,7 +825,7 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
             <button
               type="button"
               onClick={() => beginEdit(selectedClaim)}
-              className="inline-flex items-center gap-2 rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(109,40,217,0.2)] transition hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 rounded-full bg-violet-600 px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(49,112,197,0.2)] transition hover:-translate-y-0.5"
             >
               <span className="material-symbols-outlined text-lg">edit_square</span>
               Edit & Resubmit
@@ -846,7 +846,7 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
               </div>
             </div>
 
-            <div className="min-w-[260px] rounded-[2rem] bg-[linear-gradient(180deg,#faf5ff_0%,#f4ebff_100%)] px-6 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+            <div className="min-w-[260px] rounded-[2rem] bg-[linear-gradient(180deg,#edf4fc_0%,#d7e7f9_100%)] px-6 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700">Claim Total</p>
               <p className="mt-2 text-3xl font-headline font-bold text-violet-950">
                 {formatExpenseMoney(selectedClaim.totalAmount, selectedClaim.currency)}
@@ -968,7 +968,7 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
             ) : null}
 
             {selectedClaim.canReview ? (
-              <div className="rounded-[2rem] border border-violet-200 bg-[linear-gradient(180deg,#fdfbff_0%,#f7f3ff_100%)] p-6 shadow-[0_22px_44px_rgba(109,40,217,0.08)]">
+              <div className="rounded-[2rem] border border-violet-200 bg-[linear-gradient(180deg,#edf4fc_0%,#d7e7f9_100%)] p-6 shadow-[0_22px_44px_rgba(49,112,197,0.08)]">
                 <h3 className="text-xl font-headline font-bold text-on-surface">Review Decision</h3>
                 <p className="mt-2 text-sm leading-6 text-on-surface-variant">
                   Approve, reject, or send this claim back for correction. Rejection and correction loops should include a clear note.
@@ -1001,7 +1001,7 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
                     type="button"
                     disabled={isReviewSubmitting}
                     onClick={() => submitReview('approved')}
-                    className="rounded-full bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(109,40,217,0.22)] transition hover:-translate-y-0.5 disabled:opacity-50"
+                    className="rounded-full bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(49,112,197,0.22)] transition hover:-translate-y-0.5 disabled:opacity-50"
                   >
                     Approve
                   </button>
@@ -1243,7 +1243,7 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
       </div>
 
       <div className="space-y-6">
-        <div className="rounded-[2.2rem] border border-outline-variant/10 bg-[linear-gradient(180deg,#fdfbff_0%,#f4efff_100%)] p-6 shadow-[0_20px_40px_rgba(109,40,217,0.08)]">
+        <div className="rounded-[2.2rem] border border-outline-variant/10 bg-[linear-gradient(180deg,#edf4fc_0%,#d7e7f9_100%)] p-6 shadow-[0_20px_40px_rgba(49,112,197,0.08)]">
           <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-violet-700">Expense Summary</p>
           <p className="mt-3 text-4xl font-headline font-bold text-violet-950">
             {formatExpenseMoney(totalDraftAmount, draft.currency)}
@@ -1268,7 +1268,7 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
             type="button"
             onClick={submitClaim}
             disabled={isSubmitting}
-            className="mt-6 w-full rounded-[1.4rem] bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(109,40,217,0.22)] transition hover:-translate-y-0.5 disabled:opacity-50"
+            className="mt-6 w-full rounded-[1.4rem] bg-violet-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_16px_30px_rgba(49,112,197,0.22)] transition hover:-translate-y-0.5 disabled:opacity-50"
           >
             {isSubmitting ? (editingClaimId ? 'Resubmitting...' : 'Submitting...') : editingClaimId ? 'Resubmit Claim' : 'Submit Claim'}
           </button>
@@ -1360,7 +1360,7 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
       return (
         <div className="space-y-8">
           <div className="flex justify-start">
-            <div className="inline-flex rounded-full bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] p-1 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+            <div className="inline-grid grid-cols-2 gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm py-1 mb-6">
               {[
                 { id: 'mine' as const, label: 'My History', icon: 'account_circle' },
                 { id: 'reviewed' as const, label: 'Reviewed By Me', icon: 'fact_check' },
@@ -1371,10 +1371,10 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
                     key={item.id}
                     type="button"
                     onClick={() => setHistoryMode(item.id)}
-                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition-all ${
+                    className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                       isActive
-                        ? 'bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] text-violet-950 shadow-[0_10px_18px_rgba(167,139,250,0.16)]'
-                        : 'text-slate-500 hover:text-slate-700'
+                        ? 'bg-white text-on-surface shadow-sm'
+                        : 'text-on-surface-variant hover:text-on-surface'
                     }`}
                   >
                     <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
@@ -1434,8 +1434,8 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
         compact={variant === 'admin'}
       />
 
-      <section className="overflow-x-auto">
-        <div className={`relative inline-grid min-w-[420px] grid-flow-col auto-cols-fr items-center overflow-hidden bg-[linear-gradient(180deg,#f8fafc_0%,#eef2f7_100%)] shadow-[0_16px_30px_rgba(15,23,42,0.05)] ${variant === 'admin' ? 'rounded-[1.05rem] p-1' : 'rounded-[1.25rem] p-1'}`}>
+      <section className="overflow-x-auto mb-8 py-3">
+        <div className={`inline-grid min-w-[420px] grid-flow-col auto-cols-fr gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm`}>
           {currentSections.map((section) => {
             const isActive = activeSection === section.id;
             return (
@@ -1446,10 +1446,10 @@ export default function Expenses({ variant = 'employee' }: ExpensesProps) {
                   resetDetail();
                   setActiveSection(section.id);
                 }}
-                className={`relative z-10 inline-flex items-center justify-center gap-2 font-semibold transition-all ${variant === 'admin' ? 'rounded-[0.85rem] px-3.5 py-2.5 text-[13px]' : 'rounded-[1rem] px-4 py-3 text-sm'} ${
+                className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                   isActive
-                    ? 'bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] text-violet-950 shadow-[0_12px_24px_rgba(167,139,250,0.18)]'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-white text-on-surface shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
                 <span className={`material-symbols-outlined ${variant === 'admin' ? 'text-[17px]' : 'text-[18px]'}`}>{section.icon}</span>

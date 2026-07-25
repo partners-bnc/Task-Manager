@@ -290,12 +290,8 @@ export default function LeaveManagement() {
         </div>
       ) : null}
 
-      <section className="overflow-x-auto">
-        <div className="relative inline-grid min-w-full grid-cols-3 items-center overflow-hidden rounded-[1.35rem] bg-[#F1F4F5] p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.05)] md:min-w-[620px]">
-          <div
-            className="absolute inset-y-1.5 left-1.5 w-[calc((100%-0.75rem)/3)] rounded-[1rem] bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] shadow-[0_8px_18px_rgba(167,139,250,0.20)] transition-transform duration-300 ease-out"
-            style={{ transform: `translateX(calc(${activeSectionIndex} * 100%))` }}
-          />
+      <section className="overflow-x-auto py-3 mb-6">
+        <div className="inline-grid min-w-full grid-cols-3 gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm md:min-w-[620px]">
           {sectionCards.map((section) => {
             const isActive = activeSection === section.id;
 
@@ -304,11 +300,13 @@ export default function LeaveManagement() {
                 key={section.id}
                 type="button"
                 onClick={() => setActiveSection(section.id)}
-                className={`relative z-10 inline-flex items-center justify-center gap-1.5 rounded-[1rem] px-3 py-2 text-xs font-semibold transition-colors ${
-                  isActive ? 'text-violet-950' : 'text-slate-500 hover:text-slate-700'
+                className={`inline-flex items-center justify-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  isActive
+                    ? 'bg-white text-on-surface shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
-                <span className="material-symbols-outlined text-[16px]">
+                <span className="material-symbols-outlined text-[18px]">
                   {section.id === 'pending'
                     ? 'hourglass_top'
                     : section.id === 'history'
@@ -318,7 +316,7 @@ export default function LeaveManagement() {
                 <span className="whitespace-nowrap">{section.label}</span>
                 <span
                   className={`inline-flex min-w-5 items-center justify-center rounded-full px-1 py-0.5 text-[10px] font-bold ${
-                    isActive ? 'bg-white/55 text-violet-900' : 'bg-white/80 text-slate-500'
+                    isActive ? 'bg-[#edf4fc] text-primary' : 'bg-[#F1F4F5] text-slate-500'
                   }`}
                 >
                   {section.count}

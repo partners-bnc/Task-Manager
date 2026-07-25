@@ -590,7 +590,7 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
             <p className="text-slate-600 mb-6">{fetchError}</p>
             <button 
               onClick={refreshData}
-              className="px-6 py-2.5 bg-[#7F40EE] text-white rounded-lg font-bold hover:bg-[#6A31D1] transition-colors shadow-lg shadow-[#7F40EE]/30"
+              className="px-6 py-2.5 bg-[#3170c5] text-white rounded-lg font-bold hover:bg-[#2158a4] transition-colors shadow-lg shadow-[#3170c5]/30"
             >
               Try Again
             </button>

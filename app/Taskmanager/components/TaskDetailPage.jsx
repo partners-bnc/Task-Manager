@@ -160,7 +160,7 @@ const getAttachmentPresenter = (attachment) => {
     return {
       label: extension ? extension.toUpperCase() : 'DOC',
       Icon: FileText,
-      iconClassName: 'bg-violet-100 text-violet-700',
+      iconClassName: 'bg-[#d7e7f9] text-[#1d4581]',
     };
   }
 
@@ -2237,7 +2237,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                         type='button'
                         onClick={() => setActiveTaskSection(tab.id)}
                         className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition ${isActive
-                          ? 'border-[#7F40EE] text-[#7F40EE]'
+                          ? 'border-[#3170c5] text-[#3170c5]'
                           : 'border-transparent text-slate-500 hover:text-slate-900'
                           }`}
                         aria-pressed={isActive}
@@ -2272,7 +2272,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                         updateTaskStatus(option.value);
                                         e.currentTarget.closest('details')?.removeAttribute('open');
                                       }}
-                                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold uppercase transition hover:bg-slate-50 ${task.status === option.value ? 'text-[#7F40EE] bg-purple-50/50' : 'text-slate-600'
+                                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-bold uppercase transition hover:bg-slate-50 ${task.status === option.value ? 'text-[#3170c5] bg-[#edf4fc]/50' : 'text-slate-600'
                                         }`}
                                     >
                                       <span className={`w-1.5 h-1.5 rounded-full ${option.value === 'completed' ? 'bg-emerald-500' : option.value === 'in_progress' ? 'bg-sky-500' : 'bg-slate-400'
@@ -2370,14 +2370,14 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                   <CheckCircle2 size={13} className='text-slate-400' />
                                   Task Progress
                                 </h2>
-                                <span className='text-sm font-bold text-[#7F40EE]'>{progressDraft}%</span>
+                                <span className='text-sm font-bold text-[#3170c5]'>{progressDraft}%</span>
                               </div>
                               <div className='relative h-4 w-full rounded-full bg-slate-200 shadow-[inset_0_2px_4px_rgba(0,0,0,0.15)]'>
                                 <div
                                   className='absolute inset-y-0 left-0 rounded-full transition-all duration-300'
                                   style={{
                                     width: `${progressDraft}%`,
-                                    background: 'linear-gradient(90deg,#7F40EE,#a855f7)',
+                                    background: 'linear-gradient(90deg,#3170c5,#a855f7)',
                                     boxShadow: '0 2px 8px rgba(127,64,238,0.45), inset 0 1px 0 rgba(255,255,255,0.3)',
                                   }}
                                 />
@@ -2405,7 +2405,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                     type='button'
                                     disabled={saving}
                                     onClick={() => { setProgressDraft(mark); updateTaskProgress(mark); }}
-                                    className={`rounded-full px-1.5 py-0.5 transition ${progressDraft === mark ? 'font-bold text-[#7F40EE]' : 'hover:text-slate-600'
+                                    className={`rounded-full px-1.5 py-0.5 transition ${progressDraft === mark ? 'font-bold text-[#3170c5]' : 'hover:text-slate-600'
                                       }`}
                                   >
                                     {mark}%
@@ -2427,7 +2427,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
 
                       {showEditSettings && (
                         <section className='rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-4 flex flex-col justify-between'>
-                          <h3 className='flex items-center gap-1.5 text-sm font-semibold text-[#7F40EE] uppercase tracking-wider'>
+                          <h3 className='flex items-center gap-1.5 text-sm font-semibold text-[#3170c5] uppercase tracking-wider'>
                             <Settings size={15} />
                             Edit Task Settings
                           </h3>
@@ -2443,7 +2443,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                 <input
                                   value={editForm.taskName}
                                   onChange={(event) => setEditForm((prev) => ({ ...prev, taskName: event.target.value }))}
-                                  className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-slate-50 hover:bg-slate-100/50 transition'
+                                  className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none bg-slate-50 hover:bg-slate-100/50 transition'
                                   placeholder='Task name'
                                 />
                               </div>
@@ -2458,7 +2458,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                   <select
                                     value={editForm.label}
                                     onChange={(event) => setEditForm((prev) => ({ ...prev, label: event.target.value }))}
-                                    className='flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none min-w-0'
+                                    className='flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none min-w-0'
                                   >
                                     <option value=''>Select a label</option>
                                     {taskLabels.map((taskLabel) => (
@@ -2469,7 +2469,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                     <input
                                       value={newLabelName}
                                       onChange={(event) => setNewLabelName(event.target.value)}
-                                      className='flex-1 min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none'
+                                      className='flex-1 min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none'
                                       placeholder='New label'
                                       onKeyDown={(event) => {
                                         if (event.key === 'Enter') {
@@ -2482,7 +2482,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                       type='button'
                                       disabled={creatingLabel || !newLabelName.trim()}
                                       onClick={handleCreateLabel}
-                                      className='rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 hover:border-[#7F40EE] hover:text-[#7F40EE] transition disabled:opacity-60 shrink-0'
+                                      className='rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 hover:border-[#3170c5] hover:text-[#3170c5] transition disabled:opacity-60 shrink-0'
                                     >
                                       {creatingLabel ? '...' : 'Add'}
                                     </button>
@@ -2512,7 +2512,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                         }}
                                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition duration-200 ${
                                           isAssigned
-                                            ? 'bg-[#7F40EE] text-white border-[#7F40EE] hover:bg-[#6A31D1]'
+                                            ? 'bg-[#3170c5] text-white border-[#3170c5] hover:bg-[#2158a4]'
                                             : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
                                         }`}
                                       >
@@ -2538,7 +2538,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                 <textarea
                                   value={editForm.description}
                                   onChange={(event) => setEditForm((prev) => ({ ...prev, description: event.target.value }))}
-                                  className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none bg-slate-50 hover:bg-slate-100/50 transition'
+                                  className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none bg-slate-50 hover:bg-slate-100/50 transition'
                                   rows={3}
                                   placeholder='Description'
                                 />
@@ -2554,7 +2554,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                   <select
                                     value={editForm.priority}
                                     onChange={(event) => setEditForm((prev) => ({ ...prev, priority: event.target.value }))}
-                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none'
+                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none'
                                   >
                                     {PRIORITY_OPTIONS.map((option) => (
                                       <option key={option.value} value={option.value}>{option.label}</option>
@@ -2570,7 +2570,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                   <select
                                     value={editForm.frequency}
                                     onChange={(event) => setEditForm((prev) => ({ ...prev, frequency: event.target.value }))}
-                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none'
+                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none'
                                   >
                                     <option value=''>Never</option>
                                     <option value='daily'>Daily</option>
@@ -2588,7 +2588,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                   <select
                                     value={editForm.status}
                                     onChange={(event) => setEditForm((prev) => ({ ...prev, status: event.target.value }))}
-                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none'
+                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none'
                                   >
                                     {STATUS_OPTIONS.map((option) => (
                                       <option key={option.value} value={option.value}>{option.label}</option>
@@ -2608,7 +2608,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                     type='date'
                                     value={editForm.dueDate}
                                     onChange={(event) => setEditForm((prev) => ({ ...prev, dueDate: event.target.value }))}
-                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none'
+                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none'
                                   />
                                 </div>
                                 <div className='space-y-1.5'>
@@ -2621,7 +2621,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                     value={editForm.dueTime}
                                     onChange={(event) => setEditForm((prev) => ({ ...prev, dueTime: event.target.value }))}
                                     disabled={!editForm.dueDate}
-                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#7F40EE] focus:ring-1 focus:ring-[#7F40EE] outline-none disabled:bg-slate-50 disabled:text-slate-400'
+                                    className='w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/50 transition focus:border-[#3170c5] focus:ring-1 focus:ring-[#3170c5] outline-none disabled:bg-slate-50 disabled:text-slate-400'
                                   />
                                 </div>
                               </div>
@@ -2632,7 +2632,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                 type='button'
                                 disabled={saving}
                                 onClick={handleSaveTask}
-                                className='w-full rounded-xl bg-[#7F40EE] py-3 text-sm font-semibold text-white hover:bg-[#6A31D1] shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-60'
+                                className='w-full rounded-xl bg-[#3170c5] py-3 text-sm font-semibold text-white hover:bg-[#2158a4] shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-60'
                               >
                                 {saving ? 'Saving...' : 'Save Changes'}
                               </button>
@@ -2877,7 +2877,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                   { id: Date.now(), title: '', assigneeId: '', priority: 'medium', dueDate: '', frequency: '' }
                                 ]);
                               }}
-                              className="inline-flex items-center gap-1.5 text-[#7F40EE] hover:text-[#6A31D1] font-bold text-xs transition pl-6 cursor-pointer"
+                              className="inline-flex items-center gap-1.5 text-[#3170c5] hover:text-[#2158a4] font-bold text-xs transition pl-6 cursor-pointer"
                             >
                               <Plus size={14} />
                               <span>Add Subtask</span>
@@ -3363,7 +3363,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
 
                                             {/* Comments Column */}
                                             <div className='flex items-center justify-center gap-1 text-xs text-slate-700 w-full' onClick={(e) => e.stopPropagation()}>
-                                              <MessageSquare size={18} className={commentCount > 0 ? 'text-slate-600' : 'text-slate-500 hover:text-[#7F40EE] transition-colors cursor-pointer'} />
+                                              <MessageSquare size={18} className={commentCount > 0 ? 'text-slate-600' : 'text-slate-500 hover:text-[#3170c5] transition-colors cursor-pointer'} />
                                               {commentCount > 0 && <span className='font-bold text-[11px]'>{commentCount}</span>}
                                             </div>
 
@@ -3372,7 +3372,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                               <button
                                                 type='button'
                                                 onClick={() => setSelectedSubtaskId(subtask.id)}
-                                                className='text-slate-400 hover:text-[#7F40EE] transition-colors p-1.5 rounded-lg hover:bg-slate-100'
+                                                className='text-slate-400 hover:text-[#3170c5] transition-colors p-1.5 rounded-lg hover:bg-slate-100'
                                                 title='View Details'
                                                 aria-label='Open subtask details'
                                               >
@@ -3878,7 +3878,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                                       <button
                                                         type='button'
                                                         onClick={() => updateSubtaskInstruction(selectedSubtask.id, instruction.id)}
-                                                        className='px-3 py-1 text-[11px] font-semibold text-white bg-[#7F40EE] rounded-lg hover:bg-[#6f32dd] transition'
+                                                        className='px-3 py-1 text-[11px] font-semibold text-white bg-[#3170c5] rounded-lg hover:bg-[#2158a4] transition'
                                                       >
                                                         Save
                                                       </button>
@@ -3944,7 +3944,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                             type='button'
                                             onClick={() => addSubtaskInstruction(selectedSubtask.id)}
                                             disabled={isInstructionPending || !String(instructionDraft || '').trim()}
-                                            className='inline-flex h-full items-center justify-center gap-1.5 rounded-xl border border-purple-650 border-b-2 border-b-purple-800 bg-[#7F40EE] px-4 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:border-purple-700 hover:border-b-purple-900 hover:bg-[#6f32dd] active:translate-y-[1px] active:border-b active:border-b-purple-800 disabled:opacity-60 shrink-0'
+                                            className='inline-flex h-full items-center justify-center gap-1.5 rounded-xl border border-[#3170c5] border-b-2 border-b-[#183868] bg-[#3170c5] px-4 text-xs font-bold uppercase tracking-wider text-white shadow-sm transition-all hover:border-[#1d4581] hover:border-b-[#142c52] hover:bg-[#2158a4] active:translate-y-[1px] active:border-b active:border-b-[#183868] disabled:opacity-60 shrink-0'
                                           >
                                             <Plus size={14} />
                                             <span>Add</span>
@@ -4064,7 +4064,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                                   <button
                                                     type='button'
                                                     onClick={() => updateComment(comment.id, selectedSubtask.id)}
-                                                    className='px-3 py-1 text-[11px] font-semibold text-white bg-[#7F40EE] rounded-lg hover:bg-[#6f32dd] transition'
+                                                    className='px-3 py-1 text-[11px] font-semibold text-white bg-[#3170c5] rounded-lg hover:bg-[#2158a4] transition'
                                                   >
                                                     Save
                                                   </button>
@@ -4132,7 +4132,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                           type='button'
                                           onClick={() => postComment(selectedSubtask.id)}
                                           disabled={isCommentPending || !String(commentDraft || '').trim()}
-                                          className='rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700 disabled:opacity-60'
+                                          className='rounded-xl bg-[#2558a2] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1d4581] disabled:opacity-60'
                                         >
                                           Send
                                         </button>
@@ -4202,7 +4202,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                         <a href={attachment.file_url} target='_blank' rel='noreferrer' className='inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300'>
                                           <ExternalLink size={12} />Open
                                         </a>
-                                        <a href={attachment.file_url} download className='inline-flex items-center gap-1.5 rounded-full bg-[#7F40EE] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#6A31D1]'>
+                                        <a href={attachment.file_url} download className='inline-flex items-center gap-1.5 rounded-full bg-[#3170c5] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#2158a4]'>
                                           <Download size={12} />Download
                                         </a>
                                       </div>
@@ -4308,7 +4308,7 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                             setDragOverColumn(null);
                           }}
                           className={`rounded-[24px] border p-4 transition-all duration-200 ${dragOverColumn === sectionStatus
-                              ? 'border-[#7F40EE] bg-purple-50/20 shadow-md ring-2 ring-[#7F40EE]/10'
+                              ? 'border-[#3170c5] bg-[#edf4fc]/20 shadow-md ring-2 ring-[#3170c5]/10'
                               : 'border-slate-200 bg-slate-50/70'
                             }`}
                         >
@@ -4344,9 +4344,9 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
                                     onDragEnd={handleSubtaskDragEnd}
                                     onClick={() => setSelectedSubtaskId(subtask.id)}
                                     className={`w-full rounded-2xl border p-4 text-left transition-all duration-200 cursor-grab active:cursor-grabbing bg-white hover:border-slate-350 hover:shadow-md ${isSelected
-                                        ? 'border-[#7F40EE] shadow-sm ring-1 ring-[#7F40EE]/20'
+                                        ? 'border-[#3170c5] shadow-sm ring-1 ring-[#3170c5]/20'
                                         : 'border-slate-200 shadow-sm'
-                                      } ${isDraggingSubtaskId === subtask.id ? 'opacity-40 border-dashed border-[#7F40EE]' : ''}`}
+                                      } ${isDraggingSubtaskId === subtask.id ? 'opacity-40 border-dashed border-[#3170c5]' : ''}`}
                                   >
                                     <div className='flex items-start justify-between gap-3'>
                                       <div className='min-w-0 flex-1'>

@@ -101,7 +101,7 @@ function FlowNode({ node }: { node: TicketFlowNode }) {
         className={`flex h-10 w-10 items-center justify-center rounded-full border text-[11px] font-bold transition-colors ${
           node.completed
             ? node.key === 'reopened'
-              ? 'border-violet-500 bg-violet-500 text-white shadow-[0_10px_20px_rgba(139,92,246,0.25)]'
+              ? 'border-violet-500 bg-violet-500 text-white shadow-[0_10px_20px_rgba(49,112,197,0.25)]'
               : 'border-violet-300 bg-violet-200 text-violet-900'
             : 'border-outline-variant/20 bg-surface-container-low text-on-surface-variant'
         }`}
@@ -196,7 +196,7 @@ function StatusActionRow({
                 completed
                   ? 'border-emerald-200 bg-emerald-50 px-3.5 py-2 text-[13px] text-emerald-700'
                   : isNext
-                    ? 'scale-[1.06] border-violet-300 bg-[linear-gradient(180deg,#faf5ff_0%,#efe7ff_100%)] px-4 py-2.5 text-[14px] text-violet-900 shadow-[0_14px_24px_rgba(139,92,246,0.16),0_4px_0_rgba(196,181,253,0.9)] ring-1 ring-white/80 hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-[0_18px_28px_rgba(139,92,246,0.2),0_5px_0_rgba(196,181,253,0.95)]'
+                    ? 'scale-[1.06] border-violet-300 bg-[linear-gradient(180deg,#edf4fc_0%,#d7e7f9_100%)] px-4 py-2.5 text-[14px] text-violet-900 shadow-[0_14px_24px_rgba(49,112,197,0.16),0_4px_0_rgba(126,176,236,0.9)] ring-1 ring-white/80 hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-[0_18px_28px_rgba(49,112,197,0.2),0_5px_0_rgba(126,176,236,0.95)]'
                     : 'border-outline-variant/20 bg-surface-container-low px-3.5 py-2 text-[13px] text-on-surface-variant opacity-70'
               } disabled:cursor-not-allowed`}
             >
@@ -946,19 +946,12 @@ export default function Tickets({
     <div className={`mx-auto ${isAdminView ? 'max-w-7xl space-y-5 px-4 pt-4 pb-6 lg:px-5 lg:pt-5' : 'max-w-7xl space-y-6 pb-8'}`}>
       <EmployeePageHeader icon="support_agent" title={pageTitle} description={pageDescription} compact={isAdminView} />
 
-      <section className="overflow-x-auto">
+      <section className="overflow-x-auto py-3 mb-6">
         <div
           ref={sectionRef}
-          className={`relative inline-grid min-w-[560px] items-center overflow-hidden border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,244,255,0.96)_100%)] shadow-[0_14px_30px_rgba(15,23,42,0.06)] backdrop-blur ${isAdminView ? 'rounded-[1rem] p-1' : 'rounded-[1.2rem] p-1.5'}`}
+          className="inline-grid min-w-[560px] gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm"
           style={{ gridTemplateColumns: `repeat(${sections.length}, minmax(0, 1fr))` }}
         >
-          <div
-            className={`absolute bg-[linear-gradient(135deg,rgba(245,238,255,1)_0%,rgba(224,210,255,1)_55%,rgba(208,186,255,1)_100%)] shadow-[0_10px_22px_rgba(167,139,250,0.24)] ring-1 ring-white/70 transition-transform duration-300 ease-out ${isAdminView ? 'inset-y-1 left-1 rounded-[0.8rem]' : 'inset-y-1.5 left-1.5 rounded-[0.95rem]'}`}
-            style={{
-              width: isAdminView ? `calc((100% - 0.5rem) / ${sections.length})` : `calc((100% - 0.75rem) / ${sections.length})`,
-              transform: `translateX(calc(${sections.findIndex((section) => section.key === activeSection)} * 100%))`,
-            }}
-          />
           {sections.map((section) => {
             const isActive = activeSection === section.key;
             const count = section.key !== 'raise' ? getTicketCount(section.key) : null;
@@ -967,15 +960,19 @@ export default function Tickets({
                 key={section.key}
                 type="button"
                 onClick={() => setActiveSection(section.key)}
-                className={`relative z-10 inline-flex items-center justify-center gap-2 ${isAdminView ? 'rounded-[0.8rem] px-3 py-2 text-[11px]' : 'rounded-[0.9rem] px-3.5 py-2.5 text-xs'} font-semibold transition-colors ${
-                  isActive ? 'text-violet-950' : 'text-slate-500 hover:text-slate-700'
+                className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  isActive
+                    ? 'bg-white text-on-surface shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
-                <span className={`material-symbols-outlined ${isAdminView ? 'text-[15px]' : 'text-[16px]'}`}>{section.icon}</span>
+                <span className={`material-symbols-outlined text-[18px]`}>{section.icon}</span>
                 <span className="whitespace-nowrap">
                   {section.label}
                   {count !== null && count > 0 && (
-                    <span className="ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-violet-100 text-[10px] font-bold text-violet-700">
+                    <span className={`ml-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
+                      isActive ? 'bg-[#edf4fc] text-primary' : 'bg-[#F1F4F5] text-slate-500'
+                    }`}>
                       {count}
                     </span>
                   )}

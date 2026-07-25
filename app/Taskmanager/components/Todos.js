@@ -89,7 +89,7 @@ export default function Todos() {
 
   const pieData = useMemo(
     () => [
-      { name: 'Remaining', value: remainingTodos, color: '#7F40EE' },
+      { name: 'Remaining', value: remainingTodos, color: '#3170c5' },
       { name: 'Completed', value: completedTodos, color: '#84cc16' },
     ],
     [completedTodos, remainingTodos]
@@ -143,12 +143,12 @@ export default function Todos() {
                 }
               }}
               placeholder='Write a todo...'
-              className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#7F40EE]/30'
+              className='flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3170c5]/30'
             />
             <button
               type='button'
               onClick={addTodo}
-              className='rounded-lg bg-[#7F40EE] px-4 py-2 text-sm font-medium text-white hover:bg-[#6f34d5]'
+              className='rounded-lg bg-[#3170c5] px-4 py-2 text-sm font-medium text-white hover:bg-[#2158a4]'
             >
               Add
             </button>
@@ -166,7 +166,7 @@ export default function Todos() {
                 onClick={() => setFilter(item.key)}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
                   filter === item.key
-                    ? 'bg-[#7F40EE]/10 text-[#7F40EE]'
+                    ? 'bg-[#3170c5]/10 text-[#3170c5]'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -188,7 +188,7 @@ export default function Todos() {
                       type='checkbox'
                       checked={todo.completed}
                       onChange={() => toggleTodo(todo.id)}
-                      className='h-4 w-4 accent-[#7F40EE]'
+                      className='h-4 w-4 accent-[#3170c5]'
                     />
                     <p className={`text-sm ${todo.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
                       {todo.title}

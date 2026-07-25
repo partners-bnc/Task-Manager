@@ -81,7 +81,7 @@ export default function AdminSettings() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
           />
         </label>
 
@@ -103,7 +103,7 @@ export default function AdminSettings() {
               value={designation}
               onChange={(e) => setDesignation(e.target.value)}
               placeholder="Founder / Co-Founder"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
             />
           </label>
         ) : null}
@@ -115,7 +115,7 @@ export default function AdminSettings() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Leave blank to keep current password"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
           />
         </label>
 
@@ -126,7 +126,7 @@ export default function AdminSettings() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Re-enter new password"
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#7F40EE]/30"
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:ring-2 focus:ring-[#3170c5]/30"
           />
         </label>
 
@@ -134,7 +134,7 @@ export default function AdminSettings() {
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2.5 rounded-lg bg-[#7F40EE] text-white font-medium hover:bg-[#6A31D1] disabled:opacity-60"
+            className="px-5 py-2.5 rounded-lg bg-[#3170c5] text-white font-medium hover:bg-[#2158a4] disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Save Settings'}
           </button>

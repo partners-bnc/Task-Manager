@@ -58,7 +58,7 @@ function clampZoom(value: number) {
 
 function buildStatusTone(node: OrgChartNode, isHighlighted: boolean) {
   if (isHighlighted) {
-    return 'border-violet-400 bg-violet-50 shadow-[0_18px_44px_rgba(139,92,246,0.16)]';
+    return 'border-blue-400 bg-blue-50 shadow-[0_18px_44px_rgba(49,112,198,0.16)]';
   }
 
   if (node.kind === 'employee' && String(node.status || '').toLowerCase() === 'separated') {
@@ -108,7 +108,7 @@ function CountBadge({ count, isActive = false }: { count: number; isActive?: boo
     <span
       className={`inline-flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-[11px] font-semibold ${
         isActive
-          ? 'border-violet-300 bg-violet-50 text-violet-700'
+          ? 'border-blue-300 bg-blue-50 text-blue-700'
           : 'border-slate-200 bg-white text-slate-600'
       }`}
     >
@@ -145,7 +145,7 @@ function OrgNodeCard({
         }
       }}
       className={`group relative w-[260px] rounded-[28px] border px-4 py-4 text-left transition-all ${buildStatusTone(node, isHighlighted)} ${
-        hasChildren ? 'cursor-pointer hover:-translate-y-0.5 hover:border-violet-300' : 'cursor-default'
+        hasChildren ? 'cursor-pointer hover:-translate-y-0.5 hover:border-blue-300' : 'cursor-default'
       }`}
     >
       {node.kind !== 'group' && (
@@ -672,14 +672,14 @@ function EmployeeDetailModal({
             {node.avatarUrl ? (
               <Image
                 alt={node.name}
-                className="h-20 w-20 rounded-full object-cover ring-4 ring-violet-50"
+                className="h-20 w-20 rounded-full object-cover ring-4 ring-blue-50"
                 src={node.avatarUrl}
                 width={80}
                 height={80}
                 unoptimized
               />
             ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-violet-100 to-indigo-100 text-violet-600 ring-4 ring-violet-50 shadow-inner">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-600 ring-4 ring-blue-50 shadow-inner">
                 <span className="material-symbols-outlined text-[36px]">
                   {node.kind === 'super_admin' ? 'shield_person' : 'person'}
                 </span>
@@ -692,7 +692,7 @@ function EmployeeDetailModal({
 
           <div className="min-w-0 flex-1">
             <h3 className="text-2xl font-black text-slate-900 leading-tight tracking-tight truncate">{node.name}</h3>
-            <span className="mt-1 inline-flex px-2.5 py-0.5 bg-violet-50 text-violet-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
+            <span className="mt-1 inline-flex px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
               {node.kind === 'super_admin' ? 'Executive Admin' : 'Employee'}
             </span>
           </div>
@@ -1090,7 +1090,7 @@ export default function OrganizationChart({
     <div className="space-y-4 px-0 pt-3 pb-0">
       <section className="flex flex-col gap-2 px-6 pt-2 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
             <span className="material-symbols-outlined text-[18px]">account_tree</span>
           </div>
           <div className="min-w-0">
@@ -1126,21 +1126,14 @@ export default function OrganizationChart({
             </label>
 
             {/* View Mode Toggle */}
-            <div className="relative inline-grid grid-cols-2 items-center overflow-hidden rounded-xl bg-slate-100 p-1 shadow-[inset_0_1px_1px_rgba(148,163,184,0.05)] w-72 h-11">
-              {/* Sliding background */}
-              <div
-                className="absolute inset-y-1 left-1 w-[calc((100%-0.5rem)/2)] rounded-lg bg-white shadow-sm border border-slate-200/50 transition-transform duration-300 ease-out"
-                style={{
-                  transform: `translateX(${viewMode === 'department' ? '100%' : '0%'})`
-                }}
-              />
+            <div className="inline-grid grid-cols-2 gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm w-72">
               <button
                 type="button"
                 onClick={() => setViewMode('reporting')}
-                className={`relative z-10 py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition ${
                   viewMode === 'reporting'
-                    ? 'text-violet-950'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-white text-on-surface shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]">account_tree</span>
@@ -1149,10 +1142,10 @@ export default function OrganizationChart({
               <button
                 type="button"
                 onClick={() => setViewMode('department')}
-                className={`relative z-10 py-1.5 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
+                className={`inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition ${
                   viewMode === 'department'
-                    ? 'text-violet-950'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? 'bg-white text-on-surface shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface'
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]">schema</span>
@@ -1309,10 +1302,10 @@ export default function OrganizationChart({
                                 ref={(el) => {
                                   nodeRefs.current[`department:${dept.name}`] = el;
                                 }}
-                                className="w-[260px] rounded-[24px] border border-violet-200 bg-[linear-gradient(180deg,#fcfaff_0%,#f5f0ff_100%)] p-4 text-center shadow-[0_8px_20px_rgba(139,92,246,0.04)]"
+                                className="w-[260px] rounded-[24px] border border-blue-200 bg-[linear-gradient(180deg,#f8fbfd_0%,#eef6fc_100%)] p-4 text-center shadow-[0_8px_20px_rgba(49,112,198,0.04)]"
                               >
-                                <span className="material-symbols-outlined text-violet-600 text-[20px] mb-1">corporate_fare</span>
-                                <p className="text-sm font-bold uppercase tracking-wider text-violet-800">{dept.name}</p>
+                                <span className="material-symbols-outlined text-blue-600 text-[20px] mb-1">corporate_fare</span>
+                                <p className="text-sm font-bold uppercase tracking-wider text-blue-800">{dept.name}</p>
                                 <p className="text-xs font-semibold text-slate-500 mt-1">{dept.count} members</p>
                               </div>
 

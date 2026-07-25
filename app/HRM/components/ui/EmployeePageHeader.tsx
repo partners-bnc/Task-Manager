@@ -28,7 +28,7 @@ export default function EmployeePageHeader({
           </span>
         ) : null}
         <div className={`flex items-start ${compact ? 'gap-3' : 'gap-4'} ${eyebrow ? 'mt-4' : ''}`}>
-          <div className={`flex shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 shadow-[0_12px_28px_rgba(139,92,246,0.14)] ${compact ? 'h-10 w-10' : 'h-12 w-12'}`}>
+          <div className={`flex shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700 shadow-[0_12px_28px_rgba(49,112,197,0.14)] ${compact ? 'h-10 w-10' : 'h-12 w-12'}`}>
             <span className={`material-symbols-outlined ${compact ? 'text-[20px]' : 'text-[24px]'}`}>{icon}</span>
           </div>
           <div className="min-w-0">

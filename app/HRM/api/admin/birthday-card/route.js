@@ -77,7 +77,7 @@ function BirthdayAvatar({ employee, origin }) {
           borderRadius: 9999,
           objectFit: 'cover',
           border: '10px solid rgba(255,255,255,0.92)',
-          boxShadow: '0 24px 48px rgba(139,92,246,0.22)',
+          boxShadow: '0 24px 48px rgba(49,112,197,0.22)',
         }}
       />
     );
@@ -94,10 +94,10 @@ function BirthdayAvatar({ employee, origin }) {
         justifyContent: 'center',
         border: '10px solid rgba(255,255,255,0.92)',
         background: '#FFFFFF',
-        color: '#7C3AED',
+        color: '#3170c5',
         fontSize: 82,
         fontWeight: 800,
-        boxShadow: '0 24px 48px rgba(139,92,246,0.22)',
+        boxShadow: '0 24px 48px rgba(49,112,197,0.22)',
       }}
     >
       {getInitials(name)}
@@ -151,10 +151,10 @@ export async function POST(request) {
               display: 'flex',
               flexDirection: 'column',
               borderRadius: 56,
-              border: '2px solid #E9D8FF',
-              background: '#F6ECFF',
+              border: '2px solid #afd0f4',
+              background: '#edf4fc',
               padding: '54px 54px 50px',
-              boxShadow: '0 34px 90px rgba(137,92,246,0.16)',
+              boxShadow: '0 34px 90px rgba(49,112,197,0.16)',
             }}
           >
             <div
@@ -165,7 +165,7 @@ export async function POST(request) {
                 width: 320,
                 height: 320,
                 borderRadius: 9999,
-                background: 'rgba(216,180,254,0.62)',
+                background: 'rgba(126,176,236,0.62)',
                 filter: 'blur(24px)',
               }}
             />
@@ -177,7 +177,7 @@ export async function POST(request) {
                 width: 180,
                 height: 180,
                 borderRadius: 9999,
-                background: 'rgba(240,171,252,0.42)',
+                background: 'rgba(175,208,244,0.42)',
                 filter: 'blur(18px)',
                 transform: 'translateX(-50%)',
               }}
@@ -202,7 +202,7 @@ export async function POST(request) {
                 width: 18,
                 height: 18,
                 borderRadius: 9999,
-                background: 'rgba(139,92,246,0.56)',
+                background: 'rgba(49,112,197,0.56)',
               }}
             />
             <div
@@ -213,7 +213,7 @@ export async function POST(request) {
                 width: 24,
                 height: 24,
                 borderRadius: 9999,
-                background: 'rgba(168,85,247,0.62)',
+                background: 'rgba(49,112,197,0.62)',
               }}
             />
             <div
@@ -342,7 +342,7 @@ export async function POST(request) {
                   gap: 16,
                   borderRadius: 9999,
                   background: 'rgba(255,255,255,0.88)',
-                  boxShadow: '0 10px 28px rgba(102,51,153,0.12)',
+                  boxShadow: '0 10px 28px rgba(49,112,197,0.12)',
                   padding: '18px 34px',
                   color: '#9A3412',
                   fontSize: 34,

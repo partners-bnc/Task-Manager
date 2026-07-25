@@ -328,37 +328,29 @@ export default function Leave() {
         description="Apply for leave, monitor monthly balances, and review approvals in a cleaner employee workflow."
       />
 
-      <section className="overflow-x-auto">
-        <div
-          className="relative inline-grid min-w-full grid-cols-2 items-center overflow-hidden rounded-[1.35rem] bg-[#F1F4F5] p-1.5 shadow-[0_10px_24px_rgba(15,23,42,0.05)] md:min-w-[520px]"
-        >
-          <div
-            className="absolute inset-y-1.5 left-1.5 rounded-[1rem] bg-[linear-gradient(180deg,#eadcff_0%,#cfbdfd_100%)] shadow-[0_8px_18px_rgba(167,139,250,0.20)] transition-transform duration-300 ease-out"
-            style={{
-              width: 'calc((100% - 0.75rem) / 2)',
-              transform: activeMode === 'team_leave_review' ? 'translateX(100%)' : 'translateX(0%)',
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setActiveMode('my_leave_manage')}
-            className={`relative z-10 inline-flex items-center justify-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold transition-colors ${
-              activeMode === 'my_leave_manage' ? 'text-violet-950' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[18px]">calendar_month</span>
-            <span className="whitespace-nowrap">My Leave Manage</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveMode('team_leave_review')}
-            className={`relative z-10 inline-flex items-center justify-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold transition-colors ${
-              activeMode === 'team_leave_review' ? 'text-violet-950' : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <span className="material-symbols-outlined text-[18px]">groups</span>
-            <span className="whitespace-nowrap">Team Leave Review</span>
-          </button>
+      <section className="overflow-x-auto py-3 mb-6">
+        <div className="inline-grid min-w-full grid-cols-2 gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest p-1 shadow-sm md:min-w-[520px]">
+          {[
+            { id: 'my_leave_manage', label: 'My Leave Manage', icon: 'calendar_month' },
+            { id: 'team_leave_review', label: 'Team Leave Review', icon: 'groups' },
+          ].map((tab) => {
+            const isActive = activeMode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveMode(tab.id as 'my_leave_manage' | 'team_leave_review')}
+                className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+                  isActive
+                    ? 'bg-white text-on-surface shadow-sm'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
+                <span className="whitespace-nowrap">{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
 

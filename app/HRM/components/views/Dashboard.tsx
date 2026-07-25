@@ -27,7 +27,7 @@ function RollingDigit({
   const digit = Number.parseInt(value, 10) || 0;
 
   return (
-    <span className={`relative inline-flex h-[1.08em] w-[0.7em] overflow-hidden ${sizeClass} ${muted ? 'text-violet-300' : 'text-violet-500'}`}>
+    <span className={`relative inline-flex h-[1.08em] w-[0.7em] overflow-hidden ${sizeClass} ${muted ? 'text-blue-300' : 'text-blue-500'}`}>
       <span
         className="absolute left-0 top-0 flex w-full flex-col items-center transition-transform duration-500 ease-out"
         style={{ transform: `translateY(-${digit * 1.08}em)` }}
@@ -305,7 +305,7 @@ export default function Dashboard({
   }, []);
 
   const attendanceButtonClassName =
-    'group relative flex-1 overflow-hidden rounded-2xl bg-gradient-to-b from-violet-400 via-violet-500 to-violet-600 px-4 py-3 text-xs font-semibold text-white shadow-[0_14px_28px_rgba(139,92,246,0.28)] transition-all duration-200 before:absolute before:inset-x-4 before:top-1 before:h-[42%] before:rounded-full before:bg-white/20 before:blur-md hover:-translate-y-0.5 hover:shadow-[0_18px_32px_rgba(139,92,246,0.34)] active:translate-y-1 active:shadow-[0_8px_18px_rgba(139,92,246,0.22)] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0';
+    'group relative flex-1 overflow-hidden rounded-2xl bg-gradient-to-b from-[#4d8be6] via-[#3170c6] to-[#225091] px-4 py-3 text-xs font-semibold text-white shadow-[0_14px_28px_rgba(49,112,198,0.28)] transition-all duration-200 before:absolute before:inset-x-4 before:top-1 before:h-[42%] before:rounded-full before:bg-white/20 before:blur-md hover:-translate-y-0.5 hover:shadow-[0_18px_32px_rgba(49,112,198,0.34)] active:translate-y-1 active:shadow-[0_8px_18px_rgba(49,112,198,0.22)] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0';
   const weeklyMotivation = useMemo(() => {
     const weekIndex = getWeekOfYear(new Date()) % WEEKLY_MOTIVATION_MESSAGES.length;
     return WEEKLY_MOTIVATION_MESSAGES[weekIndex];
@@ -459,7 +459,7 @@ export default function Dashboard({
   const formattedShortDate = currentTime.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const dayName = currentTime.toLocaleDateString('en-GB', { weekday: 'long' });
   const greetingMeta = getGreetingMeta(currentTime);
-  
+
   const hours = currentTime.getHours().toString().padStart(2, '0');
   const minutes = currentTime.getMinutes().toString().padStart(2, '0');
   const seconds = currentTime.getSeconds().toString().padStart(2, '0');
@@ -474,7 +474,7 @@ export default function Dashboard({
     const startDay = firstDay.getDay();
     const totalDays = lastDay.getDate();
     const today = new Date();
-    
+
     const days = [];
     // Previous month padding
     for (let i = 0; i < startDay; i++) {
@@ -485,10 +485,10 @@ export default function Dashboard({
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const holiday = holidayItems.find(h => h.date === dateStr);
       const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === i;
-      days.push({ 
-        day: i, 
+      days.push({
+        day: i,
         date: dateStr,
-        isCurrentMonth: true, 
+        isCurrentMonth: true,
         isWeekend: new Date(year, month, i).getDay() === 0 || new Date(year, month, i).getDay() === 6,
         isToday,
         holiday
@@ -499,7 +499,7 @@ export default function Dashboard({
     for (let i = 0; i < remaining; i++) {
       days.push({ day: null, isCurrentMonth: false });
     }
-    
+
     return { days, year, month, monthName: date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) };
   };
 
@@ -663,24 +663,24 @@ export default function Dashboard({
     return weekdayOrder
       .map((dayName, index) => ({ dayName, index }))
       .map(({ dayName, index }) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + index);
-      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      const record = attendanceRecords.find((item) => item.date === dateKey);
-      const match = record?.workHours?.match(/(\d+)h\s+(\d+)m/);
-      const workMinutes = match ? (Number(match[1]) * 60) + Number(match[2]) : 0;
-      const isWorkingDay = normalizedWorkingDays.includes(dayName);
-      const heightPercent = workMinutes ? Math.max(14, Math.min(100, Math.round((workMinutes / 540) * 100))) : isWorkingDay ? 18 : 12;
+        const date = new Date(monday);
+        date.setDate(monday.getDate() + index);
+        const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        const record = attendanceRecords.find((item) => item.date === dateKey);
+        const match = record?.workHours?.match(/(\d+)h\s+(\d+)m/);
+        const workMinutes = match ? (Number(match[1]) * 60) + Number(match[2]) : 0;
+        const isWorkingDay = normalizedWorkingDays.includes(dayName);
+        const heightPercent = workMinutes ? Math.max(14, Math.min(100, Math.round((workMinutes / 540) * 100))) : isWorkingDay ? 18 : 12;
 
-      return {
-        label: date.toLocaleDateString('en-GB', { weekday: 'short' }),
-        dayName: date.toLocaleDateString('en-GB', { weekday: 'long' }),
-        workLabel: workMinutes ? `${Math.floor(workMinutes / 60)}h ${String(workMinutes % 60).padStart(2, '0')}m` : '0h 00m',
-        heightPercent,
-        hasData: Boolean(record && workMinutes),
-        isWorkingDay,
-      };
-    });
+        return {
+          label: date.toLocaleDateString('en-GB', { weekday: 'short' }),
+          dayName: date.toLocaleDateString('en-GB', { weekday: 'long' }),
+          workLabel: workMinutes ? `${Math.floor(workMinutes / 60)}h ${String(workMinutes % 60).padStart(2, '0')}m` : '0h 00m',
+          heightPercent,
+          hasData: Boolean(record && workMinutes),
+          isWorkingDay,
+        };
+      });
   }, [attendanceRecords, employee?.working_days]);
 
   const attendanceActionLabel = useMemo(() => {
@@ -711,7 +711,7 @@ export default function Dashboard({
     try {
       setIsAttendanceUpdating(true);
       const locationPayload = await captureAttendanceLocationPayload();
-      
+
       // Fetch fresh attendance status from database to prevent out-of-sync checkout bypasses
       const syncRes = await fetch(`/HRM/api/attendance?month=${attendanceMonth}`, { method: 'GET' });
       if (!syncRes.ok) throw new Error('Failed to synchronize attendance state');
@@ -731,7 +731,7 @@ export default function Dashboard({
           .then(result => {
             setEmployeeTasks((result.tasks || []).slice().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
           })
-          .catch(() => {});
+          .catch(() => { });
 
         setPendingLocationPayload(locationPayload);
         setIsWorkLogModalOpen(true);
@@ -805,7 +805,7 @@ export default function Dashboard({
               <span className="px-3 py-1 bg-surface-container-low text-on-surface-variant text-[10px] font-bold uppercase tracking-widest rounded-full">This Week</span>
             </div>
           </div>
-          
+
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex-1 space-y-4 w-full">
               <div className="flex items-center gap-4">
@@ -832,7 +832,7 @@ export default function Dashboard({
                 </p>
               )}
             </div>
-            
+
             <div className="flex-1 w-full border-t border-outline-variant/10 pt-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
               <div className="flex h-36 items-end justify-between gap-3">
                 {weeklyBars.map((bar) => (
@@ -840,12 +840,12 @@ export default function Dashboard({
                     <span className="text-[10px] font-semibold text-on-surface-variant">{bar.workLabel}</span>
                     <div className="flex h-28 w-full items-end justify-center">
                       <div
-                        className={`${bar.hasData ? 'bg-violet-400 hover:bg-violet-500' : bar.isWorkingDay ? 'bg-violet-200/90' : 'bg-violet-100/80'} w-full max-w-[2.75rem] rounded-t-xl transition-colors`}
+                        className={`${bar.hasData ? 'bg-blue-400 hover:bg-blue-500' : bar.isWorkingDay ? 'bg-blue-200/90' : 'bg-blue-100/80'} w-full max-w-[2.75rem] rounded-t-xl transition-colors`}
                         style={{ height: `${bar.heightPercent}%` }}
                         title={`${bar.dayName}: ${bar.workLabel}`}
                       />
                     </div>
-                    <span className={`text-[11px] font-bold uppercase tracking-wide ${bar.isWorkingDay ? 'text-on-surface-variant' : 'text-violet-300'}`}>{bar.label}</span>
+                    <span className={`text-[11px] font-bold uppercase tracking-wide ${bar.isWorkingDay ? 'text-on-surface-variant' : 'text-blue-300'}`}>{bar.label}</span>
                   </div>
                 ))}
               </div>
@@ -854,20 +854,20 @@ export default function Dashboard({
         </div>
 
         {/* Review Cards (Empty State Placeholder) */}
-        <div className="col-span-12 lg:col-span-4 rounded-[28px] bg-[#F6ECFF] p-6 flex flex-col items-center justify-center text-center border border-violet-200/25 shadow-[0_16px_40px_-10px_rgba(139,92,246,0.12),0_8px_20px_-6px_rgba(139,92,246,0.06)] transition-all duration-500 ease-out [transform-style:preserve-3d] [perspective:1000px] hover:[transform:translateY(-12px)_rotateX(6deg)_rotateY(-6deg)] hover:shadow-[0_32px_60px_-12px_rgba(139,92,246,0.22),0_16px_30px_-8px_rgba(139,92,246,0.1)] cursor-pointer">
+        <div className="col-span-12 lg:col-span-4 rounded-[28px] bg-[#edf4fc] p-6 flex flex-col items-center justify-center text-center border border-blue-200/25 shadow-[0_16px_40px_-10px_rgba(49,112,198,0.12),0_8px_20px_-6px_rgba(49,112,198,0.06)] transition-all duration-500 ease-out [transform-style:preserve-3d] [perspective:1000px] hover:[transform:translateY(-12px)_rotateX(6deg)_rotateY(-6deg)] hover:shadow-[0_32px_60px_-12px_rgba(49,112,198,0.22),0_16px_30px_-8px_rgba(49,112,198,0.1)] cursor-pointer">
           <div className="mb-5 h-16 flex items-center justify-center [transform:translateZ(24px)] transition-transform duration-500 ease-out">
             <EyeTracking
               eyeSize={40}
               gap={12}
               variant="cartoon"
-              irisColor="#8B5CF6"
-              irisColorSecondary="#A78BFA"
+              irisColor="#3170c6"
+              irisColorSecondary="#6aa0e6"
               scleraColor="#FFFFFF"
             />
           </div>
-          <h3 className="text-lg font-black tracking-tight text-violet-950 mb-1.5 [transform:translateZ(16px)] transition-transform duration-500">{dailyMotivation.title}</h3>
-          <p className="text-sm font-serif italic font-medium text-violet-800/90 leading-relaxed max-w-[240px] [transform:translateZ(8px)] transition-transform duration-500">"{dailyMotivation.body}"</p>
-          <div className="mt-6 inline-flex bg-white/60 border border-violet-100/40 px-4 py-1.5 rounded-full shadow-sm text-[10px] font-black uppercase tracking-[0.2em] text-violet-600 [transform:translateZ(4px)] transition-transform duration-500">Daily Inspiration</div>
+          <h3 className="text-lg font-black tracking-tight text-blue-950 mb-1.5 [transform:translateZ(16px)] transition-transform duration-500">{dailyMotivation.title}</h3>
+          <p className="text-sm font-serif italic font-medium text-blue-800/90 leading-relaxed max-w-[240px] [transform:translateZ(8px)] transition-transform duration-500">"{dailyMotivation.body}"</p>
+          <div className="mt-6 inline-flex bg-white/60 border border-blue-100/40 px-4 py-1.5 rounded-full shadow-sm text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 [transform:translateZ(4px)] transition-transform duration-500">Daily Inspiration</div>
         </div>
 
         {/* Upcoming Holidays List */}
@@ -899,7 +899,7 @@ export default function Dashboard({
               );
             })}
           </div>
-          <button 
+          <button
             onClick={openHolidayModal}
             className="w-full mt-6 py-2 bg-surface-container-low text-on-surface-variant rounded-lg text-sm font-semibold hover:bg-surface-container transition-colors"
           >
@@ -947,7 +947,7 @@ export default function Dashboard({
               <p className="text-xs text-slate-500 mt-1">Access company policies, HR guidelines, and workplace rules.</p>
             </div>
           </div>
-          
+
           <div className="bg-white border border-slate-200/80 p-6 rounded-2xl text-on-surface flex flex-col h-full min-h-65 shadow-sm relative overflow-hidden">
             {/* Live indicator */}
             <div className="absolute top-5 right-5 flex items-center gap-2">
@@ -957,7 +957,7 @@ export default function Dashboard({
               </span>
               <span className="text-[10px] font-medium text-emerald-600 uppercase tracking-wide">Live</span>
             </div>
-            
+
             <div className="relative z-10 flex flex-1 flex-col">
               <div className="space-y-3 self-start text-left">
                 <div className="inline-flex items-center gap-2">
@@ -970,8 +970,8 @@ export default function Dashboard({
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-medium text-slate-500">{dayName}</span>
                   <span className="w-px h-3 bg-slate-300" />
-                  <span className="inline-flex items-center rounded-md border border-violet-100 bg-violet-50 px-2.5 py-1">
-                    <span className="text-[11px] font-bold text-violet-600 font-mono">{loginId}</span>
+                  <span className="inline-flex items-center rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1">
+                    <span className="text-[11px] font-bold text-blue-600 font-mono">{loginId}</span>
                   </span>
                 </div>
               </div>
@@ -979,19 +979,19 @@ export default function Dashboard({
               <div className="flex flex-1 items-center justify-center">
                 <div className="flex items-end justify-center gap-1 text-center">
                   <RollingTimeGroup value={timeString.hours} sizeClass="text-5xl md:text-6xl font-semibold tracking-tight" />
-                  <span className="mb-1 font-mono text-4xl md:text-5xl font-semibold text-violet-300">:</span>
+                  <span className="mb-1 font-mono text-4xl md:text-5xl font-semibold text-blue-300">:</span>
                   <RollingTimeGroup value={timeString.minutes} sizeClass="text-5xl md:text-6xl font-semibold tracking-tight" />
-                  <span className="mb-0.5 ml-2 font-mono text-2xl md:text-3xl font-medium text-violet-300">:</span>
+                  <span className="mb-0.5 ml-2 font-mono text-2xl md:text-3xl font-medium text-blue-300">:</span>
                   <RollingTimeGroup value={timeString.seconds} sizeClass="text-2xl md:text-3xl font-medium tracking-tight" muted />
                 </div>
               </div>
             </div>
-            
+
             {/* Action buttons */}
             <div className="relative z-10 mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <button 
+              <button
                 onClick={() => setIsSwipesModalOpen(true)}
-                className="group flex items-center gap-2 px-4 py-2.5 bg-white border border-violet-100 rounded-xl text-xs font-semibold text-violet-700 hover:border-violet-200 hover:bg-violet-50/70 hover:shadow-sm transition-all duration-200"
+                className="group flex items-center gap-2 px-4 py-2.5 bg-white border border-blue-100 rounded-xl text-xs font-semibold text-blue-700 hover:border-blue-200 hover:bg-blue-50/70 hover:shadow-sm transition-all duration-200"
               >
                 <span className="material-symbols-outlined text-base group-hover:scale-110 transition-transform">badge</span>
                 View Swipes
@@ -1021,14 +1021,14 @@ export default function Dashboard({
               <h3 className="text-lg font-bold font-headline text-on-surface">Team Attendance Summary</h3>
               <p className="text-xs text-on-surface-variant">Real-time status of employees reporting directly to you</p>
             </div>
-            <span className="px-3 py-1 bg-violet-100 text-violet-700 text-xs font-bold rounded-full">
+            <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
               {reporteesData.reportees.length} Direct Reportees
             </span>
           </div>
 
           {loadingReportees ? (
             <div className="flex items-center justify-center py-12">
-              <span className="animate-spin rounded-full h-8 w-8 border-2 border-violet-500 border-t-transparent" />
+              <span className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
             </div>
           ) : reporteesData.reportees.length === 0 ? (
             <div className="text-center py-12 text-on-surface-variant text-sm border border-dashed border-outline-variant/20 rounded-xl bg-slate-50">
@@ -1066,7 +1066,7 @@ export default function Dashboard({
                               className={`w-12 h-12 rounded-full object-cover border-[3px] ${borderColor}`}
                             />
                           ) : (
-                            <div className={`w-12 h-12 rounded-full bg-violet-100/90 text-violet-700 flex items-center justify-center font-bold text-base border-[3px] ${borderColor}`}>
+                            <div className={`w-12 h-12 rounded-full bg-blue-100/90 text-blue-700 flex items-center justify-center font-bold text-base border-[3px] ${borderColor}`}>
                               {reportee.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}
                             </div>
                           )}
@@ -1106,7 +1106,7 @@ export default function Dashboard({
                         <span className={`text-[11px] px-2.5 py-1 border rounded-lg font-bold tracking-wide ${statusColor}`}>
                           {reportee.status}
                         </span>
-                        
+
                         <div className="text-[10px] text-on-surface-variant font-medium">
                           {reportee.swipes.length > 0 ? (
                             <span>{reportee.swipes.length} Door Swipe{reportee.swipes.length > 1 ? 's' : ''}</span>
@@ -1140,7 +1140,7 @@ export default function Dashboard({
               <h3 className="text-lg font-bold font-headline text-on-surface flex items-center gap-2">
                 Swipes
               </h3>
-              <button 
+              <button
                 onClick={() => setIsSwipesModalOpen(false)}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
                 title="Close"
@@ -1148,14 +1148,14 @@ export default function Dashboard({
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            
+
             <div className="p-6 bg-surface">
               <div className="flex flex-wrap gap-x-8 gap-y-4 items-center text-sm mb-6 text-on-surface-variant">
                 <div>Date <span className="font-semibold text-on-surface ml-1">{formattedShortDate}</span></div>
                 <div>Shift Time <span className="font-semibold text-on-surface ml-1">09:00 to 17:30</span></div>
                 <div>Employee ID <span className="font-semibold text-on-surface ml-1">{loginId}</span></div>
               </div>
-              
+
               <div className="overflow-hidden rounded-xl border border-outline-variant/20">
                 <table className="w-full text-left text-sm whitespace-nowrap">
                   <thead className="bg-[#f5ecff] text-on-surface-variant font-semibold">
@@ -1189,7 +1189,7 @@ export default function Dashboard({
 
       {/* Holiday Calendar Modal */}
       {isHolidayModalOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity"
           onClick={(e) => e.target === e.currentTarget && setIsHolidayModalOpen(false)}
           role="dialog"
@@ -1204,7 +1204,7 @@ export default function Dashboard({
                 <span className="material-symbols-outlined text-primary">calendar_month</span>
                 Holiday Calendar
               </h3>
-              <button 
+              <button
                 onClick={() => setIsHolidayModalOpen(false)}
                 className="w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors"
                 title="Close"
@@ -1212,28 +1212,28 @@ export default function Dashboard({
                 <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            
+
             {/* Modal Content */}
             <div className="flex flex-col lg:flex-row overflow-hidden">
               {/* Calendar Grid */}
               <div className="flex-1 p-6 overflow-y-auto">
                 {/* Month Navigation */}
                 <div className="flex items-center justify-between mb-6">
-                  <button 
+                  <button
                     onClick={goToPrevMonth}
                     className="w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors"
                   >
                     <span className="material-symbols-outlined">chevron_left</span>
                   </button>
                   <h4 className="text-xl font-bold font-headline text-on-surface">{monthData.monthName}</h4>
-                  <button 
+                  <button
                     onClick={goToNextMonth}
                     className="w-10 h-10 rounded-full bg-surface-container hover:bg-surface-container-high flex items-center justify-center text-on-surface-variant hover:text-on-surface transition-colors"
                   >
                     <span className="material-symbols-outlined">chevron_right</span>
                   </button>
                 </div>
-                
+
                 {/* Weekday Headers */}
                 <div className="grid grid-cols-7 gap-1 mb-2">
                   {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -1242,7 +1242,7 @@ export default function Dashboard({
                     </div>
                   ))}
                 </div>
-                
+
                 {/* Calendar Days Grid */}
                 <div className="grid grid-cols-7 gap-2">
                   {monthData.days.map((dayInfo, idx) => {
@@ -1284,7 +1284,7 @@ export default function Dashboard({
                     );
                   })}
                 </div>
-                
+
                 {/* Legend */}
                 <div className="flex flex-wrap gap-4 mt-6 pt-4 border-t border-outline-variant/10 text-xs text-on-surface-variant">
                   <div className="flex items-center gap-2">
@@ -1301,7 +1301,7 @@ export default function Dashboard({
                   </div>
                 </div>
               </div>
-              
+
               {/* Holiday Detail Panel */}
               <div className="w-full lg:w-72 bg-surface-container-lowest p-6 border-t lg:border-t-0 lg:border-l border-outline-variant/10 shrink-0">
                 <h5 className="text-sm font-bold font-headline text-on-surface-variant uppercase tracking-wide mb-4">
