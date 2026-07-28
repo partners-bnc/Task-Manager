@@ -83,14 +83,7 @@ export default function Sidebar({
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
-        {!isCollapsed && (
-          <div className="my-5 mx-4 px-4 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-center select-none shadow-sm w-full">
-            <h1 className="text-xs font-bold tracking-wider text-slate-700 uppercase">
-              Task Manager
-            </h1>
-          </div>
-        )}
-        <div className={`${isCollapsed ? 'w-12 h-12 mb-2' : 'w-16 h-16 mb-2'} rounded-full border-4 border-[#3170c5]/20 overflow-hidden relative group`}>
+        <div className={`mt-1 ${isCollapsed ? 'w-12 h-12 mb-2' : 'w-16 h-16 mb-2'} rounded-full border-4 border-[#3170c5]/20 overflow-hidden relative group`}>
           {avatarSrc ? (
             <Image src={avatarSrc} alt={user.name} fill className="object-cover" unoptimized />
           ) : (

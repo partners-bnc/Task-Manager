@@ -17,11 +17,11 @@ const SECTIONS = [
 const DIRECTORY_COLUMNS = ['Employee ID', 'Profile', 'Join Date', 'Status', 'Company', 'Salary', 'PF', 'TDS', 'Retention', 'Est. In Hand', 'Last Increment'];
 const HISTORY_COLUMNS = ['Month', 'Gross', 'Deductions', 'Net', 'Payment Status', 'Payslip Status', 'Paid At', 'Action'];
 const PREVIEW_COLUMNS = ['Employee ID', 'Name', 'Company', 'Active Days', 'Leave LOP', 'Attendance LOP', 'Total LOP', 'Gross Salary', 'LOP Deduction', 'Employee PF', 'Employer PF', 'Total PF', 'Employee TDS', 'Total TDS', 'Retention', 'Release', 'Net Salary'];
-const LEDGER_COLUMNS = ['Month', 'Employee ID', 'Name', 'Company', 'Gross', 'Deductions', 'Net', 'Status', 'Actions'];
+const LEDGER_COLUMNS = ['', 'Month', 'Employee ID', 'Name', 'Company', 'Gross', 'Deductions', 'Net', 'Status', 'Actions'];
 const DIRECTORY_COLUMN_WIDTHS = ['140px', '320px', '140px', '180px', '140px', '120px', '90px', '90px', '110px', '140px', '220px'];
 const HISTORY_COLUMN_WIDTHS = ['150px', '140px', '150px', '150px', '160px', '160px', '140px', '110px'];
 const PREVIEW_COLUMN_WIDTHS = ['130px', '240px', '140px', '110px', '110px', '120px', '100px', '150px', '160px', '130px', '130px', '130px', '130px', '130px', '130px', '130px', '150px'];
-const LEDGER_COLUMN_WIDTHS = ['130px', '120px', '220px', '140px', '120px', '140px', '140px', '130px', '260px'];
+const LEDGER_COLUMN_WIDTHS = ['50px', '130px', '120px', '220px', '140px', '120px', '140px', '140px', '130px', '260px'];
 
 function formatCurrency(value: any) {
   const numeric = Number(value || 0);
@@ -287,6 +287,8 @@ export default function PayoutsPayroll() {
   const [submitting, setSubmitting] = useState(false);
   const [bulkGenerating, setBulkGenerating] = useState(false);
   const [bulkMarkingPaid, setBulkMarkingPaid] = useState(false);
+  const [selectedLedgerIds, setSelectedLedgerIds] = useState<string[]>([]);
+  const [directorySearchQuery, setDirectorySearchQuery] = useState('');
 
   const [profileForm, setProfileForm] = useState({
     pfEnabled: false,
@@ -626,6 +628,17 @@ export default function PayoutsPayroll() {
   );
   const isHistoryDetailOpen = activeSection === 'history' && Boolean(selectedHistoryItemId && historyDetail);
 
+  const filteredDirectory = useMemo(() => {
+    if (!directorySearchQuery.trim()) return directory;
+    const query = directorySearchQuery.toLowerCase().trim();
+    return directory.filter(
+      (employee) =>
+        String(employee.name || '').toLowerCase().includes(query) ||
+        String(employee.employee_id || '').toLowerCase().includes(query) ||
+        String(employee.company || '').toLowerCase().includes(query)
+    );
+  }, [directory, directorySearchQuery]);
+
   const ledgerRows = useMemo(
     () =>
       runs.flatMap((run) =>
@@ -944,6 +957,92 @@ export default function PayoutsPayroll() {
       : `${success} marked paid, ${failed} failed.`);
   }
 
+  async function handleSelectedGeneratePayslips() {
+    const selectedItems = ledgerRows.filter((item: any) => selectedLedgerIds.includes(item.id));
+    const pending = selectedItems.filter((item: any) => !item.hasPayslip);
+    if (!pending.length) {
+      showFeedback('error', 'All selected items already have generated payslips.');
+      return;
+    }
+    setBulkGenerating(true);
+    let success = 0;
+    let failed = 0;
+    for (const item of pending) {
+      try {
+        await fetchPayrollJson(`/HRM/api/admin/payroll/items/${item.id}/payslip/generate`, {
+          method: 'POST',
+        });
+        success += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    await loadRuns();
+    setBulkGenerating(false);
+    setSelectedLedgerIds([]);
+    showFeedback(failed === 0 ? 'success' : 'error', failed === 0
+      ? `All ${success} selected payslips generated successfully.`
+      : `${success} generated, ${failed} failed.`);
+  }
+
+  async function handleSelectedMarkPaid() {
+    const selectedItems = ledgerRows.filter((item: any) => selectedLedgerIds.includes(item.id));
+    const pending = selectedItems.filter((item: any) => item.hasPayslip && item.payment_status !== 'paid');
+    if (!pending.length) {
+      showFeedback('error', 'No selected items are ready to be marked as paid. Generate payslips first.');
+      return;
+    }
+    setBulkMarkingPaid(true);
+    let success = 0;
+    let failed = 0;
+    for (const item of pending) {
+      try {
+        await fetchPayrollJson(`/HRM/api/admin/payroll/items/${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentStatus: 'paid' }),
+        });
+        success += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    await loadRuns();
+    setBulkMarkingPaid(false);
+    setSelectedLedgerIds([]);
+    showFeedback(failed === 0 ? 'success' : 'error', failed === 0
+      ? `${success} selected payroll items marked as paid.`
+      : `${success} marked paid, ${failed} failed.`);
+  }
+
+  async function handleSelectedSendPayslips() {
+    const selectedItems = ledgerRows.filter((item: any) => selectedLedgerIds.includes(item.id));
+    const pending = selectedItems.filter((item: any) => item.hasPayslip && item.payment_status === 'paid' && !item.isPayslipReleased);
+    if (!pending.length) {
+      showFeedback('error', 'No selected items are ready to be sent. Ensure they have payslips generated and are marked as paid.');
+      return;
+    }
+    setSubmitting(true);
+    let success = 0;
+    let failed = 0;
+    for (const item of pending) {
+      try {
+        await fetchPayrollJson(`/HRM/api/admin/payroll/items/${item.id}/payslip/send`, {
+          method: 'POST',
+        });
+        success += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    await loadRuns();
+    setSubmitting(false);
+    setSelectedLedgerIds([]);
+    showFeedback(failed === 0 ? 'success' : 'error', failed === 0
+      ? `${success} selected payslips sent/released successfully.`
+      : `${success} sent, ${failed} failed.`);
+  }
+
   const isLedgerDetailOpen = activeSection === 'ledger' && Boolean(selectedItemId && itemDetail);
   const adminPayslipPdfUrl = selectedItemId ? `/HRM/api/admin/payroll/items/${selectedItemId}/payslip/pdf` : '';
   const adminPayslipDownloadUrl = adminPayslipPdfUrl ? `${adminPayslipPdfUrl}?download=1` : '';
@@ -1119,6 +1218,18 @@ export default function PayoutsPayroll() {
                   Full payroll master list with employee photo, deduction status, salary, and last revision.
                 </p>
               </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-3.5 top-2.5 text-slate-400 text-lg">search</span>
+                  <input
+                    type="text"
+                    placeholder="Search by name, ID, or company..."
+                    value={directorySearchQuery}
+                    onChange={(e) => setDirectorySearchQuery(e.target.value)}
+                    className="w-72 rounded-full border border-slate-200 bg-slate-50 pl-10 pr-4 py-2 text-xs focus:border-violet-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="relative overflow-x-auto scroll-smooth [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1148,14 +1259,14 @@ export default function PayoutsPayroll() {
                         <TableRowsSkeleton rows={6} columns={11} />
                       </td>
                     </tr>
-                  ) : directory.length === 0 ? (
+                  ) : filteredDirectory.length === 0 ? (
                     <tr>
                       <td className="px-5 py-12 text-center text-sm text-slate-500" colSpan={11}>
-                        No employees are available for payroll.
+                        No matching employees found.
                       </td>
                     </tr>
                   ) : (
-                    directory.map((employee) => (
+                    filteredDirectory.map((employee) => (
                       <tr
                         key={employee.id}
                         onClick={() => {
@@ -1207,9 +1318,15 @@ export default function PayoutsPayroll() {
                         <td className="px-5 py-4 text-sm text-slate-700">{employee.deduction_flags?.retention ? <SoftTag tone="sky">Enabled</SoftTag> : '--'}</td>
                         <td className="px-5 py-4 text-sm font-bold text-emerald-700">{formatCurrency(employee.estimated_in_hand_salary)}</td>
                         <td className="px-5 py-4 text-sm text-slate-700">
-                          {employee.latest_revision
-                            ? `${formatDate(employee.latest_revision.effective_from)} · ${formatCurrency(employee.latest_revision.new_salary)}`
-                            : '--'}
+                          {(() => {
+                            if (!employee.latest_revision) return '--';
+                            const rev = employee.latest_revision;
+                            const sign = rev.revision_value >= 0 ? '+' : '';
+                            const changeVal = rev.revision_type === 'percent'
+                              ? `${sign}${rev.revision_value}%`
+                              : `${sign}${formatCurrency(rev.revision_value)}`;
+                            return `${formatDate(rev.effective_from)} (${changeVal})`;
+                          })()}
                         </td>
                       </tr>
                     ))
@@ -1258,283 +1375,326 @@ export default function PayoutsPayroll() {
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-                <div className="space-y-6">
-                  <form onSubmit={handleProfileSave} className="space-y-4 border-t border-outline-variant/10 pt-5">
-                    <h4 className="text-lg font-bold text-on-surface">Payroll Settings</h4>
-                    <FormRow label="Employee PF Enabled">
-                      <ToggleChip
-                        checked={profileForm.pfEnabled}
-                        onChange={(checked) => setProfileForm((current) => ({ ...current, pfEnabled: checked }))}
-                        label="PF deduction active"
-                      />
-                    </FormRow>
-                    <FormRow label="Employee PF Fixed Amount">
-                      <TextInput
-                        type="number"
-                        step="0.01"
-                        value={profileForm.pfValue}
-                        onChange={(event) => setProfileForm((current) => ({ ...current, pfValue: event.target.value }))}
-                      />
-                    </FormRow>
-                    <FormRow label="TDS Enabled">
-                      <ToggleChip
-                        checked={profileForm.tdsEnabled}
-                        onChange={(checked) => setProfileForm((current) => ({ ...current, tdsEnabled: checked }))}
-                        label="TDS deduction active"
-                      />
-                    </FormRow>
-                    <FormRow label="TDS Rule">
-                      <div className="grid gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
-                        <SelectInput
-                          value={profileForm.tdsMode}
-                          onChange={(event) => setProfileForm((current) => ({ ...current, tdsMode: event.target.value }))}
-                        >
-                          <option value="percent">Percent</option>
-                          <option value="fixed">Fixed</option>
-                        </SelectInput>
-                        <TextInput
-                          type="number"
-                          step="0.01"
-                          value={profileForm.tdsValue}
-                          onChange={(event) => setProfileForm((current) => ({ ...current, tdsValue: event.target.value }))}
-                        />
-                      </div>
-                    </FormRow>
-                    <p className="text-xs text-on-surface-variant">
-                      PF is a fixed amount applied to employee and employer sides. TDS can now be configured as a percent or fixed deduction and is applied once from the employee side.
-                    </p>
-                    <FormRow label="Retention Enabled">
-                      <ToggleChip
-                        checked={profileForm.retentionEnabled}
-                        onChange={(checked) => setProfileForm((current) => ({ ...current, retentionEnabled: checked }))}
-                        label="Retention deduction active"
-                      />
-                    </FormRow>
-                    <FormRow label="Notes">
-                      <TextInput
-                        value={profileForm.notes}
-                        onChange={(event) => setProfileForm((current) => ({ ...current, notes: event.target.value }))}
-                      />
-                    </FormRow>
-                    <div className="flex justify-end pt-2">
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
-                      >
-                        {submitting ? 'Saving...' : 'Save Payroll Settings'}
-                      </button>
+              <div className="mt-6 space-y-8">
+                {/* Forms grid */}
+                <div className="grid gap-8 xl:grid-cols-2">
+                  {/* Left Column - Settings & Retentions */}
+                  <div className="space-y-6">
+                    {/* Payroll Settings Card */}
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+                      <form onSubmit={handleProfileSave} className="space-y-4">
+                        <h4 className="text-lg font-bold text-on-surface">Payroll Settings</h4>
+                        <FormRow label="Employee PF Enabled">
+                          <ToggleChip
+                            checked={profileForm.pfEnabled}
+                            onChange={(checked) => setProfileForm((current) => ({ ...current, pfEnabled: checked }))}
+                            label="PF deduction active"
+                          />
+                        </FormRow>
+                        <FormRow label="Employee PF Fixed Amount">
+                          <TextInput
+                            type="number"
+                            step="0.01"
+                            value={profileForm.pfValue}
+                            onChange={(event) => setProfileForm((current) => ({ ...current, pfValue: event.target.value }))}
+                          />
+                        </FormRow>
+                        <FormRow label="TDS Enabled">
+                          <ToggleChip
+                            checked={profileForm.tdsEnabled}
+                            onChange={(checked) => setProfileForm((current) => ({ ...current, tdsEnabled: checked }))}
+                            label="TDS deduction active"
+                          />
+                        </FormRow>
+                        <FormRow label="TDS Rule">
+                          <div className="grid gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
+                            <SelectInput
+                              value={profileForm.tdsMode}
+                              onChange={(event) => setProfileForm((current) => ({ ...current, tdsMode: event.target.value }))}
+                            >
+                              <option value="percent">Percent</option>
+                              <option value="fixed">Fixed</option>
+                            </SelectInput>
+                            <TextInput
+                              type="number"
+                              step="0.01"
+                              value={profileForm.tdsValue}
+                              onChange={(event) => setProfileForm((current) => ({ ...current, tdsValue: event.target.value }))}
+                            />
+                          </div>
+                        </FormRow>
+                        <p className="text-xs text-on-surface-variant">
+                          PF is a fixed amount applied to employee and employer sides. TDS can now be configured as a percent or fixed deduction and is applied once from the employee side.
+                        </p>
+                        <FormRow label="Retention Enabled">
+                          <ToggleChip
+                            checked={profileForm.retentionEnabled}
+                            onChange={(checked) => setProfileForm((current) => ({ ...current, retentionEnabled: checked }))}
+                            label="Retention deduction active"
+                          />
+                        </FormRow>
+                        <FormRow label="Notes">
+                          <TextInput
+                            value={profileForm.notes}
+                            onChange={(event) => setProfileForm((current) => ({ ...current, notes: event.target.value }))}
+                          />
+                        </FormRow>
+                        <div className="flex justify-end pt-2">
+                          <button
+                            type="submit"
+                            disabled={submitting}
+                            className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
+                          >
+                            {submitting ? 'Saving...' : 'Save Payroll Settings'}
+                          </button>
+                        </div>
+                      </form>
                     </div>
-                  </form>
 
-                  <form onSubmit={handleRevisionCreate} className="space-y-4 border-t border-outline-variant/10 pt-5">
-                    <h4 className="text-lg font-bold text-on-surface">Salary Revision</h4>
-                    <FormRow label="Effective Date">
-                      <TextInput
-                        type="date"
-                        value={revisionForm.effectiveFrom}
-                        onChange={(event) => setRevisionForm((current) => ({ ...current, effectiveFrom: event.target.value }))}
-                      />
-                    </FormRow>
-                    <FormRow label="Revision Type">
-                      <SelectInput
-                        value={revisionForm.revisionType}
-                        onChange={(event) => setRevisionForm((current) => ({ ...current, revisionType: event.target.value }))}
-                      >
-                        <option value="percent">Percent</option>
-                        <option value="amount">Amount</option>
-                      </SelectInput>
-                    </FormRow>
-                    <FormRow label="Revision Value">
-                      <TextInput
-                        type="number"
-                        step="0.01"
-                        value={revisionForm.revisionValue}
-                        onChange={(event) => setRevisionForm((current) => ({ ...current, revisionValue: event.target.value }))}
-                      />
-                    </FormRow>
-                    <FormRow label="Reason">
-                      <TextInput
-                        value={revisionForm.reason}
-                        onChange={(event) => setRevisionForm((current) => ({ ...current, reason: event.target.value }))}
-                      />
-                    </FormRow>
-                    <div className="flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
-                      >
-                        Add Revision
-                      </button>
+                    {/* Retention Schedule Card */}
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+                      <form onSubmit={handleRetentionCreate} className="space-y-4">
+                        <h4 className="text-lg font-bold text-on-surface">Retention Schedule</h4>
+                        <FormRow label="Start Month">
+                          <TextInput
+                            type="month"
+                            value={retentionForm.startMonth}
+                            onChange={(event) => setRetentionForm((current) => ({ ...current, startMonth: event.target.value }))}
+                          />
+                        </FormRow>
+                        <FormRow label="End Month">
+                          <TextInput
+                            type="month"
+                            value={retentionForm.endMonth}
+                            onChange={(event) => setRetentionForm((current) => ({ ...current, endMonth: event.target.value }))}
+                          />
+                        </FormRow>
+                        <FormRow label="Monthly Amount">
+                          <TextInput
+                            type="number"
+                            step="0.01"
+                            value={retentionForm.monthlyAmount}
+                            onChange={(event) => setRetentionForm((current) => ({ ...current, monthlyAmount: event.target.value }))}
+                          />
+                        </FormRow>
+                        <FormRow label="Status">
+                          <SelectInput
+                            value={retentionForm.status}
+                            onChange={(event) => setRetentionForm((current) => ({ ...current, status: event.target.value }))}
+                          >
+                            <option value="active">Active</option>
+                            <option value="paused">Paused</option>
+                            <option value="completed">Completed</option>
+                            <option value="released">Released</option>
+                          </SelectInput>
+                        </FormRow>
+                        <FormRow label="Notes">
+                          <TextInput
+                            value={retentionForm.notes}
+                            onChange={(event) => setRetentionForm((current) => ({ ...current, notes: event.target.value }))}
+                          />
+                        </FormRow>
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={submitting}
+                            className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
+                          >
+                            Save Retention Schedule
+                          </button>
+                        </div>
+                      </form>
                     </div>
-                  </form>
 
-                  <form onSubmit={handleRetentionCreate} className="space-y-4 border-t border-outline-variant/10 pt-5">
-                    <h4 className="text-lg font-bold text-on-surface">Retention Schedule</h4>
-                    <FormRow label="Start Month">
-                      <TextInput
-                        type="month"
-                        value={retentionForm.startMonth}
-                        onChange={(event) => setRetentionForm((current) => ({ ...current, startMonth: event.target.value }))}
-                      />
-                    </FormRow>
-                    <FormRow label="End Month">
-                      <TextInput
-                        type="month"
-                        value={retentionForm.endMonth}
-                        onChange={(event) => setRetentionForm((current) => ({ ...current, endMonth: event.target.value }))}
-                      />
-                    </FormRow>
-                    <FormRow label="Monthly Amount">
-                      <TextInput
-                        type="number"
-                        step="0.01"
-                        value={retentionForm.monthlyAmount}
-                        onChange={(event) => setRetentionForm((current) => ({ ...current, monthlyAmount: event.target.value }))}
-                      />
-                    </FormRow>
-                    <FormRow label="Status">
-                      <SelectInput
-                        value={retentionForm.status}
-                        onChange={(event) => setRetentionForm((current) => ({ ...current, status: event.target.value }))}
-                      >
-                        <option value="active">Active</option>
-                        <option value="paused">Paused</option>
-                        <option value="completed">Completed</option>
-                        <option value="released">Released</option>
-                      </SelectInput>
-                    </FormRow>
-                    <FormRow label="Notes">
-                      <TextInput
-                        value={retentionForm.notes}
-                        onChange={(event) => setRetentionForm((current) => ({ ...current, notes: event.target.value }))}
-                      />
-                    </FormRow>
-                    <div className="flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
-                      >
-                        Save Retention Schedule
-                      </button>
+                    {/* Retention Release Card */}
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+                      <form onSubmit={handleReleaseCreate} className="space-y-4">
+                        <h4 className="text-lg font-bold text-on-surface">Retention Release</h4>
+                        <FormRow label="Release Month">
+                          <TextInput
+                            type="month"
+                            value={releaseForm.releaseMonth}
+                            onChange={(event) => setReleaseForm((current) => ({ ...current, releaseMonth: event.target.value }))}
+                          />
+                        </FormRow>
+                        <FormRow label="Amount">
+                          <TextInput
+                            type="number"
+                            step="0.01"
+                            value={releaseForm.amount}
+                            onChange={(event) => setReleaseForm((current) => ({ ...current, amount: event.target.value }))}
+                          />
+                        </FormRow>
+                        <FormRow label="Linked Schedule">
+                          <SelectInput
+                            value={releaseForm.linkedScheduleId}
+                            onChange={(event) => setReleaseForm((current) => ({ ...current, linkedScheduleId: event.target.value }))}
+                          >
+                            <option value="">No linked schedule</option>
+                            {(detail.retentionSchedules || []).map((schedule: any) => (
+                              <option key={schedule.id} value={schedule.id}>
+                                {formatDate(schedule.start_month)} · {formatCurrency(schedule.monthly_amount)}
+                              </option>
+                            ))}
+                          </SelectInput>
+                        </FormRow>
+                        <FormRow label="Notes">
+                          <TextInput
+                            value={releaseForm.notes}
+                            onChange={(event) => setReleaseForm((current) => ({ ...current, notes: event.target.value }))}
+                          />
+                        </FormRow>
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={submitting}
+                            className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
+                          >
+                            Save Retention Release
+                          </button>
+                        </div>
+                      </form>
                     </div>
-                  </form>
+                  </div>
 
-                  <form onSubmit={handleReleaseCreate} className="space-y-4 border-t border-outline-variant/10 pt-5">
-                    <h4 className="text-lg font-bold text-on-surface">Retention Release</h4>
-                    <FormRow label="Release Month">
-                      <TextInput
-                        type="month"
-                        value={releaseForm.releaseMonth}
-                        onChange={(event) => setReleaseForm((current) => ({ ...current, releaseMonth: event.target.value }))}
-                      />
-                    </FormRow>
-                    <FormRow label="Amount">
-                      <TextInput
-                        type="number"
-                        step="0.01"
-                        value={releaseForm.amount}
-                        onChange={(event) => setReleaseForm((current) => ({ ...current, amount: event.target.value }))}
-                      />
-                    </FormRow>
-                    <FormRow label="Linked Schedule">
-                      <SelectInput
-                        value={releaseForm.linkedScheduleId}
-                        onChange={(event) => setReleaseForm((current) => ({ ...current, linkedScheduleId: event.target.value }))}
-                      >
-                        <option value="">No linked schedule</option>
-                        {(detail.retentionSchedules || []).map((schedule: any) => (
-                          <option key={schedule.id} value={schedule.id}>
-                            {formatDate(schedule.start_month)} · {formatCurrency(schedule.monthly_amount)}
-                          </option>
-                        ))}
-                      </SelectInput>
-                    </FormRow>
-                    <FormRow label="Notes">
-                      <TextInput
-                        value={releaseForm.notes}
-                        onChange={(event) => setReleaseForm((current) => ({ ...current, notes: event.target.value }))}
-                      />
-                    </FormRow>
-                    <div className="flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
-                      >
-                        Save Retention Release
-                      </button>
+                  {/* Right Column - Salary Revision */}
+                  <div className="space-y-6">
+                    {/* Salary Revision Card */}
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+                      <form onSubmit={handleRevisionCreate} className="space-y-4">
+                        <h4 className="text-lg font-bold text-on-surface">Salary Revision</h4>
+                        <FormRow label="Effective Date">
+                          <TextInput
+                            type="date"
+                            value={revisionForm.effectiveFrom}
+                            onChange={(event) => setRevisionForm((current) => ({ ...current, effectiveFrom: event.target.value }))}
+                          />
+                        </FormRow>
+                        <FormRow label="Revision Type">
+                          <SelectInput
+                            value={revisionForm.revisionType}
+                            onChange={(event) => setRevisionForm((current) => ({ ...current, revisionType: event.target.value }))}
+                          >
+                            <option value="percent">Percent</option>
+                            <option value="amount">Amount</option>
+                          </SelectInput>
+                        </FormRow>
+                        <FormRow label="Revision Value">
+                          <TextInput
+                            type="number"
+                            step="0.01"
+                            value={revisionForm.revisionValue}
+                            onChange={(event) => setRevisionForm((current) => ({ ...current, revisionValue: event.target.value }))}
+                          />
+                        </FormRow>
+                        <FormRow label="Reason">
+                          <TextInput
+                            value={revisionForm.reason}
+                            onChange={(event) => setRevisionForm((current) => ({ ...current, reason: event.target.value }))}
+                          />
+                        </FormRow>
+                        <div className="flex justify-end">
+                          <button
+                            type="submit"
+                            disabled={submitting}
+                            className="rounded-full bg-[linear-gradient(180deg,#d7e7f9_0%,#afd0f4_100%)] px-5 py-2.5 text-sm font-bold text-violet-950 shadow-[0_10px_18px_rgba(49,112,197,0.16)]"
+                          >
+                            Add Revision
+                          </button>
+                        </div>
+                      </form>
                     </div>
-                  </form>
+                  </div>
                 </div>
 
+                {/* History Tables Section */}
                 <div className="space-y-6">
-                  <div className="rounded-[1.4rem] border-2 border-violet-300 bg-white px-5 py-5">
+                  {/* Recent Salary Revisions Table Card */}
+                  <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
                     <h4 className="text-lg font-bold text-on-surface">Recent Salary Revisions</h4>
-                    <div className="mt-4">
+                    <div className="mt-4 overflow-x-auto rounded-xl border border-outline-variant/10">
                       {(detail.revisions || []).length ? (
-                        (detail.revisions || []).slice(0, 6).map((revision: any) => (
-                          <LabelValue
-                            key={revision.id}
-                            label={formatDate(revision.effective_from)}
-                            value={
-                              <div className="flex items-center justify-between gap-4">
-                                <span>{revision.reason || 'Salary revision'}</span>
-                                <span className="font-bold text-emerald-700">{formatCurrency(revision.new_salary)}</span>
-                              </div>
-                            }
-                          />
-                        ))
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-bold uppercase tracking-wider">
+                              <th className="px-4 py-3">Effective Month</th>
+                              <th className="px-4 py-3">Previous Salary</th>
+                              <th className="px-4 py-3">Increment</th>
+                              <th className="px-4 py-3">New Salary</th>
+                              <th className="px-4 py-3">Note / Reason</th>
+                              <th className="px-4 py-3">Date Applied</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {(detail.revisions || []).map((revision: any) => {
+                              const changeSign = revision.revision_value >= 0 ? '+' : '';
+                              const changeVal = revision.revision_type === 'percent'
+                                ? `${changeSign}${revision.revision_value}%`
+                                : `${changeSign}${formatCurrency(revision.revision_value)}`;
+
+                              return (
+                                <tr key={revision.id} className="hover:bg-slate-50/50">
+                                  <td className="px-4 py-3 font-semibold text-slate-900">{formatDate(revision.effective_from)}</td>
+                                  <td className="px-4 py-3 text-slate-600">{formatCurrency(revision.previous_salary)}</td>
+                                  <td className="px-4 py-3 font-bold text-emerald-700">{changeVal}</td>
+                                  <td className="px-4 py-3 font-bold text-slate-900">{formatCurrency(revision.new_salary)}</td>
+                                  <td className="px-4 py-3 text-slate-600">{revision.reason || '--'}</td>
+                                  <td className="px-4 py-3 text-slate-500">{formatDate(revision.created_at)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
                       ) : (
-                        <p className="text-sm text-on-surface-variant">No salary revision history yet.</p>
+                        <p className="p-4 text-sm text-on-surface-variant">No salary revision history yet.</p>
                       )}
                     </div>
                   </div>
 
-                  <div className="rounded-[1.4rem] border-2 border-violet-300 bg-white px-5 py-5">
-                    <h4 className="text-lg font-bold text-on-surface">Retention Schedules</h4>
-                    <div className="mt-4">
-                      {(detail.retentionSchedules || []).length ? (
-                        (detail.retentionSchedules || []).map((schedule: any) => (
-                          <LabelValue
-                            key={schedule.id}
-                            label={`${formatDate(schedule.start_month)}${schedule.end_month ? ` to ${formatDate(schedule.end_month)}` : ''}`}
-                            value={
-                              <div className="flex items-center justify-between gap-4">
-                                <span>{schedule.status}</span>
-                                <span className="font-bold text-on-surface">{formatCurrency(schedule.monthly_amount)}</span>
-                              </div>
-                            }
-                          />
-                        ))
-                      ) : (
-                        <p className="text-sm text-on-surface-variant">No retention schedules yet.</p>
-                      )}
+                  {/* Retention Tables side-by-side */}
+                  <div className="grid gap-8 xl:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+                      <h4 className="text-lg font-bold text-on-surface">Retention Schedules</h4>
+                      <div className="mt-4 space-y-3">
+                        {(detail.retentionSchedules || []).length ? (
+                          (detail.retentionSchedules || []).map((schedule: any) => (
+                            <LabelValue
+                              key={schedule.id}
+                              label={`${formatDate(schedule.start_month)}${schedule.end_month ? ` to ${formatDate(schedule.end_month)}` : ''}`}
+                              value={
+                                <div className="flex items-center justify-between gap-4">
+                                  <span className="capitalize">{schedule.status}</span>
+                                  <span className="font-bold text-on-surface">{formatCurrency(schedule.monthly_amount)}</span>
+                                </div>
+                              }
+                            />
+                          ))
+                        ) : (
+                          <p className="text-sm text-on-surface-variant">No retention schedules yet.</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="rounded-[1.4rem] border-2 border-violet-300 bg-white px-5 py-5">
-                    <h4 className="text-lg font-bold text-on-surface">Retention Releases</h4>
-                    <div className="mt-4">
-                      {(detail.retentionReleases || []).length ? (
-                        (detail.retentionReleases || []).map((release: any) => (
-                          <LabelValue
-                            key={release.id}
-                            label={formatDate(release.release_month)}
-                            value={
-                              <div className="flex items-center justify-between gap-4">
-                                <span>{release.notes || 'Manual release'}</span>
-                                <span className="font-bold text-emerald-700">{formatCurrency(release.amount)}</span>
-                              </div>
-                            }
-                          />
-                        ))
-                      ) : (
-                        <p className="text-sm text-on-surface-variant">No retention releases yet.</p>
-                      )}
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+                      <h4 className="text-lg font-bold text-on-surface">Retention Releases</h4>
+                      <div className="mt-4 space-y-3">
+                        {(detail.retentionReleases || []).length ? (
+                          (detail.retentionReleases || []).map((release: any) => (
+                            <LabelValue
+                              key={release.id}
+                              label={formatDate(release.release_month)}
+                              value={
+                                <div className="flex items-center justify-between gap-4">
+                                  <span>{release.notes || 'Manual release'}</span>
+                                  <span className="font-bold text-emerald-700">{formatCurrency(release.amount)}</span>
+                                </div>
+                              }
+                            />
+                          ))
+                        ) : (
+                          <p className="text-sm text-on-surface-variant">No retention releases yet.</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2098,32 +2258,76 @@ export default function PayoutsPayroll() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleBulkGeneratePayslips}
-                  disabled={bulkGenerating || bulkMarkingPaid || runsLoading}
-                  className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition ${
-                    bulkGenerating || bulkMarkingPaid || runsLoading
-                      ? 'cursor-not-allowed border-violet-200 bg-violet-100 text-violet-400'
-                      : 'border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">description</span>
-                  {bulkGenerating ? 'Generating...' : 'Generate All Payslips'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBulkMarkPaid}
-                  disabled={bulkMarkingPaid || bulkGenerating || runsLoading}
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-                    bulkMarkingPaid || bulkGenerating || runsLoading
-                      ? 'cursor-not-allowed bg-slate-300 text-white'
-                      : 'bg-slate-900 text-white hover:bg-slate-800'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[16px]">payments</span>
-                  {bulkMarkingPaid ? 'Marking Paid...' : 'Mark All Paid'}
-                </button>
+                {selectedLedgerIds.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2">
+                    <span className="text-xs font-semibold text-slate-700">
+                      {selectedLedgerIds.length} Selected:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSelectedGeneratePayslips}
+                      disabled={bulkGenerating || bulkMarkingPaid || submitting || runsLoading}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-violet-600 hover:bg-violet-700 text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">description</span>
+                      Generate Payslip
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSelectedMarkPaid}
+                      disabled={bulkMarkingPaid || bulkGenerating || submitting || runsLoading}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">payments</span>
+                      Mark Paid
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSelectedSendPayslips}
+                      disabled={submitting || bulkGenerating || bulkMarkingPaid || runsLoading}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">send</span>
+                      Send Payslip
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLedgerIds([])}
+                      className="text-xs text-slate-500 hover:text-slate-800 font-semibold ml-1 transition"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleBulkGeneratePayslips}
+                      disabled={bulkGenerating || bulkMarkingPaid || runsLoading}
+                      className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition ${
+                        bulkGenerating || bulkMarkingPaid || runsLoading
+                          ? 'cursor-not-allowed border-violet-200 bg-violet-100 text-violet-400'
+                          : 'border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">description</span>
+                      {bulkGenerating ? 'Generating...' : 'Generate All Payslips'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleBulkMarkPaid}
+                      disabled={bulkMarkingPaid || bulkGenerating || runsLoading}
+                      className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+                        bulkMarkingPaid || bulkGenerating || runsLoading
+                          ? 'cursor-not-allowed bg-slate-300 text-white'
+                          : 'bg-slate-900 text-white hover:bg-slate-800'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">payments</span>
+                      {bulkMarkingPaid ? 'Marking Paid...' : 'Mark All Paid'}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -2144,11 +2348,38 @@ export default function PayoutsPayroll() {
                       <TableColGroup widths={LEDGER_COLUMN_WIDTHS} />
                       <thead>
                         <tr>
-                          {LEDGER_COLUMNS.map((label) => (
-                            <th key={label} className="bg-[#f8fbff] px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                              {label}
-                            </th>
-                          ))}
+                          {LEDGER_COLUMNS.map((label, index) => {
+                            if (index === 0) {
+                              const allChecked = ledgerRows.length > 0 && selectedLedgerIds.length === ledgerRows.length;
+                              const someChecked = selectedLedgerIds.length > 0 && selectedLedgerIds.length < ledgerRows.length;
+                              return (
+                                <th key="checkbox-header" className="bg-[#f8fbff] px-4 py-3 text-left">
+                                  <input
+                                    type="checkbox"
+                                    checked={allChecked}
+                                    ref={(input) => {
+                                      if (input) {
+                                        input.indeterminate = someChecked;
+                                      }
+                                    }}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedLedgerIds(ledgerRows.map((item: any) => item.id));
+                                      } else {
+                                        setSelectedLedgerIds([]);
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                                  />
+                                </th>
+                              );
+                            }
+                            return (
+                              <th key={label} className="bg-[#f8fbff] px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                                {label}
+                              </th>
+                            );
+                          })}
                         </tr>
                       </thead>
                     </table>
@@ -2164,6 +2395,20 @@ export default function PayoutsPayroll() {
 
                         return (
                           <tr key={item.id} className="transition-colors hover:bg-[#f8fbff]">
+                            <td className="px-4 py-4">
+                              <input
+                                type="checkbox"
+                                checked={selectedLedgerIds.includes(item.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedLedgerIds((prev) => [...prev, item.id]);
+                                  } else {
+                                    setSelectedLedgerIds((prev) => prev.filter((id) => id !== item.id));
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+                              />
+                            </td>
                             <td className="px-4 py-4 text-sm font-semibold text-slate-900">{item.ledgerMonthLabel}</td>
                             <td className="px-4 py-4 text-sm font-semibold tracking-[0.02em] text-[#7f98bd]">{item.employee?.employee_id || '--'}</td>
                             <td className="px-4 py-4 text-sm font-semibold text-slate-900">{item.employee?.name || 'Employee'}</td>

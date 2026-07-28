@@ -2119,7 +2119,11 @@ export async function PATCH(request) {
       );
     const todayDate = new Date().toISOString().slice(0, 10);
 
-    if (!isIntern && existingCurrentStage === 'probation' && requestedCurrentStage === 'none' && probationEndDate && todayDate < probationEndDate) {
+    const requestedLifecycleStatus = employmentInputs.lifecycleStatus !== null
+      ? String(employmentInputs.lifecycleStatus || '').trim().toLowerCase()
+      : null;
+
+    if (!isIntern && existingCurrentStage === 'probation' && requestedCurrentStage === 'none' && requestedLifecycleStatus !== 'separated' && probationEndDate && todayDate < probationEndDate) {
       return NextResponse.json(
         {
           error: `You can remove this employee from probation after ${formatFriendlyDate(probationEndDate)}.`,

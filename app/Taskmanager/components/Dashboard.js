@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, Tooltip, YAxis, LabelList, LineChart, Line, CartesianGrid } from 'recharts';
 import { ArrowRight, BriefcaseBusiness, Clock3, ChartNoAxesColumnIncreasing, BadgeCheck } from 'lucide-react';
 import { useData } from './DataContext';
 
@@ -53,6 +53,70 @@ export default function Dashboard({ onNavigate }) {
   const router = useRouter();
   const { user, tasks, isAdminMode } = useData();
   const [dashboardDateTime, setDashboardDateTime] = useState(() => getDashboardDateTime());
+  const [horizon, setHorizon] = useState('day');
+
+  const getLineChartData = () => {
+    const now = new Date();
+
+    if (horizon === 'day') {
+      const days = [];
+      for (let i = 14; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(now.getDate() - i);
+        const label = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+        days.push({ label, key: d.toDateString(), count: 0 });
+      }
+
+      tasks.forEach(task => {
+        if (!task.createdAt) return;
+        const taskDate = new Date(task.createdAt).toDateString();
+        const found = days.find(day => day.key === taskDate);
+        if (found) {
+          found.count += 1;
+        }
+      });
+      return days;
+    } else if (horizon === 'week') {
+      const weeks = [];
+      for (let i = 7; i >= 0; i--) {
+        const startOfWeek = new Date();
+        startOfWeek.setDate(now.getDate() - i * 7 - now.getDay());
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        const label = `${startOfWeek.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - ${endOfWeek.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+        weeks.push({ label, start: startOfWeek.getTime(), end: endOfWeek.getTime(), count: 0 });
+      }
+
+      tasks.forEach(task => {
+        if (!task.createdAt) return;
+        const taskTime = new Date(task.createdAt).getTime();
+        const found = weeks.find(week => taskTime >= week.start && taskTime <= week.end + 86399999);
+        if (found) {
+          found.count += 1;
+        }
+      });
+      return weeks;
+    } else {
+      const months = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const label = d.toLocaleDateString('en-IN', { month: 'short' });
+        months.push({ label, year: d.getFullYear(), month: d.getMonth(), count: 0 });
+      }
+
+      tasks.forEach(task => {
+        if (!task.createdAt) return;
+        const taskDate = new Date(task.createdAt);
+        const found = months.find(m => m.year === taskDate.getFullYear() && m.month === taskDate.getMonth());
+        if (found) {
+          found.count += 1;
+        }
+      });
+      return months;
+    }
+  };
+
+  const lineChartData = getLineChartData();
   const [ticketStats, setTicketStats] = useState({
     open: 0,
     late: 0,
@@ -120,15 +184,16 @@ export default function Dashboard({ onNavigate }) {
   };
 
   const pieData = [
-    { name: 'Pending', value: stats.pending, color: '#f59e0b' },
+    { name: 'Pending', value: stats.pending, color: '#93c5fd' },
     { name: 'In Progress', value: stats.inProgress, color: '#3170c5' },
-    { name: 'Completed', value: stats.completed, color: '#84cc16' },
+    { name: 'Completed', value: stats.completed, color: '#1e3a8a' },
   ];
 
   const barData = [
-    { name: 'Low', count: tasks.filter((t) => t.priority === 'Low').length, fill: '#10b981' },
-    { name: 'Medium', count: tasks.filter((t) => t.priority === 'Medium').length, fill: '#f59e0b' },
-    { name: 'High', count: tasks.filter((t) => t.priority === 'High').length, fill: '#f43f5e' },
+    { name: 'Low', count: tasks.filter((t) => t.priority === 'Low').length, fill: '#93c5fd' },
+    { name: 'Medium', count: tasks.filter((t) => t.priority === 'Medium').length, fill: '#3170c5' },
+    { name: 'High', count: tasks.filter((t) => t.priority === 'High').length, fill: '#1e3a8a' },
+    { name: 'Urgent', count: tasks.filter((t) => t.priority === 'Urgent').length, fill: '#0f172a' },
   ];
 
   const kpiCards = [
@@ -154,6 +219,8 @@ export default function Dashboard({ onNavigate }) {
         return 'bg-orange-100 text-orange-600';
       case 'High':
         return 'bg-red-100 text-red-600';
+      case 'Urgent':
+        return 'bg-purple-100 text-purple-700 font-semibold';
       default:
         return 'bg-gray-100 text-gray-600';
     }
@@ -191,21 +258,103 @@ export default function Dashboard({ onNavigate }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 justify-items-center">
           {kpiCards.map((item) => (
-            <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-5">
-              <div className="flex items-center gap-4">
-                <div className="inline-flex h-12 w-12 items-center justify-center text-slate-900">
-                  <item.icon size={26} strokeWidth={2.1} />
+            <div key={item.label} className="w-full max-w-[250px] rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-3 shadow-xs transition-all duration-200 hover:shadow-md hover:-translate-y-1 hover:border-[#3170c5]/30 hover:bg-white group cursor-default">
+              <div className="flex items-center gap-3">
+                <div className="inline-flex h-9 w-9 items-center justify-center text-slate-500 group-hover:text-[#3170c5] transition-colors shrink-0">
+                  <item.icon size={18} strokeWidth={2} />
                 </div>
-                <div className="h-12 w-px bg-slate-200"></div>
-                <div className="flex-1 text-left">
-                  <div className="text-sm font-medium text-slate-500">{item.label}</div>
-                  <div className="mt-1 text-[1.75rem] font-semibold tracking-tight text-slate-700">{item.value}</div>
+                <div className="h-8 w-px bg-slate-200 group-hover:bg-[#3170c5]/20 transition-colors shrink-0"></div>
+                <div className="flex-1 min-w-0 text-left">
+                  <div className="text-xs font-medium text-slate-500 truncate">{item.label}</div>
+                  <div className="mt-0.5 text-xl font-bold tracking-tight text-slate-800">{item.value}</div>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl p-6 mb-8 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Task Creation Trend</h3>
+            <p className="text-xs text-slate-500">Track task addition counts over time</p>
+          </div>
+          <div className="flex bg-slate-100 p-1 rounded-lg self-start sm:self-auto">
+            {['day', 'week', 'month'].map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setHorizon(opt)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md capitalize transition-all ${
+                  horizon === opt
+                    ? 'bg-white text-[#3170c5] shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-72 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={lineChartData}
+              margin={{
+                top: 20,
+                left: 10,
+                right: 10,
+                bottom: 5,
+              }}
+            >
+              <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis
+                dataKey="label"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                stroke="#64748b"
+                fontSize={11}
+              />
+              <YAxis
+                allowDecimals={false}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                stroke="#64748b"
+                fontSize={11}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: '#fff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.75rem',
+                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                }}
+                labelStyle={{ fontWeight: 'bold', color: '#1e293b' }}
+              />
+              <Line
+                dataKey="count"
+                name="Tasks Added"
+                type="monotone"
+                stroke="#3170c5"
+                strokeWidth={3}
+                activeDot={{ r: 6 }}
+                dot={{ stroke: '#3170c5', strokeWidth: 2, fill: '#fff', r: 4 }}
+              >
+                <LabelList
+                  position="top"
+                  offset={10}
+                  fill="#475569"
+                  fontSize={10}
+                  fontWeight="600"
+                />
+              </Line>
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
@@ -215,7 +364,13 @@ export default function Dashboard({ onNavigate }) {
           <div className="h-72 flex items-center justify-center relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={pieData} innerRadius={68} outerRadius={92} paddingAngle={5} dataKey="value">
+                <Pie 
+                  data={pieData} 
+                  innerRadius={68} 
+                  outerRadius={92} 
+                  paddingAngle={5} 
+                  dataKey="value"
+                >
                   {pieData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -228,7 +383,7 @@ export default function Dashboard({ onNavigate }) {
             {pieData.map((d, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }}></div>
-                <span className="text-sm text-slate-600">{d.name}</span>
+                <span className="text-sm text-slate-600 font-medium">{d.name}: <span className="text-slate-800 font-semibold">{d.value}</span></span>
               </div>
             ))}
           </div>
@@ -236,16 +391,18 @@ export default function Dashboard({ onNavigate }) {
 
         <div className="bg-white p-6 rounded-xl shadow-sm">
           <h3 className="font-bold text-slate-800 mb-4">Task Priority Levels</h3>
-          <div className="h-64">
+          <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} barSize={60} margin={{ top: 8, right: 10, left: 0, bottom: 18 }}>
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tickMargin={14} />
+              <BarChart accessibilityLayer data={barData} barSize={60} margin={{ top: 20, right: 10, left: 0, bottom: 18 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tickMargin={10} stroke="#64748b" fontSize={11} />
                 <YAxis hide />
                 <Tooltip cursor={{ fill: 'transparent' }} />
-                <Bar dataKey="count" radius={[8, 8, 0, 0]}>
+                <Bar dataKey="count" radius={8}>
                   {barData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
                   ))}
+                  <LabelList dataKey="count" position="top" offset={12} fill="#475569" fontSize={12} fontWeight="600" />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

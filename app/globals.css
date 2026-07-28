@@ -270,7 +270,7 @@
 :root {
   --wrapper-bg: transparent;
   --cube-color: rgba(0, 0, 0, 0.05);
-  --highlight-color: #00cc44;
+  --highlight-color: rgb(52, 118, 176);
   --border-color: rgba(0, 0, 0, 0.1);
   --text-color-inactive: rgba(0, 0, 0, 0.2);
 }
@@ -278,7 +278,7 @@
 .dark {
   --wrapper-bg: transparent;
   --cube-color: rgba(255, 255, 255, 0.04);
-  --highlight-color: #00ff88;
+  --highlight-color: rgb(52, 118, 176);
   --border-color: rgba(255, 255, 255, 0.15);
   --text-color-inactive: rgba(255, 255, 255, 0.25);
 }
@@ -296,8 +296,8 @@
 
 .cube {
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 46px;
+  height: 46px;
   transform-style: preserve-3d;
   animation: translate-z 2s ease-in-out infinite;
 }
@@ -370,7 +370,7 @@
   justify-content: center;
   font-family: var(--display), sans-serif;
   font-weight: 900;
-  font-size: 1.1rem;
+  font-size: 1.3rem;
   color: var(--text-color-inactive);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -384,27 +384,27 @@
 }
 
 .face-front {
-  transform: rotateY(0deg) translateZ(18px);
+  transform: rotateY(0deg) translateZ(23px);
 }
 
 .face-back {
-  transform: rotateY(180deg) translateZ(18px);
+  transform: rotateY(180deg) translateZ(23px);
 }
 
 .face-right {
-  transform: rotateY(90deg) translateZ(18px);
+  transform: rotateY(90deg) translateZ(23px);
 }
 
 .face-left {
-  transform: rotateY(-90deg) translateZ(18px);
+  transform: rotateY(-90deg) translateZ(23px);
 }
 
 .face-top {
-  transform: rotateX(90deg) translateZ(18px);
+  transform: rotateX(90deg) translateZ(23px);
 }
 
 .face-bottom {
-  transform: rotateX(-90deg) translateZ(18px);
+  transform: rotateX(-90deg) translateZ(23px);
 }
 
 @keyframes translate-z {
