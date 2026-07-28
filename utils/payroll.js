@@ -852,7 +852,7 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
       .order('employee_id', { ascending: true }),
     adminClient
       .from('hrm_attendance')
-      .select('employee_id, date, status, is_regularized')
+      .select('employee_id, date, status, work_hours_minutes, is_regularized')
       .gte('date', startDate)
       .lte('date', endDate),
     adminClient
@@ -912,10 +912,13 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
     }
   }
 
-  // key = "employeeId:date" => status ('present','absent','halfday','late','on_leave')
+  // key = "employeeId:date" => { status, workHoursMinutes }
   const attendanceMap = new Map();
   for (const row of attendanceResult.data || []) {
-    attendanceMap.set(`${row.employee_id}:${row.date}`, row.status);
+    attendanceMap.set(`${row.employee_id}:${row.date}`, {
+      status: row.status,
+      workHoursMinutes: row.work_hours_minutes ?? 0,
+    });
   }
 
   const rows = [];
@@ -933,7 +936,9 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
       if (holidayDates.has(date)) continue;
 
       const key = `${employee.id}:${date}`;
-      const status = attendanceMap.get(key);
+      const attData = attendanceMap.get(key);
+      const status = attData ? attData.status : null;
+      const workHours = attData ? attData.workHoursMinutes : 0;
 
       // Skip scheduled off days UNLESS HR explicitly marked the day absent
       if (isEmployeeScheduledOff(date, schedule)) {
@@ -946,26 +951,22 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
       if (status === 'on_leave') continue;
 
       let fraction = 0;
-      if (status === 'halfday' || status === 'half_day' || status === 'late') {
-        if (halfDayPaidLeaveKeys.has(key)) {
-          // Half-day paid leave (CL/SL/SP/CH/COFF) + employee worked other half (CL:P, P:SL, P:CH etc.)
-          // No LOP — the worked half is present, the leave half is covered by paid leave
-          fraction = 0;
-        } else if (halfDayLopLeaveKeys.has(key)) {
-          // Half-day LOP leave + employee worked other half (LOP:P, P:LOP)
-          // LOP is already tracked via leave_request entry — no duplicate attendance LOP
-          fraction = 0;
+      const hasHalfDayPaid = halfDayPaidLeaveKeys.has(key);
+      const hasHalfDayLop = halfDayLopLeaveKeys.has(key);
+
+      if (hasHalfDayPaid || hasHalfDayLop) {
+        if (workHours >= 270) {
+          fraction = 0.0;
         } else {
-          // No leave at all — half day worked only, unresolved half counts as 0.5 LOP
           fraction = 0.5;
         }
-      } else if (status === undefined || status === null || status === 'absent') {
-        if (halfDayPaidLeaveKeys.has(key) || halfDayLopLeaveKeys.has(key)) {
-          // Half-day leave approved but employee didn't work remaining half (SL:A, LOP:A, CL:A)
-          // The absent half = 0.5 LOP (only for LOP type; paid leave absent half also generates 0.5 LOP)
+      } else {
+        // No leave request on this date
+        if (status === 'present') {
+          fraction = 0.0;
+        } else if (status === 'halfday' || status === 'half_day' || status === 'late') {
           fraction = 0.5;
-        } else {
-          // Full day absent, no leave — 1.0 LOP
+        } else if (status === undefined || status === null || status === 'absent') {
           fraction = 1.0;
         }
       }

@@ -712,21 +712,40 @@ export async function applyApprovedLeaveToAttendance({ employeeId, workingDates,
       throw new Error(existingQuery.error.message || 'Failed to load attendance for leave approval');
     }
 
+    const existing = existingQuery.data;
     const isHalfDay = session !== 'full_day';
     const sessionLabel = formatLeaveSession(session);
-    const status = isHalfDay ? 'halfday' : 'on_leave';
+    
+    let status = isHalfDay ? 'halfday' : 'on_leave';
+    let checkIn = null;
+    let checkOut = null;
+    let lateIn = 0;
+    let earlyOut = 0;
+    let workHours = 0;
+    
+    if (existing && isHalfDay) {
+      checkIn = existing.check_in || null;
+      checkOut = existing.check_out || null;
+      lateIn = existing.late_in_minutes ?? 0;
+      earlyOut = existing.early_out_minutes ?? 0;
+      workHours = existing.work_hours_minutes ?? 0;
+      
+      status = workHours >= 270 ? 'present' : 'halfday';
+    }
+
     const notes = isHalfDay
       ? `Approved ${leaveTypeName} leave for ${sessionLabel}${requestId ? ` (request ${requestId})` : ''}. Attendance can be marked only in the opposite half.`
       : `Approved ${leaveTypeName} leave${requestId ? ` (request ${requestId})` : ''}.`;
+      
     const payload = {
       employee_id: employeeId,
       date: attendanceDate,
-      check_in: null,
-      check_out: null,
+      check_in: checkIn,
+      check_out: checkOut,
       status,
-      late_in_minutes: 0,
-      early_out_minutes: 0,
-      work_hours_minutes: 0,
+      late_in_minutes: lateIn,
+      early_out_minutes: earlyOut,
+      work_hours_minutes: workHours,
       source: 'manual',
       notes,
     };

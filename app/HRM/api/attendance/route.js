@@ -98,12 +98,33 @@ async function rollupAttendanceForDay(employeeId, attendanceDate, attendanceId =
   }
 
   const summary = summarizeAttendanceFromSwipes(swipes || []);
+
+  const { data: leaveRow } = await adminClient
+    .from('hrm_leave_requests')
+    .select('session, applied_session')
+    .eq('employee_id', employeeId)
+    .eq('status', 'approved')
+    .lte('start_date', attendanceDate)
+    .gte('end_date', attendanceDate)
+    .maybeSingle();
+
+  const isHalfDayLeave = leaveRow && (leaveRow.applied_session || leaveRow.session || 'full_day') !== 'full_day';
+
+  let finalStatus = summary.attendanceStatus;
+  if (isHalfDayLeave) {
+    if (summary.workHoursMinutes >= 270) {
+      finalStatus = 'present';
+    } else {
+      finalStatus = 'halfday';
+    }
+  }
+
   const attendancePayload = {
     employee_id: employeeId,
     date: attendanceDate,
     check_in: summary.firstCheckIn,
     check_out: summary.lastCheckOut,
-    status: summary.attendanceStatus,
+    status: finalStatus,
     late_in_minutes: summary.lateInMinutes,
     early_out_minutes: summary.earlyOutMinutes,
     work_hours_minutes: summary.workHoursMinutes,

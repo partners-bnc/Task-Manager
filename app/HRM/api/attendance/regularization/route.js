@@ -117,21 +117,22 @@ function isEligibleAttendanceStatus(attendanceRow) {
   );
 }
 
-function buildEligibleDay(date, attendanceRow) {
+function buildEligibleDay(date, attendanceRow, hasHalfDayLeave = false) {
   if (!attendanceRow) {
     return {
       date,
       kind: 'gap',
       label: 'Absent',
+      hasHalfDayLeave,
     };
   }
 
   const status = normalizeAttendanceStatus(attendanceRow.status || attendanceRow.attendance_status);
   if (status === 'halfday') {
-    return { date, kind: 'gap', label: 'Half Day' };
+    return { date, kind: 'gap', label: 'Half Day', hasHalfDayLeave };
   }
   if (status === 'absent') {
-    return { date, kind: 'gap', label: 'Absent' };
+    return { date, kind: 'gap', label: 'Absent', hasHalfDayLeave };
   }
   return null;
 }
@@ -224,7 +225,7 @@ export async function GET(request) {
     const { start, end } = getDateRangeForMonth(month);
     const today = getCurrentDateInTimeZone();
 
-    const [attendanceResult, regularizationResult, hrApprovers, reportingManager] = await Promise.all([
+    const [attendanceResult, regularizationResult, hrApprovers, reportingManager, leaveRequestsResult] = await Promise.all([
       adminClient
         .from('hrm_attendance')
         .select('*')
@@ -241,6 +242,13 @@ export async function GET(request) {
         .order('created_at', { ascending: false }),
       listHrAdminApprovers(),
       getReportingManagerSummary(employeeContext.employeeId),
+      adminClient
+        .from('hrm_leave_requests')
+        .select('start_date, end_date, session, applied_session, status')
+        .eq('employee_id', employeeContext.employeeId)
+        .eq('status', 'approved')
+        .lte('start_date', end)
+        .gte('end_date', start),
     ]);
 
     const { data: attendanceRows, error: attendanceError } = attendanceResult;
@@ -289,13 +297,25 @@ export async function GET(request) {
         .map((row) => row.date)
     );
 
+    const halfDayLeaveDates = new Set();
+    for (const req of leaveRequestsResult.data || []) {
+      const sess = req.applied_session || req.session || 'full_day';
+      if (sess !== 'full_day') {
+        const startD = req.start_date < start ? start : req.start_date;
+        const endD = req.end_date > end ? end : req.end_date;
+        for (const date of listDatesInRange(startD, endD)) {
+          halfDayLeaveDates.add(date);
+        }
+      }
+    }
+
     const eligibleDays = [];
     for (const date of listDatesInRange(start, end)) {
       if (date > today || pendingDates.has(date) || isEmployeeScheduledOff(date, employeeContext.employeeSchedule)) {
         continue;
       }
 
-      const day = buildEligibleDay(date, attendanceMap.get(date) || null);
+      const day = buildEligibleDay(date, attendanceMap.get(date) || null, halfDayLeaveDates.has(date));
       if (day) {
         eligibleDays.push(day);
       }

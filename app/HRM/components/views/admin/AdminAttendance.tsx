@@ -261,6 +261,8 @@ const MONTHLY_LEAVE_ACTION_GROUPS: Array<{ title: string; options: Array<{ value
       { value: 'lop_second_half', label: 'Second Half' },
       { value: 'lop_first_half_present', label: 'LOP:P - First Half Leave' },
       { value: 'lop_second_half_present', label: 'P:LOP - Second Half Leave' },
+      { value: 'lop_first_half_absent', label: 'LOP:A - First Half Leave' },
+      { value: 'lop_second_half_absent', label: 'A:LOP - Second Half Leave' },
     ],
   },
   {
@@ -271,6 +273,8 @@ const MONTHLY_LEAVE_ACTION_GROUPS: Array<{ title: string; options: Array<{ value
       { value: 'casual_leave_second_half', label: 'CL - Second Half' },
       { value: 'casual_leave_first_half_present', label: 'CL:P - First Half Leave' },
       { value: 'casual_leave_second_half_present', label: 'P:CL - Second Half Leave' },
+      { value: 'casual_leave_first_half_absent', label: 'CL:A - First Half Leave' },
+      { value: 'casual_leave_second_half_absent', label: 'A:CL - Second Half Leave' },
     ],
   },
   {
@@ -281,6 +285,8 @@ const MONTHLY_LEAVE_ACTION_GROUPS: Array<{ title: string; options: Array<{ value
       { value: 'sick_leave_second_half', label: 'SL - Second Half' },
       { value: 'sick_leave_first_half_present', label: 'SL:P - First Half Leave' },
       { value: 'sick_leave_second_half_present', label: 'P:SL - Second Half Leave' },
+      { value: 'sick_leave_first_half_absent', label: 'SL:A - First Half Leave' },
+      { value: 'sick_leave_second_half_absent', label: 'A:SL - Second Half Leave' },
     ],
   },
   {

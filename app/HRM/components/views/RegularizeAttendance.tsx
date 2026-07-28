@@ -44,6 +44,7 @@ function getDetectedCurrentStatus(selectedDay?: RegularizationDay) {
 }
 
 function getDefaultRequestType(selectedDay?: RegularizationDay) {
+  if (selectedDay?.hasHalfDayLeave) return 'Half Day';
   return 'Full Day';
 }
 
@@ -541,17 +542,29 @@ export default function RegularizeAttendance() {
                         value={draft.requestType}
                         onChange={(event) => updateDraft((current) => ({ ...current, requestType: event.target.value }))}
                         required
-                        className="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                        disabled={Boolean(selectedDay?.hasHalfDayLeave)}
+                        className="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-80 disabled:cursor-not-allowed"
                       >
-                        {REQUEST_TYPE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
+                        {selectedDay?.hasHalfDayLeave ? (
+                          <option value="Half Day">Half Day</option>
+                        ) : (
+                          REQUEST_TYPE_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))
+                        )}
                       </select>
-                      <p className="mt-2 text-xs text-on-surface-variant">
-                        Choose the final attendance result you want after approval.
-                      </p>
+                      {selectedDay?.hasHalfDayLeave ? (
+                        <p className="mt-2 text-xs text-amber-600 font-semibold flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">info</span>
+                          Approved half-day leave detected. You can only regularize the remaining half-day.
+                        </p>
+                      ) : (
+                        <p className="mt-2 text-xs text-on-surface-variant">
+                          Choose the final attendance result you want after approval.
+                        </p>
+                      )}
                     </div>
 
                     <div>
