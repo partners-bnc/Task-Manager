@@ -30,21 +30,58 @@ set search_path = public
 as $$
 declare
   v_report_date date;
+  v_day_name text;
   v_missing_employees jsonb;
   v_recipient record;
   v_count integer := 0;
 begin
   -- Default to yesterday's date in Asia/Kolkata timezone
   v_report_date := coalesce(p_date, (timezone('Asia/Kolkata', now()) - interval '1 day')::date);
+  v_day_name := lower(trim(to_char(v_report_date, 'Day'))); -- e.g., 'monday'
 
-  -- Find active employees who have not filled their daily work logs for that date
+  -- Find active employees who:
+  -- 1. Have log_date in their working_days
+  -- 2. Are not on holiday on log_date
+  -- 3. Did not submit a work log on log_date
+  -- Compute their leave status on log_date (approved/pending/missing)
   with missing as (
     select 
       e.employee_id,
       e.name,
-      e.email
+      e.email,
+      coalesce(
+        (
+          select 
+            case 
+              when lr.status = 'approved' then 'On Leave (Approved)'
+              when lr.status = 'pending' then 'On Leave (Pending)'
+            end
+          from public.hrm_leave_requests lr
+          where lr.employee_id = e.id
+            and lr.status in ('approved', 'pending')
+            and v_report_date between lr.start_date and lr.end_date
+          order by case when lr.status = 'approved' then 1 else 2 end
+          limit 1
+        ),
+        'Missing Log'
+      ) as status
     from public.hrm_employees e
     where e.employment_lifecycle_status = 'active'
+      -- 1. Must be a working day for the employee
+      and v_day_name = any(e.working_days)
+      -- 2. Skip if employee has Second Saturday Off and it was the 2nd Saturday
+      and not (
+        e.second_saturday_off = true 
+        and extract(dow from v_report_date) = 6 -- Saturday
+        and extract(day from v_report_date) between 8 and 14
+      )
+      -- 3. Skip if it was a public holiday
+      and not exists (
+        select 1 
+        from public.hrm_holidays h 
+        where h.date = v_report_date
+      )
+      -- 4. Did not submit log
       and e.id not in (
         select distinct wl.employee_id
         from public.hrm_daily_work_logs wl
@@ -55,7 +92,8 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'employee_id', missing.employee_id,
     'name', missing.name,
-    'email', missing.email
+    'email', missing.email,
+    'status', missing.status
   )), '[]'::jsonb)
   into v_missing_employees
   from missing;

@@ -25,6 +25,7 @@ const templates = [
   { file: 'missing-attendance.ts', funcName: 'renderMissingAttendance' },
   { file: 'leave-applied.ts', funcName: 'renderLeaveApplied' },
   { file: 'regularization-applied.ts', funcName: 'renderRegularizationApplied' },
+  { file: 'weekly-summary.ts', funcName: 'renderWeeklySummary' },
 ];
 
 let bundleContent = `// Compiled with custom deploy-helper

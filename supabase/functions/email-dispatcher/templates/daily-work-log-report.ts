@@ -5,6 +5,7 @@ export function render(payload: Record<string, unknown>) {
     employee_id: string;
     name: string;
     email: string;
+    status?: string;
   }>;
 
   // 1. Render Plain Text body
@@ -12,13 +13,14 @@ export function render(payload: Record<string, unknown>) {
   if (missingEmployees.length === 0) {
     employeeRowsText = 'All active employees submitted their daily work logs today.';
   } else {
-    employeeRowsText = `Employee ID   | Name                 | Email\n`;
-    employeeRowsText += `------------------------------------------------------------\n`;
+    employeeRowsText = `Employee ID   | Name                 | Status               | Email\n`;
+    employeeRowsText += `----------------------------------------------------------------------------------------\n`;
     missingEmployees.forEach((emp) => {
       const empId = String(emp.employee_id || '').padEnd(13, ' ');
       const empName = String(emp.name || '').padEnd(20, ' ');
+      const empStatus = String(emp.status || 'Missing Log').padEnd(20, ' ');
       const empEmail = String(emp.email || '');
-      employeeRowsText += `${empId} | ${empName} | ${empEmail}\n`;
+      employeeRowsText += `${empId} | ${empName} | ${empStatus} | ${empEmail}\n`;
     });
   }
 
@@ -26,11 +28,11 @@ export function render(payload: Record<string, unknown>) {
 
 This is the daily work log report for ${reportDate}.
 
-Below is the list of active employees who did not submit their daily work logs:
+Below is the list of active employees and their status:
 
-------------------------------------------------------------
+----------------------------------------------------------------------------------------
 ${employeeRowsText}
-------------------------------------------------------------
+----------------------------------------------------------------------------------------
 
 Please follow up with them accordingly.
 
@@ -41,12 +43,19 @@ The Universe One Team`;
   // 2. Render HTML body
   let employeeRowsHtml = '';
   if (missingEmployees.length === 0) {
-    employeeRowsHtml = `<tr><td colspan="3" style="border: 1px solid #e2e8f0; padding: 12px; text-align: center; color: #64748b;">All active employees submitted their daily work logs today.</td></tr>`;
+    employeeRowsHtml = `<tr><td colspan="4" style="border: 1px solid #e2e8f0; padding: 12px; text-align: center; color: #64748b;">All active employees submitted their daily work logs today.</td></tr>`;
   } else {
     missingEmployees.forEach((emp) => {
+      let statusColor = '#e11d48'; // rose-600 for missing
+      if (emp.status === 'On Leave (Approved)') {
+        statusColor = '#16a34a'; // green-600
+      } else if (emp.status === 'On Leave (Pending)') {
+        statusColor = '#d97706'; // amber-600
+      }
       employeeRowsHtml += `<tr>
         <td style="border: 1px solid #e2e8f0; padding: 10px; color: #475569;">${emp.employee_id || 'N/A'}</td>
         <td style="border: 1px solid #e2e8f0; padding: 10px; color: #000000; font-weight: bold;">${emp.name || 'N/A'}</td>
+        <td style="border: 1px solid #e2e8f0; padding: 10px; color: ${statusColor}; font-weight: 600;">${emp.status || 'Missing Log'}</td>
         <td style="border: 1px solid #e2e8f0; padding: 10px; color: #475569;">${emp.email || 'N/A'}</td>
       </tr>`;
     });
@@ -55,15 +64,16 @@ The Universe One Team`;
   const html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 15px; line-height: 1.6; color: #1e293b; max-width: 650px; margin: 0;">
   <p>Dear ${recipientName},</p>
   <p>This is the daily work log report for <strong>${reportDate}</strong>.</p>
-  <p>Below is the list of active employees who did not submit their daily work logs:</p>
+  <p>Below is the list of active employees and their status:</p>
   
-  <p style="font-weight: 600; margin-bottom: 8px; color: #000000;">Missing Daily Logs:</p>
+  <p style="font-weight: 600; margin-bottom: 8px; color: #000000;">Missing Daily Logs / Leave Status:</p>
   <div style="margin-bottom: 20px; overflow-x: auto;">
     <table role="presentation" border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; border-color: #e2e8f0; width: 100%; min-width: 500px;">
       <thead>
         <tr style="background-color: #f8fafc; border: 1px solid #e2e8f0;">
           <th align="left" style="color: #000000; font-weight: bold; border: 1px solid #e2e8f0; padding: 10px; width: 120px;">Employee ID</th>
           <th align="left" style="color: #000000; font-weight: bold; border: 1px solid #e2e8f0; padding: 10px;">Name</th>
+          <th align="left" style="color: #000000; font-weight: bold; border: 1px solid #e2e8f0; padding: 10px;">Status</th>
           <th align="left" style="color: #000000; font-weight: bold; border: 1px solid #e2e8f0; padding: 10px;">Email</th>
         </tr>
       </thead>

@@ -8,6 +8,7 @@ import { render as renderTicketAssigned } from './ticket-assigned.ts';
 import { render as renderMissingAttendance } from './missing-attendance.ts';
 import { render as renderLeaveApplied } from './leave-applied.ts';
 import { render as renderRegularizationApplied } from './regularization-applied.ts';
+import { render as renderWeeklySummary } from './weekly-summary.ts';
 
 type OutboxRow = {
   id: string;
@@ -56,6 +57,9 @@ export function renderEmail(row: OutboxRow, urls: RenderUrls) {
     case 'daily_work_log_report':
       if (row.payload?.report_type === 'missing_attendance') {
         return renderMissingAttendance(row.payload);
+      }
+      if (row.payload?.report_type === 'weekly_summary') {
+        return renderWeeklySummary(row.payload);
       }
       return renderDailyReport(row.payload);
     case 'task_due':
