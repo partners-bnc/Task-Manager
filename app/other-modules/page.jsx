@@ -31,7 +31,7 @@ export default function OtherModulesPage() {
         isAuthenticated={isAuthenticated}
         user={user}
       />
-      <main className="relative h-screen w-screen overflow-y-auto md:overflow-hidden flex flex-col pt-24 md:pt-[5.5rem] bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)]">
+      <main className="relative h-screen w-screen overflow-y-auto flex flex-col pt-28 md:pt-32 bg-[linear-gradient(180deg,#f8fafc_0%,#eef6ff_100%)] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-slate-300/60 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent">
         <OthersSection modules={modules} loading={loading} className="relative z-10 flex-1 flex items-center justify-center py-2 pb-16 md:py-2" />
       </main>
     </>

@@ -31,6 +31,13 @@ const otherModules = [
     video: '/assets/gif 2nd.mp4',
     accessKey: 'crm',
   },
+  {
+    id: 'vendor',
+    title: 'Vendor',
+    image: '/assets/other.gif',
+    video: null,
+    accessKey: 'vendor',
+  },
 ];
 
 export function OthersSection({ modules: moduleAccessMap = {}, loading = false, className = '' }) {
@@ -52,7 +59,7 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
       <div className="w-full relative h-auto py-4 md:py-0 md:h-[100px] flex flex-col justify-center items-center text-center overflow-visible shrink-0 bg-transparent">
 
         {/* Stylish Typography - Adjusted margins for mobile clearance */}
-        <div className="relative z-20 flex flex-col items-center px-6 mt-2 md:mt-[-70px]">
+        <div className="relative z-20 flex flex-col items-center px-6 mt-2 md:mt-4">
           <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-1 text-[11px] font-extrabold uppercase tracking-[0.28em] text-black mb-3 bg-white/95 border border-slate-200 shadow-xs">
             Other Modules
           </span>

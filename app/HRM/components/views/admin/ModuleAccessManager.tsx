@@ -7,7 +7,7 @@ import { useHrmFeedback } from '../../ui/HrmFeedback';
 import HrmEmptyState from '../../ui/HrmEmptyState';
 import { TableRowsSkeleton } from '../../ui/Skeleton';
 
-type ModuleKey = 'task_manager' | 'hrm_admin' | 'auditing' | 'crm';
+type ModuleKey = 'task_manager' | 'hrm_admin' | 'auditing' | 'crm' | 'vendor';
 
 type ModuleConfig = {
   key: ModuleKey;
@@ -48,6 +48,10 @@ const MODULES: ModuleConfig[] = [
   {
     key: 'crm',
     label: 'CRM',
+  },
+  {
+    key: 'vendor',
+    label: 'Vendor',
   },
 ];
 
@@ -108,7 +112,11 @@ function buildPatchBody(moduleKey: ModuleKey, nextValue: boolean) {
     return { auditingAccess: nextValue };
   }
 
-  return { crmAccess: nextValue };
+  if (moduleKey === 'crm') {
+    return { crmAccess: nextValue };
+  }
+
+  return { vendorAccess: nextValue };
 }
 
 export default function ModuleAccessManager() {
@@ -362,10 +370,10 @@ export default function ModuleAccessManager() {
                                     nextValue: !enabled,
                                   })
                                 }
-                                className={`inline-flex min-w-[110px] items-center justify-center rounded-full px-3 py-2 text-xs font-bold ring-1 transition hover:-translate-y-0.5 ${
+                                className={`inline-flex min-w-[110px] items-center justify-center rounded-full px-4 py-2 text-[11.5px] font-extrabold transition-all duration-200 hover:-translate-y-0.5 ${
                                   enabled
-                                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200/80'
-                                    : 'bg-rose-50 text-rose-700 ring-rose-200/80'
+                                    ? 'bg-[#2559a5] text-white shadow-[0_4px_12px_rgba(37,89,165,0.18)] hover:bg-[#1d4682] hover:shadow-[0_6px_16px_rgba(37,89,165,0.3)] border-none'
+                                    : 'bg-slate-100 text-slate-400 border border-slate-200/60 hover:bg-slate-200/50 hover:text-slate-655'
                                 }`}
                                 disabled={!employeeRecordId}
                               >

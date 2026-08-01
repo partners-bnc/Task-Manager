@@ -6,7 +6,12 @@ function buildDefaultModules() {
     hrm: { enabled: false, href: null },
     auditing: { enabled: false, href: null },
     crm: { enabled: false, href: null },
+    vendor: { enabled: false, href: null },
   };
+}
+
+export function buildWorkspaceState() {
+  // Let's keep other files using buildDefaultWorkspaceState
 }
 
 export function buildDefaultWorkspaceState() {
@@ -54,6 +59,10 @@ export function normalizeWorkspaceState(result = {}) {
       crm: {
         enabled: Boolean(modules.crm?.enabled),
         href: modules.crm?.href || null,
+      },
+      vendor: {
+        enabled: Boolean(modules.vendor?.enabled),
+        href: modules.vendor?.href || null,
       },
     },
   };

@@ -1989,6 +1989,7 @@ export async function PATCH(request) {
     const hrmAdminAccess = body?.hrmAdminAccess !== undefined ? parseBoolean(body.hrmAdminAccess) : undefined;
     const auditingAccess = body?.auditingAccess !== undefined ? parseBoolean(body.auditingAccess) : undefined;
     const crmAccess = body?.crmAccess !== undefined ? parseBoolean(body.crmAccess) : undefined;
+    const vendorAccess = body?.vendorAccess !== undefined ? parseBoolean(body.vendorAccess) : undefined;
 
     const payload = {};
     if (name !== undefined) payload.name = name;
@@ -2189,7 +2190,8 @@ export async function PATCH(request) {
       taskManagerAccess !== undefined ||
       hrmAdminAccess !== undefined ||
       auditingAccess !== undefined ||
-      crmAccess !== undefined;
+      crmAccess !== undefined ||
+      vendorAccess !== undefined;
 
     if (Object.keys(payload).length === 0 && !hasModuleAccessUpdate) {
       return NextResponse.json({ error: 'No fields provided for update' }, { status: 400 });
@@ -2226,6 +2228,8 @@ export async function PATCH(request) {
         auditing_role: currentModuleAccess?.auditing_role || null,
         crm: crmAccess !== undefined ? crmAccess : currentModuleAccess?.crm || false,
         crm_role: currentModuleAccess?.crm_role || null,
+        vendor: vendorAccess !== undefined ? vendorAccess : currentModuleAccess?.vendor || false,
+        vendor_role: currentModuleAccess?.vendor_role || null,
         hrm_admin: hrmAdminAccess !== undefined ? hrmAdminAccess : currentModuleAccess?.hrm_admin || false,
         granted_by: currentModuleAccess?.granted_by || authContext.employee?.id || null,
         granted_at: currentModuleAccess?.granted_at || new Date().toISOString(),
