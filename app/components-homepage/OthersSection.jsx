@@ -35,7 +35,7 @@ const otherModules = [
     id: 'vendor',
     title: 'Vendor',
     image: '/assets/other.gif',
-    video: null,
+    video: '/assets/other 1.mp4',
     accessKey: 'vendor',
   },
 ];
@@ -63,7 +63,7 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
           <span className="inline-flex items-center gap-1.5 rounded-full px-4 py-1 text-[11px] font-extrabold uppercase tracking-[0.28em] text-black mb-3 bg-white/95 border border-slate-200 shadow-xs">
             Other Modules
           </span>
-          
+
           <h2 className="text-4xl md:text-5xl font-serif font-medium italic tracking-tight text-black mt-0">
             Access all your operations in one platform
           </h2>
@@ -145,7 +145,7 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
                       <h3 className="text-xl md:text-2xl font-black tracking-tight text-slate-800 transition-colors duration-300 group-hover:text-[#0372CC]">
                         {module.title}
                       </h3>
-                      
+
                       {/* Interactive Action Button indicating clickability */}
                       <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-xs transition-all duration-300 group-hover:border-[#0372CC] group-hover:bg-[#0372CC] group-hover:text-white group-hover:scale-110 group-hover:shadow-md">
                         <span className="material-symbols-outlined text-[20px] font-bold">arrow_forward</span>

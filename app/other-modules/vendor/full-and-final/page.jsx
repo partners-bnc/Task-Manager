@@ -353,12 +353,12 @@ export default function FullAndFinalPayments() {
                 <tr className="border-b border-slate-100 text-[10px] md:text-[11px] font-extrabold uppercase tracking-wider text-slate-405 bg-slate-50/50">
                   <th className="py-2.5 px-3">Beneficiary</th>
                   <th className="py-2.5 px-3">Nature</th>
-                  <th className="py-2.5 px-3">Settlement Date</th>
+                  <th className="py-2.5 px-3">Settlement Due Date</th>
                   <th className="py-2.5 px-3">Amount</th>
                   <th className="py-2.5 px-3">Progress Status</th>
                   <th className="py-2.5 px-3">Uploaded By</th>
                   <th className="py-2.5 px-3">Uploaded Date</th>
-                  <th className="py-2.5 px-3">Doc</th>
+                  <th className="py-2.5 px-3">Attachment</th>
                   <th className="py-2.5 px-3 text-right">Action</th>
                 </tr>
               </thead>

@@ -82,7 +82,7 @@ export default function Sidebar() {
         />
         <SidebarItem
           icon={HandCoins}
-          label="Full & Final"
+          label="F&F Settlements"
           href="/other-modules/vendor/full-and-final"
           isCollapsed={isSidebarCollapsed}
         />

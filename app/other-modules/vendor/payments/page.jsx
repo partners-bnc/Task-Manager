@@ -358,7 +358,7 @@ export default function VendorPayments() {
                   <th className="py-2.5 px-3">Progress Status</th>
                   <th className="py-2.5 px-3">Uploaded By</th>
                   <th className="py-2.5 px-3">Uploaded Date</th>
-                  <th className="py-2.5 px-3">Doc</th>
+                  <th className="py-2.5 px-3">Attachment</th>
                   <th className="py-2.5 px-3 text-right">Action</th>
                 </tr>
               </thead>
