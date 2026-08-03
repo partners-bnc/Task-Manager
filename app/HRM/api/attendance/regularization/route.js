@@ -60,7 +60,7 @@ async function requireEmployeeContext() {
 
   const { data: employeeRow, error: employeeError } = await adminClient
     .from('hrm_employees')
-    .select('id, working_days, second_saturday_off')
+    .select('id, name, working_days, second_saturday_off')
     .eq('id', authContext.employee.id)
     .maybeSingle();
 
@@ -76,6 +76,7 @@ async function requireEmployeeContext() {
   return {
     authContext,
     employeeId: authContext.employee.id,
+    employeeName: employeeRow.name || '',
     employeeSchedule: {
       workingDays: employeeRow.working_days || [],
       secondSaturdayOff: Boolean(employeeRow.second_saturday_off),
@@ -511,16 +512,16 @@ export async function POST(request) {
       },
       ...(reportingManager
         ? [
-            {
-              request_id: regularizationRow.id,
-              recipient_type: 'approver',
-              recipient_role: 'reporting_manager',
-              recipient_auth_user_id: reportingManager.authUserId || null,
-              recipient_employee_id: reportingManager.kind === 'employee' ? reportingManager.id : null,
-              recipient_name: reportingManager.name,
-              recipient_email: reportingManager.email,
-            },
-          ]
+          {
+            request_id: regularizationRow.id,
+            recipient_type: 'approver',
+            recipient_role: 'reporting_manager',
+            recipient_auth_user_id: reportingManager.authUserId || null,
+            recipient_employee_id: reportingManager.kind === 'employee' ? reportingManager.id : null,
+            recipient_name: reportingManager.name,
+            recipient_email: reportingManager.email,
+          },
+        ]
         : []),
     ];
 
@@ -575,3 +576,4 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message || 'Failed to submit regularization request' }, { status: 500 });
   }
 }
+

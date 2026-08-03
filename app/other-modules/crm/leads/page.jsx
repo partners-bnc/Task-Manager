@@ -449,7 +449,28 @@ export default function LeadsPage() {
       assigned_to: '',
       notes: '',
       next_followup_date: '',
-      last_contacted: ''
+      last_contacted: '',
+      
+      // New Core Profiling Fields
+      salutation: '',
+      gender: '',
+      date_of_birth: '',
+      timezone: 'UTC',
+      preferred_language: 'English',
+      linkedin_url: '',
+      twitter_url: '',
+      github_url: '',
+      portfolio_url: '',
+      email_consent_status: 'Subscribed',
+      consent_source: '',
+      preferred_contact_method: 'Email',
+      lead_score: 0,
+      skills: '',
+      custom_fields: {},
+      
+      // Relational Lists
+      experiences: [],
+      educations: []
     };
   }
 
@@ -458,6 +479,73 @@ export default function LeadsPage() {
     setFormData(prev => ({
       ...prev,
       [field]: value
+    }));
+  };
+
+  const addExperienceField = () => {
+    setFormData(prev => ({
+      ...prev,
+      experiences: [
+        ...prev.experiences,
+        {
+          company_name: '',
+          job_title: '',
+          joining_date: '',
+          leave_date: '',
+          duration_years: '',
+          company_industry: '',
+          responsibilities: '',
+          skills_used: ''
+        }
+      ]
+    }));
+  };
+
+  const handleExperienceChange = (index, field, value) => {
+    setFormData(prev => {
+      const nextExp = [...prev.experiences];
+      nextExp[index] = { ...nextExp[index], [field]: value };
+      return { ...prev, experiences: nextExp };
+    });
+  };
+
+  const removeExperienceField = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      experiences: prev.experiences.filter((_, i) => i !== index)
+    }));
+  };
+
+  const addEducationField = () => {
+    setFormData(prev => ({
+      ...prev,
+      educations: [
+        ...prev.educations,
+        {
+          institution_name: '',
+          degree: '',
+          field_of_study: '',
+          start_date: '',
+          end_date: '',
+          grade: '',
+          activities: ''
+        }
+      ]
+    }));
+  };
+
+  const handleEducationChange = (index, field, value) => {
+    setFormData(prev => {
+      const nextEdu = [...prev.educations];
+      nextEdu[index] = { ...nextEdu[index], [field]: value };
+      return { ...prev, educations: nextEdu };
+    });
+  };
+
+  const removeEducationField = (index) => {
+    setFormData(prev => ({
+      ...prev,
+      educations: prev.educations.filter((_, i) => i !== index)
     }));
   };
 
@@ -488,6 +576,24 @@ export default function LeadsPage() {
     if (!data.phone?.trim() && !data.email?.trim()) {
       toast.error('At least one of Primary Phone or Primary Email must be provided.');
       return false;
+    }
+    if (data.experiences && Array.isArray(data.experiences)) {
+      for (let i = 0; i < data.experiences.length; i++) {
+        const exp = data.experiences[i];
+        if (!exp.company_name?.trim() || !exp.job_title?.trim()) {
+          toast.error(`Experience #${i+1} requires Company Name and Job Title.`);
+          return false;
+        }
+      }
+    }
+    if (data.educations && Array.isArray(data.educations)) {
+      for (let i = 0; i < data.educations.length; i++) {
+        const edu = data.educations[i];
+        if (!edu.institution_name?.trim()) {
+          toast.error(`Education #${i+1} requires Institution Name.`);
+          return false;
+        }
+      }
     }
     return true;
   };
@@ -634,12 +740,12 @@ export default function LeadsPage() {
     setFormData(getDefaultFormData());
     setCustomSource('');
     setCustomType('');
-    setExpandedSections({ 1: true, 2: false, 3: false, 4: false });
+    setExpandedSections({ 1: true, 2: false, 3: false, 4: false, 5: false, 6: false, 7: false });
     setIsFormOpen(true);
   };
 
   // Open Edit Form
-  const openEditForm = (lead) => {
+  const openEditForm = async (lead) => {
     if (selectedLeadIds.size > 1) {
       if (!selectedLeadIds.has(lead.lead_id)) {
         setSelectedLeadIds(prev => {
@@ -691,47 +797,78 @@ export default function LeadsPage() {
       return;
     }
 
-    setFormMode('edit');
-    setCurrentLeadId(lead.lead_id);
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/other-modules/crm/api/leads?lead_id=${lead.lead_id}`);
+      if (!response.ok) throw new Error("Failed to fetch lead details");
+      const data = await response.json();
+      const fullLead = data.lead;
 
-    // Set form fields
-    const sourceExists = SOURCES.includes(lead.lead_source);
-    const typeExists = TYPES.includes(lead.lead_type);
+      setFormMode('edit');
+      setCurrentLeadId(fullLead.lead_id);
 
-    setFormData({
-      full_name: lead.full_name || '',
-      phone: lead.phone || '',
-      phone_alt: lead.phone_alt || '',
-      whatsapp: lead.whatsapp || '',
-      email: lead.email || '',
-      email_alt: lead.email_alt || '',
-      country: lead.country || '',
-      city: lead.city || '',
-      state: lead.state || '',
-      company_name: lead.company_name || '',
-      designation: lead.designation || '',
-      industry: lead.industry || '',
-      website: lead.website || '',
-      company_size: lead.company_size || '',
-      business_country: lead.business_country || '',
-      business_city: lead.business_city || '',
-      lead_source: sourceExists ? lead.lead_source : (lead.lead_source ? 'Other' : 'Website'),
-      lead_category: lead.lead_category || 'Warm',
-      lead_type: typeExists ? lead.lead_type : (lead.lead_type ? 'Other' : 'B2B'),
-      lead_status: lead.lead_status || 'New',
-      priority: lead.priority || 'Medium',
-      tags: lead.tags || '',
-      assigned_to: lead.assigned_to || '',
-      notes: lead.notes || '',
-      next_followup_date: lead.next_followup_date || '',
-      last_contacted: lead.last_contacted || ''
-    });
+      const sourceExists = SOURCES.includes(fullLead.lead_source);
+      const typeExists = TYPES.includes(fullLead.lead_type);
 
-    setCustomSource(sourceExists ? '' : (lead.lead_source || ''));
-    setCustomType(typeExists ? '' : (lead.lead_type || ''));
+      setFormData({
+        full_name: fullLead.full_name || '',
+        phone: fullLead.phone || '',
+        phone_alt: fullLead.phone_alt || '',
+        whatsapp: fullLead.whatsapp || '',
+        email: fullLead.email || '',
+        email_alt: fullLead.email_alt || '',
+        country: fullLead.country || '',
+        city: fullLead.city || '',
+        state: fullLead.state || '',
+        company_name: fullLead.company_name || '',
+        designation: fullLead.designation || '',
+        industry: fullLead.industry || '',
+        website: fullLead.website || '',
+        company_size: fullLead.company_size || '',
+        business_country: fullLead.business_country || '',
+        business_city: fullLead.business_city || '',
+        lead_source: sourceExists ? fullLead.lead_source : (fullLead.lead_source ? 'Other' : 'Website'),
+        lead_category: fullLead.lead_category || 'Warm',
+        lead_type: typeExists ? fullLead.lead_type : (fullLead.lead_type ? 'Other' : 'B2B'),
+        lead_status: fullLead.lead_status || 'New',
+        priority: fullLead.priority || 'Medium',
+        tags: fullLead.tags || '',
+        assigned_to: fullLead.assigned_to || '',
+        notes: fullLead.notes || '',
+        next_followup_date: fullLead.next_followup_date || '',
+        last_contacted: fullLead.last_contacted || '',
+        
+        salutation: fullLead.salutation || '',
+        gender: fullLead.gender || '',
+        date_of_birth: fullLead.date_of_birth || '',
+        timezone: fullLead.timezone || 'UTC',
+        preferred_language: fullLead.preferred_language || 'English',
+        linkedin_url: fullLead.linkedin_url || '',
+        twitter_url: fullLead.twitter_url || '',
+        github_url: fullLead.github_url || '',
+        portfolio_url: fullLead.portfolio_url || '',
+        email_consent_status: fullLead.email_consent_status || 'Subscribed',
+        consent_source: fullLead.consent_source || '',
+        preferred_contact_method: fullLead.preferred_contact_method || 'Email',
+        lead_score: fullLead.lead_score || 0,
+        skills: fullLead.skills || '',
+        custom_fields: fullLead.custom_fields || {},
+        
+        experiences: fullLead.experiences || [],
+        educations: fullLead.educations || []
+      });
 
-    setExpandedSections({ 1: true, 2: true, 3: true, 4: true });
-    setIsFormOpen(true);
+      setCustomSource(sourceExists ? '' : (fullLead.lead_source || ''));
+      setCustomType(typeExists ? '' : (fullLead.lead_type || ''));
+
+      setExpandedSections({ 1: true, 2: true, 3: true, 4: true, 5: true, 6: true, 7: true });
+      setIsFormOpen(true);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load full lead details for editing.');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   // Delete Handler
@@ -2899,6 +3036,20 @@ export default function LeadsPage() {
                 {expandedSections[1] && (
                   <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-white dark:bg-slate-800/40">
                     <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Salutation</label>
+                      <select
+                        value={formData.salutation}
+                        onChange={(e) => handleInputChange('salutation', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                      >
+                        <option value="">Select Salutation</option>
+                        <option value="Mr.">Mr.</option>
+                        <option value="Ms.">Ms.</option>
+                        <option value="Dr.">Dr.</option>
+                        <option value="Prof.">Prof.</option>
+                      </select>
+                    </div>
+                    <div>
                       <label className="block text-xs font-semibold text-slate-500 mb-1.5">Full Name *</label>
                       <input
                         type="text"
@@ -2908,6 +3059,19 @@ export default function LeadsPage() {
                         className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
                         placeholder="John Doe"
                       />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Gender</label>
+                      <select
+                        value={formData.gender}
+                        onChange={(e) => handleInputChange('gender', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                      >
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                      </select>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-500 mb-1.5">Primary Phone</label>
@@ -2987,6 +3151,15 @@ export default function LeadsPage() {
                         onChange={(e) => handleInputChange('state', e.target.value)}
                         className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
                         placeholder="State"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Date of Birth</label>
+                      <input
+                        type="date"
+                        value={formData.date_of_birth}
+                        onChange={(e) => handleInputChange('date_of_birth', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
                       />
                     </div>
                   </div>
@@ -3239,6 +3412,400 @@ export default function LeadsPage() {
                         placeholder="Write detailed call summaries or interaction logs here..."
                       />
                     </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 5: ADVANCED & SOCIAL PROFILE */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(5)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <Globe className="w-4 h-4" /> Section 5 — Advanced & Social Details
+                  </span>
+                  {expandedSections[5] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections[5] && (
+                  <div className="p-4 space-y-4 bg-white dark:bg-slate-800/40">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Time Zone</label>
+                        <input
+                          type="text"
+                          value={formData.timezone}
+                          onChange={(e) => handleInputChange('timezone', e.target.value)}
+                          placeholder="e.g. Asia/Kolkata, UTC"
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Preferred Language</label>
+                        <input
+                          type="text"
+                          value={formData.preferred_language}
+                          onChange={(e) => handleInputChange('preferred_language', e.target.value)}
+                          placeholder="e.g. English, Arabic"
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Preferred Contact Method</label>
+                        <select
+                          value={formData.preferred_contact_method}
+                          onChange={(e) => handleInputChange('preferred_contact_method', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        >
+                          <option value="Email">Email</option>
+                          <option value="Phone">Phone</option>
+                          <option value="WhatsApp">WhatsApp</option>
+                          <option value="SMS">SMS</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">LinkedIn Profile URL</label>
+                        <input
+                          type="url"
+                          value={formData.linkedin_url}
+                          onChange={(e) => handleInputChange('linkedin_url', e.target.value)}
+                          placeholder="https://linkedin.com/in/username"
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Twitter / X URL</label>
+                        <input
+                          type="url"
+                          value={formData.twitter_url}
+                          onChange={(e) => handleInputChange('twitter_url', e.target.value)}
+                          placeholder="https://x.com/username"
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">GitHub Profile URL</label>
+                        <input
+                          type="url"
+                          value={formData.github_url}
+                          onChange={(e) => handleInputChange('github_url', e.target.value)}
+                          placeholder="https://github.com/username"
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Portfolio Website URL</label>
+                        <input
+                          type="url"
+                          value={formData.portfolio_url}
+                          onChange={(e) => handleInputChange('portfolio_url', e.target.value)}
+                          placeholder="https://myportfolio.com"
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Email Consent Status</label>
+                        <select
+                          value={formData.email_consent_status}
+                          onChange={(e) => handleInputChange('email_consent_status', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        >
+                          <option value="Subscribed">Subscribed</option>
+                          <option value="Unsubscribed">Unsubscribed</option>
+                          <option value="Bounce">Bounce</option>
+                          <option value="Spam Complaint">Spam Complaint</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Consent Source</label>
+                        <input
+                          type="text"
+                          value={formData.consent_source}
+                          onChange={(e) => handleInputChange('consent_source', e.target.value)}
+                          placeholder="e.g. Newsletter, Lead Magnet"
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1.5">Lead Score</label>
+                        <input
+                          type="number"
+                          value={formData.lead_score}
+                          onChange={(e) => handleInputChange('lead_score', parseInt(e.target.value, 10) || 0)}
+                          placeholder="0"
+                          className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Skills (comma-separated)</label>
+                      <input
+                        type="text"
+                        value={formData.skills}
+                        onChange={(e) => handleInputChange('skills', e.target.value)}
+                        placeholder="React, Negotiation, Python, CRM"
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 6: WORK EXPERIENCE HISTORY */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(6)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <Briefcase className="w-4 h-4" /> Section 6 — Work Experience ({formData.experiences?.length || 0})
+                  </span>
+                  {expandedSections[6] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections[6] && (
+                  <div className="p-4 space-y-4 bg-white dark:bg-slate-800/40">
+                    {formData.experiences?.map((exp, index) => (
+                      <div key={index} className="border border-slate-150 dark:border-slate-700 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-800/60 relative space-y-3">
+                        <button
+                          type="button"
+                          onClick={() => removeExperienceField(index)}
+                          className="absolute top-3 right-3 p-1 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+                          title="Remove Experience"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        
+                        <div className="text-xs font-bold text-slate-400">Experience #{index + 1}</div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Company Name *</label>
+                            <input
+                              type="text"
+                              required
+                              value={exp.company_name}
+                              onChange={(e) => handleExperienceChange(index, 'company_name', e.target.value)}
+                              placeholder="e.g. Google"
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Job Title / Designation *</label>
+                            <input
+                              type="text"
+                              required
+                              value={exp.job_title}
+                              onChange={(e) => handleExperienceChange(index, 'job_title', e.target.value)}
+                              placeholder="e.g. Sales Manager"
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Joining Date</label>
+                            <input
+                              type="date"
+                              value={exp.joining_date}
+                              onChange={(e) => handleExperienceChange(index, 'joining_date', e.target.value)}
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Leave Date</label>
+                            <input
+                              type="date"
+                              value={exp.leave_date}
+                              onChange={(e) => handleExperienceChange(index, 'leave_date', e.target.value)}
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Duration (Years)</label>
+                            <input
+                              type="number"
+                              step="0.1"
+                              value={exp.duration_years}
+                              onChange={(e) => handleExperienceChange(index, 'duration_years', parseFloat(e.target.value) || '')}
+                              placeholder="e.g. 2.5"
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Industry</label>
+                            <input
+                              type="text"
+                              value={exp.company_industry}
+                              onChange={(e) => handleExperienceChange(index, 'company_industry', e.target.value)}
+                              placeholder="e.g. Tech, SaaS"
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Skills Used (comma-separated)</label>
+                            <input
+                              type="text"
+                              value={exp.skills_used}
+                              onChange={(e) => handleExperienceChange(index, 'skills_used', e.target.value)}
+                              placeholder="e.g. Negotiation, Cold Calling"
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Responsibilities / Achievements</label>
+                          <textarea
+                            value={exp.responsibilities}
+                            onChange={(e) => handleExperienceChange(index, 'responsibilities', e.target.value)}
+                            rows="2"
+                            placeholder="Describe main tasks and key achievements..."
+                            className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <button
+                      type="button"
+                      onClick={addExperienceField}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-slate-300 dark:border-slate-650 text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-750/30 rounded-xl font-medium text-sm transition"
+                    >
+                      <Plus className="w-4 h-4" /> Add Work Experience
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 7: EDUCATION HISTORY */}
+              <div className="border border-slate-150 dark:border-slate-700 rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleSection(7)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-750 font-semibold text-sm hover:bg-slate-100 dark:hover:bg-slate-700 transition"
+                >
+                  <span className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                    <Globe className="w-4 h-4" /> Section 7 — Education ({formData.educations?.length || 0})
+                  </span>
+                  {expandedSections[7] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                </button>
+                {expandedSections[7] && (
+                  <div className="p-4 space-y-4 bg-white dark:bg-slate-800/40">
+                    {formData.educations?.map((edu, index) => (
+                      <div key={index} className="border border-slate-150 dark:border-slate-700 rounded-xl p-4 bg-slate-50/50 dark:bg-slate-800/60 relative space-y-3">
+                        <button
+                          type="button"
+                          onClick={() => removeEducationField(index)}
+                          className="absolute top-3 right-3 p-1 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+                          title="Remove Education"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        
+                        <div className="text-xs font-bold text-slate-400">Education #{index + 1}</div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Institution / School Name *</label>
+                          <input
+                            type="text"
+                            required
+                            value={edu.institution_name}
+                            onChange={(e) => handleEducationChange(index, 'institution_name', e.target.value)}
+                            placeholder="e.g. Stanford University"
+                            className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Degree</label>
+                            <input
+                              type="text"
+                              value={edu.degree}
+                              onChange={(e) => handleEducationChange(index, 'degree', e.target.value)}
+                              placeholder="e.g. Bachelor of Science"
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Field of Study / Major</label>
+                            <input
+                              type="text"
+                              value={edu.field_of_study}
+                              onChange={(e) => handleEducationChange(index, 'field_of_study', e.target.value)}
+                              placeholder="e.g. Computer Science"
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Grade / GPA</label>
+                            <input
+                              type="text"
+                              value={edu.grade}
+                              onChange={(e) => handleEducationChange(index, 'grade', e.target.value)}
+                              placeholder="e.g. 3.8 or First Class"
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">Start Date</label>
+                            <input
+                              type="date"
+                              value={edu.start_date}
+                              onChange={(e) => handleEducationChange(index, 'start_date', e.target.value)}
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-500 mb-1">End Date / Graduation</label>
+                            <input
+                              type="date"
+                              value={edu.end_date}
+                              onChange={(e) => handleEducationChange(index, 'end_date', e.target.value)}
+                              className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-500 mb-1">Activities & Extracurriculars</label>
+                          <textarea
+                            value={edu.activities}
+                            onChange={(e) => handleEducationChange(index, 'activities', e.target.value)}
+                            rows="2"
+                            placeholder="Societies, sports, clubs..."
+                            className="w-full px-3 py-1.5 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    
+                    <button
+                      type="button"
+                      onClick={addEducationField}
+                      className="w-full flex items-center justify-center gap-1.5 py-2.5 border border-dashed border-slate-300 dark:border-slate-650 text-blue-600 dark:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-750/30 rounded-xl font-medium text-sm transition"
+                    >
+                      <Plus className="w-4 h-4" /> Add Education
+                    </button>
                   </div>
                 )}
               </div>

@@ -1,3 +1,4 @@
+// Force compilation reload of attendance utils changes
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';

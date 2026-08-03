@@ -104,6 +104,26 @@ export async function GET(request) {
         populatedLead = populated;
       }
 
+      // Query work experience and education background
+      let experiences = [];
+      let educations = [];
+      if (leadData) {
+        const [expRes, eduRes] = await Promise.all([
+          adminClient
+            .from("crm_lead_experiences")
+            .select("*")
+            .eq("lead_id", lead_id)
+            .order("joining_date", { ascending: false }),
+          adminClient
+            .from("crm_lead_educations")
+            .select("*")
+            .eq("lead_id", lead_id)
+            .order("start_date", { ascending: false })
+        ]);
+        experiences = expRes.data || [];
+        educations = eduRes.data || [];
+      }
+
       // Query campaign emails sent to this lead
       const { data: campaignEmails, error: campErr } = await adminClient
         .from("crm_campaign_recipients")
@@ -132,7 +152,11 @@ export async function GET(request) {
       }
 
       return NextResponse.json({ 
-        lead: populatedLead,
+        lead: {
+          ...populatedLead,
+          experiences,
+          educations
+        },
         campaignEmails: campaignEmails || []
       });
     }
@@ -218,7 +242,7 @@ export async function POST(request) {
     const body = await request.json();
     const userDetails = await getUserDetails(supabase, user);
 
-    const { notes, next_followup_date, last_contacted, ...leadData } = body;
+    const { notes, next_followup_date, last_contacted, experiences, educations, ...leadData } = body;
 
     const { data: lead, error } = await adminClient
       .from(TABLE)
@@ -230,6 +254,43 @@ export async function POST(request) {
       .single();
 
     if (error) throw error;
+
+    // Save experiences in transaction-like sequence
+    if (experiences && Array.isArray(experiences) && experiences.length > 0) {
+      const formattedExp = experiences.map(exp => ({
+        lead_id: lead.lead_id,
+        company_name: exp.company_name,
+        job_title: exp.job_title,
+        joining_date: exp.joining_date || null,
+        leave_date: exp.leave_date || null,
+        duration_years: exp.duration_years || null,
+        company_industry: exp.company_industry || null,
+        responsibilities: exp.responsibilities || null,
+        skills_used: exp.skills_used || null
+      }));
+      const { error: expErr } = await adminClient
+        .from("crm_lead_experiences")
+        .insert(formattedExp);
+      if (expErr) console.error("Error inserting experiences:", expErr);
+    }
+
+    // Save educations in transaction-like sequence
+    if (educations && Array.isArray(educations) && educations.length > 0) {
+      const formattedEdu = educations.map(edu => ({
+        lead_id: lead.lead_id,
+        institution_name: edu.institution_name,
+        degree: edu.degree || null,
+        field_of_study: edu.field_of_study || null,
+        start_date: edu.start_date || null,
+        end_date: edu.end_date || null,
+        grade: edu.grade || null,
+        activities: edu.activities || null
+      }));
+      const { error: eduErr } = await adminClient
+        .from("crm_lead_educations")
+        .insert(formattedEdu);
+      if (eduErr) console.error("Error inserting educations:", eduErr);
+    }
 
     // Save notes as a completed followup log
     if (notes) {
@@ -297,7 +358,7 @@ export async function PUT(request) {
       return NextResponse.json({ error: "lead_id is required" }, { status: 400 });
     }
 
-    const { lead_id, notes, next_followup_date, last_contacted, ...updates } = body;
+    const { lead_id, notes, next_followup_date, last_contacted, experiences, educations, ...updates } = body;
     const userDetails = await getUserDetails(supabase, user);
 
     const { data: lead, error } = await adminClient
@@ -311,6 +372,45 @@ export async function PUT(request) {
       .single();
 
     if (error) throw error;
+
+    // Update experiences by deleting existing and inserting the new array
+    await adminClient.from("crm_lead_experiences").delete().eq("lead_id", lead_id);
+    if (experiences && Array.isArray(experiences) && experiences.length > 0) {
+      const formattedExp = experiences.map(exp => ({
+        lead_id: lead_id,
+        company_name: exp.company_name,
+        job_title: exp.job_title,
+        joining_date: exp.joining_date || null,
+        leave_date: exp.leave_date || null,
+        duration_years: exp.duration_years || null,
+        company_industry: exp.company_industry || null,
+        responsibilities: exp.responsibilities || null,
+        skills_used: exp.skills_used || null
+      }));
+      const { error: expErr } = await adminClient
+        .from("crm_lead_experiences")
+        .insert(formattedExp);
+      if (expErr) console.error("Error updating experiences:", expErr);
+    }
+
+    // Update educations by deleting existing and inserting the new array
+    await adminClient.from("crm_lead_educations").delete().eq("lead_id", lead_id);
+    if (educations && Array.isArray(educations) && educations.length > 0) {
+      const formattedEdu = educations.map(edu => ({
+        lead_id: lead_id,
+        institution_name: edu.institution_name,
+        degree: edu.degree || null,
+        field_of_study: edu.field_of_study || null,
+        start_date: edu.start_date || null,
+        end_date: edu.end_date || null,
+        grade: edu.grade || null,
+        activities: edu.activities || null
+      }));
+      const { error: eduErr } = await adminClient
+        .from("crm_lead_educations")
+        .insert(formattedEdu);
+      if (eduErr) console.error("Error updating educations:", eduErr);
+    }
 
     // Handle notes update (insert a new completed manual followup activity log)
     if (notes) {

@@ -72,7 +72,7 @@ export async function POST(request) {
         (lead.email && dbItem.email === lead.email)
       );
 
-      const { notes, next_followup_date, last_contacted, ...leadData } = lead;
+      const { notes, next_followup_date, last_contacted, experiences, educations, ...leadData } = lead;
 
       if (duplicateMatch) {
         if (strategy === 'overwrite') {

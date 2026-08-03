@@ -196,12 +196,41 @@ export default function LeadDetailPage() {
         ],
       },
       {
+        title: 'Personal & Demographic Info',
+        items: [
+          { label: 'Salutation', value: lead.salutation, icon: User },
+          { label: 'Gender', value: lead.gender, icon: User },
+          { label: 'Date of Birth', value: lead.date_of_birth, type: 'date', icon: Calendar },
+          { label: 'Preferred Language', value: lead.preferred_language, icon: Globe },
+          { label: 'Skills / Expertise', value: lead.skills, type: 'tags', icon: Sparkles },
+        ],
+      },
+      {
+        title: 'Social & Portfolio Links',
+        items: [
+          { label: 'LinkedIn', value: lead.linkedin_url, type: 'website', icon: Globe },
+          { label: 'Twitter / X', value: lead.twitter_url, type: 'website', icon: Globe },
+          { label: 'GitHub', value: lead.github_url, type: 'website', icon: Globe },
+          { label: 'Portfolio Website', value: lead.portfolio_url, type: 'website', icon: Globe },
+        ],
+      },
+      {
         title: 'Business Profile',
         items: [
           { label: 'Company Name', value: lead.company_name, icon: Building2 },
           { label: 'Designation', value: lead.designation, icon: Briefcase },
           { label: 'Industry', value: lead.industry, icon: Briefcase },
           { label: 'Company Size', value: lead.company_size, icon: Building2 },
+        ],
+      },
+      {
+        title: 'Email Outreach & Consent',
+        items: [
+          { label: 'Consent Status', value: lead.email_consent_status, type: 'pill', icon: Activity },
+          { label: 'Consent Source', value: lead.consent_source, icon: FileText },
+          { label: 'Preferred Channel', value: lead.preferred_contact_method, type: 'pill', icon: Sparkles },
+          { label: 'Lead Score', value: lead.lead_score, icon: Sparkles },
+          { label: 'Time Zone', value: lead.timezone, icon: Clock },
         ],
       },
       {
@@ -523,6 +552,96 @@ export default function LeadDetailPage() {
                 </p>
               </div>
             </div>
+
+            {/* WORK EXPERIENCE HISTORY */}
+            {lead.experiences && lead.experiences.length > 0 && (
+              <section className="space-y-4 pt-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Briefcase className="w-4 h-4 text-blue-500" /> Work Experience History
+                  </h3>
+                </div>
+                <div className="relative border-l-2 border-slate-150 dark:border-slate-800 ml-4 pl-6 space-y-6">
+                  {lead.experiences.map((exp, idx) => (
+                    <div key={exp.experience_id || idx} className="relative group">
+                      {/* Timeline dot */}
+                      <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-4 border-white dark:border-[#151f32] bg-blue-550 group-hover:scale-110 transition-transform"></div>
+                      
+                      <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800/70 p-5 bg-white dark:bg-[#1b273d]/20 transition-all hover:border-slate-350 dark:hover:border-slate-650 hover:shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white">{exp.job_title}</h4>
+                            <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mt-0.5">
+                              {exp.company_name} {exp.company_industry ? `• ${exp.company_industry}` : ''}
+                            </p>
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400 font-medium sm:text-right shrink-0">
+                            <div>{formatDateValue(exp.joining_date)} — {exp.leave_date ? formatDateValue(exp.leave_date) : 'Present'}</div>
+                            {exp.duration_years && <div className="text-blue-500 dark:text-blue-400 font-semibold mt-0.5">Duration: {exp.duration_years} years</div>}
+                          </div>
+                        </div>
+
+                        {exp.skills_used && (
+                          <div className="flex flex-wrap gap-1.5 mt-3">
+                            {exp.skills_used.split(',').map(tag => tag.trim()).filter(Boolean).map((skill) => (
+                              <span key={skill} className="inline-flex rounded-md bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-650 dark:text-blue-400 border border-blue-100/30 dark:border-blue-900/30">
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {exp.responsibilities && (
+                          <p className="text-sm font-medium leading-relaxed text-slate-600 dark:text-slate-350 mt-3 whitespace-pre-wrap">
+                            {exp.responsibilities}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* EDUCATION BACKGROUND */}
+            {lead.educations && lead.educations.length > 0 && (
+              <section className="space-y-4 pt-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-emerald-500" /> Education Background
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {lead.educations.map((edu, idx) => (
+                    <div key={edu.education_id || idx} className="rounded-2xl border border-slate-200/80 dark:border-slate-800/70 p-5 bg-white dark:bg-[#1b273d]/20 transition-all hover:border-slate-350 dark:hover:border-slate-650 hover:shadow-sm">
+                      <div className="flex items-start gap-4">
+                        <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center shrink-0">
+                          <Globe className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <h4 className="text-base font-bold text-slate-900 dark:text-white truncate">{edu.degree || 'Degree'}</h4>
+                            {edu.grade && <span className="inline-flex rounded-full bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 text-[10px] font-bold tracking-wider text-emerald-650 dark:text-emerald-400 border border-emerald-100/30 dark:border-emerald-900/30 shrink-0">{edu.grade}</span>}
+                          </div>
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-1">
+                            {edu.institution_name} {edu.field_of_study ? `• ${edu.field_of_study}` : ''}
+                          </p>
+                          <div className="text-xs text-slate-500 mt-1 font-medium">
+                            {formatDateValue(edu.start_date)} — {edu.end_date ? formatDateValue(edu.end_date) : 'Present'}
+                          </div>
+                          
+                          {edu.activities && (
+                            <p className="text-xs font-normal text-slate-500 dark:text-slate-400 mt-3 border-t border-slate-100 dark:border-slate-800/40 pt-2 leading-relaxed">
+                              <strong>Activities:</strong> {edu.activities}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </div>

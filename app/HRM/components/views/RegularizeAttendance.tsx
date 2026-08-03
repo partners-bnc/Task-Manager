@@ -53,8 +53,8 @@ function createDraft(selectedDay?: RegularizationDay): DraftState {
     primaryHrApproverId: '',
     currentStatus: getDetectedCurrentStatus(selectedDay),
     requestType: getDefaultRequestType(selectedDay),
-    requestedCheckIn: '10:00',
-    requestedCheckOut: '19:00',
+    requestedCheckIn: '09:00',
+    requestedCheckOut: '17:30',
     reason: '',
   };
 }
