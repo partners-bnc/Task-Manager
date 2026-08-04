@@ -385,14 +385,42 @@ function buildEffectiveSalaryMap(revisions = [], monthEndDate) {
   const map = new Map();
   const monthEnd = monthEndDate || '9999-12-31';
 
-  for (const revision of revisions) {
-    if (revision.effective_from > monthEnd) {
-      continue;
+  // Group revisions by employee_id
+  const employeeRevs = new Map();
+  for (const r of revisions) {
+    if (!employeeRevs.has(r.employee_id)) {
+      employeeRevs.set(r.employee_id, []);
     }
+    employeeRevs.get(r.employee_id).push(r);
+  }
 
-    const existing = map.get(revision.employee_id);
-    if (!existing) {
-      map.set(revision.employee_id, revision);
+  for (const [employeeId, revs] of employeeRevs.entries()) {
+    // Find revisions that are effective on or before this month
+    const pastRevs = revs.filter((r) => r.effective_from <= monthEnd);
+    if (pastRevs.length > 0) {
+      // Sort to get the latest active one: effective_from DESC, created_at DESC
+      pastRevs.sort((a, b) => {
+        if (a.effective_from !== b.effective_from) {
+          return a.effective_from > b.effective_from ? -1 : 1;
+        }
+        return a.created_at > b.created_at ? -1 : 1;
+      });
+      map.set(employeeId, pastRevs[0]);
+    } else if (revs.length > 0) {
+      // All revisions are in the future. Find the earliest future revision.
+      revs.sort((a, b) => {
+        if (a.effective_from !== b.effective_from) {
+          return a.effective_from < b.effective_from ? -1 : 1;
+        }
+        return a.created_at < b.created_at ? -1 : 1;
+      });
+      const earliestFuture = revs[0];
+      // Use previous_salary of the earliest future revision as the salary before the increment
+      map.set(employeeId, {
+        employee_id: employeeId,
+        new_salary: earliestFuture.previous_salary,
+        effective_from: '1970-01-01',
+      });
     }
   }
 
@@ -1102,7 +1130,6 @@ async function loadPayrollReferenceData(year, month) {
     adminClient
       .from('hrm_salary_revisions')
       .select('*')
-      .lte('effective_from', endDate)
       .order('effective_from', { ascending: false })
       .order('created_at', { ascending: false }),
     adminClient
