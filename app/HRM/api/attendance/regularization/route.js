@@ -292,9 +292,12 @@ export async function GET(request) {
     }
 
     const attendanceMap = new Map((attendanceRows || []).map((row) => [row.date, row]));
-    const pendingDates = new Set(
+    const resolvedDates = new Set(
       (regularizationRows || [])
-        .filter((row) => String(row.status || row.request_status).toLowerCase() === 'pending')
+        .filter((row) => {
+          const status = String(row.status || row.request_status).toLowerCase();
+          return status === 'pending' || status === 'approved';
+        })
         .map((row) => row.date)
     );
 
@@ -312,7 +315,7 @@ export async function GET(request) {
 
     const eligibleDays = [];
     for (const date of listDatesInRange(start, end)) {
-      if (date > today || pendingDates.has(date) || isEmployeeScheduledOff(date, employeeContext.employeeSchedule)) {
+      if (date > today || resolvedDates.has(date) || isEmployeeScheduledOff(date, employeeContext.employeeSchedule)) {
         continue;
       }
 

@@ -97,6 +97,32 @@ export async function GET(request) {
       });
     }
 
+    if (mode === 'report') {
+      const startDate = url.searchParams.get('startDate') || getCurrentDateInTimeZone();
+      const endDate = url.searchParams.get('endDate') || getCurrentDateInTimeZone();
+
+      // Fetch all work logs for the selected date range
+      const { data: logs, error: logsError } = await adminClient
+        .from('hrm_daily_work_logs')
+        .select('id, employee_id, log_date, client_name, task_id, task_name_snapshot, hours_spent, remarks, created_at')
+        .gte('log_date', startDate)
+        .lte('log_date', endDate)
+        .order('log_date', { ascending: true })
+        .order('created_at', { ascending: true });
+
+      if (logsError) {
+        return NextResponse.json({ error: logsError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        mode: 'report',
+        startDate,
+        endDate,
+        employeeOptions,
+        logs: logs || []
+      });
+    }
+
     // Default mode: daily (All employees on a selected date)
     const { data: workLogs, error: workLogsError } = await adminClient
       .from('hrm_daily_work_logs')
