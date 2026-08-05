@@ -13,7 +13,7 @@ import {
   resolveApprovedLeaveOutcome,
   syncEmployeeLeaveBalances,
 } from '@/utils/leave';
-import { syncPayrollLopEntriesForLeaveApproval } from '@/utils/payroll';
+import { syncPayrollLopEntriesForLeaveApproval, isPayrollLockedForDateRange } from '@/utils/payroll';
 
 async function requireHrAdminAccess() {
   const supabase = await createClient();
@@ -83,6 +83,13 @@ export async function PATCH(request, context) {
 
     if (!leaveRequest?.id) {
       return NextResponse.json({ error: 'Leave request not found.' }, { status: 404 });
+    }
+
+    if (await isPayrollLockedForDateRange(leaveRequest.start_date, leaveRequest.end_date)) {
+      return NextResponse.json(
+        { error: 'The payroll for this period has already been generated and locked. This leave request cannot be approved or modified.' },
+        { status: 400 }
+      );
     }
 
     if (leaveRequest.status !== 'pending') {

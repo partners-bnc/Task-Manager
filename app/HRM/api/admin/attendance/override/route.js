@@ -42,6 +42,7 @@ import {
 import {
   deleteAttendancePayrollLopEntry,
   syncPayrollLopEntriesForLeaveApproval,
+  isPayrollLockedForDate,
 } from '@/utils/payroll';
 
 const OPPOSITE_HALF_PRESENT_MARKER = '[hr_override_opposite_half_present]';
@@ -681,6 +682,13 @@ export async function PATCH(request) {
 
     if (!employeeId || !date || !action) {
       return NextResponse.json({ error: 'Employee, date, and valid overwrite action are required.' }, { status: 400 });
+    }
+
+    if (await isPayrollLockedForDate(date)) {
+      return NextResponse.json(
+        { error: "This month's payroll has already been generated and locked. Attendance overrides are disabled." },
+        { status: 400 }
+      );
     }
 
     if (date > today) {

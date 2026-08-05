@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { adminClient } from '@/utils/supabase/admin';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import { getCurrentDateInTimeZone } from '@/utils/attendance';
+import { deriveEmploymentFields } from '@/utils/hrm-employment';
 
 const isSuperAdminEntity = (emp) => {
   if (!emp) return false;
@@ -45,11 +46,12 @@ export async function GET(request) {
     const mode = String(url.searchParams.get('mode') || 'daily').toLowerCase();
     const selectedDate = url.searchParams.get('date') || getCurrentDateInTimeZone();
     const employeeId = url.searchParams.get('employeeId') || '';
+    const startDate = url.searchParams.get('startDate') || selectedDate;
 
     // Load active employees list for selection dropdown
     const { data: employees, error: empError } = await adminClient
       .from('hrm_employees')
-      .select('id, name, employee_id, email')
+      .select('id, name, employee_id, email, employee_status, employment_lifecycle_status, separated_at')
       .order('name', { ascending: true });
 
     if (empError) {
@@ -58,6 +60,26 @@ export async function GET(request) {
 
     const employeeOptions = (employees || [])
       .filter(emp => !isSuperAdminEntity(emp))
+      .filter(emp => {
+        const empFields = deriveEmploymentFields(emp);
+        if (empFields.employmentLifecycleStatus === 'active') {
+          return true;
+        }
+        if (empFields.employmentLifecycleStatus === 'separated') {
+          const separationDate = emp.separated_at;
+          if (separationDate) {
+            const sepDateStr = separationDate.slice(0, 10);
+            if (mode === 'daily') {
+              return selectedDate <= sepDateStr;
+            } else if (mode === 'report') {
+              return sepDateStr >= startDate;
+            } else if (mode === 'individual') {
+              return true;
+            }
+          }
+        }
+        return false;
+      })
       .map(emp => ({
         id: emp.id,
         employeeId: emp.employee_id || '',

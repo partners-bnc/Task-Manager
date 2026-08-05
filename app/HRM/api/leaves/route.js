@@ -19,6 +19,7 @@ import {
   syncEmployeeLeaveBalances,
   validateLeaveRequestPolicy,
 } from '@/utils/leave';
+import { isPayrollLockedForDateRange } from '@/utils/payroll';
 
 async function requireEmployeeContext() {
   const supabase = await createClient();
@@ -259,6 +260,13 @@ export async function POST(request) {
 
     if (startDate > endDate) {
       return NextResponse.json({ error: 'Start date cannot be after end date.' }, { status: 400 });
+    }
+
+    if (await isPayrollLockedForDateRange(startDate, endDate)) {
+      return NextResponse.json(
+        { error: 'Payroll for one or more months in this period has already been generated and locked. Leaves cannot be applied.' },
+        { status: 400 }
+      );
     }
 
     const employee = await getEmployeeLeaveContext(employeeAuth.employeeId);

@@ -11,6 +11,7 @@ import {
 import { listHrAdminApprovers } from '@/utils/hr-admins';
 import { mapRegularizationItem } from '@/utils/regularization';
 import { enqueueRegularizationRequestEmail } from '@/utils/email-outbox';
+import { isPayrollLockedForDate } from '@/utils/payroll';
 
 function isMissingRegularizationSchemaError(error) {
   const message = error?.message || '';
@@ -382,6 +383,13 @@ export async function POST(request) {
 
     if (!attendanceDate) {
       return NextResponse.json({ error: 'Attendance date is required' }, { status: 400 });
+    }
+
+    if (await isPayrollLockedForDate(attendanceDate)) {
+      return NextResponse.json(
+        { error: "This month's payroll has already been generated and locked. Regularizations cannot be applied." },
+        { status: 400 }
+      );
     }
 
     if (!primaryHrApproverId) {

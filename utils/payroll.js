@@ -2046,3 +2046,40 @@ export async function getEmployeePaidPayrollMonth(employeeId, year, month) {
     ...buildEmployeePayslipState(payslip),
   };
 }
+
+export async function isPayrollRunGenerated(year, month) {
+  const { data, error } = await adminClient
+    .from('hrm_payroll_runs')
+    .select('id')
+    .eq('year', year)
+    .eq('month', month)
+    .maybeSingle();
+  if (error) return false;
+  return !!data;
+}
+
+export async function isPayrollLockedForDate(dateString) {
+  if (!dateString) return false;
+  const [yearStr, monthStr] = dateString.split('-');
+  const year = parseInt(yearStr, 10);
+  const month = parseInt(monthStr, 10);
+  if (isNaN(year) || isNaN(month)) return false;
+  return isPayrollRunGenerated(year, month);
+}
+
+export async function isPayrollLockedForDateRange(startDate, endDate) {
+  if (!startDate || !endDate) return false;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  let current = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endLimit = new Date(end.getFullYear(), end.getMonth(), 1);
+  
+  while (current <= endLimit) {
+    const year = current.getFullYear();
+    const month = current.getMonth() + 1;
+    if (await isPayrollRunGenerated(year, month)) return true;
+    current.setMonth(current.getMonth() + 1);
+  }
+  return false;
+}

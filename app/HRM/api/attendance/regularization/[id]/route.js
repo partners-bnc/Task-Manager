@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import { calculateAttendanceMetrics, createTimestampForAttendanceDate } from '@/utils/attendance';
 import { buildFinalApproverRole, hasPendingApproverRecipient, isApproverRecipient } from '@/utils/regularization';
+import { isPayrollLockedForDate } from '@/utils/payroll';
 
 async function requireApproverContext() {
   const supabase = await createClient();
@@ -61,6 +62,13 @@ export async function PATCH(request, context) {
 
     if (error || !regularizationRequest) {
       return NextResponse.json({ error: error?.message || 'Regularization request not found' }, { status: 404 });
+    }
+
+    if (await isPayrollLockedForDate(regularizationRequest.date)) {
+      return NextResponse.json(
+        { error: "This month's payroll has already been generated and locked. Regularizations cannot be approved or modified." },
+        { status: 400 }
+      );
     }
 
     if (String(regularizationRequest.status || regularizationRequest.request_status).toLowerCase() !== 'pending') {
