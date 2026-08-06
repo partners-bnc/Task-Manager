@@ -17,6 +17,8 @@ import { ShellSkeleton } from './ui/Skeleton';
 import { HrmFeedbackProvider } from './ui/HrmFeedback';
 import { createClient } from '@/utils/supabase/client';
 import CalendarView from '@/app/Taskmanager/components/CalendarView';
+import MyDailyLog from './views/MyDailyLog';
+import TeamDailyLog from './views/TeamDailyLog';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('home');
@@ -106,6 +108,8 @@ export default function App() {
     'organization-chart': <OrganizationChart apiPath="/HRM/api/employee/organization-chart" />,
     leave: <Leave />,
     calendar: <CalendarView />,
+    'my-daily-log': <MyDailyLog />,
+    'team-daily-log': <TeamDailyLog />,
     salary: <Salary employee={employee} />,
     profile: <Profile employee={employee} onEmployeeChange={setEmployee} onRefreshEmployee={refreshEmployee} />,
   };
@@ -137,6 +141,10 @@ export default function App() {
       ? 'Leave Management'
       : currentTab === 'salary'
       ? 'Payroll'
+      : currentTab === 'my-daily-log'
+      ? 'My Daily Log'
+      : currentTab === 'team-daily-log'
+      ? 'Team Daily Log'
       : currentTab === 'profile'
       ? 'My Profile'
       : 'Workspace';

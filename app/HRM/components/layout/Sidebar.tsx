@@ -31,7 +31,12 @@ export default function Sidebar({
   isMobileOpen = false,
   onMobileClose,
 }: SidebarProps) {
-  const [isRegularizationExpanded, setIsRegularizationExpanded] = useState(false);
+  const [isWorkLogExpanded, setIsWorkLogExpanded] = useState(() =>
+    currentTab === 'my-daily-log' || currentTab === 'team-daily-log'
+  );
+  const [isRegularizationExpanded, setIsRegularizationExpanded] = useState(() =>
+    currentTab === 'regularize-attendance' || currentTab === 'team-regularization'
+  );
 
   const displayName = employee?.name || employee?.employee_id || 'Employee';
   const loginId = employee?.employee_id || employee?.email || 'LOGIN ID';
@@ -59,6 +64,7 @@ export default function Sidebar({
   };
 
   const isRegActive = currentTab === 'regularize-attendance' || currentTab === 'team-regularization';
+  const isWorkLogActive = currentTab === 'my-daily-log' || currentTab === 'team-daily-log';
 
   // Pill style: starts from left edge, ends with mr-3 gap before sidebar right border, rounded-r-full circular curve
   const pillBase = 'flex items-center gap-3 py-2.5 pl-5 rounded-r-full transition-colors duration-150';
@@ -120,8 +126,8 @@ export default function Sidebar({
 
         {/* Nav */}
         <nav className="flex-1 space-y-0.5">
-          {/* Home & Attendance */}
-          {navItems.slice(0, 2).map((item) => {
+          {/* Home, Calendar & Attendance */}
+          {navItems.slice(0, 3).map((item) => {
             const isActive = currentTab === item.id;
             return (
               <button
@@ -140,49 +146,100 @@ export default function Sidebar({
             );
           })}
 
-          {/* Regularization expandable */}
-          <button
-            type="button"
-            onClick={() => setIsRegularizationExpanded(!isRegularizationExpanded)}
-            className={`w-full ${isRegActive ? activePill : inactivePill}`}
+          {/* Daily Work Log expandable */}
+          <div
+            onMouseEnter={() => setIsWorkLogExpanded(true)}
+            onMouseLeave={() => setIsWorkLogExpanded(currentTab === 'my-daily-log' || currentTab === 'team-daily-log')}
           >
-            <span className="material-symbols-outlined text-[20px] shrink-0" style={isRegActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
-              edit_calendar
-            </span>
-            <span className={`text-sm flex-1 text-left whitespace-nowrap ${isRegActive ? 'font-bold' : 'font-medium'}`}>
-              Regularization
-            </span>
-            <span className={`material-symbols-outlined text-[18px] shrink-0 mr-1 transition-transform duration-300 ${isRegularizationExpanded ? 'rotate-180' : ''}`}>
-              expand_more
-            </span>
-          </button>
-
-          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isRegularizationExpanded ? 'max-h-28 opacity-100' : 'max-h-0 opacity-0'}`}>
             <button
               type="button"
-              onClick={() => { setCurrentTab('regularize-attendance'); onMobileClose?.(); }}
-              className={`w-full ${currentTab === 'regularize-attendance' ? subActivePill : subInactivePill}`}
+              onClick={() => setIsWorkLogExpanded(!isWorkLogExpanded)}
+              className={`w-full ${isWorkLogActive ? activePill : inactivePill}`}
             >
-              <span className="material-symbols-outlined text-[18px] shrink-0">edit_note</span>
-              <span className={`text-sm flex-1 text-left whitespace-nowrap ${currentTab === 'regularize-attendance' ? 'font-bold' : 'font-medium'}`}>
-                My Regularization
+              <span className="material-symbols-outlined text-[20px] shrink-0" style={isWorkLogActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                assignment
+              </span>
+              <span className={`text-sm flex-1 text-left whitespace-nowrap ${isWorkLogActive ? 'font-bold' : 'font-medium'}`}>
+                Daily Work Log
+              </span>
+              <span className={`material-symbols-outlined text-[18px] shrink-0 mr-1 transition-transform duration-300 ${isWorkLogExpanded ? 'rotate-180' : ''}`}>
+                expand_more
               </span>
             </button>
 
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isWorkLogExpanded ? 'max-h-28 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <button
+                type="button"
+                onClick={() => { setCurrentTab('my-daily-log'); onMobileClose?.(); }}
+                className={`w-full ${currentTab === 'my-daily-log' ? subActivePill : subInactivePill}`}
+              >
+                <span className="material-symbols-outlined text-[18px] shrink-0">person</span>
+                <span className={`text-sm flex-1 text-left whitespace-nowrap ${currentTab === 'my-daily-log' ? 'font-bold' : 'font-medium'}`}>
+                  My Daily Log
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setCurrentTab('team-daily-log'); onMobileClose?.(); }}
+                className={`w-full ${currentTab === 'team-daily-log' ? subActivePill : subInactivePill}`}
+              >
+                <span className="material-symbols-outlined text-[18px] shrink-0">groups</span>
+                <span className={`text-sm flex-1 text-left whitespace-nowrap ${currentTab === 'team-daily-log' ? 'font-bold' : 'font-medium'}`}>
+                  Team Daily Log
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Regularization expandable */}
+          <div
+            onMouseEnter={() => setIsRegularizationExpanded(true)}
+            onMouseLeave={() => setIsRegularizationExpanded(currentTab === 'regularize-attendance' || currentTab === 'team-regularization')}
+          >
             <button
               type="button"
-              onClick={() => { setCurrentTab('team-regularization'); onMobileClose?.(); }}
-              className={`w-full ${currentTab === 'team-regularization' ? subActivePill : subInactivePill}`}
+              onClick={() => setIsRegularizationExpanded(!isRegularizationExpanded)}
+              className={`w-full ${isRegActive ? activePill : inactivePill}`}
             >
-              <span className="material-symbols-outlined text-[18px] shrink-0">supervised_user_circle</span>
-              <span className={`text-sm flex-1 text-left whitespace-nowrap ${currentTab === 'team-regularization' ? 'font-bold' : 'font-medium'}`}>
-                Team Regularization
+              <span className="material-symbols-outlined text-[20px] shrink-0" style={isRegActive ? { fontVariationSettings: "'FILL' 1" } : {}}>
+                edit_calendar
+              </span>
+              <span className={`text-sm flex-1 text-left whitespace-nowrap ${isRegActive ? 'font-bold' : 'font-medium'}`}>
+                Regularization
+              </span>
+              <span className={`material-symbols-outlined text-[18px] shrink-0 mr-1 transition-transform duration-300 ${isRegularizationExpanded ? 'rotate-180' : ''}`}>
+                expand_more
               </span>
             </button>
+
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isRegularizationExpanded ? 'max-h-28 opacity-100' : 'max-h-0 opacity-0'}`}>
+              <button
+                type="button"
+                onClick={() => { setCurrentTab('regularize-attendance'); onMobileClose?.(); }}
+                className={`w-full ${currentTab === 'regularize-attendance' ? subActivePill : subInactivePill}`}
+              >
+                <span className="material-symbols-outlined text-[18px] shrink-0">edit_note</span>
+                <span className={`text-sm flex-1 text-left whitespace-nowrap ${currentTab === 'regularize-attendance' ? 'font-bold' : 'font-medium'}`}>
+                  My Regularization
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { setCurrentTab('team-regularization'); onMobileClose?.(); }}
+                className={`w-full ${currentTab === 'team-regularization' ? subActivePill : subInactivePill}`}
+              >
+                <span className="material-symbols-outlined text-[18px] shrink-0">supervised_user_circle</span>
+                <span className={`text-sm flex-1 text-left whitespace-nowrap ${currentTab === 'team-regularization' ? 'font-bold' : 'font-medium'}`}>
+                  Team Regularization
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Rest of nav */}
-          {navItems.slice(2).map((item) => {
+          {navItems.slice(3).map((item) => {
             const isActive = currentTab === item.id;
             return (
               <button

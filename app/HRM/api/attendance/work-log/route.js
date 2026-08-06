@@ -35,23 +35,33 @@ function isDateEditable(dateStr) {
 }
 
 // GET /HRM/api/attendance/work-log?date=YYYY-MM-DD
+// OR GET /HRM/api/attendance/work-log?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 export async function GET(request) {
   try {
     const ctx = await requireEmployeeContext();
     if (ctx.error) return ctx.error;
 
-    const date = request.nextUrl.searchParams.get('date') || getCurrentDateInTimeZone();
+    const date = request.nextUrl.searchParams.get('date');
+    const startDate = request.nextUrl.searchParams.get('startDate');
+    const endDate = request.nextUrl.searchParams.get('endDate');
 
-    const { data, error } = await adminClient
+    let query = adminClient
       .from('hrm_daily_work_logs')
-      .select('id, client_name, task_id, task_name_snapshot, hours_spent, remarks, created_at')
-      .eq('employee_id', ctx.employeeId)
-      .eq('log_date', date)
-      .order('created_at', { ascending: true });
+      .select('id, client_name, task_id, task_name_snapshot, hours_spent, remarks, log_date, created_at')
+      .eq('employee_id', ctx.employeeId);
+
+    if (startDate && endDate) {
+      query = query.gte('log_date', startDate).lte('log_date', endDate);
+    } else {
+      const selectedDate = date || getCurrentDateInTimeZone();
+      query = query.eq('log_date', selectedDate);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return NextResponse.json({ date, logs: data || [] });
+    return NextResponse.json({ date: date || getCurrentDateInTimeZone(), logs: data || [] });
   } catch (err) {
     return NextResponse.json({ error: err.message || 'Failed to load work log' }, { status: 500 });
   }
