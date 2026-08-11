@@ -31,7 +31,31 @@ export default function AdminApp() {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const normalizedRequestedTab = requestedTab || 'admin-dashboard';
-  const [currentTab, setCurrentTab] = useState(normalizedRequestedTab);
+  const [currentTab, setCurrentTabState] = useState(normalizedRequestedTab);
+
+  const setCurrentTab = (tab: string) => {
+    setCurrentTabState(tab);
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', `?tab=${tab}`);
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const reqTab = params.get('tab');
+        const normalized = reqTab || 'admin-dashboard';
+        setCurrentTabState(normalized);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [pendingOnboardingRequestId, setPendingOnboardingRequestId] = useState<string | null>(null);
   const [admin, setAdmin] = useState(null);

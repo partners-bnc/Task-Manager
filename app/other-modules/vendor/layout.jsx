@@ -98,9 +98,9 @@ export default function VendorLayout({ children }) {
         {/* Mobile Navbar */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4 text-slate-800 md:hidden">
           <span className="text-base font-extrabold tracking-wider bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent uppercase leading-none">
-            Vendor Portal
+            VENDORA
           </span>
-          <span className="rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-650">
+          <span className="rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-650 shrink-0">
             Active
           </span>
         </div>

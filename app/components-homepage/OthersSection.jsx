@@ -33,7 +33,7 @@ const otherModules = [
   },
   {
     id: 'vendor',
-    title: 'Vendor',
+    title: 'Vendora',
     image: '/assets/other.gif',
     video: '/assets/other 1.mp4',
     accessKey: 'vendor',
@@ -71,7 +71,7 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
       </div>
 
       {/* Cards Container - Constrained to max-w-[1440px] and centered */}
-      <div className="w-full max-w-[1440px] px-6 md:px-8">
+      <div className="w-full max-w-[1440px] px-6 md:px-8 mt-4 md:mt-8">
         {loading ? (
           <ModuleCardsSkeleton />
         ) : (
@@ -142,7 +142,9 @@ export function OthersSection({ modules: moduleAccessMap = {}, loading = false, 
 
                     {/* Taller transparent overlay light white gradient (bottom 35% overlay) containing large title & interactive action button */}
                     <div className="absolute bottom-0 inset-x-0 h-[35%] bg-gradient-to-t from-white via-white/85 to-transparent flex items-end justify-between pb-6 px-6 z-20">
-                      <h3 className="text-xl md:text-2xl font-black tracking-tight text-slate-800 transition-colors duration-300 group-hover:text-[#0372CC]">
+                      <h3 className={`font-black tracking-tight text-slate-800 transition-colors duration-300 group-hover:text-[#0372CC] ${
+                        module.title.length > 20 ? 'text-sm md:text-base leading-snug max-w-[78%]' : 'text-xl md:text-2xl'
+                      }`}>
                         {module.title}
                       </h3>
 

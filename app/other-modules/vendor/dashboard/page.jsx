@@ -82,11 +82,11 @@ export default function VendorDashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-xl md:text-2xl font-extrabold tracking-tight text-slate-900">
-            Hello, {user?.name || 'Partner'}
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-slate-900">
+            Welcome, {user?.name || 'Partner'}
           </h1>
-          <p className="text-slate-500 text-xs md:text-sm mt-1">
-            Welcome back. Here is a summary of vendor payments and settlement workflows.
+          <p className="text-slate-500 text-xs md:text-sm font-medium mt-1">
+            From Invoice to Payment, Simplified. Here is a summary of vendor payments and settlement workflows.
           </p>
         </div>
       </div>

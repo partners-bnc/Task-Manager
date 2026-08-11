@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Sidebar from './layout/Sidebar';
 import Dashboard from './views/Dashboard';
 import Profile from './views/Profile';
@@ -21,11 +22,38 @@ import MyDailyLog from './views/MyDailyLog';
 import TeamDailyLog from './views/TeamDailyLog';
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState('home');
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const normalizedRequestedTab = requestedTab || 'home';
+  const [currentTab, setCurrentTabState] = useState(normalizedRequestedTab);
+
+  const setCurrentTab = (tab: string) => {
+    setCurrentTabState(tab);
+    if (typeof window !== 'undefined') {
+      window.history.pushState(null, '', `?tab=${tab}`);
+    }
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const reqTab = params.get('tab');
+        const normalized = reqTab || 'home';
+        setCurrentTabState(normalized);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   const [employee, setEmployee] = useState(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(true);
-  const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({ home: true });
+  const [visitedTabs, setVisitedTabs] = useState<Record<string, boolean>>({ [normalizedRequestedTab]: true });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {

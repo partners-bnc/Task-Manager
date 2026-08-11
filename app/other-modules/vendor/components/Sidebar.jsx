@@ -52,7 +52,7 @@ export default function Sidebar() {
       <div className={`flex items-center pt-7 pb-5 ${isSidebarCollapsed ? 'justify-center px-2' : 'justify-between px-5'}`}>
         {!isSidebarCollapsed && (
           <span className="text-base font-extrabold tracking-wider bg-gradient-to-r from-blue-600 to-violet-600 dark:from-blue-400 dark:to-violet-400 bg-clip-text text-transparent uppercase leading-none">
-            Vendor Portal
+            VENDORA
           </span>
         )}
         <button

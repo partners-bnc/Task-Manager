@@ -36,7 +36,8 @@ import {
   UserPlus,
   Briefcase,
   Flag,
-  ArrowRight
+  ArrowRight,
+  X
 } from 'lucide-react';
 import { useData } from './DataContext';
 
@@ -72,6 +73,95 @@ export default function ManageTasks({ onNavigate }) {
   const [hideCompleted, setHideCompleted] = useState(false);
   const [hideProgress, setHideProgress] = useState(false);
   const [hideTrackingTime, setHideTrackingTime] = useState(false);
+
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedActiveView = localStorage.getItem('tm_activeView');
+      const storedSearchQuery = localStorage.getItem('tm_searchQuery');
+      const storedEmployeeFilter = localStorage.getItem('tm_employeeFilter');
+      const storedStatusFilter = localStorage.getItem('tm_statusFilter');
+      const storedPriorityFilter = localStorage.getItem('tm_priorityFilter');
+      const storedLabelFilter = localStorage.getItem('tm_labelFilter');
+      const storedCreatedByFilter = localStorage.getItem('tm_createdByFilter');
+      const storedOwnershipFilter = localStorage.getItem('tm_ownershipFilter');
+      const storedSortBy = localStorage.getItem('tm_sortBy');
+      const storedHideCompleted = localStorage.getItem('tm_hideCompleted');
+
+      if (storedActiveView) setActiveView(storedActiveView);
+      if (storedSearchQuery !== null) setSearchQuery(storedSearchQuery);
+      if (storedEmployeeFilter) setEmployeeFilter(storedEmployeeFilter);
+      if (storedStatusFilter) setStatusFilter(storedStatusFilter);
+      if (storedPriorityFilter) setPriorityFilter(storedPriorityFilter);
+      if (storedLabelFilter) setLabelFilter(storedLabelFilter);
+      if (storedCreatedByFilter) setCreatedByFilter(storedCreatedByFilter);
+      if (storedOwnershipFilter) setOwnershipFilter(storedOwnershipFilter);
+      if (storedSortBy) setSortBy(storedSortBy);
+      if (storedHideCompleted !== null) setHideCompleted(storedHideCompleted === 'true');
+      setHasHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_activeView', activeView);
+    }
+  }, [activeView, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_searchQuery', searchQuery);
+    }
+  }, [searchQuery, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_employeeFilter', employeeFilter);
+    }
+  }, [employeeFilter, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_statusFilter', statusFilter);
+    }
+  }, [statusFilter, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_priorityFilter', priorityFilter);
+    }
+  }, [priorityFilter, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_labelFilter', labelFilter);
+    }
+  }, [labelFilter, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_createdByFilter', createdByFilter);
+    }
+  }, [createdByFilter, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_ownershipFilter', ownershipFilter);
+    }
+  }, [ownershipFilter, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_sortBy', sortBy);
+    }
+  }, [sortBy, hasHydrated]);
+
+  useEffect(() => {
+    if (hasHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('tm_hideCompleted', String(hideCompleted));
+    }
+  }, [hideCompleted, hasHydrated]);
 
   // Dropdown States for Date Filter
   const [showDateSortDropdown, setShowDateSortDropdown] = useState(false);
@@ -238,6 +328,30 @@ export default function ManageTasks({ onNavigate }) {
       ).values()
     ).sort((left, right) => left.localeCompare(right));
   }, [tasks]);
+
+  const isFilterActive = useMemo(() => {
+    return (
+      statusFilter !== 'All' ||
+      priorityFilter !== 'All' ||
+      labelFilter !== 'All' ||
+      createdByFilter !== 'All' ||
+      ownershipFilter !== 'all' ||
+      employeeFilter !== 'All' ||
+      searchQuery !== '' ||
+      hideCompleted !== false
+    );
+  }, [statusFilter, priorityFilter, labelFilter, createdByFilter, ownershipFilter, employeeFilter, searchQuery, hideCompleted]);
+
+  const handleClearAllFilters = () => {
+    setStatusFilter('All');
+    setPriorityFilter('All');
+    setLabelFilter('All');
+    setCreatedByFilter('All');
+    setOwnershipFilter('all');
+    setEmployeeFilter('All');
+    setSearchQuery('');
+    setHideCompleted(false);
+  };
 
   // Filtering & Sorting Logic
   const displayTasks = useMemo(() => {
@@ -764,6 +878,16 @@ export default function ManageTasks({ onNavigate }) {
               </div>
             )}
           </div>
+
+          {isFilterActive && (
+            <button
+              onClick={handleClearAllFilters}
+              title="Clear all filters"
+              className="flex items-center justify-center border border-red-200 hover:border-red-300 bg-red-50/50 hover:bg-red-50 text-red-650 rounded-full w-[40px] h-[40px] cursor-pointer focus:outline-none active:scale-[0.98] shrink-0 transition-colors"
+            >
+              <X size={16} className="text-red-500" />
+            </button>
+          )}
         </div>
       </div>
 

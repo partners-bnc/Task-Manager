@@ -100,6 +100,9 @@ const DB_COLUMNS_MAPPING = [
   { key: 'country', label: 'Country' },
   { key: 'city', label: 'City' },
   { key: 'state', label: 'State' },
+  { key: 'salutation', label: 'Salutation' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'date_of_birth', label: 'Date of Birth' },
   { key: 'company_name', label: 'Company Name' },
   { key: 'designation', label: 'Designation' },
   { key: 'industry', label: 'Industry' },
@@ -117,6 +120,32 @@ const DB_COLUMNS_MAPPING = [
   { key: 'notes', label: 'Notes' },
   { key: 'next_followup_date', label: 'Next Follow-up Date' },
   { key: 'last_contacted', label: 'Last Contacted' },
+  { key: 'timezone', label: 'Time Zone' },
+  { key: 'preferred_language', label: 'Preferred Language' },
+  { key: 'preferred_contact_method', label: 'Preferred Contact Method' },
+  { key: 'linkedin_url', label: 'LinkedIn Profile URL' },
+  { key: 'twitter_url', label: 'Twitter / X URL' },
+  { key: 'github_url', label: 'GitHub Profile URL' },
+  { key: 'portfolio_url', label: 'Portfolio Website URL' },
+  { key: 'email_consent_status', label: 'Email Consent Status' },
+  { key: 'consent_source', label: 'Consent Source' },
+  { key: 'lead_score', label: 'Lead Score' },
+  { key: 'skills', label: 'Skills' },
+  { key: 'experience_company_name', label: 'Work Exp: Company Name' },
+  { key: 'experience_job_title', label: 'Work Exp: Job Title' },
+  { key: 'experience_joining_date', label: 'Work Exp: Joining Date' },
+  { key: 'experience_leave_date', label: 'Work Exp: Leave Date' },
+  { key: 'experience_duration_years', label: 'Work Exp: Duration (Years)' },
+  { key: 'experience_company_industry', label: 'Work Exp: Company Industry' },
+  { key: 'experience_skills_used', label: 'Work Exp: Skills Used' },
+  { key: 'experience_responsibilities', label: 'Work Exp: Responsibilities' },
+  { key: 'education_institution_name', label: 'Education: Institution Name' },
+  { key: 'education_degree', label: 'Education: Degree' },
+  { key: 'education_field_of_study', label: 'Education: Field of Study' },
+  { key: 'education_start_date', label: 'Education: Start Date' },
+  { key: 'education_end_date', label: 'Education: End Date' },
+  { key: 'education_grade', label: 'Education: Grade' },
+  { key: 'education_activities', label: 'Education: Activities' },
 ];
 
 const parseDateString = (str) => {
@@ -393,6 +422,23 @@ export default function LeadsPage() {
   const [importResults, setImportResults] = useState({ inserted: 0, updated: 0, skipped: 0 });
   const [importTicker, setImportTicker] = useState([]);
   const [importErrors, setImportErrors] = useState([]);
+  const [importWarnings, setImportWarnings] = useState([]);
+  const [availableSheets, setAvailableSheets] = useState([]);
+  const [selectedSheetName, setSelectedSheetName] = useState('');
+
+  const dynamicSources = useMemo(() => {
+    const existing = leads.map(l => l.lead_source).filter(Boolean);
+    const combined = Array.from(new Set([...SOURCES, ...existing]));
+    const filtered = combined.filter(s => s !== 'Other');
+    return [...filtered, 'Other'];
+  }, [leads]);
+
+  const dynamicTypes = useMemo(() => {
+    const existing = leads.map(l => l.lead_type).filter(Boolean);
+    const combined = Array.from(new Set([...TYPES, ...existing]));
+    const filtered = combined.filter(t => t !== 'Other');
+    return [...filtered, 'Other'];
+  }, [leads]);
 
   // Load Leads from Central Server API
   const fetchLeads = async () => {
@@ -1155,24 +1201,18 @@ export default function LeadsPage() {
         return;
       }
 
-      // Combine rows and headers
-      const combinedRows = [];
-      const headerSet = new Set();
-      
-      flattenedSheets.forEach(sheet => {
-        sheet.headers.forEach(h => headerSet.add(h));
-        combinedRows.push(...sheet.rows);
-      });
+      setAvailableSheets(flattenedSheets);
+      const defaultSheet = flattenedSheets[0];
+      setSelectedSheetName(defaultSheet.sheetName);
 
-      const uniqueHeaders = Array.from(headerSet);
-      setUploadedHeaders(uniqueHeaders);
-      setUploadedRows(combinedRows);
+      setUploadedHeaders(defaultSheet.headers);
+      setUploadedRows(defaultSheet.rows);
 
-      // Prepopulate mapping guesses based on union headers
+      // Prepopulate mapping guesses based on default sheet headers
       const mappingGuesses = {};
       DB_COLUMNS_MAPPING.forEach(dbCol => {
         const target = dbCol.key.replace(/_/g, '').toLowerCase();
-        const match = uniqueHeaders.find(h => {
+        const match = defaultSheet.headers.find(h => {
           const normalizedH = h.replace(/[\s_-]/g, '').toLowerCase();
           return normalizedH === target || normalizedH.includes(target) || target.includes(normalizedH);
         });
@@ -1185,7 +1225,7 @@ export default function LeadsPage() {
       setImportFileType(extensions.join(', '));
 
       // Display dynamic summary message
-      toast.success(`Loaded ${filesList.length} file(s) and ${flattenedSheets.length} sheet(s) totaling ${combinedRows.length} rows.`);
+      toast.success(`Loaded ${filesList.length} file(s) and ${flattenedSheets.length} sheet(s). Defaulted to "${defaultSheet.sheetName}" with ${defaultSheet.rows.length} rows.`);
       setImportStep(2); // Go to Preview
     } catch (err) {
       console.error(err);
@@ -1209,6 +1249,32 @@ export default function LeadsPage() {
     toast.success("Auto-mapped columns based on headers.");
   };
 
+  const handleSheetChange = (sheetName) => {
+    const sheet = availableSheets.find(s => s.sheetName === sheetName);
+    if (!sheet) return;
+
+    setSelectedSheetName(sheetName);
+    setUploadedHeaders(sheet.headers);
+    setUploadedRows(sheet.rows);
+
+    // Reset warnings and errors
+    setImportErrors([]);
+    setImportWarnings([]);
+
+    // Re-run auto match for new headers
+    const mappingGuesses = {};
+    DB_COLUMNS_MAPPING.forEach(dbCol => {
+      const target = dbCol.key.replace(/_/g, '').toLowerCase();
+      const match = sheet.headers.find(h => {
+        const normalizedH = h.replace(/[\s_-]/g, '').toLowerCase();
+        return normalizedH === target || normalizedH.includes(target) || target.includes(normalizedH);
+      });
+      if (match) mappingGuesses[dbCol.key] = match;
+    });
+    setColumnMappings(mappingGuesses);
+    toast.success(`Switched sheet to "${sheetName.split(' - ').slice(1).join(' - ') || sheetName}"`);
+  };
+
   const resetImportState = () => {
     setImportFile(null);
     setImportFileName('');
@@ -1222,6 +1288,9 @@ export default function LeadsPage() {
     setAnimatedProgress(0);
     setCurrentImportPhase('');
     setImportErrors([]);
+    setImportWarnings([]);
+    setAvailableSheets([]);
+    setSelectedSheetName('');
   };
 
   // Map raw imported rows to schema-compliant leads (converting empty dates/fields to null)
@@ -1238,9 +1307,12 @@ export default function LeadsPage() {
 
           if (val === "" || val.toLowerCase() === "n/a" || val.toLowerCase() === "null" || val.toLowerCase() === "undefined") {
             item[col.key] = null;
-          } else if (col.key === 'next_followup_date' || col.key === 'last_contacted') {
+          } else if (col.key.endsWith('date') || col.key === 'last_contacted' || col.key === 'date_of_birth') {
             // Parse date to ensure standard format (YYYY-MM-DD) or null
             item[col.key] = parseDateString(val);
+          } else if (col.key === 'lead_score') {
+            const intVal = parseInt(val, 10);
+            item[col.key] = isNaN(intVal) ? 0 : intVal;
           } else {
             item[col.key] = val;
           }
@@ -1250,9 +1322,61 @@ export default function LeadsPage() {
           else if (col.key === 'lead_category') item[col.key] = 'Warm';
           else if (col.key === 'priority') item[col.key] = 'Medium';
           else if (col.key === 'lead_type') item[col.key] = 'B2B';
+          else if (col.key === 'lead_score') item[col.key] = 0;
           else item[col.key] = null;
         }
       });
+
+      // Gather experience fields if present
+      const exp = {};
+      if (item.experience_company_name) exp.company_name = item.experience_company_name;
+      if (item.experience_job_title) exp.job_title = item.experience_job_title;
+      if (item.experience_joining_date) exp.joining_date = item.experience_joining_date;
+      if (item.experience_leave_date) exp.leave_date = item.experience_leave_date;
+      if (item.experience_duration_years) exp.duration_years = parseFloat(item.experience_duration_years) || null;
+      if (item.experience_company_industry) exp.company_industry = item.experience_company_industry;
+      if (item.experience_skills_used) exp.skills_used = item.experience_skills_used;
+      if (item.experience_responsibilities) exp.responsibilities = item.experience_responsibilities;
+
+      if (exp.company_name || exp.job_title) {
+        item.experiences = [exp];
+      } else {
+        item.experiences = [];
+      }
+
+      // Gather education fields if present
+      const edu = {};
+      if (item.education_institution_name) edu.institution_name = item.education_institution_name;
+      if (item.education_degree) edu.degree = item.education_degree;
+      if (item.education_field_of_study) edu.field_of_study = item.education_field_of_study;
+      if (item.education_start_date) edu.start_date = item.education_start_date;
+      if (item.education_end_date) edu.end_date = item.education_end_date;
+      if (item.education_grade) edu.grade = item.education_grade;
+      if (item.education_activities) edu.activities = item.education_activities;
+
+      if (edu.institution_name) {
+        item.educations = [edu];
+      } else {
+        item.educations = [];
+      }
+
+      // Clean up flat experience/education keys from the top-level lead item
+      // to avoid passing database-unsupported keys to crm_leads table
+      const experienceKeys = [
+        'experience_company_name', 'experience_job_title', 'experience_joining_date', 
+        'experience_leave_date', 'experience_duration_years', 'experience_company_industry', 
+        'experience_skills_used', 'experience_responsibilities'
+      ];
+      const educationKeys = [
+        'education_institution_name', 'education_degree', 'education_field_of_study', 
+        'education_start_date', 'education_end_date', 'education_grade', 'education_activities'
+      ];
+      experienceKeys.forEach(k => delete item[k]);
+      educationKeys.forEach(k => delete item[k]);
+
+      if (!item.full_name || !item.full_name.trim()) {
+        item.full_name = "Unknown Lead";
+      }
 
       return item;
     });
@@ -1260,9 +1384,10 @@ export default function LeadsPage() {
 
   const performImportValidation = () => {
     const errors = [];
+    const warnings = [];
 
     if (!columnMappings.full_name) {
-      errors.push("Destination field 'Full Name' must be mapped to a source column.");
+      warnings.push("Destination field 'Full Name' is not mapped. Defaulting leads name to 'Unknown Lead'.");
     }
 
     const nameSrc = columnMappings.full_name;
@@ -1278,7 +1403,7 @@ export default function LeadsPage() {
       if (nameSrc) {
         const val = String(row[nameSrc] || '').trim();
         if (!val) {
-          errors.push(`Row ${rowNum}: Name column "${nameSrc}" is empty.`);
+          warnings.push(`Row ${rowNum}: Name column "${nameSrc}" is empty. Defaulting to 'Unknown Lead'.`);
         }
       }
 
@@ -1286,7 +1411,7 @@ export default function LeadsPage() {
       const phoneVal = phoneSrc ? String(row[phoneSrc] || '').trim() : '';
       const emailVal = emailSrc ? String(row[emailSrc] || '').trim() : '';
       if (!phoneVal && !emailVal) {
-        errors.push(`Row ${rowNum}: Both phone and email fields are empty. At least one is required.`);
+        warnings.push(`Row ${rowNum}: Both phone and email fields are empty. This lead will be skipped.`);
       }
 
       // Check dates
@@ -1309,14 +1434,37 @@ export default function LeadsPage() {
           }
         }
       }
+
+      // Check new date fields
+      const dateFieldsToCheck = [
+        { src: columnMappings.date_of_birth, label: "Date of Birth" },
+        { src: columnMappings.experience_joining_date, label: "Work Exp: Joining Date" },
+        { src: columnMappings.experience_leave_date, label: "Work Exp: Leave Date" },
+        { src: columnMappings.education_start_date, label: "Education: Start Date" },
+        { src: columnMappings.education_end_date, label: "Education: End Date" }
+      ];
+
+      dateFieldsToCheck.forEach(f => {
+        if (f.src) {
+          const val = String(row[f.src] || '').trim();
+          if (val && val.toLowerCase() !== 'n/a' && val.toLowerCase() !== 'null' && val.toLowerCase() !== 'undefined') {
+            const parsed = parseDateString(val);
+            if (!parsed) {
+              errors.push(`Row ${rowNum}: "${f.label}" contains invalid date/text: "${val}".`);
+            }
+          }
+        }
+      });
     });
 
     setImportErrors(errors);
+    setImportWarnings(warnings);
     return errors.length === 0;
   };
 
   const validateAndRouteToDuplicateCheck = async () => {
     setImportErrors([]);
+    setImportWarnings([]);
     const isValid = performImportValidation();
     if (!isValid) {
       toast.error("Validation failed. Please review the errors at the top of the mapping screen.");
@@ -1513,11 +1661,12 @@ export default function LeadsPage() {
       setCurrentImportPhase("Rebuilding indices and refreshing Central database views...");
       await new Promise(r => setTimeout(r, 400));
 
+      const validationSkippedCount = getMappedLeads().length - validLeads.length;
       setAnimatedProgress(100);
       setImportResults({
         inserted: resData.inserted || 0,
         updated: resData.updated || 0,
-        skipped: resData.skipped || 0
+        skipped: (resData.skipped || 0) + validationSkippedCount
       });
       setImportStep(6);
       fetchLeads();
@@ -1664,12 +1813,12 @@ export default function LeadsPage() {
             50% { transform: translateY(-20px) scale(1.1); opacity: 0.8; }
           }
           @keyframes glowPulse {
-            0%, 100% { filter: drop-shadow(0 0 15px rgba(59, 130, 246, 0.4)); }
-            50% { filter: drop-shadow(0 0 35px rgba(99, 102, 241, 0.7)); }
+            0%, 100% { filter: drop-shadow(0 0 15px rgba(37, 89, 165, 0.4)); }
+            50% { filter: drop-shadow(0 0 35px rgba(37, 89, 165, 0.7)); }
           }
           .custom-spinner {
-            border: 3px solid rgba(99, 102, 241, 0.1);
-            border-top: 3px solid rgb(99, 102, 241);
+            border: 3px solid rgba(37, 89, 165, 0.1);
+            border-top: 3px solid rgb(37, 89, 165);
             border-radius: 50%;
             width: 70px;
             height: 70px;
@@ -1678,6 +1827,48 @@ export default function LeadsPage() {
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+          }
+
+          /* Global Color Overrides to Brand Color rgb(37, 89, 165) */
+          .text-indigo-600, .text-indigo-500, .text-indigo-650 {
+            color: rgb(37, 89, 165) !important;
+          }
+          .bg-indigo-600, .bg-indigo-500, .bg-indigo-650 {
+            background-color: rgb(37, 89, 165) !important;
+          }
+          .border-indigo-600, .border-indigo-500, .border-indigo-650, .border-indigo-200 {
+            border-color: rgb(37, 89, 165) !important;
+          }
+          .bg-indigo-55, .bg-indigo-50 {
+            background-color: rgba(37, 89, 165, 0.08) !important;
+          }
+          .text-indigo-850 {
+            color: rgb(27, 65, 120) !important;
+          }
+          .bg-indigo-100 {
+            background-color: rgba(37, 89, 165, 0.15) !important;
+          }
+          .hover\:bg-indigo-700:hover, .hover\:bg-indigo-600:hover {
+            background-color: rgb(27, 65, 120) !important;
+          }
+          .focus\:ring-indigo-500:focus {
+            --tw-ring-color: rgb(37, 89, 165) !important;
+          }
+          
+          /* Soften all slate borders and black colors to support modern card structures */
+          .border-slate-100, .border-slate-150, .border-slate-200, .border-slate-205, .border-slate-250, .border-slate-300, .border-slate-350, .border-slate-400 {
+            border-color: rgba(226, 232, 240, 0.6) !important;
+          }
+          .dark .border-slate-900, .dark .border-slate-800, .dark .border-slate-850, .dark .border-slate-700 {
+            border-color: rgba(51, 65, 85, 0.35) !important;
+          }
+          
+          /* Card shadow & border soft styling */
+          .shadow-sm {
+            box-shadow: 0 4px 12px rgba(37, 89, 165, 0.03), 0 1px 3px rgba(37, 89, 165, 0.02) !important;
+          }
+          .rounded-2xl {
+            border-radius: 1rem !important;
           }
         `}} />
 
@@ -1882,6 +2073,27 @@ export default function LeadsPage() {
                     Verify all details and columns of the parsed records before configuring database mapping.
                   </p>
                 </div>
+
+                {/* Sheet Selection if multiple sheets are loaded */}
+                {availableSheets.length > 1 && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-extrabold text-slate-505 dark:text-slate-400 whitespace-nowrap">
+                      Select Sheet:
+                    </label>
+                    <select
+                      value={selectedSheetName}
+                      onChange={(e) => handleSheetChange(e.target.value)}
+                      className="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 px-3 py-2 rounded-xl text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                    >
+                      {availableSheets.map((sheet, index) => (
+                        <option key={index} value={sheet.sheetName}>
+                          {sheet.sheetName.split(' - ').slice(1).join(' - ') || sheet.sheetName} ({sheet.rows.length} rows)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="text-xs font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-650 dark:text-indigo-400 px-4 py-2 rounded-xl border border-indigo-100 dark:border-indigo-900/60 self-start">
                   Total Parsed Rows: {uploadedRows.length}
                 </div>
@@ -1956,7 +2168,7 @@ export default function LeadsPage() {
 
               {/* Validation error display if present */}
               {importErrors.length > 0 && (
-                <div className="bg-rose-50 dark:bg-rose-950/20 border-l-4 border-rose-500 p-4 rounded-xl shadow-sm">
+                <div className="bg-rose-50 dark:bg-rose-950/20 border-l-4 border-rose-500 p-4 rounded-xl shadow-sm mb-4">
                   <div className="flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
                     <div className="space-y-1 w-full">
@@ -1971,6 +2183,31 @@ export default function LeadsPage() {
                           <div key={idx} className="flex items-center gap-1.5">
                             <span className="text-rose-400 font-bold">•</span>
                             <span>{err}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Validation warning/skip display if present */}
+              {importWarnings.length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-950/20 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm mb-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-550 shrink-0 mt-0.5" />
+                    <div className="space-y-1 w-full">
+                      <h4 className="text-sm font-bold text-amber-850 dark:text-amber-305">
+                        Skipped Records Detected ({importWarnings.length} leads will be skipped)
+                      </h4>
+                      <p className="text-xs text-amber-700 dark:text-amber-450">
+                        The following rows do not contain a phone number or email address and will be automatically skipped during ingestion:
+                      </p>
+                      <div className="mt-3 max-h-[150px] overflow-y-auto bg-white/50 dark:bg-black/30 p-3 rounded-lg border border-amber-200/50 dark:border-amber-900/30 text-amber-900 dark:text-amber-300 font-mono text-[11px] leading-relaxed space-y-1">
+                        {importWarnings.map((warn, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5">
+                            <span className="text-amber-400 font-bold">•</span>
+                            <span>{warn}</span>
                           </div>
                         ))}
                       </div>
@@ -2102,9 +2339,50 @@ export default function LeadsPage() {
                 </div>
                 <h3 className="text-lg font-bold text-slate-800 dark:text-slate-105">Conflicting Records Found</h3>
                 <p className="text-xs text-slate-400 max-w-md mx-auto">
-                  Our duplicate check identified <strong className="text-slate-800 dark:text-white font-bold">{duplicateLeadsFound.length}</strong> record(s) matching existing email or phone numbers in your database.
+                  Our duplicate check identified <strong className="text-slate-850 dark:text-white font-bold">{duplicateLeadsFound.length}</strong> record(s) matching existing email or phone numbers in your database.
                 </p>
               </div>
+
+              {/* Conflicting leads audit list */}
+              {duplicateLeadsFound.length > 0 && (
+                <div className="bg-white dark:bg-slate-900 border border-slate-205 dark:border-slate-800 rounded-2xl p-5 space-y-3.5 shadow-sm">
+                  <div>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block">
+                      Conflicting Records Audit Log
+                    </span>
+                    <p className="text-[10px] text-slate-450 dark:text-slate-400 mt-0.5">
+                      Review the specific incoming lead records that matched existing database entries:
+                    </p>
+                  </div>
+                  
+                  <div className="max-h-[220px] overflow-y-auto border border-slate-150 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50/20 dark:bg-slate-950/20">
+                    {duplicateLeadsFound.map((dup, idx) => (
+                      <div key={idx} className="p-3 text-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-800 dark:text-slate-100">
+                            {dup.imported.full_name || dup.existing.full_name}
+                          </span>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-slate-500 dark:text-slate-400 font-mono text-[10px]">
+                            {dup.imported.email && (
+                              <span className="flex items-center gap-1">
+                                <strong>Email:</strong> {dup.imported.email}
+                              </span>
+                            )}
+                            {dup.imported.phone && (
+                              <span className="flex items-center gap-1">
+                                <strong>Phone:</strong> {dup.imported.phone}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-[10px] font-bold bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 px-2.5 py-1 rounded-full border border-amber-100 dark:border-amber-900/40">
+                          Matches: {dup.existing.email === dup.imported.email ? "Email" : dup.existing.phone === dup.imported.phone ? "Phone" : "Email/Phone"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Strategy selection radio group */}
               <div className="bg-white dark:bg-slate-900 border border-slate-205 dark:border-slate-800 rounded-2xl p-5 space-y-4 shadow-sm">
@@ -2316,7 +2594,8 @@ export default function LeadsPage() {
           </button>
           <button
             onClick={openCreateForm}
-            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-5 py-2 rounded-lg font-medium transition shadow-md hover:shadow-lg text-sm"
+            style={{ backgroundColor: 'rgb(37, 89, 165)' }}
+            className="flex items-center gap-2 hover:opacity-90 text-white px-5 py-2 rounded-lg font-medium transition shadow-md hover:shadow-lg text-sm cursor-pointer"
           >
             <Plus className="w-4.5 h-4.5" />
             Add New Lead
@@ -2562,12 +2841,12 @@ export default function LeadsPage() {
                   <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 select-none whitespace-nowrap w-10 bg-slate-50/70 dark:bg-slate-800/40">
                     <input
                       type="checkbox"
-                      checked={paginatedLeads.length > 0 && paginatedLeads.every(lead => selectedLeadIds.has(lead.lead_id))}
+                      checked={processedLeads.length > 0 && processedLeads.every(lead => selectedLeadIds.has(lead.lead_id))}
                       onChange={(e) => {
                         const checked = e.target.checked;
                         setSelectedLeadIds(prev => {
                           const next = new Set(prev);
-                          paginatedLeads.forEach(lead => {
+                          processedLeads.forEach(lead => {
                             if (checked) {
                               next.add(lead.lead_id);
                             } else {
@@ -3277,7 +3556,7 @@ export default function LeadsPage() {
                           onChange={(e) => handleInputChange('lead_source', e.target.value)}
                           className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
                         >
-                          {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                          {dynamicSources.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                         {formData.lead_source === 'Other' && (
                           <input
@@ -3307,8 +3586,7 @@ export default function LeadsPage() {
                           onChange={(e) => handleInputChange('lead_type', e.target.value)}
                           className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
                         >
-                          {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                          <option value="Other">Other (custom)</option>
+                          {dynamicTypes.map(t => <option key={t} value={t}>{t === 'Other' ? 'Other (custom)' : t}</option>)}
                         </select>
                         {formData.lead_type === 'Other' && (
                           <input
@@ -4198,7 +4476,7 @@ export default function LeadsPage() {
                         onChange={(e) => setBulkEditData(prev => ({ ...prev, lead_source: e.target.value }))}
                         className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
                       >
-                        {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+                        {dynamicSources.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                       {bulkEditSelectedFields.lead_source && bulkEditData.lead_source === 'Other' && (
                         <input
@@ -4256,8 +4534,7 @@ export default function LeadsPage() {
                         onChange={(e) => setBulkEditData(prev => ({ ...prev, lead_type: e.target.value }))}
                         className="w-full px-3 py-2 border border-slate-350 dark:border-slate-655 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800/80 transition"
                       >
-                        {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                        <option value="Other">Other (custom)</option>
+                        {dynamicTypes.map(t => <option key={t} value={t}>{t === 'Other' ? 'Other (custom)' : t}</option>)}
                       </select>
                       {bulkEditSelectedFields.lead_type && bulkEditData.lead_type === 'Other' && (
                         <input

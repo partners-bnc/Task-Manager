@@ -149,6 +149,15 @@ const Sidebar = () => {
         __html: `
           .scrollbar-hide::-webkit-scrollbar { display: none; }
           .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+          .bg-blue-50 {
+            background-color: rgba(37, 89, 165, 0.08) !important;
+          }
+          .border-blue-500 {
+            border-color: rgb(37, 89, 165) !important;
+          }
+          .text-blue-700 {
+            color: rgb(37, 89, 165) !important;
+          }
         `
       }} />
     </div>
