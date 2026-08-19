@@ -10,9 +10,15 @@ import {
 } from './workspaceAuthClient';
 
 export function useWorkspaceRouting() {
-  const [workspaceState, setWorkspaceState] = useState(() => readCachedWorkspaceState() || buildDefaultWorkspaceState());
+  const [workspaceState, setWorkspaceState] = useState(buildDefaultWorkspaceState);
 
   useEffect(() => {
+    // Avoid hydration mismatch by loading cache only on the client inside useEffect
+    const cached = readCachedWorkspaceState();
+    if (cached) {
+      setWorkspaceState(cached);
+    }
+
     if (typeof window !== 'undefined') {
       const currentUrl = new URL(window.location.href);
       const searchParams = currentUrl.searchParams;

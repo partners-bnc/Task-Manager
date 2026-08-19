@@ -38,17 +38,33 @@ const otherModules = [
     video: '/assets/other 1.mp4',
     accessKey: 'vendor',
   },
+  {
+    id: 'far',
+    title: 'FAR',
+    image: '/assets/crm.jpeg',
+    video: '/assets/other 2.mp4',
+    accessKey: 'far',
+  },
 ];
 
 export function OthersSection({ modules: moduleAccessMap = {}, loading = false, className = '' }) {
   const [activeDialog, setActiveDialog] = useState(null);
   const modules = useMemo(
     () =>
-      otherModules.map((module) => ({
-        ...module,
-        enabled: Boolean(moduleAccessMap?.[module.accessKey]?.enabled),
-        href: moduleAccessMap?.[module.accessKey]?.href || null,
-      })),
+      otherModules.map((module) => {
+        if (module.id === 'far') {
+          return {
+            ...module,
+            enabled: true,
+            href: '/other-modules/far',
+          };
+        }
+        return {
+          ...module,
+          enabled: Boolean(moduleAccessMap?.[module.accessKey]?.enabled),
+          href: moduleAccessMap?.[module.accessKey]?.href || null,
+        };
+      }),
     [moduleAccessMap]
   );
 
