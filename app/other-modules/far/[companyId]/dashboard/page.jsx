@@ -220,15 +220,15 @@ export default function FarDashboard() {
                 <div className="h-full flex items-center justify-center text-slate-400 text-sm">No data available</div>
               ) : (
                 <div className="w-full h-full flex flex-col md:flex-row items-center gap-6">
-                  <div className="flex-1 h-[240px] w-full">
+                  <div className="flex-1 h-[240px] min-h-[240px] w-full relative flex items-center justify-center">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
                           data={assetClassData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
+                          innerRadius="60%"
+                          outerRadius="80%"
                           paddingAngle={3}
                           dataKey="value"
                         >

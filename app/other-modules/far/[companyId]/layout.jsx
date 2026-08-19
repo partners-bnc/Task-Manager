@@ -22,7 +22,16 @@ export default function FarCompanyLayout({ children }) {
 
   const [companyName, setCompanyName] = useState('Loading Company...');
   const [companyHeading, setCompanyHeading] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Auto detect width on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      if (window.innerWidth >= 768) {
+        setIsSidebarOpen(true);
+      }
+    }
+  }, []);
 
   // Load company details from localStorage
   useEffect(() => {
@@ -60,7 +69,15 @@ export default function FarCompanyLayout({ children }) {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 font-sans" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* Sidebar for Desktop */}
+      {/* Mobile Sidebar backdrop overlay */}
+      {isSidebarOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-slate-900/30 backdrop-blur-xs md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar for Desktop & Mobile */}
       <aside
         className={`fixed inset-y-0 left-0 z-30 flex flex-col bg-white border-r border-slate-200/80 shadow-[10px_0_30px_rgba(15,23,42,0.01)] transition-all duration-300 md:relative md:translate-x-0 ${
           isSidebarOpen ? 'w-64 translate-x-0' : 'w-20 -translate-x-full md:translate-x-0'
@@ -76,11 +93,21 @@ export default function FarCompanyLayout({ children }) {
               <Building2 className="w-4.5 h-4.5" />
             </div>
             {isSidebarOpen && (
-              <span className="text-base tracking-tight truncate max-w-[150px] group-hover:text-[#3170c6] transition-colors">
+              <span className="text-base tracking-tight truncate max-w-[120px] group-hover:text-[#3170c6] transition-colors">
                 {companyName}
               </span>
             )}
           </Link>
+          
+          {/* Mobile close menu icon inside sidebar */}
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Desktop side indicator button */}
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors"
@@ -99,6 +126,11 @@ export default function FarCompanyLayout({ children }) {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => {
+                  if (window.innerWidth < 768) {
+                    setIsSidebarOpen(false);
+                  }
+                }}
                 className={`flex items-center gap-3 py-3 px-4 rounded-xl font-bold text-sm transition-all duration-200 ${
                   isActive
                     ? 'bg-[#edf4fc] text-[#3170c6] shadow-xs shadow-[#3170c6]/5'
