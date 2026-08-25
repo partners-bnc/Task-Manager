@@ -30,8 +30,8 @@ const SidebarItem = ({ icon: Icon, label, href, isCollapsed, badge }) => {
     <Link
       href={href || '#'}
       className={`flex items-center py-2.5 cursor-pointer transition-colors duration-200 rounded-lg mx-2 ${isActive
-          ? 'bg-blue-50 dark:bg-slate-800 border-l-4 border-blue-500 text-blue-700 dark:text-white'
-          : 'border-l-4 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+        ? 'bg-blue-50 dark:bg-slate-800 border-l-4 border-blue-500 text-blue-700 dark:text-white'
+        : 'border-l-4 border-transparent text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
         } ${isCollapsed ? 'justify-center px-0' : 'px-3'}`}
       title={isCollapsed ? label : undefined}
     >
@@ -113,9 +113,9 @@ const Sidebar = () => {
         {permissions.canManageEmailTemplates && (
           <SidebarItem icon={Mail} label="Email Templates" href="/other-modules/crm/templates" isCollapsed={isSidebarCollapsed} />
         )}
-        
+
         <Divider />
-        
+
         <SidebarItem icon={CalendarIcon} label="Calendar" href="/other-modules/crm/calendar" isCollapsed={isSidebarCollapsed} />
         <SidebarItem icon={LinkIcon} label="Lead Sources" href="/other-modules/crm/sources" isCollapsed={isSidebarCollapsed} />
         <SidebarItem icon={CheckSquare} label="Task Manager" href="/Taskmanager/dashboard" isCollapsed={isSidebarCollapsed} />

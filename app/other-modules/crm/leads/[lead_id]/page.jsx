@@ -221,6 +221,9 @@ export default function LeadDetailPage() {
           { label: 'Designation', value: lead.designation, icon: Briefcase },
           { label: 'Industry', value: lead.industry, icon: Briefcase },
           { label: 'Company Size', value: lead.company_size, icon: Building2 },
+          { label: 'Primary Business Email', value: lead.primary_business_email, type: 'email', icon: Mail },
+          { label: 'Additional Emails', value: Array.isArray(lead.additional_emails) ? lead.additional_emails.join(', ') : (typeof lead.additional_emails === 'string' ? lead.additional_emails : ''), icon: Mail },
+          { label: 'Business Phone', value: lead.business_phone, type: 'phone', icon: Phone },
         ],
       },
       {
@@ -465,9 +468,17 @@ export default function LeadDetailPage() {
       <div className="bg-white dark:bg-[#151f32] rounded-3xl border border-slate-200/70 dark:border-slate-800/60 shadow-sm overflow-hidden">
         <div className="p-6 md:p-7 flex flex-col xl:flex-row xl:items-start xl:justify-between gap-6 border-b border-slate-100 dark:border-slate-800/40">
           <div className="flex items-start gap-4 md:gap-5">
-            <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-[#2f66f6] to-[#1d4ed8] text-white flex items-center justify-center text-2xl md:text-3xl font-semibold shadow-sm shrink-0">
-              {lead.full_name ? lead.full_name.charAt(0).toUpperCase() : '?'}
-            </div>
+            {lead.company_image_url ? (
+              <img
+                src={lead.company_image_url}
+                alt={lead.company_name || 'Company Logo'}
+                className="w-16 h-16 md:w-20 md:h-20 rounded-2xl object-cover shadow-sm shrink-0 border border-slate-200 dark:border-slate-800"
+              />
+            ) : (
+              <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-to-br from-[#2f66f6] to-[#1d4ed8] text-white flex items-center justify-center text-2xl md:text-3xl font-semibold shadow-sm shrink-0">
+                {lead.full_name ? lead.full_name.charAt(0).toUpperCase() : (lead.company_name ? lead.company_name.charAt(0).toUpperCase() : '?')}
+              </div>
+            )}
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">Lead Profile</p>

@@ -42,7 +42,10 @@ import {
   Check,
   ArrowRight,
   Flag,
-  SlidersHorizontal
+  SlidersHorizontal,
+  GraduationCap,
+  Activity,
+  Folder
 } from 'lucide-react';
 
 const supabase = createClient();
@@ -90,62 +93,135 @@ const COLUMNS = [
   { key: 'updated_by', label: 'Updated By' },
 ];
 
+const COLUMN_OPTIONS = {
+  priority: ['Low', 'Medium', 'High'],
+  lead_status: ['New', 'Contacted', 'Qualified', 'Unqualified', 'Nurturing', 'Lost'],
+  gender: ['Male', 'Female', 'Other'],
+  salutation: ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'],
+  preferred_contact_method: ['Email', 'Phone', 'WhatsApp', 'LinkedIn'],
+  email_consent_status: ['Subscribed', 'Unsubscribed', 'Pending'],
+  company_size: ['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+']
+};
+
 const DB_COLUMNS_MAPPING = [
-  { key: 'full_name', label: 'Full Name', required: true },
-  { key: 'phone', label: 'Primary Phone', note: 'At least Phone or Email required' },
-  { key: 'email', label: 'Primary Email', note: 'At least Phone or Email required' },
-  { key: 'phone_alt', label: 'Alternate Phone' },
-  { key: 'whatsapp', label: 'WhatsApp Number' },
-  { key: 'email_alt', label: 'Alternate Email' },
-  { key: 'country', label: 'Country' },
-  { key: 'city', label: 'City' },
-  { key: 'state', label: 'State' },
-  { key: 'salutation', label: 'Salutation' },
-  { key: 'gender', label: 'Gender' },
-  { key: 'date_of_birth', label: 'Date of Birth' },
-  { key: 'company_name', label: 'Company Name' },
-  { key: 'designation', label: 'Designation' },
-  { key: 'industry', label: 'Industry' },
-  { key: 'website', label: 'Website' },
-  { key: 'company_size', label: 'Company Size' },
-  { key: 'business_country', label: 'Business Country' },
-  { key: 'business_city', label: 'Business City' },
-  { key: 'lead_source', label: 'Lead Source' },
-  { key: 'lead_category', label: 'Lead Category' },
-  { key: 'lead_type', label: 'Lead Type' },
-  { key: 'lead_status', label: 'Lead Status' },
-  { key: 'priority', label: 'Priority' },
-  { key: 'tags', label: 'Tags (comma separated)' },
-  { key: 'assigned_to', label: 'Assigned To' },
-  { key: 'notes', label: 'Notes' },
-  { key: 'next_followup_date', label: 'Next Follow-up Date' },
-  { key: 'last_contacted', label: 'Last Contacted' },
-  { key: 'timezone', label: 'Time Zone' },
-  { key: 'preferred_language', label: 'Preferred Language' },
-  { key: 'preferred_contact_method', label: 'Preferred Contact Method' },
-  { key: 'linkedin_url', label: 'LinkedIn Profile URL' },
-  { key: 'twitter_url', label: 'Twitter / X URL' },
-  { key: 'github_url', label: 'GitHub Profile URL' },
-  { key: 'portfolio_url', label: 'Portfolio Website URL' },
-  { key: 'email_consent_status', label: 'Email Consent Status' },
-  { key: 'consent_source', label: 'Consent Source' },
-  { key: 'lead_score', label: 'Lead Score' },
-  { key: 'skills', label: 'Skills' },
-  { key: 'experience_company_name', label: 'Work Exp: Company Name' },
-  { key: 'experience_job_title', label: 'Work Exp: Job Title' },
-  { key: 'experience_joining_date', label: 'Work Exp: Joining Date' },
-  { key: 'experience_leave_date', label: 'Work Exp: Leave Date' },
-  { key: 'experience_duration_years', label: 'Work Exp: Duration (Years)' },
-  { key: 'experience_company_industry', label: 'Work Exp: Company Industry' },
-  { key: 'experience_skills_used', label: 'Work Exp: Skills Used' },
-  { key: 'experience_responsibilities', label: 'Work Exp: Responsibilities' },
-  { key: 'education_institution_name', label: 'Education: Institution Name' },
-  { key: 'education_degree', label: 'Education: Degree' },
-  { key: 'education_field_of_study', label: 'Education: Field of Study' },
-  { key: 'education_start_date', label: 'Education: Start Date' },
-  { key: 'education_end_date', label: 'Education: End Date' },
-  { key: 'education_grade', label: 'Education: Grade' },
-  { key: 'education_activities', label: 'Education: Activities' },
+  { key: 'full_name', label: 'Full Name', icon: User },
+  { key: 'phone', label: 'Primary Phone', note: 'At least one Email/Phone required', icon: Phone },
+  { key: 'email', label: 'Primary Email', note: 'At least one Email/Phone required', icon: Mail },
+  { key: 'phone_alt', label: 'Alternate Phone', icon: Phone },
+  { key: 'whatsapp', label: 'WhatsApp Number', icon: Phone },
+  { key: 'email_alt', label: 'Alternate Email', icon: Mail },
+  { key: 'country', label: 'Country', icon: MapPin },
+  { key: 'city', label: 'City', icon: MapPin },
+  { key: 'state', label: 'State', icon: MapPin },
+  { key: 'salutation', label: 'Salutation', icon: User },
+  { key: 'gender', label: 'Gender', icon: User },
+  { key: 'date_of_birth', label: 'Date of Birth', icon: Calendar },
+  { key: 'company_name', label: 'Company Name', icon: Building2 },
+  { key: 'designation', label: 'Designation', icon: Briefcase },
+  { key: 'industry', label: 'Industry', icon: Briefcase },
+  { key: 'website', label: 'Website', icon: Globe },
+  { key: 'company_size', label: 'Company Size', icon: Building2 },
+  { key: 'business_country', label: 'Business Country', icon: MapPin },
+  { key: 'business_city', label: 'Business City', icon: MapPin },
+  { key: 'primary_business_email', label: 'Primary Business Email', icon: Mail },
+  { key: 'additional_emails', label: 'Additional Business Emails', icon: Mail },
+  { key: 'company_image_url', label: 'Company Image URL', icon: Globe },
+  { key: 'business_phone', label: 'Business Phone', icon: Phone },
+  { key: 'lead_source', label: 'Lead Source', icon: Tag },
+  { key: 'lead_category', label: 'Lead Category', icon: Tag },
+  { key: 'lead_type', label: 'Lead Type', icon: Tag },
+  { key: 'lead_status', label: 'Lead Status', icon: Tag },
+  { key: 'priority', label: 'Priority', icon: Tag },
+  { key: 'tags', label: 'Tags (comma separated)', icon: Tag },
+  { key: 'assigned_to', label: 'Assigned To', icon: UserCheck },
+  { key: 'notes', label: 'Notes', icon: FileText },
+  { key: 'next_followup_date', label: 'Next Follow-up Date', icon: Calendar },
+  { key: 'last_contacted', label: 'Last Contacted', icon: Calendar },
+  { key: 'timezone', label: 'Time Zone', icon: Globe },
+  { key: 'preferred_language', label: 'Preferred Language', icon: HelpCircle },
+  { key: 'preferred_contact_method', label: 'Preferred Contact Method', icon: HelpCircle },
+  { key: 'linkedin_url', label: 'LinkedIn Profile URL', icon: Globe },
+  { key: 'twitter_url', label: 'Twitter / X URL', icon: Globe },
+  { key: 'github_url', label: 'GitHub Profile URL', icon: Globe },
+  { key: 'portfolio_url', label: 'Portfolio Website URL', icon: Globe },
+  { key: 'email_consent_status', label: 'Email Consent Status', icon: CheckCircle },
+  { key: 'consent_source', label: 'Consent Source', icon: CheckCircle },
+  { key: 'lead_score', label: 'Lead Score', icon: Sparkles },
+  { key: 'skills', label: 'Skills', icon: Sparkles },
+  { key: 'experience_company_name', label: 'Work Exp: Company Name', icon: Briefcase },
+  { key: 'experience_job_title', label: 'Work Exp: Job Title', icon: Briefcase },
+  { key: 'experience_joining_date', label: 'Work Exp: Joining Date', icon: Calendar },
+  { key: 'experience_leave_date', label: 'Work Exp: Leave Date', icon: Calendar },
+  { key: 'experience_duration_years', label: 'Work Exp: Duration (Years)', icon: Briefcase },
+  { key: 'experience_company_industry', label: 'Work Exp: Company Industry', icon: Briefcase },
+  { key: 'experience_skills_used', label: 'Work Exp: Skills Used', icon: Sparkles },
+  { key: 'experience_responsibilities', label: 'Work Exp: Responsibilities', icon: FileText },
+  { key: 'education_institution_name', label: 'Education: Institution Name', icon: GraduationCap },
+  { key: 'education_degree', label: 'Education: Degree', icon: GraduationCap },
+  { key: 'education_field_of_study', label: 'Education: Field of Study', icon: GraduationCap },
+  { key: 'education_start_date', label: 'Education: Start Date', icon: Calendar },
+  { key: 'education_end_date', label: 'Education: End Date', icon: Calendar },
+  { key: 'education_grade', label: 'Education: Grade', icon: GraduationCap },
+  { key: 'education_activities', label: 'Education: Activities', icon: FileText },
+];
+
+const MAPPING_SECTIONS = [
+  {
+    id: 1,
+    title: 'Personal Details & Contacts',
+    icon: User,
+    color: 'from-blue-550 to-indigo-600 dark:from-blue-600 dark:to-indigo-700',
+    keys: ['full_name', 'phone', 'email', 'phone_alt', 'whatsapp', 'email_alt', 'salutation', 'gender', 'date_of_birth', 'country', 'city', 'state']
+  },
+  {
+    id: 2,
+    title: 'Business & Company Details',
+    icon: Building2,
+    color: 'from-purple-550 to-pink-600 dark:from-purple-650 dark:to-pink-700',
+    keys: ['company_name', 'designation', 'industry', 'website', 'company_size', 'business_country', 'business_city', 'primary_business_email', 'additional_emails', 'company_image_url', 'business_phone']
+  },
+  {
+    id: 3,
+    title: 'Lead Classification & Status',
+    icon: Tag,
+    color: 'from-amber-500 to-orange-600 dark:from-amber-600 dark:to-orange-700',
+    keys: ['lead_source', 'lead_category', 'lead_type', 'lead_status', 'priority', 'tags', 'assigned_to', 'notes', 'next_followup_date', 'last_contacted']
+  },
+  {
+    id: 4,
+    title: 'Social & Portfolio Links',
+    icon: Globe,
+    color: 'from-teal-550 to-emerald-600 dark:from-teal-650 dark:to-emerald-700',
+    keys: ['linkedin_url', 'twitter_url', 'github_url', 'portfolio_url']
+  },
+  {
+    id: 5,
+    title: 'Outreach & Consent Details',
+    icon: Mail,
+    color: 'from-rose-550 to-red-600 dark:from-rose-650 dark:to-red-700',
+    keys: ['email_consent_status', 'consent_source', 'lead_score', 'skills', 'timezone', 'preferred_language', 'preferred_contact_method']
+  },
+  {
+    id: 6,
+    title: 'Work Experience History',
+    icon: Briefcase,
+    color: 'from-violet-550 to-fuchsia-600 dark:from-violet-650 dark:to-fuchsia-700',
+    keys: [
+      'experience_company_name', 'experience_job_title', 'experience_joining_date',
+      'experience_leave_date', 'experience_duration_years', 'experience_company_industry',
+      'experience_skills_used', 'experience_responsibilities'
+    ]
+  },
+  {
+    id: 7,
+    title: 'Education History',
+    icon: GraduationCap,
+    color: 'from-cyan-550 to-sky-600 dark:from-cyan-650 dark:to-sky-700',
+    keys: [
+      'education_institution_name', 'education_degree', 'education_field_of_study',
+      'education_start_date', 'education_end_date', 'education_grade', 'education_activities'
+    ]
+  }
 ];
 
 const parseDateString = (str) => {
@@ -346,6 +422,17 @@ export default function LeadsPage() {
     4: false  // Tracking
   });
 
+  // Expandable mapping sections
+  const [expandedMappingSections, setExpandedMappingSections] = useState({
+    1: true,
+    2: false,
+    3: false,
+    4: false,
+    5: false,
+    6: false,
+    7: false
+  });
+
   // Duplicate Warning Modal state
   const [duplicateWarning, setDuplicateWarning] = useState(null);
 
@@ -414,7 +501,8 @@ export default function LeadsPage() {
   const [uploadedHeaders, setUploadedHeaders] = useState([]);
   const [uploadedRows, setUploadedRows] = useState([]);
   const [columnMappings, setColumnMappings] = useState({});
-  const [importStep, setImportStep] = useState(1); // 1: Source Selection, 2: Preview & Clean, 3: Schema Mapping, 4: Conflict Resolution, 5: Animated Loading, 6: Success
+  const [columnDefaults, setColumnDefaults] = useState({});
+  const [importStep, setImportStep] = useState(1); // 1: Source Selection, 2: Preview & Clean, 3: Schema Mapping, 4: Defaults Configuration, 5: Conflict Resolution, 6: Animated Loading, 7: Success
   const [duplicateLeadsFound, setDuplicateLeadsFound] = useState([]);
   const [importConflictStrategy, setImportConflictStrategy] = useState('skip'); // 'skip', 'overwrite', 'anyway'
   const [animatedProgress, setAnimatedProgress] = useState(0);
@@ -496,7 +584,7 @@ export default function LeadsPage() {
       notes: '',
       next_followup_date: '',
       last_contacted: '',
-      
+
       // New Core Profiling Fields
       salutation: '',
       gender: '',
@@ -513,7 +601,13 @@ export default function LeadsPage() {
       lead_score: 0,
       skills: '',
       custom_fields: {},
-      
+
+      // Business Details New Fields
+      primary_business_email: '',
+      additional_emails: '',
+      company_image_url: '',
+      business_phone: '',
+
       // Relational Lists
       experiences: [],
       educations: []
@@ -615,19 +709,17 @@ export default function LeadsPage() {
 
   // Form Validation
   const validateForm = (data) => {
-    if (!data.full_name?.trim()) {
-      toast.error('Full Name is required.');
-      return false;
-    }
-    if (!data.phone?.trim() && !data.email?.trim()) {
-      toast.error('At least one of Primary Phone or Primary Email must be provided.');
+    const hasEmail = data.email?.trim() || data.email_alt?.trim() || data.primary_business_email?.trim();
+    const hasPhone = data.phone?.trim() || data.phone_alt?.trim() || data.whatsapp?.trim() || data.business_phone?.trim();
+    if (!hasEmail && !hasPhone) {
+      toast.error('At least one contact method (Email, Phone, or WhatsApp) must be provided.');
       return false;
     }
     if (data.experiences && Array.isArray(data.experiences)) {
       for (let i = 0; i < data.experiences.length; i++) {
         const exp = data.experiences[i];
         if (!exp.company_name?.trim() || !exp.job_title?.trim()) {
-          toast.error(`Experience #${i+1} requires Company Name and Job Title.`);
+          toast.error(`Experience #${i + 1} requires Company Name and Job Title.`);
           return false;
         }
       }
@@ -636,7 +728,7 @@ export default function LeadsPage() {
       for (let i = 0; i < data.educations.length; i++) {
         const edu = data.educations[i];
         if (!edu.institution_name?.trim()) {
-          toast.error(`Education #${i+1} requires Institution Name.`);
+          toast.error(`Education #${i + 1} requires Institution Name.`);
           return false;
         }
       }
@@ -659,9 +751,14 @@ export default function LeadsPage() {
         lead_source: finalSource,
         lead_type: finalType,
         // Trim strings
-        full_name: formData.full_name.trim(),
+        full_name: formData.full_name ? formData.full_name.trim() : null,
         phone: formData.phone ? formData.phone.trim() : null,
         email: formData.email ? formData.email.trim() : null,
+        email_alt: formData.email_alt ? formData.email_alt.trim() : null,
+        primary_business_email: formData.primary_business_email ? formData.primary_business_email.trim() : null,
+        additional_emails: formData.additional_emails ? formData.additional_emails.split(',').map(e => e.trim()).filter(Boolean) : [],
+        company_image_url: formData.company_image_url ? formData.company_image_url.trim() : null,
+        business_phone: formData.business_phone ? formData.business_phone.trim() : null,
       };
 
       // Check duplicate phone or email (only if they are filled)
@@ -883,7 +980,7 @@ export default function LeadsPage() {
         notes: fullLead.notes || '',
         next_followup_date: fullLead.next_followup_date || '',
         last_contacted: fullLead.last_contacted || '',
-        
+
         salutation: fullLead.salutation || '',
         gender: fullLead.gender || '',
         date_of_birth: fullLead.date_of_birth || '',
@@ -899,7 +996,12 @@ export default function LeadsPage() {
         lead_score: fullLead.lead_score || 0,
         skills: fullLead.skills || '',
         custom_fields: fullLead.custom_fields || {},
-        
+
+        primary_business_email: fullLead.primary_business_email || '',
+        additional_emails: Array.isArray(fullLead.additional_emails) ? fullLead.additional_emails.join(', ') : (typeof fullLead.additional_emails === 'string' ? fullLead.additional_emails : ''),
+        company_image_url: fullLead.company_image_url || '',
+        business_phone: fullLead.business_phone || '',
+
         experiences: fullLead.experiences || [],
         educations: fullLead.educations || []
       });
@@ -920,7 +1022,7 @@ export default function LeadsPage() {
   // Delete Handler
   const confirmDeleteLead = (lead) => {
     setDeleteConfirmId(lead.lead_id);
-    setDeleteConfirmName(lead.full_name);
+    setDeleteConfirmName(lead.full_name || lead.company_name || 'Unnamed Lead');
   };
 
   const handleDelete = async () => {
@@ -1125,7 +1227,7 @@ export default function LeadsPage() {
         return new Promise((resolve, reject) => {
           const extension = file.name.split('.').pop().toLowerCase();
           const reader = new FileReader();
-          
+
           reader.onload = (evt) => {
             try {
               const bstr = evt.target.result;
@@ -1282,6 +1384,7 @@ export default function LeadsPage() {
     setUploadedHeaders([]);
     setUploadedRows([]);
     setColumnMappings({});
+    setColumnDefaults({});
     setDuplicateLeadsFound([]);
     setImportConflictStrategy('skip');
     setImportStep(1);
@@ -1302,12 +1405,30 @@ export default function LeadsPage() {
 
       DB_COLUMNS_MAPPING.forEach(col => {
         const mappedHeader = columnMappings[col.key];
-        if (mappedHeader && row[mappedHeader] !== undefined && row[mappedHeader] !== null) {
-          const val = String(row[mappedHeader]).trim();
+        let val = null;
 
+        if (mappedHeader && row[mappedHeader] !== undefined && row[mappedHeader] !== null) {
+          val = String(row[mappedHeader]).trim();
           if (val === "" || val.toLowerCase() === "n/a" || val.toLowerCase() === "null" || val.toLowerCase() === "undefined") {
-            item[col.key] = null;
-          } else if (col.key.endsWith('date') || col.key === 'last_contacted' || col.key === 'date_of_birth') {
+            val = null;
+          }
+        }
+
+        // If the row value is empty/null, check if a custom default constant is specified
+        let customDefault = columnDefaults[col.key];
+        if (col.key === 'lead_source' && customDefault === 'Other') {
+          customDefault = columnDefaults.lead_source_custom;
+        }
+        if (col.key === 'lead_type' && customDefault === 'Other') {
+          customDefault = columnDefaults.lead_type_custom;
+        }
+
+        if ((val === null || val === "") && customDefault !== undefined && customDefault !== null && customDefault !== "") {
+          val = String(customDefault).trim();
+        }
+
+        if (val !== null) {
+          if (col.key.endsWith('date') || col.key === 'last_contacted' || col.key === 'date_of_birth') {
             // Parse date to ensure standard format (YYYY-MM-DD) or null
             item[col.key] = parseDateString(val);
           } else if (col.key === 'lead_score') {
@@ -1363,19 +1484,26 @@ export default function LeadsPage() {
       // Clean up flat experience/education keys from the top-level lead item
       // to avoid passing database-unsupported keys to crm_leads table
       const experienceKeys = [
-        'experience_company_name', 'experience_job_title', 'experience_joining_date', 
-        'experience_leave_date', 'experience_duration_years', 'experience_company_industry', 
+        'experience_company_name', 'experience_job_title', 'experience_joining_date',
+        'experience_leave_date', 'experience_duration_years', 'experience_company_industry',
         'experience_skills_used', 'experience_responsibilities'
       ];
       const educationKeys = [
-        'education_institution_name', 'education_degree', 'education_field_of_study', 
+        'education_institution_name', 'education_degree', 'education_field_of_study',
         'education_start_date', 'education_end_date', 'education_grade', 'education_activities'
       ];
       experienceKeys.forEach(k => delete item[k]);
       educationKeys.forEach(k => delete item[k]);
 
+      // Format additional_emails as an array
+      if (item.additional_emails && typeof item.additional_emails === 'string') {
+        item.additional_emails = item.additional_emails.split(',').map(e => e.trim()).filter(Boolean);
+      } else if (!Array.isArray(item.additional_emails)) {
+        item.additional_emails = [];
+      }
+
       if (!item.full_name || !item.full_name.trim()) {
-        item.full_name = "Unknown Lead";
+        item.full_name = item.company_name || "Unknown Lead";
       }
 
       return item;
@@ -1386,11 +1514,12 @@ export default function LeadsPage() {
     const errors = [];
     const warnings = [];
 
-    if (!columnMappings.full_name) {
-      warnings.push("Destination field 'Full Name' is not mapped. Defaulting leads name to 'Unknown Lead'.");
+    if (!columnMappings.full_name && !columnMappings.company_name) {
+      warnings.push("Neither 'Full Name' nor 'Company Name' are mapped. Defaulting lead names to 'Unknown Lead'.");
     }
 
     const nameSrc = columnMappings.full_name;
+    const companySrc = columnMappings.company_name;
     const phoneSrc = columnMappings.phone;
     const emailSrc = columnMappings.email;
     const nextFollowupSrc = columnMappings.next_followup_date;
@@ -1399,19 +1528,27 @@ export default function LeadsPage() {
     uploadedRows.forEach((row, idx) => {
       const rowNum = idx + 1;
 
-      // Check name
-      if (nameSrc) {
-        const val = String(row[nameSrc] || '').trim();
-        if (!val) {
-          warnings.push(`Row ${rowNum}: Name column "${nameSrc}" is empty. Defaulting to 'Unknown Lead'.`);
-        }
+      // Check name/company
+      const hasNameVal = (nameSrc && String(row[nameSrc] || '').trim()) || 
+                         (companySrc && String(row[companySrc] || '').trim()) ||
+                         (columnDefaults.full_name || '').trim() ||
+                         (columnDefaults.company_name || '').trim();
+      if (!hasNameVal) {
+        warnings.push(`Row ${rowNum}: Name and Company are both empty. Defaulting to 'Unknown Lead'.`);
       }
 
-      // Check contact details (either email or phone is required)
-      const phoneVal = phoneSrc ? String(row[phoneSrc] || '').trim() : '';
-      const emailVal = emailSrc ? String(row[emailSrc] || '').trim() : '';
-      if (!phoneVal && !emailVal) {
-        warnings.push(`Row ${rowNum}: Both phone and email fields are empty. This lead will be skipped.`);
+      // Check contact details (any email, phone, or whatsapp is acceptable)
+      const phoneVal = phoneSrc ? String(row[phoneSrc] || '').trim() : (columnDefaults.phone || '');
+      const phoneAltVal = columnMappings.phone_alt ? String(row[columnMappings.phone_alt] || '').trim() : (columnDefaults.phone_alt || '');
+      const whatsappVal = columnMappings.whatsapp ? String(row[columnMappings.whatsapp] || '').trim() : (columnDefaults.whatsapp || '');
+      const busPhoneVal = columnMappings.business_phone ? String(row[columnMappings.business_phone] || '').trim() : (columnDefaults.business_phone || '');
+
+      const emailVal = emailSrc ? String(row[emailSrc] || '').trim() : (columnDefaults.email || '');
+      const emailAltVal = columnMappings.email_alt ? String(row[columnMappings.email_alt] || '').trim() : (columnDefaults.email_alt || '');
+      const busEmailVal = columnMappings.primary_business_email ? String(row[columnMappings.primary_business_email] || '').trim() : (columnDefaults.primary_business_email || '');
+
+      if (!phoneVal && !phoneAltVal && !whatsappVal && !busPhoneVal && !emailVal && !emailAltVal && !busEmailVal) {
+        warnings.push(`Row ${rowNum}: All email and phone fields are empty. This lead will be skipped.`);
       }
 
       // Check dates
@@ -1462,6 +1599,17 @@ export default function LeadsPage() {
     return errors.length === 0;
   };
 
+  const validateAndRouteToDefaultsScreen = () => {
+    setImportErrors([]);
+    setImportWarnings([]);
+    const isValid = performImportValidation();
+    if (!isValid) {
+      toast.error("Validation failed. Please review the errors at the top of the mapping screen.");
+      return;
+    }
+    setImportStep(4); // Go to Defaults Screen (Step 4)!
+  };
+
   const validateAndRouteToDuplicateCheck = async () => {
     setImportErrors([]);
     setImportWarnings([]);
@@ -1476,11 +1624,14 @@ export default function LeadsPage() {
     setActionLoading(true);
     try {
       const mappedLeads = getMappedLeads();
-      // Filter out invalid rows (must have a name, and at least a phone or email)
-      const validLeads = mappedLeads.filter(l => l.full_name && (l.phone || l.email));
+      // Filter out invalid rows (must have a name or company, and at least one phone or email contact detail)
+      const validLeads = mappedLeads.filter(l =>
+        (l.full_name || l.company_name) &&
+        (l.phone || l.phone_alt || l.whatsapp || l.business_phone || l.email || l.email_alt || l.primary_business_email)
+      );
 
       if (validLeads.length === 0) {
-        toast.error("No valid leads found in import file. (Required: Name + Phone or Email)");
+        toast.error("No valid leads found in import file. (Required: Name/Company + at least one email or phone contact detail)");
         setActionLoading(false);
         return;
       }
@@ -1521,7 +1672,7 @@ export default function LeadsPage() {
 
       if (duplicates.length > 0) {
         setDuplicateLeadsFound(duplicates);
-        setImportStep(4); // Duplicate resolution selection
+        setImportStep(5); // Duplicate resolution selection (Step 5)
       } else {
         // Go straight to import pipeline
         executeBulkImportDirectly(validLeads, existingInDb);
@@ -1538,7 +1689,10 @@ export default function LeadsPage() {
     setActionLoading(true);
     try {
       const mappedLeads = getMappedLeads();
-      const validLeads = mappedLeads.filter(l => l.full_name && (l.phone || l.email));
+      const validLeads = mappedLeads.filter(l =>
+        (l.full_name || l.company_name) &&
+        (l.phone || l.phone_alt || l.whatsapp || l.business_phone || l.email || l.email_alt || l.primary_business_email)
+      );
 
       // Re-fetch duplicate matches
       const phonesToCheck = validLeads.map(l => l.phone).filter(Boolean);
@@ -1569,7 +1723,7 @@ export default function LeadsPage() {
   };
 
   const executeBulkImportDirectly = async (validLeads, existingInDb) => {
-    setImportStep(5); // Animated full-screen load stage
+    setImportStep(6); // Animated full-screen load stage (Step 6)
     setAnimatedProgress(5);
     setCurrentImportPhase("Analyzing data feed headers...");
     setImportTicker([]);
@@ -1668,7 +1822,7 @@ export default function LeadsPage() {
         updated: resData.updated || 0,
         skipped: (resData.skipped || 0) + validationSkippedCount
       });
-      setImportStep(6);
+      setImportStep(7); // Summary (Step 7)
       fetchLeads();
     } catch (err) {
       console.error(err);
@@ -1904,28 +2058,17 @@ export default function LeadsPage() {
         </div>
 
         {/* STEP STATUS TRACKER */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 p-5 rounded-2xl mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Current Pipeline Stage:</span>
-            <span className="text-sm font-extrabold text-indigo-650 dark:text-indigo-400">
-              {importStep === 1 && "1. Upload Data Document"}
-              {importStep === 2 && "2. Detailed Data Preview"}
-              {importStep === 3 && "3. Schema Mapping & Overrides"}
-              {importStep === 4 && "4. Conflict Resolution Panel"}
-              {importStep === 5 && "5. Ingesting Database"}
-              {importStep === 6 && "6. Ingestion Success Summary"}
-            </span>
-          </div>
-
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 p-5 rounded-2xl mb-8 flex justify-center items-center shadow-sm">
           {/* STEP INDICATORS */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-center gap-2">
             {[
               { num: 1, label: 'Upload' },
               { num: 2, label: 'Preview' },
               { num: 3, label: 'Mapping' },
-              { num: 4, label: 'Conflict' },
-              { num: 5, label: 'Ingest' },
-              { num: 6, label: 'Summary' }
+              { num: 4, label: 'Defaults' },
+              { num: 5, label: 'Conflict' },
+              { num: 6, label: 'Ingest' },
+              { num: 7, label: 'Summary' }
             ].map((step, idx) => (
               <React.Fragment key={step.num}>
                 {idx > 0 && (
@@ -1933,10 +2076,10 @@ export default function LeadsPage() {
                 )}
                 <div className="flex items-center gap-1.5">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${importStep === step.num
-                      ? 'bg-indigo-600 text-white ring-4 ring-indigo-100 dark:ring-indigo-950/60'
-                      : importStep > step.num
-                        ? 'bg-emerald-500 text-white'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-450 dark:text-slate-500'
+                    ? 'bg-indigo-600 text-white ring-4 ring-indigo-100 dark:ring-indigo-950/60'
+                    : importStep > step.num
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-450 dark:text-slate-500'
                     }`}>
                     {importStep > step.num ? <Check className="w-4.5 h-4.5" /> : step.num}
                   </div>
@@ -2029,7 +2172,7 @@ export default function LeadsPage() {
                     Supports Excel (XLSX/XLS), CSV, or JSON
                   </p>
                 </div>
-                
+
                 <div className="flex items-center gap-3 mt-2">
                   <button
                     type="button"
@@ -2216,99 +2359,141 @@ export default function LeadsPage() {
                 </div>
               )}
 
-              {/* Matching schema connector structure */}
-              <div className="bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 p-6 rounded-2xl shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
-                  {/* Headers */}
-                  <div className="hidden md:flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
-                    <Database className="w-4.5 h-4.5 text-blue-500" />
-                    <span className="text-xs font-extrabold text-slate-455 uppercase tracking-wider">CRM Lead Schema Column</span>
-                  </div>
-                  <div className="hidden md:flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
-                    <Upload className="w-4.5 h-4.5 text-indigo-500" />
-                    <span className="text-xs font-extrabold text-slate-455 uppercase tracking-wider">Mapped Source Document Column</span>
-                  </div>
+              {/* Seven Section Accordions */}
+              <div className="space-y-4">
+                {MAPPING_SECTIONS.map((section) => {
+                  const sectionCols = section.keys
+                    .map(k => DB_COLUMNS_MAPPING.find(c => c.key === k))
+                    .filter(Boolean);
 
-                  {/* Mapping Cards Row list */}
-                  {DB_COLUMNS_MAPPING.map((col) => {
-                    const selectedVal = columnMappings[col.key] || '';
-                    const isMapped = !!selectedVal;
+                  // Calculate how many fields in this section are mapped
+                  const mappedCount = sectionCols.filter(col => !!columnMappings[col.key]).length;
+                  const totalCount = sectionCols.length;
+                  const isExpanded = !!expandedMappingSections[section.id];
 
-                    return (
-                      <React.Fragment key={col.key}>
-                        {/* Database Field Card */}
-                        <div
-                          className={`p-3.5 border rounded-xl flex items-center justify-between transition-all duration-200 ${isMapped
-                              ? 'bg-emerald-50/10 dark:bg-emerald-950/10 border-emerald-500/30'
-                              : col.required
-                                ? 'bg-red-50/10 dark:bg-red-950/10 border-red-500/30'
-                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-805'
-                            }`}
-                        >
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{col.label}</span>
-                              {col.required ? (
-                                <span className="text-[9px] font-extrabold uppercase bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 px-1.5 py-0.5 rounded">Required</span>
-                              ) : (
-                                <span className="text-[8px] font-bold uppercase bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 px-1.5 py-0.5 rounded">Optional</span>
+                  // Determine if this section has any missing required fields (if any exist)
+                  const hasMissingRequired = sectionCols.some(col => col.required && !columnMappings[col.key]);
+
+                  const IconComp = section.icon;
+
+                  return (
+                    <div
+                      key={section.id}
+                      className={`group border rounded-3xl transition-all duration-300 shadow-sm bg-white dark:bg-slate-900 border-slate-200/60 dark:border-slate-800/40 hover:border-slate-350 dark:hover:border-slate-700`}
+                    >
+                      {/* Section Header */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedMappingSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
+                        className="w-full flex items-center justify-between px-5 py-4 bg-slate-50/20 dark:bg-slate-950/5 font-bold text-sm transition select-none cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className={`w-10 h-10 flex items-center justify-center bg-gradient-to-tr ${section.color} text-white rounded-2xl shadow-md transition-transform duration-300 group-hover:scale-110 shrink-0`}>
+                            <IconComp className="w-5 h-5" />
+                          </div>
+                          <div className="text-left">
+                            <span className="text-slate-800 dark:text-slate-200 text-sm font-extrabold">
+                              {section.title}
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10.5px] font-semibold text-slate-450 dark:text-slate-500">
+                                {mappedCount} of {totalCount} fields mapped
+                              </span>
+                              {hasMissingRequired && (
+                                <span className="text-[9px] font-extrabold uppercase bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 px-1.5 py-0.5 rounded animate-pulse">
+                                  Missing Required
+                                </span>
                               )}
                             </div>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium">
-                              {col.note || `Database column: ${col.key}`}
-                            </p>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {isMapped ? (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/40 dark:bg-emerald-900/20 px-2 py-0.5 rounded-lg border border-emerald-200/50">
-                                <Check className="w-3 h-3" /> Mapped
-                              </span>
-                            ) : col.required ? (
-                              <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 dark:text-red-400 bg-red-100/40 dark:bg-red-900/20 px-2 py-0.5 rounded-lg border border-red-200/50">
-                                <AlertTriangle className="w-3 h-3" /> Missing
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 font-semibold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg">Unmapped</span>
-                            )}
                           </div>
                         </div>
+                        <div className="flex items-center gap-2.5">
+                          {mappedCount === totalCount ? (
+                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-100/40 dark:bg-emerald-950/20 px-2 py-0.5 rounded-full border border-emerald-250 dark:border-emerald-900/40">
+                              Completed
+                            </span>
+                          ) : mappedCount > 0 ? (
+                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-100/40 dark:bg-indigo-950/20 px-2 py-0.5 rounded-full border border-indigo-250 dark:border-indigo-900/40">
+                              In Progress
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-550 bg-slate-105 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                              Not Mapped
+                            </span>
+                          )}
+                          {isExpanded ? <ChevronUp className="w-4.5 h-4.5 text-slate-400" /> : <ChevronDown className="w-4.5 h-4.5 text-slate-400" />}
+                        </div>
+                      </button>
 
-                        {/* Mapped Dropdown Option selector - Height & colors styled matching the left card */}
-                        <div
-                          className={`p-3 border rounded-xl flex items-center justify-between transition-all duration-200 ${isMapped
-                              ? 'bg-emerald-50/10 dark:bg-emerald-950/10 border-emerald-500/30'
-                              : col.required
-                                ? 'bg-red-50/10 dark:bg-red-950/10 border-red-500/30'
-                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-805'
-                            }`}
-                        >
-                          <div className="w-full flex items-center gap-2">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Source Field:</span>
-                            <select
-                              value={selectedVal}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setColumnMappings(prev => ({
-                                  ...prev,
-                                  [col.key]: val
-                                }));
-                              }}
-                              className="w-full px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-slate-850 dark:text-white transition"
-                            >
-                              <option value="">-- Ignore / Skip Column --</option>
-                              {uploadedHeaders.map((header, hIdx) => (
-                                <option key={hIdx} value={header}>
-                                  Column: "{header}"
-                                </option>
-                              ))}
-                            </select>
+                      {/* Section Body */}
+                      {isExpanded && (
+                        <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900/40 space-y-4">
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
+                            {sectionCols.map((col) => {
+                              const selectedVal = columnMappings[col.key] || '';
+                              const isMapped = !!selectedVal;
+                              const ColIcon = col.icon || Tag;
+
+                              return (
+                                <div key={col.key} className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl border transition-all duration-205 ${isMapped 
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/25 border-emerald-500/50 dark:border-emerald-500/40 shadow-sm' 
+                                  : 'bg-slate-50/30 dark:bg-slate-950/10 border-slate-100 dark:border-slate-850'
+                                }`}>
+                                  {/* Left side: Schema Field info */}
+                                  <div className="flex flex-col justify-center">
+                                    <div className="flex items-center gap-2">
+                                      <ColIcon className={`w-4 h-4 shrink-0 transition-colors duration-205 ${isMapped ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} />
+                                      <span className={`text-[11.5px] font-bold transition-colors duration-200 ${isMapped 
+                                        ? 'text-emerald-900 dark:text-emerald-350' 
+                                        : 'text-slate-700 dark:text-slate-350'
+                                      }`}>
+                                        {col.label}
+                                      </span>
+                                      {col.required && (
+                                        <span className="text-[8px] font-extrabold uppercase bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 px-1 py-0.5 rounded">Required</span>
+                                      )}
+                                    </div>
+                                    <span className={`text-[9.5px] mt-0.5 truncate max-w-full font-medium transition-colors duration-200 ${isMapped 
+                                      ? 'text-emerald-600 dark:text-emerald-500 pl-6' 
+                                      : 'text-slate-400 dark:text-slate-500 pl-6'
+                                    }`}>
+                                      {col.note || `column: ${col.key}`}
+                                    </span>
+                                  </div>
+
+                                  {/* Right side: Mapping Selector */}
+                                  <div className="flex items-center">
+                                    <select
+                                      value={selectedVal}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setColumnMappings(prev => ({
+                                          ...prev,
+                                          [col.key]: val
+                                        }));
+                                      }}
+                                      className={`w-full px-2.5 py-1.5 border rounded-lg text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-indigo-500 transition duration-205 ${isMapped
+                                        ? 'border-emerald-500/60 focus:ring-emerald-500 text-emerald-800 dark:text-emerald-400 bg-emerald-50 dark:bg-slate-800'
+                                        : 'border-slate-205 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200'
+                                        }`}
+                                    >
+                                      <option value="">-- Ignore / Skip Column --</option>
+                                      {uploadedHeaders.map((header, hIdx) => (
+                                        <option key={hIdx} value={header}>
+                                          Column: "{header}"
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-150 dark:border-slate-800">
@@ -2319,7 +2504,7 @@ export default function LeadsPage() {
                   Back
                 </button>
                 <button
-                  onClick={validateAndRouteToDuplicateCheck}
+                  onClick={validateAndRouteToDefaultsScreen}
                   disabled={actionLoading}
                   className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
                 >
@@ -2330,8 +2515,186 @@ export default function LeadsPage() {
             </div>
           )}
 
-          {/* STEP 4: DUPLICATE RESOLUTION Strategizing */}
+          {/* STEP 4: DEFAULT VALUES CONFIGURATION */}
           {importStep === 4 && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-800 dark:text-white">
+                  Lead Classification Defaults
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Specify default constant values to apply to all imported leads in this batch.
+                </p>
+              </div>
+
+              <div className="bg-white/50 dark:bg-slate-900/40 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl p-6 backdrop-blur-md space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                  {/* Lead Status */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350">
+                      <Activity className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Default Lead Status
+                    </label>
+                    <select
+                      value={columnDefaults.lead_status || ''}
+                      onChange={(e) => setColumnDefaults(prev => ({ ...prev, lead_status: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">-- No Default Status (Use 'New') --</option>
+                      {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Priority */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350">
+                      <AlertCircle className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Default Priority
+                    </label>
+                    <select
+                      value={columnDefaults.priority || ''}
+                      onChange={(e) => setColumnDefaults(prev => ({ ...prev, priority: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">-- No Default Priority (Use 'Medium') --</option>
+                      {['Low', 'Medium', 'High'].map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Lead Source */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350">
+                      <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Default Lead Source
+                    </label>
+                    <select
+                      value={columnDefaults.lead_source || ''}
+                      onChange={(e) => setColumnDefaults(prev => ({ ...prev, lead_source: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Select Default Source --</option>
+                      {dynamicSources.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    {columnDefaults.lead_source === 'Other' && (
+                      <input
+                        type="text"
+                        placeholder="Type custom source..."
+                        value={columnDefaults.lead_source_custom || ''}
+                        onChange={(e) => setColumnDefaults(prev => ({ ...prev, lead_source_custom: e.target.value }))}
+                        className="mt-2 w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    )}
+                  </div>
+
+                  {/* Lead Category */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350">
+                      <Folder className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Default Lead Category
+                    </label>
+                    <select
+                      value={columnDefaults.lead_category || ''}
+                      onChange={(e) => setColumnDefaults(prev => ({ ...prev, lead_category: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">-- No Default Category (Use 'Warm') --</option>
+                      {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Lead Type */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350">
+                      <Briefcase className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Default Lead Type
+                    </label>
+                    <select
+                      value={columnDefaults.lead_type || ''}
+                      onChange={(e) => setColumnDefaults(prev => ({ ...prev, lead_type: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">-- Select Default Type --</option>
+                      {dynamicTypes.map(t => <option key={t} value={t}>{t === 'Other' ? 'Other (custom)' : t}</option>)}
+                    </select>
+                    {columnDefaults.lead_type === 'Other' && (
+                      <input
+                        type="text"
+                        placeholder="Type custom type..."
+                        value={columnDefaults.lead_type_custom || ''}
+                        onChange={(e) => setColumnDefaults(prev => ({ ...prev, lead_type_custom: e.target.value }))}
+                        className="mt-2 w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    )}
+                  </div>
+
+                  {/* Assigned To */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350">
+                      <User className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Default Assignee (Assigned To)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Sales Rep Name"
+                      value={columnDefaults.assigned_to || ''}
+                      onChange={(e) => setColumnDefaults(prev => ({ ...prev, assigned_to: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-400 dark:placeholder-slate-500"
+                    />
+                  </div>
+
+                  {/* Tags */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350">
+                      <Tag className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Default Tags (comma separated)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. scraping, maps, hot-lead"
+                      value={columnDefaults.tags || ''}
+                      onChange={(e) => setColumnDefaults(prev => ({ ...prev, tags: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-400 dark:placeholder-slate-500"
+                    />
+                  </div>
+
+                  {/* Notes */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-350">
+                      <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Default Notes
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Type constant notes..."
+                      value={columnDefaults.notes || ''}
+                      onChange={(e) => setColumnDefaults(prev => ({ ...prev, notes: e.target.value }))}
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-850 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-slate-400 dark:placeholder-slate-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-4 border-t border-slate-150 dark:border-slate-800">
+                <button
+                  onClick={() => setImportStep(3)}
+                  className="px-4 py-2 border border-slate-350 dark:border-slate-655 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  Back to Mapping
+                </button>
+                <button
+                  onClick={handleMappingSubmit}
+                  disabled={actionLoading}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
+                >
+                  {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  Continue to Duplicate Check <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5: DUPLICATE RESOLUTION Strategizing */}
+          {importStep === 5 && (
             <div className="max-w-2xl mx-auto py-4 space-y-6">
               <div className="text-center space-y-2">
                 <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-200/50">
@@ -2354,7 +2717,7 @@ export default function LeadsPage() {
                       Review the specific incoming lead records that matched existing database entries:
                     </p>
                   </div>
-                  
+
                   <div className="max-h-[220px] overflow-y-auto border border-slate-150 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50/20 dark:bg-slate-950/20">
                     {duplicateLeadsFound.map((dup, idx) => (
                       <div key={idx} className="p-3 text-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -2442,7 +2805,7 @@ export default function LeadsPage() {
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
-                  onClick={() => setImportStep(3)}
+                  onClick={() => setImportStep(4)}
                   className="px-4 py-2 border border-slate-350 dark:border-slate-655 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
                 >
                   Back
@@ -2459,8 +2822,8 @@ export default function LeadsPage() {
             </div>
           )}
 
-          {/* STEP 5: DETAILED PREMIUM LOADING & TRANSACTION TICKERS */}
-          {importStep === 5 && (
+          {/* STEP 6: DETAILED PREMIUM LOADING & TRANSACTION TICKERS */}
+          {importStep === 6 && (
             <div className="max-w-xl mx-auto py-10 text-center space-y-8">
 
               {/* Pulsing circular core */}
@@ -2512,8 +2875,8 @@ export default function LeadsPage() {
             </div>
           )}
 
-          {/* STEP 6: IMPORT TRANSACTION COMPLETED SUMMARY */}
-          {importStep === 6 && (
+          {/* STEP 7: IMPORT TRANSACTION COMPLETED SUMMARY */}
+          {importStep === 7 && (
             <div className="max-w-md mx-auto py-8 text-center space-y-6">
 
               <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 rounded-full flex items-center justify-center mx-auto border-2 border-emerald-250 relative shadow-[0_0_40px_rgba(16,185,129,0.25)] animate-bounce">
@@ -2648,8 +3011,8 @@ export default function LeadsPage() {
             <button
               onClick={() => { setSourceFilter('All'); setCurrentPage(1); }}
               className={`px-4 py-1 text-xs font-semibold rounded-full transition-all duration-200 cursor-pointer shrink-0 select-none ${sourceFilter === 'All'
-                  ? 'bg-white dark:bg-slate-800 text-slate-850 dark:text-white shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                ? 'bg-white dark:bg-slate-800 text-slate-850 dark:text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
             >
               All Sources
@@ -2659,8 +3022,8 @@ export default function LeadsPage() {
                 key={source}
                 onClick={() => { setSourceFilter(source); setCurrentPage(1); }}
                 className={`px-4 py-1 text-xs font-semibold rounded-full transition-all duration-200 cursor-pointer shrink-0 select-none ${sourceFilter === source
-                    ? 'bg-white dark:bg-slate-800 text-slate-850 dark:text-white shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                  ? 'bg-white dark:bg-slate-800 text-slate-850 dark:text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
               >
                 {source}
@@ -3045,7 +3408,7 @@ export default function LeadsPage() {
                     )}
                     {visibleColumns.full_name !== false && (
                       <td className="py-3 px-4 text-xs font-medium text-slate-900 dark:text-white whitespace-nowrap">
-                        <span>{lead.full_name}</span>
+                        <span>{lead.full_name || lead.company_name || 'Unnamed Lead'}</span>
                       </td>
                     )}
                     {visibleColumns.phone !== false && (
@@ -3250,8 +3613,8 @@ export default function LeadsPage() {
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
                       className={`w-9 h-9 rounded-lg text-xs font-semibold border transition ${currentPage === pageNum
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-250 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                        : 'bg-white text-slate-700 border-slate-250 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-650 hover:bg-slate-100 dark:hover:bg-slate-700'
                         }`}
                     >
                       {pageNum}
@@ -3329,10 +3692,9 @@ export default function LeadsPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Full Name *</label>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Full Name</label>
                       <input
                         type="text"
-                        required
                         value={formData.full_name}
                         onChange={(e) => handleInputChange('full_name', e.target.value)}
                         className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
@@ -3528,6 +3890,46 @@ export default function LeadsPage() {
                         onChange={(e) => handleInputChange('business_city', e.target.value)}
                         className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
                         placeholder="Business City"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Primary Business Email</label>
+                      <input
+                        type="email"
+                        value={formData.primary_business_email}
+                        onChange={(e) => handleInputChange('primary_business_email', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="business@company.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Additional Emails (comma separated)</label>
+                      <input
+                        type="text"
+                        value={formData.additional_emails}
+                        onChange={(e) => handleInputChange('additional_emails', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="email1@comp.com, email2@comp.com"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Company Image URL</label>
+                      <input
+                        type="text"
+                        value={formData.company_image_url}
+                        onChange={(e) => handleInputChange('company_image_url', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="https://example.com/logo.png"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-500 mb-1.5">Business Phone</label>
+                      <input
+                        type="text"
+                        value={formData.business_phone}
+                        onChange={(e) => handleInputChange('business_phone', e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-350 dark:border-slate-650 rounded-lg text-sm bg-white dark:bg-slate-700 dark:text-white"
+                        placeholder="Business Phone Number"
                       />
                     </div>
                   </div>
@@ -3864,7 +4266,7 @@ export default function LeadsPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        
+
                         <div className="text-xs font-bold text-slate-400">Experience #{index + 1}</div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -3959,7 +4361,7 @@ export default function LeadsPage() {
                         </div>
                       </div>
                     ))}
-                    
+
                     <button
                       type="button"
                       onClick={addExperienceField}
@@ -3995,7 +4397,7 @@ export default function LeadsPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        
+
                         <div className="text-xs font-bold text-slate-400">Education #{index + 1}</div>
 
                         <div>
@@ -4076,7 +4478,7 @@ export default function LeadsPage() {
                         </div>
                       </div>
                     ))}
-                    
+
                     <button
                       type="button"
                       onClick={addEducationField}
@@ -4267,7 +4669,7 @@ export default function LeadsPage() {
                 </button>
                 {expandedBulkSections[2] && (
                   <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-white dark:bg-slate-800/40">
-                    
+
                     {/* Company Name */}
                     <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-slate-100 dark:border-slate-700/80 hover:border-slate-200 dark:hover:border-slate-600 transition">
                       <div className="flex items-center gap-2">

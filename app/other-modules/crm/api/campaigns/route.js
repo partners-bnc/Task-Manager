@@ -130,13 +130,14 @@ function extractProviderMessageId(responseBody) {
 }
 
 async function sendZeptoCampaignEmail({ token, lead, subject, body, format, campaignId, recipientId }) {
+  const targetEmail = lead.email || lead.primary_business_email || lead.email_alt;
   const payload = {
     from: ZEPTOMAIL_FROM,
     to: [
       {
         email_address: {
-          address: lead.email,
-          name: lead.full_name || lead.email,
+          address: targetEmail,
+          name: lead.full_name || targetEmail,
         },
       },
     ],
@@ -287,7 +288,8 @@ async function launchCampaign(supabase, campaignId) {
     // Exclude unsubscribed
     if (unsubscribedIds.has(String(lead.lead_id))) return false;
     // Exclude leads with no email
-    if (!lead.email) return false;
+    const targetEmail = lead.email || lead.primary_business_email || lead.email_alt;
+    if (!targetEmail) return false;
 
     // Filter properties
     for (const [key, filterValues] of Object.entries(filter)) {
@@ -352,12 +354,13 @@ async function launchCampaign(supabase, campaignId) {
     const subBody = substitute(bodyField, lead);
 
     // Insert campaign_recipient
+    const targetEmail = lead.email || lead.primary_business_email || lead.email_alt;
     const { data: recipient, error: recErr } = await supabase
       .from("crm_campaign_recipients")
       .insert({
         campaign_id: campaignId,
         lead_id: lead.lead_id,
-        email_sent_to: lead.email,
+        email_sent_to: targetEmail,
         delivery_status: "Pending",
         provider: "zeptomail"
       })
