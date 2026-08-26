@@ -329,6 +329,42 @@ export default function LeadsPage() {
     return Array.from(tagSet).sort();
   }, [leads]);
 
+  const allUniqueCities = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.city?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueStates = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.state?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueCountries = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.country?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueGenders = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.gender?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueDesignations = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.designation?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueIndustries = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.industry?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueBusinessCountries = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.business_country?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueBusinessCities = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.business_city?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
+  const allUniqueBatches = useMemo(() => {
+    return Array.from(new Set(leads.map(l => l.source_batch?.trim()).filter(Boolean))).sort();
+  }, [leads]);
+
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -337,6 +373,19 @@ export default function LeadsPage() {
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [typeFilter, setTypeFilter] = useState('All');
   const [tagsFilter, setTagsFilter] = useState('All');
+
+  const [cityFilter, setCityFilter] = useState('All');
+  const [stateFilter, setStateFilter] = useState('All');
+  const [countryFilter, setCountryFilter] = useState('All');
+  const [genderFilter, setGenderFilter] = useState('All');
+  
+  const [designationFilter, setDesignationFilter] = useState('All');
+  const [industryFilter, setIndustryFilter] = useState('All');
+  const [businessCountryFilter, setBusinessCountryFilter] = useState('All');
+  const [businessCityFilter, setBusinessCityFilter] = useState('All');
+  
+  const [batchFilter, setBatchFilter] = useState('All');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Column Visibility State
   const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -397,8 +446,8 @@ export default function LeadsPage() {
   }, [visibleColumns]);
 
   // Sorting
-  const [sortField, setSortField] = useState('industry');
-  const [sortDirection, setSortDirection] = useState('asc');
+  const [sortField, setSortField] = useState('lead_id');
+  const [sortDirection, setSortDirection] = useState('desc');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -554,7 +603,7 @@ export default function LeadsPage() {
   // Reset selected leads on list changes
   useEffect(() => {
     setSelectedLeadIds(new Set());
-  }, [statusFilter, sourceFilter, categoryFilter, priorityFilter, typeFilter, tagsFilter, searchTerm, currentPage, sortField, sortDirection]);
+  }, [statusFilter, sourceFilter, categoryFilter, priorityFilter, typeFilter, tagsFilter, cityFilter, stateFilter, countryFilter, genderFilter, designationFilter, industryFilter, businessCountryFilter, businessCityFilter, batchFilter, searchTerm, currentPage, sortField, sortDirection]);
 
   function getDefaultFormData() {
     return {
@@ -1503,7 +1552,7 @@ export default function LeadsPage() {
       }
 
       if (!item.full_name || !item.full_name.trim()) {
-        item.full_name = item.company_name || "Unknown Lead";
+        item.full_name = item.company_name ? null : "Unknown Lead";
       }
 
       return item;
@@ -1648,6 +1697,13 @@ export default function LeadsPage() {
         if (emailsToCheck.length > 0) queryParams.set('emails', emailsToCheck.join(','));
 
         const response = await fetch(`/other-modules/crm/api/leads?${queryParams.toString()}`);
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          if (response.status === 401 || response.url?.includes("/login")) {
+            throw new Error("Your session has expired. Please refresh the page or log in again.");
+          }
+          throw new Error(`Server returned non-JSON response (status ${response.status}). If this persists, please try logging in again.`);
+        }
         if (!response.ok) {
           const errData = await response.json();
           throw new Error(errData.error || 'Failed to check duplicates');
@@ -1706,6 +1762,13 @@ export default function LeadsPage() {
         if (emailsToCheck.length > 0) queryParams.set('emails', emailsToCheck.join(','));
 
         const response = await fetch(`/other-modules/crm/api/leads?${queryParams.toString()}`);
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          if (response.status === 401 || response.url?.includes("/login")) {
+            throw new Error("Your session has expired. Please refresh the page or log in again.");
+          }
+          throw new Error(`Server returned non-JSON response (status ${response.status}). If this persists, please try logging in again.`);
+        }
         if (!response.ok) {
           const errData = await response.json();
           throw new Error(errData.error || 'Failed to check duplicates');
@@ -1806,6 +1869,14 @@ export default function LeadsPage() {
         })
       });
 
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        if (response.status === 401 || response.url?.includes("/login")) {
+          throw new Error("Your session has expired. Please refresh the page or log in again.");
+        }
+        throw new Error(`Server returned non-JSON response (status ${response.status}). If this persists, please try logging in again.`);
+      }
+
       const resData = await response.json();
       if (!response.ok) {
         throw new Error(resData.error || 'Failed to complete transaction in backend.');
@@ -1859,11 +1930,35 @@ export default function LeadsPage() {
       const matchesTags = tagsFilter === 'All' ||
         (lead.tags && lead.tags.split(',').map(t => t.trim().toLowerCase()).includes(tagsFilter.trim().toLowerCase()));
 
-      return matchesSearch && matchesStatus && matchesSource && matchesCategory && matchesPriority && matchesType && matchesTags;
+      const matchesCity = cityFilter === 'All' ||
+        (lead.city?.trim().toLowerCase() === cityFilter.trim().toLowerCase());
+      const matchesState = stateFilter === 'All' ||
+        (lead.state?.trim().toLowerCase() === stateFilter.trim().toLowerCase());
+      const matchesCountry = countryFilter === 'All' ||
+        (lead.country?.trim().toLowerCase() === countryFilter.trim().toLowerCase());
+      const matchesGender = genderFilter === 'All' ||
+        (lead.gender?.trim().toLowerCase() === genderFilter.trim().toLowerCase());
+      
+      const matchesDesignation = designationFilter === 'All' ||
+        (lead.designation?.trim().toLowerCase() === designationFilter.trim().toLowerCase());
+      const matchesIndustry = industryFilter === 'All' ||
+        (lead.industry?.trim().toLowerCase() === industryFilter.trim().toLowerCase());
+      const matchesBusinessCountry = businessCountryFilter === 'All' ||
+        (lead.business_country?.trim().toLowerCase() === businessCountryFilter.trim().toLowerCase());
+      const matchesBusinessCity = businessCityFilter === 'All' ||
+        (lead.business_city?.trim().toLowerCase() === businessCityFilter.trim().toLowerCase());
+        
+      const matchesBatch = batchFilter === 'All' ||
+        (lead.source_batch?.trim().toLowerCase() === batchFilter.trim().toLowerCase());
+
+      return matchesSearch && matchesStatus && matchesSource && matchesCategory && matchesPriority && matchesType && matchesTags && 
+             matchesCity && matchesState && matchesCountry && matchesGender && 
+             matchesDesignation && matchesIndustry && matchesBusinessCountry && matchesBusinessCity && 
+             matchesBatch;
     });
 
     return res;
-  }, [leads, searchTerm, statusFilter, sourceFilter, categoryFilter, priorityFilter, typeFilter, tagsFilter]);
+  }, [leads, searchTerm, statusFilter, sourceFilter, categoryFilter, priorityFilter, typeFilter, tagsFilter, cityFilter, stateFilter, countryFilter, genderFilter, designationFilter, industryFilter, businessCountryFilter, businessCityFilter, batchFilter]);
 
   // Pagination Slice
   const paginatedLeads = useMemo(() => {
@@ -2858,19 +2953,38 @@ export default function LeadsPage() {
               </div>
 
               {/* Transaction Stream Console Ticker */}
-              <div className="w-full bg-slate-950 text-slate-350 p-4 rounded-2xl font-mono text-xs text-left h-[200px] overflow-y-auto space-y-1 shadow-2xl border border-slate-850">
-                <div className="text-indigo-400 font-bold border-b border-slate-800 pb-1.5 mb-2 flex items-center justify-between text-[10.5px]">
-                  <span>TRANSACTION LOGS PIPELINE</span>
-                  <span className="animate-pulse flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> ACTIVE RUN
+              <div className="w-full bg-slate-50 dark:bg-slate-900/60 border border-slate-205 dark:border-slate-800 p-5 rounded-2xl text-left h-[220px] overflow-y-auto space-y-2 shadow-xs scrollbar-thin">
+                <div className="border-b border-slate-100 dark:border-slate-800 pb-2 mb-3 flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  <span>Sync Ticker Queue</span>
+                  <span className="animate-pulse flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>Processing</span>
                   </span>
                 </div>
-                {importTicker.length === 0 && <p className="text-slate-500 italic">Initializing stream console...</p>}
-                {importTicker.map((line, idx) => (
-                  <p key={idx} className={line.includes('INSERT') ? 'text-emerald-400' : 'text-blue-450'}>
-                    {line}
-                  </p>
-                ))}
+                {importTicker.length === 0 && (
+                  <p className="text-slate-400 dark:text-slate-500 text-xs italic text-center py-8">Initializing transaction pipeline...</p>
+                )}
+                <div className="space-y-1.5">
+                  {importTicker.map((line, idx) => {
+                    const isInsert = line.includes('[INSERT]');
+                    const isUpdate = line.includes('[UPDATE]');
+                    const cleanLine = line.replace('[INSERT] ', '').replace('[UPDATE] ', '');
+                    return (
+                      <div key={idx} className="flex items-center gap-2.5 text-xs font-semibold py-1.5 px-3 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950/40 shadow-xs animate-in slide-in-from-bottom-1 duration-150">
+                        {isInsert ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                        ) : isUpdate ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                        ) : (
+                          <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                        )}
+                        <span className="text-slate-700 dark:text-slate-350 font-medium">
+                          {cleanLine}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
@@ -3048,6 +3162,55 @@ export default function LeadsPage() {
               />
             </div>
 
+
+
+            {/* Columns Adjuster Popover */}
+            <div className="relative">
+              <button
+                onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-200 transition cursor-pointer select-none bg-white dark:bg-slate-800"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                <span>Columns</span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </button>
+
+              {showColumnDropdown && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowColumnDropdown(false)}
+                  />
+                  <div className="absolute right-0 mt-1.5 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-20 py-2.5 px-3 select-none transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                    <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pb-1.5 mb-2 border-b border-slate-100 dark:border-slate-700">
+                      Show/Hide Columns
+                    </div>
+                    <div className="flex flex-col gap-1.5 max-h-[240px] overflow-y-auto scrollbar-thin">
+                      {COLUMNS.map((col) => (
+                        <label
+                          key={col.key}
+                          className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg cursor-pointer transition select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns[col.key] !== false}
+                            onChange={() => {
+                              setVisibleColumns(prev => ({
+                                ...prev,
+                                [col.key]: prev[col.key] === false ? true : false
+                              }));
+                            }}
+                            className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 shrink-0 cursor-pointer"
+                          />
+                          <span>{col.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
             {/* Status Filter */}
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">Status</span>
@@ -3113,55 +3276,35 @@ export default function LeadsPage() {
               </select>
             </div>
 
-            {/* Columns Adjuster Popover */}
-            <div className="relative">
-              <button
-                onClick={() => setShowColumnDropdown(!showColumnDropdown)}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-200 transition cursor-pointer select-none bg-white dark:bg-slate-800"
+            {/* Source Filter */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider hidden sm:inline">Source</span>
+              <select
+                value={sourceFilter}
+                onChange={(e) => { setSourceFilter(e.target.value); setCurrentPage(1); }}
+                className="border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
               >
-                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                <span>Columns</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
-
-              {showColumnDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowColumnDropdown(false)}
-                  />
-                  <div className="absolute right-0 mt-1.5 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-20 py-2.5 px-3 select-none transition-all duration-150 animate-in fade-in slide-in-from-top-1">
-                    <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pb-1.5 mb-2 border-b border-slate-100 dark:border-slate-700">
-                      Show/Hide Columns
-                    </div>
-                    <div className="flex flex-col gap-1.5 max-h-[240px] overflow-y-auto scrollbar-thin">
-                      {COLUMNS.map((col) => (
-                        <label
-                          key={col.key}
-                          className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg cursor-pointer transition select-none"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={visibleColumns[col.key] !== false}
-                            onChange={() => {
-                              setVisibleColumns(prev => ({
-                                ...prev,
-                                [col.key]: prev[col.key] === false ? true : false
-                              }));
-                            }}
-                            className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 shrink-0 cursor-pointer"
-                          />
-                          <span>{col.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
+                <option value="All">All Sources</option>
+                {allUniqueSources.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
 
+            {/* Advanced Filters Toggle */}
+            <button
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border rounded-lg transition cursor-pointer select-none ${
+                showAdvancedFilters
+                  ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/20 dark:border-blue-900/30 dark:text-blue-400'
+                  : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>Advanced Filters</span>
+              {showAdvancedFilters ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+
             {/* Reset Filters */}
-            {(searchTerm || statusFilter !== 'All' || sourceFilter !== 'All' || categoryFilter !== 'All' || priorityFilter !== 'All' || typeFilter !== 'All' || tagsFilter !== 'All') && (
+            {(searchTerm || statusFilter !== 'All' || sourceFilter !== 'All' || categoryFilter !== 'All' || priorityFilter !== 'All' || typeFilter !== 'All' || tagsFilter !== 'All' || cityFilter !== 'All' || stateFilter !== 'All' || countryFilter !== 'All' || genderFilter !== 'All' || designationFilter !== 'All' || industryFilter !== 'All' || businessCountryFilter !== 'All' || businessCityFilter !== 'All' || batchFilter !== 'All') && (
               <button
                 onClick={() => {
                   setSearchTerm('');
@@ -3171,6 +3314,15 @@ export default function LeadsPage() {
                   setPriorityFilter('All');
                   setTypeFilter('All');
                   setTagsFilter('All');
+                  setCityFilter('All');
+                  setStateFilter('All');
+                  setCountryFilter('All');
+                  setGenderFilter('All');
+                  setDesignationFilter('All');
+                  setIndustryFilter('All');
+                  setBusinessCountryFilter('All');
+                  setBusinessCityFilter('All');
+                  setBatchFilter('All');
                   setCurrentPage(1);
                 }}
                 className="text-xs font-semibold px-3 py-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-lg transition shrink-0 cursor-pointer"
@@ -3181,6 +3333,146 @@ export default function LeadsPage() {
 
           </div>
         </div>
+
+        {/* Advanced Collapsible Filters Panel */}
+        {showAdvancedFilters && (
+          <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/20 dark:bg-slate-900/20 grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-top-1 duration-200">
+            {/* Section 1: Personal Details */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                Personal Details
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Country */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Country</label>
+                  <select
+                    value={countryFilter}
+                    onChange={(e) => { setCountryFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                  >
+                    <option value="All">All Countries</option>
+                    {allUniqueCountries.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                {/* State */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">State</label>
+                  <select
+                    value={stateFilter}
+                    onChange={(e) => { setStateFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                  >
+                    <option value="All">All States</option>
+                    {allUniqueStates.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                {/* City */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">City</label>
+                  <select
+                    value={cityFilter}
+                    onChange={(e) => { setCityFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                  >
+                    <option value="All">All Cities</option>
+                    {allUniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                {/* Gender */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Gender</label>
+                  <select
+                    value={genderFilter}
+                    onChange={(e) => { setGenderFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                  >
+                    <option value="All">All Genders</option>
+                    {allUniqueGenders.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Business Details */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                Business Details
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Designation */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Designation</label>
+                  <select
+                    value={designationFilter}
+                    onChange={(e) => { setDesignationFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                  >
+                    <option value="All">All Designations</option>
+                    {allUniqueDesignations.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                {/* Industry */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Industry</label>
+                  <select
+                    value={industryFilter}
+                    onChange={(e) => { setIndustryFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                  >
+                    <option value="All">All Industries</option>
+                    {allUniqueIndustries.map(i => <option key={i} value={i}>{i}</option>)}
+                  </select>
+                </div>
+                {/* Business Country */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Business Country</label>
+                  <select
+                    value={businessCountryFilter}
+                    onChange={(e) => { setBusinessCountryFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                  >
+                    <option value="All">All Bus. Countries</option>
+                    {allUniqueBusinessCountries.map(bc => <option key={bc} value={bc}>{bc}</option>)}
+                  </select>
+                </div>
+                {/* Business City */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Business City</label>
+                  <select
+                    value={businessCityFilter}
+                    onChange={(e) => { setBusinessCityFilter(e.target.value); setCurrentPage(1); }}
+                    className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                  >
+                    <option value="All">All Bus. Cities</option>
+                    {allUniqueBusinessCities.map(bc => <option key={bc} value={bc}>{bc}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Ingestion Details */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Upload className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                Ingestion Details
+              </h4>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400">Batch Upload</label>
+                <select
+                  value={batchFilter}
+                  onChange={(e) => { setBatchFilter(e.target.value); setCurrentPage(1); }}
+                  className="w-full border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-1 bg-white dark:bg-slate-700 text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-none dark:text-slate-200"
+                >
+                  <option value="All">All Batches</option>
+                  {allUniqueBatches.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Data Grid Table */}
         <div className="overflow-x-auto">
@@ -3408,7 +3700,7 @@ export default function LeadsPage() {
                     )}
                     {visibleColumns.full_name !== false && (
                       <td className="py-3 px-4 text-xs font-medium text-slate-900 dark:text-white whitespace-nowrap">
-                        <span>{lead.full_name || lead.company_name || 'Unnamed Lead'}</span>
+                        <span>{lead.full_name || '-'}</span>
                       </td>
                     )}
                     {visibleColumns.phone !== false && (
