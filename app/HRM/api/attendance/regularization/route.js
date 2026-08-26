@@ -93,8 +93,29 @@ function normalizeAttendanceStatus(status) {
   return normalized;
 }
 
+function resolveAttendanceStatus(attendanceRow) {
+  if (!attendanceRow) {
+    return 'absent';
+  }
+
+  let status = normalizeAttendanceStatus(attendanceRow.status || attendanceRow.attendance_status);
+  const checkInValue = attendanceRow.check_in_at || attendanceRow.check_in || null;
+  const checkOutValue = attendanceRow.check_out_at || attendanceRow.check_out || null;
+
+  if (checkInValue && !checkOutValue && status === 'present') {
+    const isOverwrittenPresent = typeof attendanceRow.notes === 'string' && (
+      attendanceRow.notes.includes('to Present') ||
+      attendanceRow.notes.includes('Overwritten by Hr Admin')
+    );
+    if (!isOverwrittenPresent) {
+      status = 'halfday';
+    }
+  }
+  return status;
+}
+
 function getCurrentAttendanceStatusLabel(attendanceRow) {
-  const status = normalizeAttendanceStatus(attendanceRow?.status || attendanceRow?.attendance_status);
+  const status = resolveAttendanceStatus(attendanceRow);
   switch (status) {
     case 'halfday':
       return 'Half Day';
@@ -106,17 +127,12 @@ function getCurrentAttendanceStatusLabel(attendanceRow) {
 }
 
 function getCurrentAttendanceStatusValue(attendanceRow) {
-  const status = normalizeAttendanceStatus(attendanceRow?.status || attendanceRow?.attendance_status);
-  if (!status) {
-    return 'absent';
-  }
-  return status;
+  return resolveAttendanceStatus(attendanceRow);
 }
 
 function isEligibleAttendanceStatus(attendanceRow) {
-  return ['halfday', 'absent'].includes(
-    normalizeAttendanceStatus(attendanceRow?.status || attendanceRow?.attendance_status)
-  );
+  const status = resolveAttendanceStatus(attendanceRow);
+  return ['halfday', 'absent'].includes(status);
 }
 
 function buildEligibleDay(date, attendanceRow, hasHalfDayLeave = false) {
@@ -129,7 +145,7 @@ function buildEligibleDay(date, attendanceRow, hasHalfDayLeave = false) {
     };
   }
 
-  const status = normalizeAttendanceStatus(attendanceRow.status || attendanceRow.attendance_status);
+  const status = resolveAttendanceStatus(attendanceRow);
   if (status === 'halfday') {
     return { date, kind: 'gap', label: 'Half Day', hasHalfDayLeave };
   }
@@ -227,7 +243,7 @@ export async function GET(request) {
     const { start, end } = getDateRangeForMonth(month);
     const today = getCurrentDateInTimeZone();
 
-    const [attendanceResult, regularizationResult, hrApprovers, reportingManager, leaveRequestsResult] = await Promise.all([
+    const [attendanceResult, regularizationResult, hrApprovers, reportingManager, leaveRequestsResult, holidayResult] = await Promise.all([
       adminClient
         .from('hrm_attendance')
         .select('*')
@@ -251,10 +267,16 @@ export async function GET(request) {
         .eq('status', 'approved')
         .lte('start_date', end)
         .gte('end_date', start),
+      adminClient
+        .from('hrm_holidays')
+        .select('date')
+        .gte('date', start)
+        .lte('date', end),
     ]);
 
     const { data: attendanceRows, error: attendanceError } = attendanceResult;
     const { data: regularizationRows, error: regularizationError } = regularizationResult;
+    const { data: holidayRows, error: holidayError } = holidayResult;
 
     if (attendanceError) {
       return NextResponse.json({ error: attendanceError.message || 'Failed to load attendance issues' }, { status: 500 });
@@ -270,26 +292,38 @@ export async function GET(request) {
       return NextResponse.json({ error: regularizationError.message || 'Failed to load regularization requests' }, { status: 500 });
     }
 
+    if (holidayError && !isMissingHolidayTableError(holidayError)) {
+      return NextResponse.json({ error: holidayError.message || 'Failed to load holidays' }, { status: 500 });
+    }
+
     const requestIds = (regularizationRows || []).map((row) => row.id).filter(Boolean);
     let recipientsByRequestId = {};
 
     if (requestIds.length > 0) {
-      const { data: recipientRows, error: recipientError } = await adminClient
-        .from('hrm_regularization_request_recipients')
-        .select('*')
-        .in('request_id', requestIds);
+      let recipientRows = [];
+      const chunkSize = 100;
+      for (let i = 0; i < requestIds.length; i += chunkSize) {
+        const chunk = requestIds.slice(i, i + chunkSize);
+        const { data: chunkRows, error: recipientError } = await adminClient
+          .from('hrm_regularization_request_recipients')
+          .select('*')
+          .in('request_id', chunk);
 
-      if (recipientError) {
-        if (isMissingRegularizationSchemaError(recipientError)) {
-          return NextResponse.json(
-            { month, eligibleDays: [], pending: [], history: [], hrApprovers, reportingManager, setupPending: true },
-            { status: 200 }
-          );
+        if (recipientError) {
+          if (isMissingRegularizationSchemaError(recipientError)) {
+            return NextResponse.json(
+              { month, eligibleDays: [], pending: [], history: [], hrApprovers, reportingManager, setupPending: true },
+              { status: 200 }
+            );
+          }
+          return NextResponse.json({ error: recipientError.message || 'Failed to load regularization recipients' }, { status: 500 });
         }
-        return NextResponse.json({ error: recipientError.message || 'Failed to load regularization recipients' }, { status: 500 });
+        if (chunkRows) {
+          recipientRows = recipientRows.concat(chunkRows);
+        }
       }
 
-      recipientsByRequestId = groupRecipientsByRequestId(recipientRows || []);
+      recipientsByRequestId = groupRecipientsByRequestId(recipientRows);
     }
 
     const attendanceMap = new Map((attendanceRows || []).map((row) => [row.date, row]));
@@ -314,9 +348,16 @@ export async function GET(request) {
       }
     }
 
+    const holidayDates = new Set((holidayRows || []).map((row) => row.date));
+
     const eligibleDays = [];
     for (const date of listDatesInRange(start, end)) {
-      if (date > today || resolvedDates.has(date) || isEmployeeScheduledOff(date, employeeContext.employeeSchedule)) {
+      if (
+        date > today ||
+        resolvedDates.has(date) ||
+        isEmployeeScheduledOff(date, employeeContext.employeeSchedule) ||
+        holidayDates.has(date)
+      ) {
         continue;
       }
 

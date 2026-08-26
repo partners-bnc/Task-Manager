@@ -66,34 +66,52 @@ export async function GET() {
 
     const requestIds = [...new Set(myRecipientRows.map((r) => r.request_id).filter(Boolean))];
 
-    const { data: rows, error: requestError } = await adminClient
-      .from('hrm_regularization_requests')
-      .select(`
-        *,
-        employee:hrm_employees!hrm_regularization_requests_employee_id_fkey (
-          id,
-          employee_id,
-          name,
-          email
-        )
-      `)
-      .in('id', requestIds)
-      .order('created_at', { ascending: false });
+    let rows = [];
+    let allRecipientRows = [];
+    const chunkSize = 100;
 
-    if (requestError) {
-      return NextResponse.json({ error: requestError.message || 'Failed to load requests' }, { status: 500 });
+    for (let i = 0; i < requestIds.length; i += chunkSize) {
+      const chunk = requestIds.slice(i, i + chunkSize);
+
+      const [requestResult, recipientResult] = await Promise.all([
+        adminClient
+          .from('hrm_regularization_requests')
+          .select(`
+            *,
+            employee:hrm_employees!hrm_regularization_requests_employee_id_fkey (
+              id,
+              employee_id,
+              name,
+              email
+            )
+          `)
+          .in('id', chunk),
+        adminClient
+          .from('hrm_regularization_request_recipients')
+          .select('*')
+          .in('request_id', chunk)
+      ]);
+
+      if (requestResult.error) {
+        return NextResponse.json({ error: requestResult.error.message || 'Failed to load requests' }, { status: 500 });
+      }
+
+      if (recipientResult.error) {
+        return NextResponse.json({ error: recipientResult.error.message || 'Failed to load recipients' }, { status: 500 });
+      }
+
+      if (requestResult.data) {
+        rows = rows.concat(requestResult.data);
+      }
+      if (recipientResult.data) {
+        allRecipientRows = allRecipientRows.concat(recipientResult.data);
+      }
     }
 
-    const { data: allRecipientRows, error: allRecipientsError } = await adminClient
-      .from('hrm_regularization_request_recipients')
-      .select('*')
-      .in('request_id', requestIds);
+    // Sort requests by created_at descending
+    rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    if (allRecipientsError) {
-      return NextResponse.json({ error: allRecipientsError.message || 'Failed to load recipients' }, { status: 500 });
-    }
-
-    const recipientsByRequestId = groupRecipientsByRequestId(allRecipientRows || []);
+    const recipientsByRequestId = groupRecipientsByRequestId(allRecipientRows);
 
     const pendingForMe = [];
     const history = [];

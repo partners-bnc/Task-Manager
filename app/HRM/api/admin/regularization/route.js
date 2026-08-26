@@ -99,19 +99,27 @@ export async function GET() {
     let recipientsByRequestId = {};
 
     if (requestIds.length > 0) {
-      const { data: recipientRows, error: recipientError } = await adminClient
-        .from('hrm_regularization_request_recipients')
-        .select('*')
-        .in('request_id', requestIds);
+      let recipientRows = [];
+      const chunkSize = 100;
+      for (let i = 0; i < requestIds.length; i += chunkSize) {
+        const chunk = requestIds.slice(i, i + chunkSize);
+        const { data: chunkRows, error: recipientError } = await adminClient
+          .from('hrm_regularization_request_recipients')
+          .select('*')
+          .in('request_id', chunk);
 
-      if (recipientError) {
-        if (isMissingRegularizationSchemaError(recipientError)) {
-          return NextResponse.json({ pendingForMe: [], ccItems: [], history: [], setupPending: true }, { status: 200 });
+        if (recipientError) {
+          if (isMissingRegularizationSchemaError(recipientError)) {
+            return NextResponse.json({ pendingForMe: [], ccItems: [], history: [], setupPending: true }, { status: 200 });
+          }
+          return NextResponse.json({ error: recipientError.message || 'Failed to load regularization recipients' }, { status: 500 });
         }
-        return NextResponse.json({ error: recipientError.message || 'Failed to load regularization recipients' }, { status: 500 });
+        if (chunkRows) {
+          recipientRows = recipientRows.concat(chunkRows);
+        }
       }
 
-      recipientsByRequestId = groupRecipientsByRequestId(recipientRows || []);
+      recipientsByRequestId = groupRecipientsByRequestId(recipientRows);
     }
 
     const pendingForMe = [];
