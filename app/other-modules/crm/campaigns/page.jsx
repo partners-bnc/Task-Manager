@@ -33,6 +33,8 @@ import {
   Send,
   MousePointerClick,
   AlertTriangle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 export default function CampaignsPage() {
@@ -68,7 +70,22 @@ export default function CampaignsPage() {
   const [filterStatuses, setFilterStatuses] = useState([]);
   const [filterPriorities, setFilterPriorities] = useState([]);
   const [filterCategories, setFilterCategories] = useState([]);
+  const [filterCities, setFilterCities] = useState([]);
+  const [filterStates, setFilterStates] = useState([]);
+  const [filterCountries, setFilterCountries] = useState([]);
+  const [filterGenders, setFilterGenders] = useState([]);
+  const [filterDesignations, setFilterDesignations] = useState([]);
+  const [filterIndustries, setFilterIndustries] = useState([]);
+  const [filterBusinessCountries, setFilterBusinessCountries] = useState([]);
+  const [filterBusinessCities, setFilterBusinessCities] = useState([]);
+  const [filterBatches, setFilterBatches] = useState([]);
   const [filterTags, setFilterTags] = useState("");
+  const [openSections, setOpenSections] = useState({
+    classification: true,
+    personal: false,
+    business: false,
+    ingestion: false
+  });
   // Template & Schedule
   const [wizardTemplateId, setWizardTemplateId] = useState("");
   const [wizardEmailFormat, setWizardEmailFormat] = useState("html");
@@ -118,10 +135,19 @@ export default function CampaignsPage() {
   }, [selectedCampaignId, toast]);
 
   // Unique filter values derived dynamically from current leads list
-  const uniqueSources = useMemo(() => [...new Set(leads.map((l) => l.lead_source).filter(Boolean))], [leads]);
-  const uniqueStatuses = useMemo(() => [...new Set(leads.map((l) => l.lead_status).filter(Boolean))], [leads]);
-  const uniquePriorities = useMemo(() => [...new Set(leads.map((l) => l.priority).filter(Boolean))], [leads]);
-  const uniqueCategories = useMemo(() => [...new Set(leads.map((l) => l.lead_category).filter(Boolean))], [leads]);
+  const uniqueSources = useMemo(() => [...new Set(leads.map((l) => l.lead_source).filter(Boolean))].sort(), [leads]);
+  const uniqueStatuses = useMemo(() => [...new Set(leads.map((l) => l.lead_status).filter(Boolean))].sort(), [leads]);
+  const uniquePriorities = useMemo(() => [...new Set(leads.map((l) => l.priority).filter(Boolean))].sort(), [leads]);
+  const uniqueCategories = useMemo(() => [...new Set(leads.map((l) => l.lead_category).filter(Boolean))].sort(), [leads]);
+  const uniqueCities = useMemo(() => [...new Set(leads.map((l) => l.city?.trim()).filter(Boolean))].sort(), [leads]);
+  const uniqueStates = useMemo(() => [...new Set(leads.map((l) => l.state?.trim()).filter(Boolean))].sort(), [leads]);
+  const uniqueCountries = useMemo(() => [...new Set(leads.map((l) => l.country?.trim()).filter(Boolean))].sort(), [leads]);
+  const uniqueGenders = useMemo(() => [...new Set(leads.map((l) => l.gender?.trim()).filter(Boolean))].sort(), [leads]);
+  const uniqueDesignations = useMemo(() => [...new Set(leads.map((l) => l.designation?.trim()).filter(Boolean))].sort(), [leads]);
+  const uniqueIndustries = useMemo(() => [...new Set(leads.map((l) => l.industry?.trim()).filter(Boolean))].sort(), [leads]);
+  const uniqueBusinessCountries = useMemo(() => [...new Set(leads.map((l) => l.business_country?.trim()).filter(Boolean))].sort(), [leads]);
+  const uniqueBusinessCities = useMemo(() => [...new Set(leads.map((l) => l.business_city?.trim()).filter(Boolean))].sort(), [leads]);
+  const uniqueBatches = useMemo(() => [...new Set(leads.map((l) => l.source_batch?.trim()).filter(Boolean))].sort(), [leads]);
 
   // Real-time matched leads selector based on wizard criteria
   const matchedLeads = useMemo(() => {
@@ -137,6 +163,21 @@ export default function CampaignsPage() {
       if (filterPriorities.length > 0 && !filterPriorities.includes(lead.priority)) return false;
       // Category filter
       if (filterCategories.length > 0 && !filterCategories.includes(lead.lead_category)) return false;
+      
+      // Personal Details filters
+      if (filterCities.length > 0 && !filterCities.includes(lead.city)) return false;
+      if (filterStates.length > 0 && !filterStates.includes(lead.state)) return false;
+      if (filterCountries.length > 0 && !filterCountries.includes(lead.country)) return false;
+      if (filterGenders.length > 0 && !filterGenders.includes(lead.gender)) return false;
+
+      // Business Details filters
+      if (filterDesignations.length > 0 && !filterDesignations.includes(lead.designation)) return false;
+      if (filterIndustries.length > 0 && !filterIndustries.includes(lead.industry)) return false;
+      if (filterBusinessCountries.length > 0 && !filterBusinessCountries.includes(lead.business_country)) return false;
+      if (filterBusinessCities.length > 0 && !filterBusinessCities.includes(lead.business_city)) return false;
+
+      // Ingestion filter
+      if (filterBatches.length > 0 && !filterBatches.includes(lead.source_batch)) return false;
 
       // Tags filter
       if (filterTags.trim()) {
@@ -147,7 +188,7 @@ export default function CampaignsPage() {
 
       return true;
     });
-  }, [leads, filterSources, filterStatuses, filterPriorities, filterCategories, filterTags]);
+  }, [leads, filterSources, filterStatuses, filterPriorities, filterCategories, filterCities, filterStates, filterCountries, filterGenders, filterDesignations, filterIndustries, filterBusinessCountries, filterBusinessCities, filterBatches, filterTags]);
 
   const selectedTemplate = useMemo(() => {
     if (!wizardTemplateId) return null;
@@ -176,6 +217,15 @@ export default function CampaignsPage() {
     if (filterStatuses.length > 0) targetFilter.lead_status = filterStatuses;
     if (filterPriorities.length > 0) targetFilter.priority = filterPriorities;
     if (filterCategories.length > 0) targetFilter.lead_category = filterCategories;
+    if (filterCities.length > 0) targetFilter.city = filterCities;
+    if (filterStates.length > 0) targetFilter.state = filterStates;
+    if (filterCountries.length > 0) targetFilter.country = filterCountries;
+    if (filterGenders.length > 0) targetFilter.gender = filterGenders;
+    if (filterDesignations.length > 0) targetFilter.designation = filterDesignations;
+    if (filterIndustries.length > 0) targetFilter.industry = filterIndustries;
+    if (filterBusinessCountries.length > 0) targetFilter.business_country = filterBusinessCountries;
+    if (filterBusinessCities.length > 0) targetFilter.business_city = filterBusinessCities;
+    if (filterBatches.length > 0) targetFilter.source_batch = filterBatches;
     if (filterTags.trim()) targetFilter.tags = filterTags.trim();
 
     const templateId = Number(wizardTemplateId);
@@ -206,6 +256,15 @@ export default function CampaignsPage() {
       setFilterStatuses([]);
       setFilterPriorities([]);
       setFilterCategories([]);
+      setFilterCities([]);
+      setFilterStates([]);
+      setFilterCountries([]);
+      setFilterGenders([]);
+      setFilterDesignations([]);
+      setFilterIndustries([]);
+      setFilterBusinessCountries([]);
+      setFilterBusinessCities([]);
+      setFilterBatches([]);
       setFilterTags("");
       setWizardTemplateId("");
       setWizardEmailFormat("html");
@@ -526,87 +585,387 @@ export default function CampaignsPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                   {/* Filters selector */}
-                  <div className="md:col-span-5 space-y-4 bg-slate-50/50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-100 dark:border-slate-850">
-                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2">Filter Options</h4>
-
-                    {/* Source filter */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Source</label>
-                      <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-white dark:bg-slate-900 space-y-1">
-                        {uniqueSources.map(src => (
-                          <label key={src} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={filterSources.includes(src)}
-                              onChange={(e) => {
-                                if (e.target.checked) setFilterSources(prev => [...prev, src]);
-                                else setFilterSources(prev => prev.filter(v => v !== src));
-                              }}
-                              className="rounded text-blue-500 border-slate-200"
-                            />
-                            {src}
-                          </label>
-                        ))}
-                      </div>
+                  <div className="md:col-span-5 flex flex-col border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden h-[480px] bg-slate-50/30 dark:bg-slate-900/30">
+                    <div className="p-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-350">Filter Options</span>
                     </div>
 
-                    {/* Status filter */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Status</label>
-                      <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-white dark:bg-slate-900 space-y-1">
-                        {uniqueStatuses.map(status => (
-                          <label key={status} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={filterStatuses.includes(status)}
-                              onChange={(e) => {
-                                if (e.target.checked) setFilterStatuses(prev => [...prev, status]);
-                                else setFilterStatuses(prev => prev.filter(v => v !== status));
-                              }}
-                              className="rounded text-blue-500 border-slate-200"
-                            />
-                            {status}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
+                    <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin">
+                      {/* Section 1: Classification Details */}
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                        <button
+                          type="button"
+                          onClick={() => setOpenSections(prev => ({ ...prev, classification: !prev.classification }))}
+                          className="w-full flex items-center justify-between p-3 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-850/50 border-b border-slate-100 dark:border-slate-800 cursor-pointer select-none"
+                        >
+                          <span>Classification Details</span>
+                          {openSections.classification ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                        {openSections.classification && (
+                          <div className="p-3 space-y-3.5">
+                            {/* Source Filter */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Source</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueSources.length === 0 ? <p className="text-[10px] italic text-slate-400">No sources found</p> :
+                                  uniqueSources.map(src => (
+                                    <label key={src} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterSources.includes(src)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterSources(prev => [...prev, src]);
+                                          else setFilterSources(prev => prev.filter(v => v !== src));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {src}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
 
-                    {/* Priority filter */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Priority</label>
-                      <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-white dark:bg-slate-900 space-y-1">
-                        {uniquePriorities.map(prio => (
-                          <label key={prio} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={filterPriorities.includes(prio)}
-                              onChange={(e) => {
-                                if (e.target.checked) setFilterPriorities(prev => [...prev, prio]);
-                                else setFilterPriorities(prev => prev.filter(v => v !== prio));
-                              }}
-                              className="rounded text-blue-500 border-slate-200"
-                            />
-                            {prio}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
+                            {/* Status Filter */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Status</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueStatuses.length === 0 ? <p className="text-[10px] italic text-slate-400">No statuses found</p> :
+                                  uniqueStatuses.map(status => (
+                                    <label key={status} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterStatuses.includes(status)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterStatuses(prev => [...prev, status]);
+                                          else setFilterStatuses(prev => prev.filter(v => v !== status));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {status}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
 
-                    {/* Tag filter */}
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Tags contain</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. tech, referral"
-                        value={filterTags}
-                        onChange={(e) => setFilterTags(e.target.value)}
-                        className="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none text-xs"
-                      />
+                            {/* Priority Filter */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Priority</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniquePriorities.length === 0 ? <p className="text-[10px] italic text-slate-400">No priorities found</p> :
+                                  uniquePriorities.map(prio => (
+                                    <label key={prio} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterPriorities.includes(prio)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterPriorities(prev => [...prev, prio]);
+                                          else setFilterPriorities(prev => prev.filter(v => v !== prio));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {prio}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+
+                            {/* Category Filter */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Category</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueCategories.length === 0 ? <p className="text-[10px] italic text-slate-400">No categories found</p> :
+                                  uniqueCategories.map(cat => (
+                                    <label key={cat} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterCategories.includes(cat)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterCategories(prev => [...prev, cat]);
+                                          else setFilterCategories(prev => prev.filter(v => v !== cat));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {cat}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+
+                            {/* Tags Contain */}
+                            <div className="space-y-1">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Tags contain</label>
+                              <input
+                                type="text"
+                                placeholder="e.g. tech, referral"
+                                value={filterTags}
+                                onChange={(e) => setFilterTags(e.target.value)}
+                                className="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none text-xs"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Section 2: Personal Details */}
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                        <button
+                          type="button"
+                          onClick={() => setOpenSections(prev => ({ ...prev, personal: !prev.personal }))}
+                          className="w-full flex items-center justify-between p-3 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-850/50 border-b border-slate-100 dark:border-slate-800 cursor-pointer select-none"
+                        >
+                          <span>Personal Details</span>
+                          {openSections.personal ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                        {openSections.personal && (
+                          <div className="p-3 space-y-3.5">
+                            {/* Country */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Country</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueCountries.length === 0 ? <p className="text-[10px] italic text-slate-400">No countries found</p> :
+                                  uniqueCountries.map(c => (
+                                    <label key={c} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterCountries.includes(c)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterCountries(prev => [...prev, c]);
+                                          else setFilterCountries(prev => prev.filter(v => v !== c));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {c}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+
+                            {/* State */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">State</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueStates.length === 0 ? <p className="text-[10px] italic text-slate-400">No states found</p> :
+                                  uniqueStates.map(s => (
+                                    <label key={s} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterStates.includes(s)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterStates(prev => [...prev, s]);
+                                          else setFilterStates(prev => prev.filter(v => v !== s));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {s}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+
+                            {/* City */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">City</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueCities.length === 0 ? <p className="text-[10px] italic text-slate-400">No cities found</p> :
+                                  uniqueCities.map(c => (
+                                    <label key={c} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterCities.includes(c)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterCities(prev => [...prev, c]);
+                                          else setFilterCities(prev => prev.filter(v => v !== c));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {c}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+
+                            {/* Gender */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Gender</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueGenders.length === 0 ? <p className="text-[10px] italic text-slate-400">No genders found</p> :
+                                  uniqueGenders.map(g => (
+                                    <label key={g} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterGenders.includes(g)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterGenders(prev => [...prev, g]);
+                                          else setFilterGenders(prev => prev.filter(v => v !== g));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {g}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Section 3: Business Details */}
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                        <button
+                          type="button"
+                          onClick={() => setOpenSections(prev => ({ ...prev, business: !prev.business }))}
+                          className="w-full flex items-center justify-between p-3 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-850/50 border-b border-slate-100 dark:border-slate-800 cursor-pointer select-none"
+                        >
+                          <span>Business Details</span>
+                          {openSections.business ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                        {openSections.business && (
+                          <div className="p-3 space-y-3.5">
+                            {/* Designation */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Designation</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueDesignations.length === 0 ? <p className="text-[10px] italic text-slate-400">No designations found</p> :
+                                  uniqueDesignations.map(d => (
+                                    <label key={d} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterDesignations.includes(d)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterDesignations(prev => [...prev, d]);
+                                          else setFilterDesignations(prev => prev.filter(v => v !== d));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {d}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+
+                            {/* Industry */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Industry</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueIndustries.length === 0 ? <p className="text-[10px] italic text-slate-400">No industries found</p> :
+                                  uniqueIndustries.map(i => (
+                                    <label key={i} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterIndustries.includes(i)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterIndustries(prev => [...prev, i]);
+                                          else setFilterIndustries(prev => prev.filter(v => v !== i));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {i}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+
+                            {/* Business Country */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Business Country</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueBusinessCountries.length === 0 ? <p className="text-[10px] italic text-slate-400">No bus. countries found</p> :
+                                  uniqueBusinessCountries.map(bc => (
+                                    <label key={bc} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterBusinessCountries.includes(bc)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterBusinessCountries(prev => [...prev, bc]);
+                                          else setFilterBusinessCountries(prev => prev.filter(v => v !== bc));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {bc}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+
+                            {/* Business City */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Business City</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueBusinessCities.length === 0 ? <p className="text-[10px] italic text-slate-400">No bus. cities found</p> :
+                                  uniqueBusinessCities.map(bc => (
+                                    <label key={bc} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterBusinessCities.includes(bc)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterBusinessCities(prev => [...prev, bc]);
+                                          else setFilterBusinessCities(prev => prev.filter(v => v !== bc));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {bc}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Section 4: Ingestion Details */}
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                        <button
+                          type="button"
+                          onClick={() => setOpenSections(prev => ({ ...prev, ingestion: !prev.ingestion }))}
+                          className="w-full flex items-center justify-between p-3 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-850/50 border-b border-slate-100 dark:border-slate-800 cursor-pointer select-none"
+                        >
+                          <span>Ingestion Details</span>
+                          {openSections.ingestion ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                        {openSections.ingestion && (
+                          <div className="p-3 space-y-3.5">
+                            {/* Batch Filter */}
+                            <div className="space-y-1.5">
+                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Batch Upload</label>
+                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                                {uniqueBatches.length === 0 ? <p className="text-[10px] italic text-slate-400">No batches found</p> :
+                                  uniqueBatches.map(b => (
+                                    <label key={b} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={filterBatches.includes(b)}
+                                        onChange={(e) => {
+                                          if (e.target.checked) setFilterBatches(prev => [...prev, b]);
+                                          else setFilterBatches(prev => prev.filter(v => v !== b));
+                                        }}
+                                        className="rounded text-blue-500 border-slate-200 cursor-pointer"
+                                      />
+                                      {b}
+                                    </label>
+                                  ))
+                                }
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   {/* Matched Preview */}
-                  <div className="md:col-span-7 flex flex-col border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden h-[340px] bg-white dark:bg-slate-950">
+                  <div className="md:col-span-7 flex flex-col border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden h-[480px] bg-white dark:bg-slate-950">
                     <div className="p-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
                       <span className="text-xs font-bold text-slate-700 dark:text-slate-350">Matched Lead List</span>
                       <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full dark:bg-blue-900/30 dark:text-blue-400">
