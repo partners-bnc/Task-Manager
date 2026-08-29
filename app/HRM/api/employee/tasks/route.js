@@ -395,7 +395,7 @@ export async function PATCH(request) {
     }
 
     const employee = actorData.employee;
-    const { taskId, status, subtaskTitle, subtaskId, isCompleted, assignedEmployeeId, subtaskStatus } = await request.json();
+    const { taskId, status, subtaskTitle, subtaskId, isCompleted, assignedEmployeeId, subtaskStatus, progressPercentage } = await request.json();
 
     if (taskId && subtaskTitle) {
       const cleanTitle = String(subtaskTitle).trim();
@@ -542,6 +542,28 @@ export async function PATCH(request) {
       }
     }
 
+    // Check if task has subtasks to determine if progress should be auto-set
+    const { count: subtaskCount, error: subtaskCountError } = await adminClient
+      .from('task_subtasks')
+      .select('id', { count: 'exact', head: true })
+      .eq('task_id', taskId);
+
+    if (subtaskCountError) {
+      return NextResponse.json({ error: subtaskCountError.message }, { status: 500 });
+    }
+
+    const hasSubtasks = (subtaskCount || 0) > 0;
+    const progressUpdate = {};
+    if (typeof progressPercentage === 'number') {
+      progressUpdate.progress_percentage = Math.min(100, Math.max(0, Math.round(progressPercentage)));
+    } else if (!hasSubtasks) {
+      if (status === 'completed') {
+        progressUpdate.progress_percentage = 100;
+      } else if (status === 'pending') {
+        progressUpdate.progress_percentage = 0;
+      }
+    }
+
     const nextUpdatedAt = new Date().toISOString();
     const { data: updatedTasks, error: updateTaskError } = await adminClient
       .from('tasks')
@@ -549,6 +571,7 @@ export async function PATCH(request) {
         status,
         completed_at: status === 'completed' ? nextUpdatedAt : null,
         updated_at: nextUpdatedAt,
+        ...progressUpdate,
       })
       .eq('id', taskId)
       .neq('status', status)

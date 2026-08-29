@@ -1300,18 +1300,38 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
 
     const previousStatus = task.status;
     const previousCompletedAt = task.completed_at || null;
+    const previousProgress = task.progress_percentage;
+
+    const hasSubtasks = Array.isArray(task.task_subtasks) && task.task_subtasks.length > 0;
+    const nextProgress = !hasSubtasks
+      ? (nextStatus === 'completed' ? 100 : (nextStatus === 'to_do' || nextStatus === 'pending' ? 0 : task.progress_percentage))
+      : undefined;
+
     const nextCompletedAt = nextStatus === 'completed'
       ? previousCompletedAt || new Date().toISOString()
       : null;
+
+    if (nextProgress !== undefined) {
+      setProgressDraft(nextProgress);
+    }
+
     setSaving(true);
     setError('');
-    setTask((prev) => (prev ? { ...prev, status: nextStatus, completed_at: nextCompletedAt } : prev));
+    setTask((prev) => (prev ? { 
+      ...prev, 
+      status: nextStatus, 
+      completed_at: nextCompletedAt,
+      ...(nextProgress !== undefined ? { progress_percentage: nextProgress } : {})
+    } : prev));
 
     try {
       const response = await fetch(`/Taskmanager/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: nextStatus }),
+        body: JSON.stringify({ 
+          status: nextStatus,
+          ...(nextProgress !== undefined ? { progressPercentage: nextProgress } : {})
+        }),
       });
 
       const result = await response.json();
@@ -1319,7 +1339,15 @@ function TaskDetailPageInner({ taskId, mode = 'employee' }) {
         throw new Error(result.error || 'Failed to update task status');
       }
     } catch (err) {
-      setTask((prev) => (prev ? { ...prev, status: previousStatus, completed_at: previousCompletedAt } : prev));
+      setTask((prev) => (prev ? { 
+        ...prev, 
+        status: previousStatus, 
+        completed_at: previousCompletedAt,
+        ...(nextProgress !== undefined ? { progress_percentage: previousProgress } : {})
+      } : prev));
+      if (nextProgress !== undefined) {
+        setProgressDraft(previousProgress);
+      }
       setError(err.message || 'Failed to update task status');
     } finally {
       setSaving(false);

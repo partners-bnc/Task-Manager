@@ -499,18 +499,29 @@ export function DataProvider({ children, initialUser = null, mode = 'employee', 
     const nextStatusApi = STATUS_TO_API[nextStatusLabel] || 'pending';
     const previousTasks = tasks;
 
+    const targetTask = tasks.find((t) => t.id === taskId);
+    const hasSubtasks = targetTask && (targetTask.totalSubtasks || 0) > 0;
+    const nextProgress = !hasSubtasks
+      ? (nextStatusApi === 'completed' ? 100 : (nextStatusApi === 'pending' ? 0 : targetTask?.progressPercentage))
+      : undefined;
+
     setTasks((prev) =>
       prev.map((task) =>
         task.id === taskId
-          ? { ...task, status: nextStatusLabel, rawStatus: nextStatusApi }
+          ? { 
+              ...task, 
+              status: nextStatusLabel, 
+              rawStatus: nextStatusApi,
+              ...(nextProgress !== undefined ? { progressPercentage: nextProgress } : {})
+            }
           : task
       )
     );
 
     const endpoint = isAdminMode ? `/Taskmanager/api/tasks/${taskId}` : '/HRM/api/employee/tasks';
     const payload = isAdminMode
-      ? { status: nextStatusApi }
-      : { taskId, status: nextStatusApi };
+      ? { status: nextStatusApi, ...(nextProgress !== undefined ? { progressPercentage: nextProgress } : {}) }
+      : { taskId, status: nextStatusApi, ...(nextProgress !== undefined ? { progressPercentage: nextProgress } : {}) };
 
     const response = await fetch(endpoint, {
       method: 'PATCH',

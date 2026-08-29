@@ -72,11 +72,11 @@ export const CERTIFICATE_CONFIG = {
       marginBottom: 2,
     },
 
-    // Top Logo (BnC logo)
+    // Top Logo (BnC logo) - Using cropped image
     logo: {
-      width: 260,               // Center logo width
-      height: 190,              // Center logo height
-      marginTop: -210,
+      width: 115,               // Center logo width
+      height: 42,               // Center logo height (adjusted to match 1165x429 aspect ratio)
+      marginTop: 5,             // Clean margin top instead of -210
       marginBottom: 0,
       marginLeft: 0,
       marginRight: 0,
@@ -87,7 +87,7 @@ export const CERTIFICATE_CONFIG = {
       text: 'Cerificate',       // Text value matching the target image
       fontSize: 60,
       color: '#0C2D58',
-      marginTop: -90,
+      marginTop: 5,             // Clean margin top instead of -90
       marginBottom: 0,
       letterSpacing: 6,         // Wider spacing at the top
     },
@@ -137,9 +137,9 @@ export const CERTIFICATE_CONFIG = {
       marginBottom: 10,
       letterSpacing: 0.8,       // Added letter spacing to make it wider
 
-      // Course Designation Name Styling (December Calligraphy cursive)
-      courseFont: 'DecemberCalligraphy',
-      courseFontSize: 24,       // Size for the cursive Course Name
+      // Course Designation Name Styling - Changed from cursive to clean bold
+      courseFont: 'InterBold',
+      courseFontSize: 15.5,       // Adjusted size for standard font inclusion
       courseColor: '#0C2D58',   // Blue color for designation script
     },
 
@@ -151,14 +151,14 @@ export const CERTIFICATE_CONFIG = {
       columnWidth: 160,
 
       // CEO Signature
-      ceoSignText: 'Anshu Prasad',
+      ceoSignText: 'Summit Goyal',
       ceoTextSize: 22,
       ceoColor: '#1E293B',
       ceoHeight: 32,
       ceoLabel: 'CEO of BnC',
 
       // HR Signature
-      hrSignText: 'Rashmita Sen',
+      hrSignText: 'Nehaa Srivastava',
       hrTextSize: 22,
       hrColor: '#1E293B',
       hrHeight: 32,
@@ -180,14 +180,14 @@ export const CERTIFICATE_CONFIG = {
       paddingTop: 0,
 
       // Left Favicon icon
-      faviconWidth: 100,        // Increased size slightly
-      faviconHeight: 100,       // Increased size slightly
+      faviconWidth: 75,        // Adjusted size to 75 to look neat and proportional
+      faviconHeight: 75,       // Adjusted size to 75 to look neat and proportional
 
-      // Bottom Center Logo
-      centerLogoWidth: 260,
-      centerLogoHeight: 190,    // Set height to 190 to match top logo size
-      centerLogoMarginTop: -65, // Crop top empty space
-      centerLogoMarginBottom: -115, // Crop bottom empty space to decrease space below logo
+      // Bottom Center Logo - Using cropped image
+      centerLogoWidth: 110,     // Adjusted size to fit footer layout
+      centerLogoHeight: 40,     // Adjusted size to fit footer layout
+      centerLogoMarginTop: -15,   // Shifted slightly upwards as requested
+      centerLogoMarginBottom: 10, // Adjusted gap spacing below logo
 
       // Bottom Mail Text
       mailTextSize: 8,          // Slightly reduced for neat proportions
@@ -202,8 +202,8 @@ export const CERTIFICATE_CONFIG = {
       contactIconSize: 11,      // Reduced icon size
 
       // Right Wax Seal badge
-      waxSealWidth: 100,        // Increased size 2X (from 50)
-      waxSealHeight: 100,       // Increased size 2X (from 50)
+      waxSealWidth: 75,        // Adjusted size to 75 to look neat and proportional
+      waxSealHeight: 75,       // Adjusted size to 75 to look neat and proportional
     }
   }
 };
@@ -384,7 +384,7 @@ const styles = StyleSheet.create({
     marginBottom: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.marginBottom,
   },
   recipientName: {
-    fontFamily: 'DecemberCalligraphy',
+    fontFamily: 'InterBold',
     fontSize: CERTIFICATE_CONFIG.rightColumn.recipientName.fontSize,
     color: CERTIFICATE_CONFIG.rightColumn.recipientName.color,
     textAlign: 'center',
@@ -412,9 +412,8 @@ const styles = StyleSheet.create({
     fontSize: CERTIFICATE_CONFIG.rightColumn.description.courseFontSize,
     color: CERTIFICATE_CONFIG.rightColumn.description.courseColor,
   },
-  underlineField: {
+  dateField: {
     fontFamily: 'InterBold',
-    textDecoration: 'underline',
   },
 
   // Signatures Section
@@ -475,8 +474,6 @@ const styles = StyleSheet.create({
   footerCenterInfo: {
     alignItems: 'center',
     flexDirection: 'column',
-    position: 'relative',
-    top: -45,
   },
   footerLogo: {
     width: CERTIFICATE_CONFIG.rightColumn.footer.centerLogoWidth,
@@ -592,7 +589,7 @@ export default function CertificatePDF({
 
             {/* Top Center Logo */}
             <View style={styles.logoContainer}>
-              <Image src="/assets/bnc consultech high.png" style={styles.logoImage} />
+              <Image src="/assets/bnc_consultech_high_cropped.png" style={styles.logoImage} />
             </View>
 
             {/* Header */}
@@ -615,10 +612,10 @@ export default function CertificatePDF({
                 </Svg>
               </View>
 
-              {/* Description Details paragraph (underlined and stylized) */}
+              {/* Description Details paragraph (bold and stylized) */}
               <Text style={styles.descriptionText}>
                 has successfully completed <Text style={styles.courseField}>{cleanDesignation}</Text> internship program, offered by{'\n'}
-                BnC Consultech from <Text style={styles.underlineField}>{formattedStart}</Text> to <Text style={styles.underlineField}>{formattedEnd}</Text>
+                BnC Consultech from <Text style={styles.dateField}>{formattedStart}</Text> to <Text style={styles.dateField}>{formattedEnd}</Text>
               </Text>
             </View>
 
@@ -666,7 +663,7 @@ export default function CertificatePDF({
 
               {/* Center Info: same logo + contact details with blue icons */}
               <View style={styles.footerCenterInfo}>
-                <Image src="/assets/bnc consultech high.png" style={styles.footerLogo} />
+                <Image src="/assets/bnc_consultech_high_cropped.png" style={styles.footerLogo} />
                 <Text style={styles.footerContactText}>
                   For More Information Mail Us:{' '}
                   <Text style={{ color: '#FF5722', fontFamily: 'InterBold' }}>support@bncglobal.in</Text>

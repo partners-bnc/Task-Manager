@@ -68,6 +68,8 @@ export default function CertificateGenerator() {
   // For QR code dynamic generation in the preview
   const [previewQrCodeUrl, setPreviewQrCodeUrl] = useState('');
   const [isClient, setIsClient] = useState(false);
+  const [scale, setScale] = useState(1);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -75,6 +77,17 @@ export default function CertificateGenerator() {
     loadEmployees();
     loadCertificates();
   }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
+    const updateScale = () => {
+      const width = containerRef.current?.clientWidth || 841.89;
+      setScale(width / 841.89);
+    };
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, [isClient]);
 
   // Update preview QR code in real-time
   useEffect(() => {
@@ -456,457 +469,486 @@ export default function CertificateGenerator() {
           </div>
 
           {/* Landscape container matching A4 ratio aspect-[1.414] */}
-          <div className="relative w-full aspect-[1.414] rounded-xl border border-slate-200 bg-white overflow-hidden shadow-md flex select-none">
+          <div ref={containerRef} className="relative w-full aspect-[1.414] rounded-xl border border-slate-200 bg-white overflow-hidden shadow-md flex select-none">
 
-            {/* Left Column */}
+            {/* A4 Landscape Virtual Canvas scaled to fit container */}
             <div
-              className="flex flex-col justify-between items-center text-white z-10"
+              className="flex absolute top-0 left-0 origin-top-left"
               style={{
-                width: CERTIFICATE_CONFIG.leftColumn.width,
-                backgroundColor: CERTIFICATE_CONFIG.leftColumn.backgroundColor,
-                paddingTop: CERTIFICATE_CONFIG.leftColumn.paddingTop,
-                paddingBottom: CERTIFICATE_CONFIG.leftColumn.paddingBottom,
-                paddingLeft: CERTIFICATE_CONFIG.leftColumn.paddingLeft,
-                paddingRight: CERTIFICATE_CONFIG.leftColumn.paddingRight,
+                width: '841.89px',
+                height: '595.28px',
+                transform: `scale(${scale})`,
               }}
             >
-              {/* Top Wreath Badge - spans edge-to-edge and scales slightly wider */}
+              {/* Left Column */}
               <div
-                className="w-full"
+                className="flex flex-col justify-between items-center text-white z-10"
                 style={{
-                  marginTop: CERTIFICATE_CONFIG.leftColumn.seal.marginTop,
-                  marginBottom: CERTIFICATE_CONFIG.leftColumn.seal.marginBottom,
-                  marginLeft: CERTIFICATE_CONFIG.leftColumn.seal.marginLeft,
-                  marginRight: CERTIFICATE_CONFIG.leftColumn.seal.marginRight,
+                  width: CERTIFICATE_CONFIG.leftColumn.width,
+                  height: '100%',
+                  backgroundColor: CERTIFICATE_CONFIG.leftColumn.backgroundColor,
+                  paddingTop: CERTIFICATE_CONFIG.leftColumn.paddingTop,
+                  paddingBottom: CERTIFICATE_CONFIG.leftColumn.paddingBottom,
+                  paddingLeft: CERTIFICATE_CONFIG.leftColumn.paddingLeft,
+                  paddingRight: CERTIFICATE_CONFIG.leftColumn.paddingRight,
                 }}
               >
-                <img
-                  src="/assets/—Pngtree—seal gold certificate_7931463.png"
-                  alt="Gold Seal"
-                  style={{
-                    width: CERTIFICATE_CONFIG.leftColumn.seal.width,
-                    height: CERTIFICATE_CONFIG.leftColumn.seal.height,
-                    transform: `scale(${CERTIFICATE_CONFIG.leftColumn.seal.scale})`,
-                    transformOrigin: 'top center'
-                  }}
-                  className="object-contain mx-auto"
-                />
-              </div>
-
-              {/* Bottom QR and ID */}
-              <div className="flex flex-col items-center w-full -mb-1 px-1">
-                <span
-                  className="font-bold text-slate-300 text-center"
-                  style={{
-                    fontFamily: 'Inter',
-                    fontSize: CERTIFICATE_CONFIG.leftColumn.idText.fontSize - 1.3,
-                    marginTop: CERTIFICATE_CONFIG.leftColumn.idText.marginTop,
-                    marginBottom: CERTIFICATE_CONFIG.leftColumn.idText.marginBottom,
-                  }}
-                >
-                  ID: BNC-INT-YYYYMM-XXXX
-                </span>
+                {/* Top Wreath Badge */}
                 <div
-                  className="p-0 flex items-center justify-center"
+                  className="w-full"
                   style={{
-                    width: CERTIFICATE_CONFIG.leftColumn.qrCode.width / 1.3,
-                    height: CERTIFICATE_CONFIG.leftColumn.qrCode.height / 1.3,
-                    marginTop: CERTIFICATE_CONFIG.leftColumn.qrCode.marginTop / 4,
-                    marginBottom: CERTIFICATE_CONFIG.leftColumn.qrCode.marginBottom / 4,
-                    marginLeft: CERTIFICATE_CONFIG.leftColumn.qrCode.marginLeft / 4,
-                    marginRight: CERTIFICATE_CONFIG.leftColumn.qrCode.marginRight / 4,
+                    marginTop: CERTIFICATE_CONFIG.leftColumn.seal.marginTop,
+                    marginBottom: CERTIFICATE_CONFIG.leftColumn.seal.marginBottom,
+                    marginLeft: CERTIFICATE_CONFIG.leftColumn.seal.marginLeft,
+                    marginRight: CERTIFICATE_CONFIG.leftColumn.seal.marginRight,
                   }}
                 >
-                  {previewQrCodeUrl ? (
-                    <img src={previewQrCodeUrl} alt="Preview QR" className="w-full h-full object-contain" />
-                  ) : (
-                    <div className="w-full h-full bg-slate-300/20 animate-pulse rounded" />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column */}
-            <div
-              className="flex flex-col justify-between relative"
-              style={{
-                width: CERTIFICATE_CONFIG.rightColumn.width,
-                backgroundColor: CERTIFICATE_CONFIG.rightColumn.backgroundColor,
-                paddingTop: CERTIFICATE_CONFIG.rightColumn.paddingTop,
-                paddingBottom: CERTIFICATE_CONFIG.rightColumn.paddingBottom,
-                paddingLeft: CERTIFICATE_CONFIG.rightColumn.paddingLeft,
-                paddingRight: CERTIFICATE_CONFIG.rightColumn.paddingRight,
-              }}
-            >
-              {/* Background Image */}
-              <img
-                src={CERTIFICATE_CONFIG.rightColumn.background.src}
-                alt="Background"
-                style={{
-                  position: 'absolute',
-                  top: CERTIFICATE_CONFIG.rightColumn.background.top,
-                  left: CERTIFICATE_CONFIG.rightColumn.background.left,
-                  right: CERTIFICATE_CONFIG.rightColumn.background.right,
-                  bottom: CERTIFICATE_CONFIG.rightColumn.background.bottom,
-                  width: CERTIFICATE_CONFIG.rightColumn.background.width,
-                  height: CERTIFICATE_CONFIG.rightColumn.background.height,
-                  objectFit: CERTIFICATE_CONFIG.rightColumn.background.objectFit,
-                }}
-              />
-
-              {/* Issue Date */}
-              <div
-                className="text-right text-slate-700 z-10 font-bold"
-                style={{
-                  fontFamily: 'Inter',
-                  fontSize: CERTIFICATE_CONFIG.rightColumn.issueDate.fontSize - 2.5,
-                  marginTop: CERTIFICATE_CONFIG.rightColumn.issueDate.marginTop,
-                  marginRight: CERTIFICATE_CONFIG.rightColumn.issueDate.marginRight,
-                  marginBottom: CERTIFICATE_CONFIG.rightColumn.issueDate.marginBottom,
-                }}
-              >
-                Issue Date: {formatInputDate(new Date().toISOString().split('T')[0])}
-              </div>
-
-              {/* Company Logo (increased size 3x & centered) */}
-              <div
-                className="flex justify-center z-10"
-                style={{
-                  marginTop: CERTIFICATE_CONFIG.rightColumn.logo.marginTop / 2,
-                  marginBottom: CERTIFICATE_CONFIG.rightColumn.logo.marginBottom / 2,
-                  marginLeft: CERTIFICATE_CONFIG.rightColumn.logo.marginLeft,
-                  marginRight: CERTIFICATE_CONFIG.rightColumn.logo.marginRight,
-                }}
-              >
-                <img
-                  src="/assets/bnc consultech high.png"
-                  alt="BnC Consultech Logo"
-                  style={{
-                    width: CERTIFICATE_CONFIG.rightColumn.logo.width - 150,
-                    height: CERTIFICATE_CONFIG.rightColumn.logo.height - 30
-                  }}
-                  className="object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-              </div>
-
-              {/* Certificate Titles */}
-              <div className="text-center z-10">
-                <h1
-                  className="text-[#0C2D58] font-bold"
-                  style={{
-                    fontFamily: 'TaylorGothic',
-                    fontSize: CERTIFICATE_CONFIG.rightColumn.title.fontSize - 12,
-                    letterSpacing: CERTIFICATE_CONFIG.rightColumn.title.letterSpacing,
-                    marginTop: CERTIFICATE_CONFIG.rightColumn.title.marginTop,
-                    marginBottom: CERTIFICATE_CONFIG.rightColumn.title.marginBottom,
-                  }}
-                >
-                  {CERTIFICATE_CONFIG.rightColumn.title.text}
-                </h1>
-                <p
-                  className="text-slate-500 font-bold uppercase mt-0.5"
-                  style={{
-                    fontFamily: '001SansSerifDemo',
-                    fontSize: CERTIFICATE_CONFIG.rightColumn.subtitle.fontSize - 5.5,
-                    letterSpacing: CERTIFICATE_CONFIG.rightColumn.subtitle.letterSpacing - 2,
-                    marginTop: CERTIFICATE_CONFIG.rightColumn.subtitle.marginTop,
-                    marginBottom: CERTIFICATE_CONFIG.rightColumn.subtitle.marginBottom,
-                  }}
-                >
-                  {CERTIFICATE_CONFIG.rightColumn.subtitle.text}
-                </p>
-              </div>
-
-              {/* Award Content */}
-              <div className="text-center z-10 flex flex-col items-center">
-                <p
-                  className="text-slate-500 font-bold"
-                  style={{
-                    fontFamily: 'Inter',
-                    fontSize: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.fontSize - 5.5,
-                    marginTop: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.marginTop,
-                    marginBottom: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.marginBottom,
-                  }}
-                >
-                  {CERTIFICATE_CONFIG.rightColumn.awardDeclaration.text}
-                </p>
-                <h2
-                  className="text-[#D32F2F] my-1"
-                  style={{
-                    fontFamily: 'DecemberCalligraphy',
-                    fontSize: CERTIFICATE_CONFIG.rightColumn.recipientName.fontSize - 2,
-                    lineHeight: 1.1,
-                    marginTop: CERTIFICATE_CONFIG.rightColumn.recipientName.marginTop,
-                    marginBottom: CERTIFICATE_CONFIG.rightColumn.recipientName.marginBottom,
-                  }}
-                >
-                  {recipientName || 'Recipient Full Name'}
-                </h2>
-
-                {/* Horizontal Divider Line */}
-                <div
-                  className="my-1"
-                  style={{
-                    width: CERTIFICATE_CONFIG.rightColumn.divider.width - 80,
-                    height: 6,
-                    marginTop: CERTIFICATE_CONFIG.rightColumn.divider.marginTop,
-                    marginBottom: CERTIFICATE_CONFIG.rightColumn.divider.marginBottom,
-                  }}
-                >
-                  <svg viewBox="0 0 200 6" className="w-full h-full">
-                    <path d="M10 3 L190 3" stroke="#0C2D58" strokeWidth="0.8" />
-                    <circle cx="10" cy="3" r="1.5" fill="#0C2D58" />
-                    <circle cx="190" cy="3" r="1.5" fill="#0C2D58" />
-                  </svg>
-                </div>
-
-                <div
-                  className="leading-relaxed text-slate-700 max-w-md mt-1 text-center"
-                  style={{
-                    fontFamily: 'Inter',
-                    fontSize: CERTIFICATE_CONFIG.rightColumn.description.fontSize - 5.5,
-                    marginTop: CERTIFICATE_CONFIG.rightColumn.description.marginTop,
-                    marginBottom: CERTIFICATE_CONFIG.rightColumn.description.marginBottom,
-                  }}
-                >
-                  <div>
-                    has successfully completed{' '}
-                    <span
-                      className="underline"
-                      style={{
-                        fontFamily: CERTIFICATE_CONFIG.rightColumn.description.courseFont,
-                        fontSize: CERTIFICATE_CONFIG.rightColumn.description.courseFontSize - 6,
-                        color: CERTIFICATE_CONFIG.rightColumn.description.courseColor,
-                        fontWeight: 'normal'
-                      }}
-                    >
-                      {displayDesignation}
-                    </span>{' '}
-                    internship program, offered by
-                  </div>
-                  <div className="mt-1">
-                    BnC Consultech from{' '}
-                    <span
-                      className="underline font-bold"
-                      style={{ fontFamily: 'Inter', fontWeight: 'bold' }}
-                    >
-                      {formatInputDate(startDate) || 'DD-MM-YYYY'}
-                    </span> to{' '}
-                    <span
-                      className="underline font-bold"
-                      style={{ fontFamily: 'Inter', fontWeight: 'bold' }}
-                    >
-                      {formatInputDate(endDate) || 'DD-MM-YYYY'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Signatures */}
-              <div
-                className="flex justify-around items-end px-6 z-10"
-                style={{
-                  marginTop: CERTIFICATE_CONFIG.rightColumn.signatures.marginTop,
-                  marginBottom: CERTIFICATE_CONFIG.rightColumn.signatures.marginBottom,
-                }}
-              >
-                {/* CEO Signature */}
-                <div className="flex flex-col items-center w-28">
-                  <span
-                    className="font-serif text-slate-800 italic"
-                    style={{
-                      fontFamily: 'Caveat',
-                      fontSize: CERTIFICATE_CONFIG.rightColumn.signatures.ceoTextSize - 4,
-                      color: CERTIFICATE_CONFIG.rightColumn.signatures.ceoColor,
-                      height: CERTIFICATE_CONFIG.rightColumn.signatures.ceoHeight - 10,
-                    }}
-                  >
-                    {CERTIFICATE_CONFIG.rightColumn.signatures.ceoSignText}
-                  </span>
-                  {CERTIFICATE_CONFIG.rightColumn.signatures.showLine && (
-                    <div className="w-full mt-0.5" style={{ height: 6 }}>
-                      <svg viewBox="0 0 100 6" className="w-full h-full">
-                        <path d="M4 3 L96 3" stroke={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} strokeWidth="0.8" />
-                        <circle cx="4" cy="3" r="1.2" fill={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} />
-                        <circle cx="96" cy="3" r="1.2" fill={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} />
-                      </svg>
-                    </div>
-                  )}
-                  <span
-                    className="text-slate-500 mt-1 font-bold"
-                    style={{
-                      fontFamily: 'Inter',
-                      fontSize: CERTIFICATE_CONFIG.rightColumn.signatures.labelSize - 3.5,
-                      color: CERTIFICATE_CONFIG.rightColumn.signatures.labelColor
-                    }}
-                  >
-                    {CERTIFICATE_CONFIG.rightColumn.signatures.ceoLabel}
-                  </span>
-                </div>
-
-                {/* HR Signature */}
-                <div className="flex flex-col items-center w-28">
-                  <span
-                    className="font-serif text-slate-800 italic"
-                    style={{
-                      fontFamily: 'Caveat',
-                      fontSize: CERTIFICATE_CONFIG.rightColumn.signatures.hrTextSize - 4,
-                      color: CERTIFICATE_CONFIG.rightColumn.signatures.hrColor,
-                      height: CERTIFICATE_CONFIG.rightColumn.signatures.hrHeight - 10,
-                    }}
-                  >
-                    {CERTIFICATE_CONFIG.rightColumn.signatures.hrSignText}
-                  </span>
-                  {CERTIFICATE_CONFIG.rightColumn.signatures.showLine && (
-                    <div className="w-full mt-0.5" style={{ height: 6 }}>
-                      <svg viewBox="0 0 100 6" className="w-full h-full">
-                        <path d="M4 3 L96 3" stroke={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} strokeWidth="0.8" />
-                        <circle cx="4" cy="3" r="1.2" fill={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} />
-                        <circle cx="96" cy="3" r="1.2" fill={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} />
-                      </svg>
-                    </div>
-                  )}
-                  <span
-                    className="text-slate-500 mt-1 font-bold"
-                    style={{
-                      fontFamily: 'Inter',
-                      fontSize: CERTIFICATE_CONFIG.rightColumn.signatures.labelSize - 3.5,
-                      color: CERTIFICATE_CONFIG.rightColumn.signatures.labelColor
-                    }}
-                  >
-                    {CERTIFICATE_CONFIG.rightColumn.signatures.hrLabel}
-                  </span>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div
-                className="flex justify-between items-center px-1 z-10"
-                style={{
-                  borderTopWidth: CERTIFICATE_CONFIG.rightColumn.footer.borderTopWidth,
-                  borderTopStyle: CERTIFICATE_CONFIG.rightColumn.footer.borderTopWidth > 0 ? 'solid' : 'none',
-                  borderTopColor: CERTIFICATE_CONFIG.rightColumn.footer.borderTopColor,
-                  paddingTop: CERTIFICATE_CONFIG.rightColumn.footer.paddingTop,
-                  marginTop: CERTIFICATE_CONFIG.rightColumn.footer.marginTop,
-                  marginBottom: CERTIFICATE_CONFIG.rightColumn.footer.marginBottom,
-                }}
-              >
-                {/* Left Badge: Gold Wax Seal */}
-                <img
-                  src="/assets/—Pngtree—gold wax seal icon for_20921944.png"
-                  alt="Gold Wax Seal"
-                  style={{
-                    width: CERTIFICATE_CONFIG.rightColumn.footer.waxSealWidth - 20,
-                    height: CERTIFICATE_CONFIG.rightColumn.footer.waxSealHeight - 20
-                  }}
-                  className="object-contain"
-                />
-
-                {/* Center Contact Info */}
-                <div className="flex flex-col items-center" style={{ position: 'relative', top: -25 }}>
                   <img
-                    src="/assets/bnc consultech high.png"
-                    alt="Logo"
+                    src="/assets/—Pngtree—seal gold certificate_7931463.png"
+                    alt="Gold Seal"
                     style={{
-                      width: CERTIFICATE_CONFIG.rightColumn.footer.centerLogoWidth - 150,
-                      height: CERTIFICATE_CONFIG.rightColumn.footer.centerLogoHeight - 30,
-                      marginTop: (CERTIFICATE_CONFIG.rightColumn.footer.centerLogoMarginTop || 0) / 2,
-                      marginBottom: (CERTIFICATE_CONFIG.rightColumn.footer.centerLogoMarginBottom || 0) / 2
+                      width: CERTIFICATE_CONFIG.leftColumn.seal.width,
+                      height: CERTIFICATE_CONFIG.leftColumn.seal.height,
+                      transform: `scale(${CERTIFICATE_CONFIG.leftColumn.seal.scale})`,
+                      transformOrigin: 'top center'
                     }}
-                    className="object-contain"
+                    className="object-contain mx-auto"
                   />
-                  <p
-                    className="text-slate-500 font-bold tracking-wider"
-                    style={{
-                      fontFamily: 'Inter',
-                      fontSize: CERTIFICATE_CONFIG.rightColumn.footer.mailTextSize / 1.15,
-                      color: CERTIFICATE_CONFIG.rightColumn.footer.mailTextColor,
-                      marginBottom: CERTIFICATE_CONFIG.rightColumn.footer.mailTextMarginBottom,
-                    }}
-                  >
-                    For More Information Mail Us:{' '}
-                    <span style={{ color: '#FF5722', fontFamily: 'Inter' }}>support@bncglobal.in</span>
-                  </p>
-                  <div
-                    className="flex items-center mt-1"
-                    style={{ gap: CERTIFICATE_CONFIG.rightColumn.footer.contactGap / 1.15 }}
-                  >
-                    <span
-                      className="text-slate-600 font-bold flex items-center gap-1"
-                      style={{
-                        fontFamily: 'Inter',
-                        fontSize: CERTIFICATE_CONFIG.rightColumn.footer.contactTextSize / 1.15,
-                        color: CERTIFICATE_CONFIG.rightColumn.footer.contactTextColor
-                      }}
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        width={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize / 1.15}
-                        height={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize / 1.15}
-                        className="inline-block fill-[#0C2D58] mr-0.5"
-                      >
-                        <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.27c1.12.37 2.33.57 3.57.57a1 1 0 01-1 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.28 1.11l-2.17 2.2z" />
-                      </svg>
-                      +91-9810575613
-                    </span>
-                    <span
-                      className="text-slate-600 font-bold flex items-center gap-1"
-                      style={{
-                        fontFamily: 'Inter',
-                        fontSize: CERTIFICATE_CONFIG.rightColumn.footer.contactTextSize / 1.15,
-                        color: CERTIFICATE_CONFIG.rightColumn.footer.contactTextColor
-                      }}
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        width={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize / 1.15}
-                        height={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize / 1.15}
-                        className="inline-block fill-none stroke-[#0C2D58] stroke-[1.5] mr-0.5"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" className="stroke-[1.2]" />
-                        <path d="M2 12h20" className="stroke-[1.2]" />
-                      </svg>
-                      www.bncglobal.in
-                    </span>
-                    <span
-                      className="text-slate-600 font-bold flex items-center gap-1"
-                      style={{
-                        fontFamily: 'Inter',
-                        fontSize: CERTIFICATE_CONFIG.rightColumn.footer.contactTextSize / 1.15,
-                        color: CERTIFICATE_CONFIG.rightColumn.footer.contactTextColor
-                      }}
-                    >
-                      <svg
-                        viewBox="0 0 24 24"
-                        width={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize / 1.15}
-                        height={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize / 1.15}
-                        className="inline-block fill-[#0C2D58] mr-0.5"
-                      >
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
-                      </svg>
-                      Gurugram and Saudi Arabia
-                    </span>
-                  </div>
                 </div>
 
-                {/* Right Badge: Favicon */}
+                {/* Bottom QR and ID */}
+                <div className="flex flex-col items-center w-full -mb-1 px-1">
+                  <span
+                    className="font-bold text-slate-300 text-center"
+                    style={{
+                      fontFamily: 'Inter',
+                      fontSize: CERTIFICATE_CONFIG.leftColumn.idText.fontSize,
+                      marginTop: CERTIFICATE_CONFIG.leftColumn.idText.marginTop,
+                      marginBottom: CERTIFICATE_CONFIG.leftColumn.idText.marginBottom,
+                    }}
+                  >
+                    ID: BNC-INT-YYYYMM-XXXX
+                  </span>
+                  <div
+                    className="p-0 flex items-center justify-center"
+                    style={{
+                      width: CERTIFICATE_CONFIG.leftColumn.qrCode.width,
+                      height: CERTIFICATE_CONFIG.leftColumn.qrCode.height,
+                      marginTop: CERTIFICATE_CONFIG.leftColumn.qrCode.marginTop,
+                      marginBottom: CERTIFICATE_CONFIG.leftColumn.qrCode.marginBottom,
+                      marginLeft: CERTIFICATE_CONFIG.leftColumn.qrCode.marginLeft,
+                      marginRight: CERTIFICATE_CONFIG.leftColumn.qrCode.marginRight,
+                    }}
+                  >
+                    {previewQrCodeUrl ? (
+                      <img src={previewQrCodeUrl} alt="Preview QR" className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full bg-slate-300/20 animate-pulse rounded" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column */}
+              <div
+                className="relative"
+                style={{
+                  width: CERTIFICATE_CONFIG.rightColumn.width,
+                  height: '100%',
+                  backgroundColor: CERTIFICATE_CONFIG.rightColumn.backgroundColor,
+                }}
+              >
+                {/* Background Image */}
                 <img
-                  src="/assets/bnc consultech icon high.png"
-                  alt="Favicon"
+                  src={CERTIFICATE_CONFIG.rightColumn.background.src}
+                  alt="Background"
                   style={{
-                    width: CERTIFICATE_CONFIG.rightColumn.footer.faviconWidth - 20,
-                    height: CERTIFICATE_CONFIG.rightColumn.footer.faviconHeight - 20
+                    position: 'absolute',
+                    top: CERTIFICATE_CONFIG.rightColumn.background.top,
+                    left: CERTIFICATE_CONFIG.rightColumn.background.left,
+                    right: CERTIFICATE_CONFIG.rightColumn.background.right,
+                    bottom: CERTIFICATE_CONFIG.rightColumn.background.bottom,
+                    width: CERTIFICATE_CONFIG.rightColumn.background.width,
+                    height: CERTIFICATE_CONFIG.rightColumn.background.height,
+                    objectFit: CERTIFICATE_CONFIG.rightColumn.background.objectFit,
                   }}
-                  className="object-contain"
                 />
+
+                {/* Right Content Container */}
+                <div
+                  className="flex flex-col justify-between absolute top-0 left-0 right-0 bottom-0"
+                  style={{
+                    paddingTop: CERTIFICATE_CONFIG.rightColumn.paddingTop,
+                    paddingBottom: CERTIFICATE_CONFIG.rightColumn.paddingBottom,
+                    paddingLeft: CERTIFICATE_CONFIG.rightColumn.paddingLeft,
+                    paddingRight: CERTIFICATE_CONFIG.rightColumn.paddingRight,
+                  }}
+                >
+                  {/* Issue Date */}
+                  <div
+                    className="text-right text-slate-700 z-10 font-bold"
+                    style={{
+                      fontFamily: 'Inter',
+                      fontSize: CERTIFICATE_CONFIG.rightColumn.issueDate.fontSize,
+                      marginTop: CERTIFICATE_CONFIG.rightColumn.issueDate.marginTop,
+                      marginRight: CERTIFICATE_CONFIG.rightColumn.issueDate.marginRight,
+                      marginBottom: CERTIFICATE_CONFIG.rightColumn.issueDate.marginBottom,
+                    }}
+                  >
+                    Issue Date: {formatInputDate(new Date().toISOString().split('T')[0])}
+                  </div>
+
+                  {/* Company Logo (centered) */}
+                  <div
+                    className="flex justify-center z-10"
+                    style={{
+                      marginTop: CERTIFICATE_CONFIG.rightColumn.logo.marginTop,
+                      marginBottom: CERTIFICATE_CONFIG.rightColumn.logo.marginBottom,
+                      marginLeft: CERTIFICATE_CONFIG.rightColumn.logo.marginLeft,
+                      marginRight: CERTIFICATE_CONFIG.rightColumn.logo.marginRight,
+                    }}
+                  >
+                    <img
+                      src="/assets/bnc_consultech_high_cropped.png"
+                      alt="BnC Consultech Logo"
+                      style={{
+                        width: CERTIFICATE_CONFIG.rightColumn.logo.width,
+                        height: CERTIFICATE_CONFIG.rightColumn.logo.height
+                      }}
+                      className="object-contain"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+
+                  {/* Certificate Titles */}
+                  <div className="text-center z-10">
+                    <h1
+                      className="text-[#0C2D58] font-bold"
+                      style={{
+                        fontFamily: 'TaylorGothic',
+                        fontSize: CERTIFICATE_CONFIG.rightColumn.title.fontSize,
+                        letterSpacing: CERTIFICATE_CONFIG.rightColumn.title.letterSpacing,
+                        marginTop: CERTIFICATE_CONFIG.rightColumn.title.marginTop,
+                        marginBottom: CERTIFICATE_CONFIG.rightColumn.title.marginBottom,
+                      }}
+                    >
+                      {CERTIFICATE_CONFIG.rightColumn.title.text}
+                    </h1>
+                    <p
+                      className="text-[#4B5563] font-bold uppercase mt-0.5"
+                      style={{
+                        fontFamily: '001SansSerifDemo',
+                        fontSize: CERTIFICATE_CONFIG.rightColumn.subtitle.fontSize,
+                        letterSpacing: CERTIFICATE_CONFIG.rightColumn.subtitle.letterSpacing,
+                        marginTop: CERTIFICATE_CONFIG.rightColumn.subtitle.marginTop,
+                        marginBottom: CERTIFICATE_CONFIG.rightColumn.subtitle.marginBottom,
+                      }}
+                    >
+                      {CERTIFICATE_CONFIG.rightColumn.subtitle.text}
+                    </p>
+                  </div>
+
+                  {/* Award Content */}
+                  <div className="text-center z-10 flex flex-col items-center">
+                    <p
+                      className="text-slate-500 font-bold"
+                      style={{
+                        fontFamily: 'Inter',
+                        fontSize: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.fontSize,
+                        marginTop: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.marginTop,
+                        marginBottom: CERTIFICATE_CONFIG.rightColumn.awardDeclaration.marginBottom,
+                      }}
+                    >
+                      {CERTIFICATE_CONFIG.rightColumn.awardDeclaration.text}
+                    </p>
+                    <h2
+                      className="text-[#D32F2F] my-1"
+                      style={{
+                        fontFamily: 'InterBold',
+                        fontSize: CERTIFICATE_CONFIG.rightColumn.recipientName.fontSize,
+                        lineHeight: 1.1,
+                        marginTop: CERTIFICATE_CONFIG.rightColumn.recipientName.marginTop,
+                        marginBottom: CERTIFICATE_CONFIG.rightColumn.recipientName.marginBottom,
+                      }}
+                    >
+                      {recipientName || 'Recipient Full Name'}
+                    </h2>
+
+                    {/* Horizontal Divider Line */}
+                    <div
+                      className="my-1"
+                      style={{
+                        width: CERTIFICATE_CONFIG.rightColumn.divider.width,
+                        height: CERTIFICATE_CONFIG.rightColumn.divider.height,
+                        marginTop: CERTIFICATE_CONFIG.rightColumn.divider.marginTop,
+                        marginBottom: CERTIFICATE_CONFIG.rightColumn.divider.marginBottom,
+                      }}
+                    >
+                      <svg viewBox="0 0 200 6" className="w-full h-full">
+                        <path d="M10 3 L190 3" stroke="#0C2D58" strokeWidth="0.8" />
+                        <circle cx="10" cy="3" r="1.5" fill="#0C2D58" />
+                        <circle cx="190" cy="3" r="1.5" fill="#0C2D58" />
+                      </svg>
+                    </div>
+
+                    <div
+                      className="leading-relaxed text-slate-700 max-w-md mt-1 text-center"
+                      style={{
+                        fontFamily: 'Inter',
+                        fontSize: CERTIFICATE_CONFIG.rightColumn.description.fontSize,
+                        marginTop: CERTIFICATE_CONFIG.rightColumn.description.marginTop,
+                        marginBottom: CERTIFICATE_CONFIG.rightColumn.description.marginBottom,
+                      }}
+                    >
+                      <div>
+                        has successfully completed{' '}
+                        <span
+                          className="underline"
+                          style={{
+                            fontFamily: CERTIFICATE_CONFIG.rightColumn.description.courseFont,
+                            fontSize: CERTIFICATE_CONFIG.rightColumn.description.courseFontSize,
+                            color: CERTIFICATE_CONFIG.rightColumn.description.courseColor,
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {displayDesignation}
+                        </span>{' '}
+                        internship program, offered by
+                      </div>
+                      <div className="mt-1">
+                        BnC Consultech from{' '}
+                        <span
+                          className="font-bold"
+                          style={{ fontFamily: 'Inter', fontWeight: 'bold' }}
+                        >
+                          {formatInputDate(startDate) || 'DD-MM-YYYY'}
+                        </span> to{' '}
+                        <span
+                          className="font-bold"
+                          style={{ fontFamily: 'Inter', fontWeight: 'bold' }}
+                        >
+                          {formatInputDate(endDate) || 'DD-MM-YYYY'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Signatures */}
+                  <div
+                    className="flex justify-around items-end px-6 z-10"
+                    style={{
+                      marginTop: CERTIFICATE_CONFIG.rightColumn.signatures.marginTop,
+                      marginBottom: CERTIFICATE_CONFIG.rightColumn.signatures.marginBottom,
+                    }}
+                  >
+                    {/* CEO Signature */}
+                    <div
+                      className="flex flex-col items-center"
+                      style={{
+                        width: CERTIFICATE_CONFIG.rightColumn.signatures.columnWidth,
+                      }}
+                    >
+                      <span
+                        className="font-serif text-slate-800 italic"
+                        style={{
+                          fontFamily: 'Caveat',
+                          fontSize: CERTIFICATE_CONFIG.rightColumn.signatures.ceoTextSize,
+                          color: CERTIFICATE_CONFIG.rightColumn.signatures.ceoColor,
+                          height: CERTIFICATE_CONFIG.rightColumn.signatures.ceoHeight,
+                        }}
+                      >
+                        {CERTIFICATE_CONFIG.rightColumn.signatures.ceoSignText}
+                      </span>
+                      {CERTIFICATE_CONFIG.rightColumn.signatures.showLine && (
+                        <div className="w-full mt-0.5" style={{ height: 6 }}>
+                          <svg viewBox="0 0 100 6" className="w-full h-full">
+                            <path d="M4 3 L96 3" stroke={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} strokeWidth="0.8" />
+                            <circle cx="4" cy="3" r="1.2" fill={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} />
+                            <circle cx="96" cy="3" r="1.2" fill={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} />
+                          </svg>
+                        </div>
+                      )}
+                      <span
+                        className="text-slate-500 mt-1 font-bold"
+                        style={{
+                          fontFamily: 'Inter',
+                          fontSize: CERTIFICATE_CONFIG.rightColumn.signatures.labelSize,
+                          color: CERTIFICATE_CONFIG.rightColumn.signatures.labelColor
+                        }}
+                      >
+                        {CERTIFICATE_CONFIG.rightColumn.signatures.ceoLabel}
+                      </span>
+                    </div>
+
+                    {/* HR Signature */}
+                    <div
+                      className="flex flex-col items-center"
+                      style={{
+                        width: CERTIFICATE_CONFIG.rightColumn.signatures.columnWidth,
+                      }}
+                    >
+                      <span
+                        className="font-serif text-slate-800 italic"
+                        style={{
+                          fontFamily: 'Caveat',
+                          fontSize: CERTIFICATE_CONFIG.rightColumn.signatures.hrTextSize,
+                          color: CERTIFICATE_CONFIG.rightColumn.signatures.hrColor,
+                          height: CERTIFICATE_CONFIG.rightColumn.signatures.hrHeight,
+                        }}
+                      >
+                        {CERTIFICATE_CONFIG.rightColumn.signatures.hrSignText}
+                      </span>
+                      {CERTIFICATE_CONFIG.rightColumn.signatures.showLine && (
+                        <div className="w-full mt-0.5" style={{ height: 6 }}>
+                          <svg viewBox="0 0 100 6" className="w-full h-full">
+                            <path d="M4 3 L96 3" stroke={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} strokeWidth="0.8" />
+                            <circle cx="4" cy="3" r="1.2" fill={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} />
+                            <circle cx="96" cy="3" r="1.2" fill={CERTIFICATE_CONFIG.rightColumn.signatures.lineColor} />
+                          </svg>
+                        </div>
+                      )}
+                      <span
+                        className="text-slate-500 mt-1 font-bold"
+                        style={{
+                          fontFamily: 'Inter',
+                          fontSize: CERTIFICATE_CONFIG.rightColumn.signatures.labelSize,
+                          color: CERTIFICATE_CONFIG.rightColumn.signatures.labelColor
+                        }}
+                      >
+                        {CERTIFICATE_CONFIG.rightColumn.signatures.hrLabel}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div
+                    className="flex justify-between items-center px-1 z-10 w-full"
+                    style={{
+                      borderTopWidth: CERTIFICATE_CONFIG.rightColumn.footer.borderTopWidth,
+                      borderTopStyle: CERTIFICATE_CONFIG.rightColumn.footer.borderTopWidth > 0 ? 'solid' : 'none',
+                      borderTopColor: CERTIFICATE_CONFIG.rightColumn.footer.borderTopColor,
+                      paddingTop: CERTIFICATE_CONFIG.rightColumn.footer.paddingTop,
+                      marginTop: CERTIFICATE_CONFIG.rightColumn.footer.marginTop,
+                      marginBottom: CERTIFICATE_CONFIG.rightColumn.footer.marginBottom,
+                    }}
+                  >
+                    {/* Left Badge: Gold Wax Seal */}
+                    <img
+                      src="/assets/—Pngtree—gold wax seal icon for_20921944.png"
+                      alt="Gold Wax Seal"
+                      style={{
+                        width: CERTIFICATE_CONFIG.rightColumn.footer.waxSealWidth,
+                        height: CERTIFICATE_CONFIG.rightColumn.footer.waxSealHeight
+                      }}
+                      className="object-contain"
+                    />
+
+                    {/* Center Contact Info */}
+                    <div className="flex flex-col items-center">
+                      <img
+                        src="/assets/bnc_consultech_high_cropped.png"
+                        alt="Logo"
+                        style={{
+                          width: CERTIFICATE_CONFIG.rightColumn.footer.centerLogoWidth,
+                          height: CERTIFICATE_CONFIG.rightColumn.footer.centerLogoHeight,
+                          marginTop: CERTIFICATE_CONFIG.rightColumn.footer.centerLogoMarginTop,
+                          marginBottom: CERTIFICATE_CONFIG.rightColumn.footer.centerLogoMarginBottom
+                        }}
+                        className="object-contain"
+                      />
+                      <p
+                        className="text-slate-500 font-bold tracking-wider"
+                        style={{
+                          fontFamily: 'Inter',
+                          fontSize: CERTIFICATE_CONFIG.rightColumn.footer.mailTextSize,
+                          color: CERTIFICATE_CONFIG.rightColumn.footer.mailTextColor,
+                          marginBottom: CERTIFICATE_CONFIG.rightColumn.footer.mailTextMarginBottom,
+                        }}
+                      >
+                        For More Information Mail Us:{' '}
+                        <span style={{ color: '#FF5722', fontFamily: 'Inter' }}>support@bncglobal.in</span>
+                      </p>
+                      <div
+                        className="flex items-center mt-1"
+                        style={{ gap: CERTIFICATE_CONFIG.rightColumn.footer.contactGap }}
+                      >
+                        <span
+                          className="text-slate-600 font-bold flex items-center gap-1"
+                          style={{
+                            fontFamily: 'Inter',
+                            fontSize: CERTIFICATE_CONFIG.rightColumn.footer.contactTextSize,
+                            color: CERTIFICATE_CONFIG.rightColumn.footer.contactTextColor
+                          }}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize}
+                            height={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize}
+                            className="inline-block fill-[#0C2D58] mr-0.5"
+                          >
+                            <path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.27c1.12.37 2.33.57 3.57.57a1 1 0 01-1 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.57a1 1 0 01-.28 1.11l-2.17 2.2z" />
+                          </svg>
+                          +91-9810575613
+                        </span>
+                        <span
+                          className="text-slate-600 font-bold flex items-center gap-1"
+                          style={{
+                            fontFamily: 'Inter',
+                            fontSize: CERTIFICATE_CONFIG.rightColumn.footer.contactTextSize,
+                            color: CERTIFICATE_CONFIG.rightColumn.footer.contactTextColor
+                          }}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize}
+                            height={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize}
+                            className="inline-block fill-none stroke-[#0C2D58] stroke-[1.5] mr-0.5"
+                          >
+                            <circle cx="12" cy="12" r="10" />
+                            <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" className="stroke-[1.2]" />
+                            <path d="M2 12h20" className="stroke-[1.2]" />
+                          </svg>
+                          www.bncglobal.in
+                        </span>
+                        <span
+                          className="text-slate-600 font-bold flex items-center gap-1"
+                          style={{
+                            fontFamily: 'Inter',
+                            fontSize: CERTIFICATE_CONFIG.rightColumn.footer.contactTextSize,
+                            color: CERTIFICATE_CONFIG.rightColumn.footer.contactTextColor
+                          }}
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            width={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize}
+                            height={CERTIFICATE_CONFIG.rightColumn.footer.contactIconSize}
+                            className="inline-block fill-[#0C2D58] mr-0.5"
+                          >
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z" />
+                          </svg>
+                          Gurugram and Saudi Arabia
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right Badge: Favicon */}
+                    <img
+                      src="/assets/bnc consultech icon high.png"
+                      alt="Favicon"
+                      style={{
+                        width: CERTIFICATE_CONFIG.rightColumn.footer.faviconWidth,
+                        height: CERTIFICATE_CONFIG.rightColumn.footer.faviconHeight
+                      }}
+                      className="object-contain"
+                    />
+                  </div>
+
+                </div>
               </div>
 
             </div>
-
           </div>
         </div>
 

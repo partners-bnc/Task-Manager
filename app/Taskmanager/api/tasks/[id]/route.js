@@ -1172,6 +1172,26 @@ export async function PATCH(request, { params }) {
         }
       }
 
+      // Check if task has subtasks to determine if progress should be auto-set
+      const { count: subtaskCount, error: subtaskCountError } = await adminClient
+        .from('task_subtasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('task_id', taskId);
+
+      if (subtaskCountError) {
+        return NextResponse.json({ error: subtaskCountError.message }, { status: 500 });
+      }
+
+      const hasSubtasks = (subtaskCount || 0) > 0;
+      const progressUpdate = {};
+      if (!hasSubtasks) {
+        if (normalizedStatus === 'completed') {
+          progressUpdate.progress_percentage = 100;
+        } else if (normalizedStatus === 'pending') {
+          progressUpdate.progress_percentage = 0;
+        }
+      }
+
       const nextUpdatedAt = new Date().toISOString();
 
       const { error: updateError } = await adminClient
@@ -1180,6 +1200,7 @@ export async function PATCH(request, { params }) {
           status: normalizedStatus,
           completed_at: getCompletionTimestamp(currentTask.status, normalizedStatus, currentTask.completed_at, nextUpdatedAt),
           updated_at: nextUpdatedAt,
+          ...progressUpdate,
         })
         .eq('id', taskId);
 
