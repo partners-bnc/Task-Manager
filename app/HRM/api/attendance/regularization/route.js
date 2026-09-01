@@ -3,6 +3,7 @@ import { adminClient } from '@/utils/supabase/admin';
 import { createClient } from '@/utils/supabase/server';
 import { hasLinkedEmployeeAccess, resolveAuthenticatedUserContext } from '@/utils/auth/context';
 import {
+  ATTENDANCE_POLICY,
   getCurrentDateInTimeZone,
   getDateRangeForMonth,
   isEmployeeScheduledOff,
@@ -87,7 +88,7 @@ async function requireEmployeeContext() {
 
 function normalizeAttendanceStatus(status) {
   const normalized = String(status || '').trim().toLowerCase();
-  if (normalized === 'half_day') {
+  if (normalized === 'half_day' || normalized === 'late') {
     return 'halfday';
   }
   return normalized;
@@ -101,13 +102,19 @@ function resolveAttendanceStatus(attendanceRow) {
   let status = normalizeAttendanceStatus(attendanceRow.status || attendanceRow.attendance_status);
   const checkInValue = attendanceRow.check_in_at || attendanceRow.check_in || null;
   const checkOutValue = attendanceRow.check_out_at || attendanceRow.check_out || null;
+  const workHoursMinutes = attendanceRow.work_hours_minutes ?? 0;
 
-  if (checkInValue && !checkOutValue && status === 'present') {
-    const isOverwrittenPresent = typeof attendanceRow.notes === 'string' && (
-      attendanceRow.notes.includes('to Present') ||
-      attendanceRow.notes.includes('Overwritten by Hr Admin')
-    );
-    if (!isOverwrittenPresent) {
+  const isOverwrittenPresent = typeof attendanceRow.notes === 'string' && (
+    attendanceRow.notes.includes('to Present') ||
+    attendanceRow.notes.includes('Overwritten by Hr Admin')
+  );
+
+  if (!isOverwrittenPresent) {
+    if (checkInValue && !checkOutValue && status === 'present') {
+      status = 'halfday';
+    }
+
+    if (checkInValue && checkOutValue && workHoursMinutes > 0 && workHoursMinutes < ATTENDANCE_POLICY.presentMinutes) {
       status = 'halfday';
     }
   }

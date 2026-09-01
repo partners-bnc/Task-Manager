@@ -199,8 +199,17 @@ export default function RegularizeAttendance() {
         setReportingManager(result.reportingManager || null);
         setSetupPending(Boolean(result.setupPending));
 
-        const nextSelected = findFirstRegularizationDateForMonth(year, month, result.eligibleDays || []);
-        const stillValid = (result.eligibleDays || []).some((item) => item.date === selectedDateRef.current);
+        const nextSelected = findFirstRegularizationDateForMonth(
+          year,
+          month,
+          result.eligibleDays || [],
+          result.pending || [],
+          result.history || []
+        );
+        const stillValid =
+          (result.eligibleDays || []).some((item) => item.date === selectedDateRef.current) ||
+          (result.pending || []).some((item) => item.date === selectedDateRef.current) ||
+          (result.history || []).some((item) => item.date === selectedDateRef.current);
         if (!stillValid) {
           setSelectedDate(nextSelected);
         }
@@ -237,8 +246,40 @@ export default function RegularizeAttendance() {
     return map;
   }, [eligibleDays]);
 
+  const pendingMap = useMemo(() => {
+    const map: Record<string, RegularizationStatusItem> = {};
+    pendingItems.forEach((item) => {
+      map[item.date] = item;
+    });
+    return map;
+  }, [pendingItems]);
+
+  const historyMap = useMemo(() => {
+    const map: Record<string, RegularizationStatusItem> = {};
+    historyItems.forEach((item) => {
+      map[item.date] = item;
+    });
+    return map;
+  }, [historyItems]);
+
   const selectedDay = regularizationMap[selectedDate];
+  const pendingDay = pendingMap[selectedDate];
+  const historyDay = historyMap[selectedDate];
   const draft = draftsByDate[selectedDate] ?? createDraft(selectedDay);
+
+  const currentStatusDisplay = useMemo(() => {
+    if (selectedDay) {
+      return draft.currentStatus || selectedDay.label || 'Eligible Date';
+    }
+    if (pendingDay) {
+      return 'Pending Review';
+    }
+    if (historyDay) {
+      return `Regularized (${historyDay.status})`;
+    }
+    return 'Select an eligible date';
+  }, [selectedDay, pendingDay, historyDay, draft.currentStatus]);
+
   const gapCountLabel = `${eligibleDays.length} eligible day(s)`;
   const isFormComplete = Boolean(
     selectedDay &&
@@ -282,7 +323,7 @@ export default function RegularizeAttendance() {
     const nextYear = next.getFullYear();
     const nextMonth = next.getMonth();
     setActiveMonth(next);
-    setSelectedDate(findFirstRegularizationDateForMonth(nextYear, nextMonth, eligibleDays));
+    setSelectedDate(findFirstRegularizationDateForMonth(nextYear, nextMonth, eligibleDays, pendingItems, historyItems));
   };
 
   const submitRegularization = async () => {
@@ -397,19 +438,28 @@ export default function RegularizeAttendance() {
                   }
 
                   const item = regularizationMap[cell.dateStr];
+                  const pendingItem = pendingMap[cell.dateStr];
+                  const historyItem = historyMap[cell.dateStr];
                   const isSelected = cell.dateStr === selectedDate;
                   const isEligible = Boolean(item);
+                  const isPending = Boolean(pendingItem);
+                  const isHistory = Boolean(historyItem);
+                  const isInteractive = isEligible || isPending || isHistory;
 
                   return (
                     <button
                       key={idx}
                       type="button"
-                      disabled={!isEligible}
-                      onClick={() => isEligible && setSelectedDate(cell.dateStr)}
+                      disabled={!isInteractive}
+                      onClick={() => isInteractive && setSelectedDate(cell.dateStr)}
                       className={`relative flex h-11 items-center justify-center rounded-xl text-sm font-semibold transition-all ${
                         isEligible
                           ? 'cursor-pointer bg-primary/8 text-primary hover:bg-primary/12'
-                          : 'cursor-default bg-transparent text-on-surface-variant/35'
+                          : isPending
+                            ? 'cursor-pointer bg-amber-500/10 text-amber-700 hover:bg-amber-500/20'
+                            : isHistory
+                              ? 'cursor-pointer bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20'
+                              : 'cursor-default bg-transparent text-on-surface-variant/35'
                       } ${isSelected ? 'bg-primary/14 ring-2 ring-primary shadow-md shadow-primary/10' : ''}`}
                     >
                       <span>{cell.day}</span>
@@ -418,6 +468,12 @@ export default function RegularizeAttendance() {
                       ) : null}
                       {isEligible && formatCalendarDayLabel(item) ? (
                         <span className="absolute right-1 top-1 text-[9px] font-bold">{formatCalendarDayLabel(item)}</span>
+                      ) : null}
+                      {isPending ? (
+                        <span className="absolute right-1 top-1 text-[9px] font-bold text-amber-700">P</span>
+                      ) : null}
+                      {isHistory ? (
+                        <span className="absolute right-1 top-1 text-[9px] font-bold text-emerald-700">✓</span>
                       ) : null}
                     </button>
                   );
@@ -440,7 +496,7 @@ export default function RegularizeAttendance() {
 
               <div className="rounded-2xl bg-surface-container-low px-4 py-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">Current Status</p>
-                <p className="mt-2 text-sm font-semibold text-on-surface">{draft.currentStatus || 'Select an eligible date'}</p>
+                <p className="mt-2 text-sm font-semibold text-on-surface">{currentStatusDisplay}</p>
               </div>
             </div>
           </div>
@@ -468,6 +524,45 @@ export default function RegularizeAttendance() {
 
           {activeTab === 'apply' ? (
             <>
+              {pendingDay ? (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 editorial-shadow flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-base font-bold text-amber-900 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-amber-600">schedule</span>
+                      Request Pending Review
+                    </h4>
+                    <p className="mt-1 text-sm text-amber-800">
+                      A regularization request for {selectedDate ? formatDateLong(selectedDate) : ''} was submitted on {pendingDay.appliedOn} for <span className="font-semibold">{pendingDay.requestType}</span> and is currently pending review.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('pending')}
+                    className="shrink-0 rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-700 shadow-sm"
+                  >
+                    View Pending Request
+                  </button>
+                </div>
+              ) : historyDay ? (
+                <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 editorial-shadow flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="text-base font-bold text-emerald-900 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-600">check_circle</span>
+                      Request {historyDay.status}
+                    </h4>
+                    <p className="mt-1 text-sm text-emerald-800">
+                      Regularization for {selectedDate ? formatDateLong(selectedDate) : ''} was reviewed and marked as <span className="font-semibold">{historyDay.status}</span>.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('history')}
+                    className="shrink-0 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 shadow-sm"
+                  >
+                    View History
+                  </button>
+                </div>
+              ) : null}
               {setupPending ? (
                 <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-700">
                   Regularization schema update is pending. Please apply the latest attendance regularization migration first.

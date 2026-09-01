@@ -129,13 +129,25 @@ export function formatDateShort(dateStr: string) {
 export function findFirstRegularizationDateForMonth(
   year: number,
   month: number,
-  days: RegularizationDay[] = []
+  days: RegularizationDay[] = [],
+  pending: RegularizationStatusItem[] = [],
+  history: RegularizationStatusItem[] = []
 ) {
-  const match = days.find((item) => {
-    const itemYear = Number(item.date.slice(0, 4));
-    const itemMonth = Number(item.date.slice(5, 7)) - 1;
+  const isMatch = (dateStr: string) => {
+    if (!dateStr || dateStr.length < 7) return false;
+    const itemYear = Number(dateStr.slice(0, 4));
+    const itemMonth = Number(dateStr.slice(5, 7)) - 1;
     return itemYear === year && itemMonth === month;
-  });
+  };
 
-  return match?.date ?? `${year}-${String(month + 1).padStart(2, '0')}-01`;
+  const eligibleMatch = days.find((item) => isMatch(item.date));
+  if (eligibleMatch) return eligibleMatch.date;
+
+  const pendingMatch = pending.find((item) => isMatch(item.date));
+  if (pendingMatch) return pendingMatch.date;
+
+  const historyMatch = history.find((item) => isMatch(item.date));
+  if (historyMatch) return historyMatch.date;
+
+  return `${year}-${String(month + 1).padStart(2, '0')}-01`;
 }
