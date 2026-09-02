@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  FolderKanban,
 } from "lucide-react";
 
 export default function CampaignsPage() {
@@ -58,8 +59,18 @@ export default function CampaignsPage() {
   const [recipientsSearch, setRecipientsSearch] = useState("");
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
-  // Email Templates
+  // Email Templates & Saved Lists
   const [templates, setTemplates] = useState([]);
+  const [savedLists, setSavedLists] = useState([]);
+  const [selectedListId, setSelectedListId] = useState("");
+
+  // Target Email Field Mapping state
+  const [selectedEmailField, setSelectedEmailField] = useState("auto"); // 'auto', 'primary', 'business', 'company', 'secondary'
+
+  // Single Lead Manual Add / Search State inside Wizard
+  const [singleLeadSearch, setSingleLeadSearch] = useState("");
+  const [manuallyIncludedLeadIds, setManuallyIncludedLeadIds] = useState([]);
+  const [manuallyExcludedLeadIds, setManuallyExcludedLeadIds] = useState([]);
 
   // Wizard state
   const [step, setStep] = useState(1);
@@ -81,6 +92,7 @@ export default function CampaignsPage() {
   const [filterBatches, setFilterBatches] = useState([]);
   const [filterTags, setFilterTags] = useState("");
   const [openSections, setOpenSections] = useState({
+    bucket: true,
     classification: true,
     personal: false,
     business: false,
@@ -94,21 +106,33 @@ export default function CampaignsPage() {
   const [wizardTime, setWizardTime] = useState("");
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
 
-  // Load Templates
+  // Load Templates & Saved Lists & Refresh CRM Leads
   useEffect(() => {
-    async function loadTemplates() {
+    async function loadTemplatesAndLists() {
       try {
-        const res = await fetch("/other-modules/crm/api/templates");
-        if (res.ok) {
-          const data = await res.json();
-          setTemplates(data.templates || []);
+        if (typeof refreshCrmData === 'function') {
+          refreshCrmData();
+        }
+        const [tempRes, listsRes] = await Promise.all([
+          fetch("/other-modules/crm/api/templates"),
+          fetch("/other-modules/crm/api/lists")
+        ]);
+
+        if (tempRes.ok) {
+          const tempData = await tempRes.json();
+          setTemplates(tempData.templates || []);
+        }
+
+        if (listsRes.ok) {
+          const listsData = await listsRes.json();
+          setSavedLists(listsData.lists || []);
         }
       } catch (err) {
-        console.error("Failed to load templates:", err);
+        console.error("Failed to load initial data:", err);
       }
     }
-    loadTemplates();
-  }, []);
+    loadTemplatesAndLists();
+  }, [refreshCrmData]);
 
   // Fetch campaign detail when selected campaign changes
   useEffect(() => {
@@ -149,11 +173,74 @@ export default function CampaignsPage() {
   const uniqueBusinessCities = useMemo(() => [...new Set(leads.map((l) => l.business_city?.trim()).filter(Boolean))].sort(), [leads]);
   const uniqueBatches = useMemo(() => [...new Set(leads.map((l) => l.source_batch?.trim()).filter(Boolean))].sort(), [leads]);
 
-  // Real-time matched leads selector based on wizard criteria
+  // Helper to extract email & field type following exact 4 email sections: Primary Email -> Alternate Email -> Primary Business Email -> Additional Emails
+  const getLeadEmailInfo = (lead) => {
+    if (!lead) return { email: "", type: "" };
+    
+    // 1. Primary Email section
+    const primary = (lead.email || lead.primary_email || "").toString().trim();
+    if (primary) return { email: primary, type: "Primary" };
+
+    // 2. Alternate Email section
+    const alternate = (lead.email_alt || lead.alternate_email || lead.secondary_email || "").toString().trim();
+    if (alternate) return { email: alternate, type: "Alternate" };
+
+    // 3. Primary Business Email section
+    const business = (lead.primary_business_email || lead.business_email || lead.work_email || lead.official_email || lead.company_email || "").toString().trim();
+    if (business) return { email: business, type: "Business" };
+
+    // 4. Additional Emails section
+    if (lead.additional_emails) {
+      if (Array.isArray(lead.additional_emails) && lead.additional_emails.length > 0) {
+        const firstAdd = lead.additional_emails[0].toString().trim();
+        if (firstAdd) return { email: firstAdd, type: "Additional" };
+      } else if (typeof lead.additional_emails === "string" && lead.additional_emails.trim()) {
+        const firstAdd = lead.additional_emails.split(",")[0].trim();
+        if (firstAdd) return { email: firstAdd, type: "Additional" };
+      }
+    }
+
+    return { email: "", type: "" };
+  };
+
+  const getLeadEmail = (lead) => {
+    return getLeadEmailInfo(lead).email;
+  };
+
+  // Real-time matched leads selector based on wizard criteria & Saved Lists
   const matchedLeads = useMemo(() => {
+    const activeList = savedLists.find(l => String(l.list_id) === String(selectedListId));
+    const listSources = (activeList?.selected_sources || []).map(s => s.toLowerCase().trim());
+    const listTags = (activeList?.selected_tags || []).map(t => t.toLowerCase().trim());
+
     return leads.filter((lead) => {
-      // Exclude leads with no email
-      if (!lead.email) return false;
+      // Must have an email address (resolves via Personal -> Secondary -> Business -> Work -> Official)
+      const leadEmail = getLeadEmail(lead);
+      if (!leadEmail) return false;
+
+      // Manually excluded override
+      if (manuallyExcludedLeadIds.includes(lead.lead_id)) return false;
+
+      // Manually included override
+      if (manuallyIncludedLeadIds.includes(lead.lead_id)) return true;
+
+      // Saved List Bucket Filter Match
+      if (activeList) {
+        let srcMatch = listSources.length === 0;
+        if (listSources.length > 0 && lead.lead_source) {
+          const lSrcs = lead.lead_source.split(',').map(s => s.toLowerCase().trim());
+          srcMatch = listSources.some(s => lSrcs.includes(s));
+        }
+
+        let tagMatch = listTags.length === 0;
+        if (listTags.length > 0 && lead.tags) {
+          const lTags = lead.tags.split(',').map(t => t.toLowerCase().trim());
+          tagMatch = listTags.some(t => lTags.includes(t));
+        }
+
+        // Match lead according to exact list rules (Must match both source and tag criteria if configured)
+        if (!srcMatch || !tagMatch) return false;
+      }
 
       // Source filter
       if (filterSources.length > 0 && !filterSources.includes(lead.lead_source)) return false;
@@ -188,7 +275,22 @@ export default function CampaignsPage() {
 
       return true;
     });
-  }, [leads, filterSources, filterStatuses, filterPriorities, filterCategories, filterCities, filterStates, filterCountries, filterGenders, filterDesignations, filterIndustries, filterBusinessCountries, filterBusinessCities, filterBatches, filterTags]);
+  }, [leads, savedLists, selectedListId, filterSources, filterStatuses, filterPriorities, filterCategories, filterCities, filterStates, filterCountries, filterGenders, filterDesignations, filterIndustries, filterBusinessCountries, filterBusinessCities, filterBatches, filterTags, manuallyIncludedLeadIds, manuallyExcludedLeadIds]);
+
+  // Single Lead Search Results for manual addition
+  const searchSingleLeadResults = useMemo(() => {
+    if (!singleLeadSearch.trim()) return [];
+    const query = singleLeadSearch.toLowerCase().trim();
+    return leads.filter(l => {
+      const email = getLeadEmail(l);
+      return email && (
+        (l.full_name && l.full_name.toLowerCase().includes(query)) ||
+        (email && email.toLowerCase().includes(query)) ||
+        (l.phone && l.phone.toLowerCase().includes(query)) ||
+        (l.company_name && l.company_name.toLowerCase().includes(query))
+      );
+    }).slice(0, 8);
+  }, [leads, singleLeadSearch]);
 
   const selectedTemplate = useMemo(() => {
     if (!wizardTemplateId) return null;
@@ -213,6 +315,12 @@ export default function CampaignsPage() {
       : new Date(`${wizardDate}T${wizardTime || "12:00"}`).toISOString();
 
     const targetFilter = {};
+    if (selectedListId) targetFilter.selected_list_id = selectedListId;
+    if (manuallyIncludedLeadIds.length > 0) targetFilter.manually_included_ids = manuallyIncludedLeadIds;
+    if (manuallyExcludedLeadIds.length > 0) targetFilter.manually_excluded_ids = manuallyExcludedLeadIds;
+    // Explicitly pass exact matched lead IDs from client table so backend receives exact audience
+    targetFilter.target_lead_ids = matchedLeads.map(l => l.lead_id);
+
     if (filterSources.length > 0) targetFilter.lead_source = filterSources;
     if (filterStatuses.length > 0) targetFilter.lead_status = filterStatuses;
     if (filterPriorities.length > 0) targetFilter.priority = filterPriorities;
@@ -520,26 +628,37 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      {/* FLOW 1: CAMPAIGN CREATION WIZARD */}
+      {/* FLOW 1: ENHANCED CREATE CAMPAIGN WIZARD (FULL PAGE WORKSPACE WITH 51 88 160 THEME) */}
       {activeTab === "wizard" && (
-        <div className="max-w-4xl mx-auto bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-850 shadow-lg overflow-hidden">
-          {/* Stepper Wizard Indicator */}
-          <div className="bg-slate-50 dark:bg-slate-950 p-5 border-b border-slate-200 dark:border-slate-850 flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-              Step {step} of 4
+        <div className="w-full max-w-full min-h-[calc(100vh-140px)] mx-auto bg-white dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-850 shadow-lg overflow-hidden flex flex-col">
+          {/* Stepper Wizard Indicator Header */}
+          <div className="bg-slate-50 dark:bg-slate-950 p-5 border-b border-slate-200 dark:border-slate-850 flex items-center justify-between shrink-0">
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'rgb(51, 88, 160)' }}>
+              STEP {step} OF 4
             </span>
             <div className="flex items-center gap-2">
-              {[1, 2, 3, 4].map((s) => (
-                <div
-                  key={s}
-                  className={`h-2 w-12 rounded-full transition-all duration-300 ${s <= step ? "bg-blue-500" : "bg-slate-200 dark:bg-slate-800"
+              {[
+                { num: 1, label: "Basics" },
+                { num: 2, label: "Target Filters" },
+                { num: 3, label: "Template & Schedule" },
+                { num: 4, label: "Review & Launch" }
+              ].map((s) => (
+                <div key={s.num} className="flex items-center gap-2">
+                  <div
+                    style={s.num <= step ? { backgroundColor: 'rgb(51, 88, 160)' } : {}}
+                    className={`h-2.5 w-16 sm:w-28 rounded-full transition-all duration-300 ${
+                      s.num <= step ? "bg-[#3358A0]" : "bg-slate-200 dark:bg-slate-800"
                     }`}
-                />
+                  />
+                  <span className={`text-xs font-bold hidden md:inline ${s.num === step ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+                    {s.label}
+                  </span>
+                </div>
               ))}
             </div>
           </div>
 
-          <div className="p-6">
+          <div className="p-6 flex-1 flex flex-col overflow-y-auto">
             {/* STEP 1: SETUP DETAILS */}
             {step === 1 && (
               <div className="space-y-4 max-w-lg mx-auto">
@@ -591,6 +710,42 @@ export default function CampaignsPage() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-3 space-y-3.5 scrollbar-thin">
+                      {/* Section 0: Saved Lead List Bucket Selection */}
+                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                        <button
+                          type="button"
+                          onClick={() => setOpenSections(prev => ({ ...prev, bucket: !prev.bucket }))}
+                          className="w-full flex items-center justify-between p-3 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-850/50 border-b border-slate-100 dark:border-slate-800 cursor-pointer select-none"
+                        >
+                          <span className="flex items-center gap-1.5" style={{ color: 'rgb(51, 88, 160)' }}>
+                            <FolderKanban className="w-3.5 h-3.5" /> Saved Lead List Bucket
+                          </span>
+                          {openSections.bucket ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                        {openSections.bucket && (
+                          <div className="p-3 space-y-2">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase">Select Saved List / Bucket</label>
+                            <select
+                              value={selectedListId}
+                              onChange={(e) => setSelectedListId(e.target.value)}
+                              className="w-full px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                            >
+                              <option value="">-- None (Use Field Filters Below) --</option>
+                              {savedLists.map(l => (
+                                <option key={l.list_id} value={l.list_id}>
+                                  📁 {l.name} ({l.matching_lead_count || 0} leads)
+                                </option>
+                              ))}
+                            </select>
+                            {selectedListId && (
+                              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                                ✓ Filtered by Saved List Bucket rules.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Section 1: Classification Details */}
                       <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
                         <button
@@ -605,11 +760,25 @@ export default function CampaignsPage() {
                           <div className="p-3 space-y-3.5">
                             {/* Source Filter */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Source</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Source</label>
+                                {uniqueSources.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterSources.length === uniqueSources.length) setFilterSources([]);
+                                      else setFilterSources([...uniqueSources]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterSources.length === uniqueSources.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueSources.length === 0 ? <p className="text-[10px] italic text-slate-400">No sources found</p> :
                                   uniqueSources.map(src => (
-                                    <label key={src} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={src} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterSources.includes(src)}
@@ -628,11 +797,25 @@ export default function CampaignsPage() {
 
                             {/* Status Filter */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Status</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Status</label>
+                                {uniqueStatuses.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterStatuses.length === uniqueStatuses.length) setFilterStatuses([]);
+                                      else setFilterStatuses([...uniqueStatuses]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterStatuses.length === uniqueStatuses.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueStatuses.length === 0 ? <p className="text-[10px] italic text-slate-400">No statuses found</p> :
                                   uniqueStatuses.map(status => (
-                                    <label key={status} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={status} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterStatuses.includes(status)}
@@ -651,11 +834,25 @@ export default function CampaignsPage() {
 
                             {/* Priority Filter */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Priority</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Priority</label>
+                                {uniquePriorities.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterPriorities.length === uniquePriorities.length) setFilterPriorities([]);
+                                      else setFilterPriorities([...uniquePriorities]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterPriorities.length === uniquePriorities.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniquePriorities.length === 0 ? <p className="text-[10px] italic text-slate-400">No priorities found</p> :
                                   uniquePriorities.map(prio => (
-                                    <label key={prio} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={prio} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterPriorities.includes(prio)}
@@ -674,11 +871,25 @@ export default function CampaignsPage() {
 
                             {/* Category Filter */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Category</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-450 uppercase">Lead Category</label>
+                                {uniqueCategories.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterCategories.length === uniqueCategories.length) setFilterCategories([]);
+                                      else setFilterCategories([...uniqueCategories]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterCategories.length === uniqueCategories.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueCategories.length === 0 ? <p className="text-[10px] italic text-slate-400">No categories found</p> :
                                   uniqueCategories.map(cat => (
-                                    <label key={cat} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={cat} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterCategories.includes(cat)}
@@ -724,11 +935,25 @@ export default function CampaignsPage() {
                           <div className="p-3 space-y-3.5">
                             {/* Country */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Country</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Country</label>
+                                {uniqueCountries.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterCountries.length === uniqueCountries.length) setFilterCountries([]);
+                                      else setFilterCountries([...uniqueCountries]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterCountries.length === uniqueCountries.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueCountries.length === 0 ? <p className="text-[10px] italic text-slate-400">No countries found</p> :
                                   uniqueCountries.map(c => (
-                                    <label key={c} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={c} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterCountries.includes(c)}
@@ -747,11 +972,25 @@ export default function CampaignsPage() {
 
                             {/* State */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">State</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">State</label>
+                                {uniqueStates.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterStates.length === uniqueStates.length) setFilterStates([]);
+                                      else setFilterStates([...uniqueStates]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterStates.length === uniqueStates.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueStates.length === 0 ? <p className="text-[10px] italic text-slate-400">No states found</p> :
                                   uniqueStates.map(s => (
-                                    <label key={s} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={s} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterStates.includes(s)}
@@ -770,11 +1009,25 @@ export default function CampaignsPage() {
 
                             {/* City */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">City</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">City</label>
+                                {uniqueCities.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterCities.length === uniqueCities.length) setFilterCities([]);
+                                      else setFilterCities([...uniqueCities]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterCities.length === uniqueCities.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueCities.length === 0 ? <p className="text-[10px] italic text-slate-400">No cities found</p> :
                                   uniqueCities.map(c => (
-                                    <label key={c} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={c} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterCities.includes(c)}
@@ -793,11 +1046,25 @@ export default function CampaignsPage() {
 
                             {/* Gender */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Gender</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Gender</label>
+                                {uniqueGenders.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterGenders.length === uniqueGenders.length) setFilterGenders([]);
+                                      else setFilterGenders([...uniqueGenders]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterGenders.length === uniqueGenders.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueGenders.length === 0 ? <p className="text-[10px] italic text-slate-400">No genders found</p> :
                                   uniqueGenders.map(g => (
-                                    <label key={g} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={g} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterGenders.includes(g)}
@@ -831,11 +1098,25 @@ export default function CampaignsPage() {
                           <div className="p-3 space-y-3.5">
                             {/* Designation */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Designation</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Designation</label>
+                                {uniqueDesignations.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterDesignations.length === uniqueDesignations.length) setFilterDesignations([]);
+                                      else setFilterDesignations([...uniqueDesignations]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterDesignations.length === uniqueDesignations.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueDesignations.length === 0 ? <p className="text-[10px] italic text-slate-400">No designations found</p> :
                                   uniqueDesignations.map(d => (
-                                    <label key={d} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={d} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterDesignations.includes(d)}
@@ -854,11 +1135,25 @@ export default function CampaignsPage() {
 
                             {/* Industry */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Industry</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Industry</label>
+                                {uniqueIndustries.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterIndustries.length === uniqueIndustries.length) setFilterIndustries([]);
+                                      else setFilterIndustries([...uniqueIndustries]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterIndustries.length === uniqueIndustries.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueIndustries.length === 0 ? <p className="text-[10px] italic text-slate-400">No industries found</p> :
                                   uniqueIndustries.map(i => (
-                                    <label key={i} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={i} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterIndustries.includes(i)}
@@ -877,11 +1172,25 @@ export default function CampaignsPage() {
 
                             {/* Business Country */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Business Country</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Business Country</label>
+                                {uniqueBusinessCountries.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterBusinessCountries.length === uniqueBusinessCountries.length) setFilterBusinessCountries([]);
+                                      else setFilterBusinessCountries([...uniqueBusinessCountries]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterBusinessCountries.length === uniqueBusinessCountries.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueBusinessCountries.length === 0 ? <p className="text-[10px] italic text-slate-400">No bus. countries found</p> :
                                   uniqueBusinessCountries.map(bc => (
-                                    <label key={bc} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={bc} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterBusinessCountries.includes(bc)}
@@ -900,11 +1209,25 @@ export default function CampaignsPage() {
 
                             {/* Business City */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Business City</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Business City</label>
+                                {uniqueBusinessCities.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterBusinessCities.length === uniqueBusinessCities.length) setFilterBusinessCities([]);
+                                      else setFilterBusinessCities([...uniqueBusinessCities]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterBusinessCities.length === uniqueBusinessCities.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueBusinessCities.length === 0 ? <p className="text-[10px] italic text-slate-400">No bus. cities found</p> :
                                   uniqueBusinessCities.map(bc => (
-                                    <label key={bc} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={bc} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterBusinessCities.includes(bc)}
@@ -938,11 +1261,25 @@ export default function CampaignsPage() {
                           <div className="p-3 space-y-3.5">
                             {/* Batch Filter */}
                             <div className="space-y-1.5">
-                              <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Batch Upload</label>
-                              <div className="max-h-24 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
+                              <div className="flex justify-between items-center">
+                                <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-455 uppercase">Batch Upload</label>
+                                {uniqueBatches.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (filterBatches.length === uniqueBatches.length) setFilterBatches([]);
+                                      else setFilterBatches([...uniqueBatches]);
+                                    }}
+                                    className="text-[10px] font-bold text-[#3358A0] dark:text-blue-400 hover:underline cursor-pointer"
+                                  >
+                                    {filterBatches.length === uniqueBatches.length ? "Deselect All" : "Select All"}
+                                  </button>
+                                )}
+                              </div>
+                              <div className="max-h-28 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg p-2 bg-slate-50/50 dark:bg-slate-950 space-y-1 scrollbar-thin">
                                 {uniqueBatches.length === 0 ? <p className="text-[10px] italic text-slate-400">No batches found</p> :
                                   uniqueBatches.map(b => (
-                                    <label key={b} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer">
+                                    <label key={b} className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-350 cursor-pointer hover:text-slate-900 dark:hover:text-white">
                                       <input
                                         type="checkbox"
                                         checked={filterBatches.includes(b)}
@@ -964,33 +1301,181 @@ export default function CampaignsPage() {
                     </div>
                   </div>
 
-                  {/* Matched Preview */}
+                  {/* Right Matched Audience Table & Single Lead Search Panel */}
                   <div className="md:col-span-7 flex flex-col border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden h-[480px] bg-white dark:bg-slate-950">
+                    {/* Panel Top Header */}
                     <div className="p-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
-                      <span className="text-xs font-bold text-slate-700 dark:text-slate-350">Matched Lead List</span>
-                      <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full dark:bg-blue-900/30 dark:text-blue-400">
-                        {matchedLeads.length} enrolled
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-[#3358A0]" />
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-350">Matched Lead List</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {manuallyIncludedLeadIds.length > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                            +{manuallyIncludedLeadIds.length} Added
+                          </span>
+                        )}
+                        <span className="text-xs font-bold text-white px-2.5 py-0.5 rounded-full shadow-xs" style={{ backgroundColor: 'rgb(51, 88, 160)' }}>
+                          {matchedLeads.length} enrolled
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+                    {/* Single Lead Search & Manual Add Input Bar */}
+                    <div className="p-2.5 bg-slate-50/70 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                        <input
+                          type="text"
+                          placeholder="Search single lead to add into campaign (by name, email, phone, company)..."
+                          value={singleLeadSearch}
+                          onChange={(e) => setSingleLeadSearch(e.target.value)}
+                          className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        {singleLeadSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setSingleLeadSearch("")}
+                            className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Search Results Dropdown */}
+                      {searchSingleLeadResults.length > 0 && (
+                        <div className="mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-2 max-h-48 overflow-y-auto space-y-1 shadow-lg z-10 relative">
+                          <span className="text-[10px] font-bold uppercase text-slate-400 px-1 block">
+                            Found Leads - Click to Add:
+                          </span>
+                          {searchSingleLeadResults.map(lead => {
+                            const isEnrolled = matchedLeads.some(m => m.lead_id === lead.lead_id);
+                            return (
+                              <div
+                                key={lead.lead_id}
+                                className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-850 border border-slate-100 dark:border-slate-800/60 text-xs transition-colors"
+                              >
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-slate-800 dark:text-slate-200">{lead.full_name || 'Unnamed Lead'}</span>
+                                    {lead.company_name && (
+                                      <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded font-normal">
+                                        {lead.company_name}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 font-mono flex items-center gap-2">
+                                    <span>{getLeadEmail(lead)}</span>
+                                    {lead.phone && <span>• {lead.phone}</span>}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!manuallyIncludedLeadIds.includes(lead.lead_id)) {
+                                      setManuallyIncludedLeadIds(prev => [...prev, lead.lead_id]);
+                                      setManuallyExcludedLeadIds(prev => prev.filter(id => id !== lead.lead_id));
+                                      toast.success(`Added ${lead.full_name || 'Lead'} to campaign audience!`);
+                                    }
+                                  }}
+                                  disabled={isEnrolled}
+                                  style={!isEnrolled ? { backgroundColor: 'rgb(51, 88, 160)' } : {}}
+                                  className={`px-3 py-1 text-[10px] font-bold rounded-lg text-white transition-all shrink-0 ${
+                                    isEnrolled ? 'bg-emerald-500 cursor-default opacity-90' : 'hover:opacity-90 cursor-pointer shadow-xs active:scale-95'
+                                  }`}
+                                >
+                                  {isEnrolled ? '✓ Enrolled' : '+ Add Lead'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Matched Lead List Table Structure (Displaying Lead Name & Email as main columns) */}
+                    <div className="flex-1 overflow-auto p-2 scrollbar-thin">
                       {matchedLeads.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                        <div className="h-full py-12 flex flex-col items-center justify-center text-center p-4">
                           <AlertCircle className="w-8 h-8 text-slate-300 dark:text-slate-700 mb-2" />
-                          <p className="text-xs text-slate-400">No leads match the selected criteria.</p>
+                          <p className="text-xs text-slate-400">No leads match the selected filter criteria.</p>
+                          <p className="text-[10px] text-slate-400 mt-1">Use the search bar above to manually add single leads.</p>
                         </div>
                       ) : (
-                        matchedLeads.map(lead => (
-                          <div key={lead.lead_id} className="p-2.5 rounded-lg border border-slate-100 dark:border-slate-900/80 bg-slate-50/30 dark:bg-slate-900/30 flex items-center justify-between gap-4">
-                            <div className="min-w-0">
-                              <h5 className="text-xs font-bold text-slate-800 dark:text-slate-150 truncate">{lead.full_name}</h5>
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{lead.email}</p>
-                            </div>
-                            <span className="text-[9px] font-bold text-slate-400 dark:text-slate-500 border rounded px-1.5 py-0.5 uppercase tracking-wider shrink-0 bg-white dark:bg-slate-950">
-                              {lead.priority || "Medium"}
-                            </span>
-                          </div>
-                        ))
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden bg-white dark:bg-slate-950">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-slate-500 uppercase text-[10px] font-bold tracking-wider">
+                              <tr>
+                                <th className="py-2.5 px-3 w-10 text-center">#</th>
+                                <th className="py-2.5 px-3 font-semibold">Lead Name</th>
+                                <th className="py-2.5 px-3 font-semibold">Email</th>
+                                <th className="py-2.5 px-3 font-semibold">Source</th>
+                                <th className="py-2.5 px-3 font-semibold">Status</th>
+                                <th className="py-2.5 px-3 text-center font-semibold">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-850 font-medium">
+                              {matchedLeads.map((lead, idx) => {
+                                const isManuallyAdded = manuallyIncludedLeadIds.includes(lead.lead_id);
+                                const emailInfo = getLeadEmailInfo(lead);
+                                return (
+                                  <tr key={lead.lead_id} className="hover:bg-slate-50/80 dark:hover:bg-slate-900/60 transition-colors">
+                                    <td className="py-2 px-3 text-center text-slate-400 font-mono text-[10px]">
+                                      {idx + 1}
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-bold text-slate-900 dark:text-white">
+                                          {lead.full_name || 'Unnamed Lead'}
+                                        </span>
+                                        {isManuallyAdded && (
+                                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-50 text-[#3358A0] dark:bg-blue-950/50 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                                            Added
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-2 px-3 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+                                      <div className="flex items-center gap-1.5">
+                                        <span>{emailInfo.email}</span>
+                                        {emailInfo.type && (
+                                          <span className="px-1 py-0.1 rounded text-[8px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700">
+                                            {emailInfo.type}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <span className="px-2 py-0.5 rounded text-[9px] font-bold text-white shadow-xs" style={{ backgroundColor: 'rgb(51, 88, 160)' }}>
+                                        {lead.lead_source || 'Website'}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                        {lead.lead_status || 'New'}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-3 text-center">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setManuallyExcludedLeadIds(prev => [...prev, lead.lead_id]);
+                                          setManuallyIncludedLeadIds(prev => prev.filter(id => id !== lead.lead_id));
+                                          toast.info(`Removed ${lead.full_name || 'lead'} from campaign audience.`);
+                                        }}
+                                        className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                                        title="Remove / Exclude lead"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1253,13 +1738,18 @@ export default function CampaignsPage() {
                     toast.error("Please enter a campaign name.");
                     return;
                   }
+                  if (step === 2 && matchedLeads.length === 0) {
+                    toast.error("No leads match your selected filters.");
+                    return;
+                  }
                   if (step === 3 && !wizardTemplateId) {
                     toast.error("Please select a template.");
                     return;
                   }
                   setStep(step + 1);
                 }}
-                className="px-6 bg-[#6057DA] hover:bg-[#4E46C8] text-white text-[13px] font-semibold rounded-full shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-[0.98] h-[40px]"
+                style={{ backgroundColor: 'rgb(51, 88, 160)' }}
+                className="px-6 text-white text-[13px] font-semibold rounded-full shadow-sm inline-flex items-center gap-1.5 hover:opacity-90 transition-all active:scale-[0.98] h-[40px] cursor-pointer"
               >
                 <span>Next</span> <ArrowRight size={15} />
               </button>
@@ -1268,14 +1758,15 @@ export default function CampaignsPage() {
                 <button
                   onClick={() => handleLaunch("Draft")}
                   disabled={isSavingCampaign}
-                  className="px-5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-750 dark:text-slate-250 text-[13px] font-semibold rounded-full transition h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-750 dark:text-slate-250 text-[13px] font-semibold rounded-full transition h-[40px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSavingCampaign ? "Saving..." : "Save Draft"}
                 </button>
                 <button
                   onClick={() => handleLaunch("Running")}
                   disabled={isSavingCampaign}
-                  className="px-6 bg-[#6057DA] hover:bg-[#4E46C8] text-white text-[13px] font-semibold rounded-full shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-[0.98] h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: 'rgb(51, 88, 160)' }}
+                  className="px-6 text-white text-[13px] font-semibold rounded-full shadow-sm inline-flex items-center gap-1.5 hover:opacity-90 transition-all active:scale-[0.98] h-[40px] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSavingCampaign ? (
                     <>
@@ -1284,7 +1775,7 @@ export default function CampaignsPage() {
                     </>
                   ) : (
                     <>
-                      <CheckCircle size={15} /> <span>Launch Campaign</span>
+                      <CheckCircle size={15} /> <span>{wizardSendImmediately ? "Launch Campaign" : "Schedule Campaign"}</span>
                     </>
                   )}
                 </button>

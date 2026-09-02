@@ -13,10 +13,14 @@ export async function GET(request) {
     if (campaignId) query = query.eq("campaign_id", campaignId);
 
     const { data, error } = await query;
-    if (error) throw error;
-    return NextResponse.json({ enrollments: data });
+    if (error) {
+      console.warn("GET enrollments notice:", error.message);
+      return NextResponse.json({ enrollments: [] });
+    }
+    return NextResponse.json({ enrollments: data || [] });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("GET enrollments error:", error);
+    return NextResponse.json({ enrollments: [] });
   }
 }
 

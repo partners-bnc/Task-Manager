@@ -7,10 +7,14 @@ export async function GET() {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.from(TABLE).select("*").order("due_date", { ascending: true });
-    if (error) throw error;
-    return NextResponse.json({ tasks: data });
+    if (error) {
+      console.warn("GET tasks notice:", error.message);
+      return NextResponse.json({ tasks: [] });
+    }
+    return NextResponse.json({ tasks: data || [] });
   } catch (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("GET tasks error:", error);
+    return NextResponse.json({ tasks: [] });
   }
 }
 

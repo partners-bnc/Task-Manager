@@ -15,11 +15,13 @@ import {
   Zap,
   ArrowRight,
   Command,
+  FolderKanban,
 } from 'lucide-react';
 
 const PAGES = [
   { label: 'Dashboard', path: '/other-modules/crm/dashboard', icon: LayoutDashboard },
   { label: 'Lead Tracking', path: '/other-modules/crm/leads', icon: Users },
+  { label: 'Lead Lists & Buckets', path: '/other-modules/crm/lists', icon: FolderKanban },
   { label: 'Tasks', path: '/other-modules/crm/tasks', icon: CheckSquare },
   { label: 'Follow-ups', path: '/other-modules/crm/followups', icon: Calendar },
   { label: 'Calendar', path: '/other-modules/crm/calendar', icon: Calendar },

@@ -10,6 +10,8 @@ import {
   Search,
   Filter,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Plus,
   Edit,
   Edit2,
@@ -386,6 +388,24 @@ export default function LeadsPage() {
   
   const [batchFilter, setBatchFilter] = useState('All');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [activeListFilter, setActiveListFilter] = useState(null);
+
+  // Check URL query parameters for list_id on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const listIdParam = urlParams.get('list_id');
+    if (listIdParam) {
+      fetch(`/other-modules/crm/api/lists/${listIdParam}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.list) {
+            setActiveListFilter(data.list);
+          }
+        })
+        .catch(err => console.error("Error fetching list filter:", err));
+    }
+  }, []);
 
   // Column Visibility State
   const [visibleColumns, setVisibleColumns] = useState(() => {
@@ -551,7 +571,7 @@ export default function LeadsPage() {
   const [uploadedRows, setUploadedRows] = useState([]);
   const [columnMappings, setColumnMappings] = useState({});
   const [columnDefaults, setColumnDefaults] = useState({});
-  const [importStep, setImportStep] = useState(1); // 1: Source Selection, 2: Preview & Clean, 3: Schema Mapping, 4: Defaults Configuration, 5: Conflict Resolution, 6: Animated Loading, 7: Success
+  const [importStep, setImportStep] = useState(1); // 1: Upload, 2: Preview, 3: Mapping, 4: Mapped DB Preview, 5: Defaults, 6: Conflict, 7: Ingesting, 8: Summary
   const [duplicateLeadsFound, setDuplicateLeadsFound] = useState([]);
   const [importConflictStrategy, setImportConflictStrategy] = useState('skip'); // 'skip', 'overwrite', 'anyway'
   const [animatedProgress, setAnimatedProgress] = useState(0);
@@ -754,6 +774,31 @@ export default function LeadsPage() {
       setSortDirection('asc');
     }
     setCurrentPage(1);
+  };
+
+  // Render clickable sortable table column header
+  const renderSortableHeader = (field, label) => {
+    const isCurrent = sortField === field;
+    return (
+      <th
+        onClick={() => handleSort(field)}
+        className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap group transition-colors"
+        title={`Click to sort by ${label}`}
+      >
+        <div className="flex items-center gap-1.5">
+          <span>{label}</span>
+          {isCurrent ? (
+            sortDirection === 'asc' ? (
+              <ArrowUp className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 font-bold shrink-0" />
+            ) : (
+              <ArrowDown className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 font-bold shrink-0" />
+            )
+          ) : (
+            <ArrowUpDown className="w-3 h-3 text-slate-300 dark:text-slate-600 opacity-60 group-hover:opacity-100 transition-opacity shrink-0" />
+          )}
+        </div>
+      </th>
+    );
   };
 
   // Form Validation
@@ -1445,6 +1490,11 @@ export default function LeadsPage() {
     setSelectedSheetName('');
   };
 
+  const handleRemoveUploadedRow = (rowIndex) => {
+    setUploadedRows(prev => prev.filter((_, idx) => idx !== rowIndex));
+    toast.success("Record removed from preview list.");
+  };
+
   // Map raw imported rows to schema-compliant leads (converting empty dates/fields to null)
   const getMappedLeads = () => {
     return uploadedRows.map(row => {
@@ -1728,7 +1778,7 @@ export default function LeadsPage() {
 
       if (duplicates.length > 0) {
         setDuplicateLeadsFound(duplicates);
-        setImportStep(5); // Duplicate resolution selection (Step 5)
+        setImportStep(6); // Duplicate resolution selection (Step 6)
       } else {
         // Go straight to import pipeline
         executeBulkImportDirectly(validLeads, existingInDb);
@@ -1786,7 +1836,7 @@ export default function LeadsPage() {
   };
 
   const executeBulkImportDirectly = async (validLeads, existingInDb) => {
-    setImportStep(6); // Animated full-screen load stage (Step 6)
+    setImportStep(7); // Animated full-screen load stage (Step 7)
     setAnimatedProgress(5);
     setCurrentImportPhase("Analyzing data feed headers...");
     setImportTicker([]);
@@ -1893,7 +1943,7 @@ export default function LeadsPage() {
         updated: resData.updated || 0,
         skipped: (resData.skipped || 0) + validationSkippedCount
       });
-      setImportStep(7); // Summary (Step 7)
+      setImportStep(8); // Summary (Step 8)
       fetchLeads();
     } catch (err) {
       console.error(err);
@@ -1908,7 +1958,7 @@ export default function LeadsPage() {
 
   // Fuzzy Search & Filters applied locally/client-side on top of fetched leads
   const processedLeads = useMemo(() => {
-    const res = leads.filter(lead => {
+    let res = leads.filter(lead => {
       // Search term match: name, phone, email
       const searchStr = searchTerm.toLowerCase().trim();
       const nameMatch = lead.full_name?.toLowerCase().includes(searchStr);
@@ -1951,14 +2001,56 @@ export default function LeadsPage() {
       const matchesBatch = batchFilter === 'All' ||
         (lead.source_batch?.trim().toLowerCase() === batchFilter.trim().toLowerCase());
 
+      // Active List Bucket matching logic
+      let matchesList = true;
+      if (activeListFilter) {
+        const sources = (activeListFilter.selected_sources || []).map(s => s.toLowerCase().trim()).filter(Boolean);
+        const tags = (activeListFilter.selected_tags || []).map(t => t.toLowerCase().trim()).filter(Boolean);
+
+        let sourceMatched = sources.length === 0;
+        if (sources.length > 0 && lead.lead_source) {
+          const leadSources = lead.lead_source.split(',').map(s => s.toLowerCase().trim());
+          sourceMatched = sources.some(s => leadSources.includes(s));
+        }
+
+        let tagMatched = tags.length === 0;
+        if (tags.length > 0 && lead.tags) {
+          const leadTags = lead.tags.split(',').map(t => t.toLowerCase().trim());
+          tagMatched = tags.some(t => leadTags.includes(t));
+        }
+
+        matchesList = sourceMatched && tagMatched;
+      }
+
       return matchesSearch && matchesStatus && matchesSource && matchesCategory && matchesPriority && matchesType && matchesTags && 
              matchesCity && matchesState && matchesCountry && matchesGender && 
              matchesDesignation && matchesIndustry && matchesBusinessCountry && matchesBusinessCity && 
-             matchesBatch;
+             matchesBatch && matchesList;
     });
 
+    if (sortField) {
+      res = [...res].sort((a, b) => {
+        let valA = a[sortField];
+        let valB = b[sortField];
+
+        if (valA === null || valA === undefined) valA = '';
+        if (valB === null || valB === undefined) valB = '';
+
+        if (typeof valA === 'number' && typeof valB === 'number') {
+          return sortDirection === 'asc' ? valA - valB : valB - valA;
+        }
+
+        const strA = String(valA).toLowerCase();
+        const strB = String(valB).toLowerCase();
+
+        if (strA < strB) return sortDirection === 'asc' ? -1 : 1;
+        if (strA > strB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
     return res;
-  }, [leads, searchTerm, statusFilter, sourceFilter, categoryFilter, priorityFilter, typeFilter, tagsFilter, cityFilter, stateFilter, countryFilter, genderFilter, designationFilter, industryFilter, businessCountryFilter, businessCityFilter, batchFilter]);
+  }, [leads, searchTerm, statusFilter, sourceFilter, categoryFilter, priorityFilter, typeFilter, tagsFilter, cityFilter, stateFilter, countryFilter, genderFilter, designationFilter, industryFilter, businessCountryFilter, businessCityFilter, batchFilter, activeListFilter, sortField, sortDirection]);
 
   // Pagination Slice
   const paginatedLeads = useMemo(() => {
@@ -2160,10 +2252,11 @@ export default function LeadsPage() {
               { num: 1, label: 'Upload' },
               { num: 2, label: 'Preview' },
               { num: 3, label: 'Mapping' },
-              { num: 4, label: 'Defaults' },
-              { num: 5, label: 'Conflict' },
-              { num: 6, label: 'Ingest' },
-              { num: 7, label: 'Summary' }
+              { num: 4, label: 'Mapped DB' },
+              { num: 5, label: 'Defaults' },
+              { num: 6, label: 'Conflict' },
+              { num: 7, label: 'Ingest' },
+              { num: 8, label: 'Summary' }
             ].map((step, idx) => (
               <React.Fragment key={step.num}>
                 {idx > 0 && (
@@ -2343,6 +2436,12 @@ export default function LeadsPage() {
                   <table className="w-full text-left border-collapse table-auto">
                     <thead>
                       <tr className="border-b border-slate-150 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/50 sticky top-0 backdrop-blur-sm">
+                        <th className="py-3.5 px-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap text-center w-12">
+                          #
+                        </th>
+                        <th className="py-3.5 px-3 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap text-center w-16">
+                          Remove
+                        </th>
                         {uploadedHeaders.map((header, idx) => (
                           <th key={idx} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider whitespace-nowrap">
                             {header}
@@ -2353,6 +2452,19 @@ export default function LeadsPage() {
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                       {uploadedRows.map((row, rowIdx) => (
                         <tr key={rowIdx} className="hover:bg-slate-50/40 dark:hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 text-center text-xs font-mono font-bold text-slate-400 whitespace-nowrap">
+                            {rowIdx + 1}
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveUploadedRow(rowIdx)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                              title="Remove this lead record from import preview"
+                            >
+                              <Trash2 className="w-4 h-4 text-rose-500" />
+                            </button>
+                          </td>
                           {uploadedHeaders.map((header, colIdx) => (
                             <td key={colIdx} className="py-2.5 px-4 text-xs text-slate-700 dark:text-slate-350 font-mono whitespace-nowrap">
                               {row[header] !== undefined && row[header] !== null ? String(row[header]) : ''}
@@ -2604,14 +2716,112 @@ export default function LeadsPage() {
                   className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
                 >
                   {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                  Validate & Process Data <ArrowRight className="w-4 h-4" />
+                  Next: Mapped DB Preview <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 4: DEFAULT VALUES CONFIGURATION */}
+          {/* STEP 4: MAPPED DATABASE SCHEMA PREVIEW */}
           {importStep === 4 && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2">
+                    <Database className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                    <span>Mapped Database Schema Preview</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Review how your mapped data will fit into exact CRM database columns (<code className="font-mono text-indigo-500">full_name</code>, <code className="font-mono text-indigo-500">email</code>, <code className="font-mono text-indigo-500">phone</code>, <code className="font-mono text-indigo-500">lead_source</code>, <code className="font-mono text-indigo-500">tags</code>, etc.) before ingestion.
+                  </p>
+                </div>
+
+                <div className="text-xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 px-4 py-2 rounded-xl border border-emerald-200 dark:border-emerald-900/60 self-start flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-emerald-500" />
+                  <span>{getMappedLeads().length} Mapped Lead Records</span>
+                </div>
+              </div>
+
+              {/* Mapped DB Table Preview */}
+              <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto max-h-[480px]">
+                  <table className="w-full text-left border-collapse table-auto text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 sticky top-0 backdrop-blur-sm">
+                        <th className="py-3 px-3 font-bold text-slate-500 uppercase tracking-wider text-center w-12">#</th>
+                        {DB_COLUMNS_MAPPING.map(col => {
+                          const mappedSrcHeader = columnMappings[col.key];
+                          return (
+                            <th key={col.key} className="py-3 px-4 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap border-r border-slate-100 dark:border-slate-850">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-[11px] font-extrabold text-slate-900 dark:text-white">{col.label}</span>
+                                <span className="font-mono text-[9.5px] text-indigo-600 dark:text-indigo-400">{col.key}</span>
+                                {mappedSrcHeader ? (
+                                  <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 truncate max-w-[130px]">
+                                    ← "{mappedSrcHeader}"
+                                  </span>
+                                ) : (
+                                  <span className="mt-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-400 truncate max-w-[130px]">
+                                    Unmapped (Null)
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80 font-mono">
+                      {getMappedLeads().map((mappedLead, rowIdx) => (
+                        <tr key={rowIdx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="py-2.5 px-3 text-center text-slate-400 font-bold">
+                            {rowIdx + 1}
+                          </td>
+                          {DB_COLUMNS_MAPPING.map(col => {
+                            const val = mappedLead[col.key];
+                            return (
+                              <td key={col.key} className="py-2.5 px-4 text-[11px] text-slate-800 dark:text-slate-200 whitespace-nowrap border-r border-slate-100/50 dark:border-slate-850">
+                                {val !== null && val !== undefined && val !== '' ? (
+                                  <span className="font-semibold text-slate-900 dark:text-white">{String(val)}</span>
+                                ) : (
+                                  <span className="text-slate-300 dark:text-slate-600 italic">null</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="p-3 bg-slate-50 dark:bg-slate-950 text-center text-slate-500 font-semibold text-xs border-t border-slate-200 dark:border-slate-800 flex items-center justify-center gap-2">
+                  <Database className="w-4 h-4 text-indigo-500" />
+                  <span>Previewing exact target database schemas & columns for all {getMappedLeads().length} leads.</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setImportStep(3)}
+                  className="px-4.5 py-2 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  ← Back to Column Mapping
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImportStep(5)}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow cursor-pointer"
+                >
+                  Next: Configure Defaults <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5: DEFAULT VALUES CONFIGURATION */}
+          {importStep === 5 && (
             <div className="space-y-6">
               <div>
                 <h3 className="text-base font-extrabold text-slate-800 dark:text-white">
@@ -2771,13 +2981,13 @@ export default function LeadsPage() {
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-150 dark:border-slate-800">
                 <button
-                  onClick={() => setImportStep(3)}
+                  onClick={() => setImportStep(4)}
                   className="px-4 py-2 border border-slate-350 dark:border-slate-655 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
                 >
-                  Back to Mapping
+                  Back to Mapped DB Preview
                 </button>
                 <button
-                  onClick={handleMappingSubmit}
+                  onClick={validateAndRouteToDuplicateCheck}
                   disabled={actionLoading}
                   className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
                 >
@@ -2788,8 +2998,8 @@ export default function LeadsPage() {
             </div>
           )}
 
-          {/* STEP 5: DUPLICATE RESOLUTION Strategizing */}
-          {importStep === 5 && (
+          {/* STEP 6: DUPLICATE RESOLUTION Strategizing */}
+          {importStep === 6 && (
             <div className="max-w-2xl mx-auto py-4 space-y-6">
               <div className="text-center space-y-2">
                 <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto border border-amber-200/50">
@@ -2900,7 +3110,7 @@ export default function LeadsPage() {
 
               <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button
-                  onClick={() => setImportStep(4)}
+                  onClick={() => setImportStep(5)}
                   className="px-4 py-2 border border-slate-350 dark:border-slate-655 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
                 >
                   Back
@@ -2917,8 +3127,8 @@ export default function LeadsPage() {
             </div>
           )}
 
-          {/* STEP 6: DETAILED PREMIUM LOADING & TRANSACTION TICKERS */}
-          {importStep === 6 && (
+          {/* STEP 7: DETAILED PREMIUM LOADING & TRANSACTION TICKERS */}
+          {importStep === 7 && (
             <div className="max-w-xl mx-auto py-10 text-center space-y-8">
 
               {/* Pulsing circular core */}
@@ -2989,8 +3199,8 @@ export default function LeadsPage() {
             </div>
           )}
 
-          {/* STEP 7: IMPORT TRANSACTION COMPLETED SUMMARY */}
-          {importStep === 7 && (
+          {/* STEP 8: IMPORT TRANSACTION COMPLETED SUMMARY */}
+          {importStep === 8 && (
             <div className="max-w-md mx-auto py-8 text-center space-y-6">
 
               <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 rounded-full flex items-center justify-center mx-auto border-2 border-emerald-250 relative shadow-[0_0_40px_rgba(16,185,129,0.25)] animate-bounce">
@@ -3048,10 +3258,49 @@ export default function LeadsPage() {
   return (
     <div className="p-6 md:p-8 min-h-screen bg-slate-100 dark:bg-slate-900 transition-colors duration-300 text-slate-800 dark:text-slate-100">
 
+      {/* Active List Bucket Banner */}
+      {activeListFilter && (
+        <div style={{ backgroundColor: 'rgb(51, 88, 160)' }} className="mb-6 p-4.5 rounded-2xl text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start md:items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur-md text-white shrink-0 mt-0.5 md:mt-0">
+              <Folder className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] uppercase tracking-wider font-extrabold text-blue-200">Active Lead List Bucket</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white text-xs font-bold border border-white/20">
+                  {processedLeads.length} Matching Leads
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-white mt-0.5">{activeListFilter.name}</h2>
+              <div className="flex items-center gap-3 text-xs text-blue-100 mt-0.5 flex-wrap">
+                {activeListFilter.selected_sources?.length > 0 && (
+                  <span><strong>Sources:</strong> {activeListFilter.selected_sources.join(', ')}</span>
+                )}
+                {activeListFilter.selected_tags?.length > 0 && (
+                  <span><strong>Tags:</strong> {activeListFilter.selected_tags.join(', ')}</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setActiveListFilter(null);
+              window.history.replaceState(null, '', '/other-modules/crm/leads');
+            }}
+            style={{ color: 'rgb(51, 88, 160)' }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white font-bold text-xs hover:bg-blue-50 transition shadow-xs shrink-0 self-start md:self-auto cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+            <span>Clear List Filter</span>
+          </button>
+        </div>
+      )}
+
       {/* Header and Add Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight dark:text-white bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent">
+          <h1 style={{ color: 'rgb(51, 88, 160)' }} className="text-3xl font-bold tracking-tight">
             Centralized Lead Database
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
@@ -3071,7 +3320,7 @@ export default function LeadsPage() {
           </button>
           <button
             onClick={openCreateForm}
-            style={{ backgroundColor: 'rgb(37, 89, 165)' }}
+            style={{ backgroundColor: 'rgb(51, 88, 160)' }}
             className="flex items-center gap-2 hover:opacity-90 text-white px-5 py-2 rounded-lg font-medium transition shadow-md hover:shadow-lg text-sm cursor-pointer"
           >
             <Plus className="w-4.5 h-4.5" />
@@ -3514,158 +3763,38 @@ export default function LeadsPage() {
                       className="rounded border-slate-350 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5 cursor-pointer bg-white dark:bg-slate-800"
                     />
                   </th>
-                  {visibleColumns.lead_id !== false && (
-                    <th onClick={() => handleSort('lead_id')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        ID {sortField === 'lead_id' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.full_name !== false && (
-                    <th onClick={() => handleSort('full_name')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Name {sortField === 'full_name' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.phone !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Phone</th>
-                  )}
-                  {visibleColumns.phone_alt !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Alt Phone</th>
-                  )}
-                  {visibleColumns.whatsapp !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">WhatsApp</th>
-                  )}
-                  {visibleColumns.email !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Email</th>
-                  )}
-                  {visibleColumns.email_alt !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Alt Email</th>
-                  )}
-                  {visibleColumns.company_name !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Company</th>
-                  )}
-                  {visibleColumns.designation !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Designation</th>
-                  )}
-                  {visibleColumns.industry !== false && (
-                    <th onClick={() => handleSort('industry')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Industry {sortField === 'industry' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.website !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Website</th>
-                  )}
-                  {visibleColumns.company_size !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Company Size</th>
-                  )}
-                  {visibleColumns.city !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">City</th>
-                  )}
-                  {visibleColumns.state !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">State</th>
-                  )}
-                  {visibleColumns.country !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Country</th>
-                  )}
-                  {visibleColumns.business_city !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Biz City</th>
-                  )}
-                  {visibleColumns.business_country !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Biz Country</th>
-                  )}
-                  {visibleColumns.lead_source !== false && (
-                    <th onClick={() => handleSort('lead_source')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Source {sortField === 'lead_source' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.lead_category !== false && (
-                    <th onClick={() => handleSort('lead_category')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Category {sortField === 'lead_category' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.lead_type !== false && (
-                    <th onClick={() => handleSort('lead_type')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Lead Type {sortField === 'lead_type' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.lead_status !== false && (
-                    <th onClick={() => handleSort('lead_status')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Status {sortField === 'lead_status' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.priority !== false && (
-                    <th onClick={() => handleSort('priority')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Priority {sortField === 'priority' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.tags !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Tags</th>
-                  )}
-                  {visibleColumns.assigned_to !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Assigned To</th>
-                  )}
-                  {visibleColumns.source_batch !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Source Batch</th>
-                  )}
-                  {visibleColumns.notes !== false && (
-                    <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none whitespace-nowrap">Notes</th>
-                  )}
-                  {visibleColumns.next_followup_date !== false && (
-                    <th onClick={() => handleSort('next_followup_date')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Next Followup {sortField === 'next_followup_date' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.last_contacted !== false && (
-                    <th onClick={() => handleSort('last_contacted')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Last Contacted {sortField === 'last_contacted' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.created_at !== false && (
-                    <th onClick={() => handleSort('created_at')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Created At {sortField === 'created_at' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.created_by !== false && (
-                    <th onClick={() => handleSort('created_by')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Created By {sortField === 'created_by' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.updated_at !== false && (
-                    <th onClick={() => handleSort('updated_at')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Updated At {sortField === 'updated_at' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
-                  {visibleColumns.updated_by !== false && (
-                    <th onClick={() => handleSort('updated_by')} className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100/60 dark:hover:bg-slate-700/30 select-none whitespace-nowrap">
-                      <div className="flex items-center gap-1.5">
-                        Updated By {sortField === 'updated_by' && <ArrowUpDown className="w-3 h-3 text-blue-500" />}
-                      </div>
-                    </th>
-                  )}
+                  {visibleColumns.lead_id !== false && renderSortableHeader('lead_id', 'ID')}
+                  {visibleColumns.full_name !== false && renderSortableHeader('full_name', 'NAME')}
+                  {visibleColumns.phone !== false && renderSortableHeader('phone', 'PHONE')}
+                  {visibleColumns.phone_alt !== false && renderSortableHeader('phone_alt', 'ALT PHONE')}
+                  {visibleColumns.whatsapp !== false && renderSortableHeader('whatsapp', 'WHATSAPP')}
+                  {visibleColumns.email !== false && renderSortableHeader('email', 'EMAIL')}
+                  {visibleColumns.email_alt !== false && renderSortableHeader('email_alt', 'ALT EMAIL')}
+                  {visibleColumns.company_name !== false && renderSortableHeader('company_name', 'COMPANY')}
+                  {visibleColumns.designation !== false && renderSortableHeader('designation', 'DESIGNATION')}
+                  {visibleColumns.industry !== false && renderSortableHeader('industry', 'INDUSTRY')}
+                  {visibleColumns.website !== false && renderSortableHeader('website', 'WEBSITE')}
+                  {visibleColumns.company_size !== false && renderSortableHeader('company_size', 'COMPANY SIZE')}
+                  {visibleColumns.city !== false && renderSortableHeader('city', 'CITY')}
+                  {visibleColumns.state !== false && renderSortableHeader('state', 'STATE')}
+                  {visibleColumns.country !== false && renderSortableHeader('country', 'COUNTRY')}
+                  {visibleColumns.business_city !== false && renderSortableHeader('business_city', 'BIZ CITY')}
+                  {visibleColumns.business_country !== false && renderSortableHeader('business_country', 'BIZ COUNTRY')}
+                  {visibleColumns.lead_source !== false && renderSortableHeader('lead_source', 'SOURCE')}
+                  {visibleColumns.lead_category !== false && renderSortableHeader('lead_category', 'CATEGORY')}
+                  {visibleColumns.lead_type !== false && renderSortableHeader('lead_type', 'LEAD TYPE')}
+                  {visibleColumns.lead_status !== false && renderSortableHeader('lead_status', 'STATUS')}
+                  {visibleColumns.priority !== false && renderSortableHeader('priority', 'PRIORITY')}
+                  {visibleColumns.tags !== false && renderSortableHeader('tags', 'TAGS')}
+                  {visibleColumns.assigned_to !== false && renderSortableHeader('assigned_to', 'ASSIGNED TO')}
+                  {visibleColumns.source_batch !== false && renderSortableHeader('source_batch', 'SOURCE BATCH')}
+                  {visibleColumns.notes !== false && renderSortableHeader('notes', 'NOTES')}
+                  {visibleColumns.next_followup_date !== false && renderSortableHeader('next_followup_date', 'NEXT FOLLOWUP')}
+                  {visibleColumns.last_contacted !== false && renderSortableHeader('last_contacted', 'LAST CONTACTED')}
+                  {visibleColumns.created_at !== false && renderSortableHeader('created_at', 'CREATED AT')}
+                  {visibleColumns.created_by !== false && renderSortableHeader('created_by', 'CREATED BY')}
+                  {visibleColumns.updated_at !== false && renderSortableHeader('updated_at', 'UPDATED AT')}
+                  {visibleColumns.updated_by !== false && renderSortableHeader('updated_by', 'UPDATED BY')}
                   <th className="py-3.5 px-4 font-bold text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider select-none text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>

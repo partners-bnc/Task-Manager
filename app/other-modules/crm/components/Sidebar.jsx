@@ -19,6 +19,7 @@ import {
   Megaphone,
   Rocket,
   LayoutGrid,
+  FolderKanban,
 } from 'lucide-react';
 import { useCrm } from '../context/CrmContext';
 
@@ -106,6 +107,7 @@ const Sidebar = () => {
           <SidebarItem icon={LayoutDashboard} label="Dashboard" href="/other-modules/crm/dashboard" isCollapsed={isSidebarCollapsed} />
         )}
         <SidebarItem icon={Users} label="Lead Tracking" href="/other-modules/crm/leads" isCollapsed={isSidebarCollapsed} />
+        <SidebarItem icon={FolderKanban} label="Lead Lists" href="/other-modules/crm/lists" isCollapsed={isSidebarCollapsed} />
         <SidebarItem icon={MessageSquareCode} label="Follow-ups" href="/other-modules/crm/followups" isCollapsed={isSidebarCollapsed} />
         {permissions.canManageEmailTemplates && (
           <SidebarItem icon={Rocket} label="Campaigns" href="/other-modules/crm/campaigns" isCollapsed={isSidebarCollapsed} />

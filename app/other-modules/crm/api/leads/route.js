@@ -231,6 +231,22 @@ export async function GET(request) {
   }
 }
 
+function sanitizeLeadPayload(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  const sanitized = { ...obj };
+
+  for (const key of Object.keys(sanitized)) {
+    if (typeof sanitized[key] === "string") {
+      const trimmed = sanitized[key].trim();
+      if (trimmed === "") {
+        sanitized[key] = null;
+      }
+    }
+  }
+
+  return sanitized;
+}
+
 export async function POST(request) {
   try {
     const supabase = await createClient();
@@ -243,11 +259,12 @@ export async function POST(request) {
     const userDetails = await getUserDetails(supabase, user);
 
     const { notes, next_followup_date, last_contacted, experiences, educations, ...leadData } = body;
+    const sanitizedLeadData = sanitizeLeadPayload(leadData);
 
     const { data: lead, error } = await adminClient
       .from(TABLE)
       .insert({
-        ...leadData,
+        ...sanitizedLeadData,
         created_by: userDetails
       })
       .select("*")
@@ -360,11 +377,12 @@ export async function PUT(request) {
 
     const { lead_id, notes, next_followup_date, last_contacted, experiences, educations, ...updates } = body;
     const userDetails = await getUserDetails(supabase, user);
+    const sanitizedUpdates = sanitizeLeadPayload(updates);
 
     const { data: lead, error } = await adminClient
       .from(TABLE)
       .update({
-        ...updates,
+        ...sanitizedUpdates,
         updated_by: userDetails
       })
       .eq("lead_id", lead_id)
