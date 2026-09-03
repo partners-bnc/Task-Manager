@@ -880,7 +880,7 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
       .order('employee_id', { ascending: true }),
     adminClient
       .from('hrm_attendance')
-      .select('employee_id, date, status, work_hours_minutes, is_regularized')
+      .select('employee_id, date, status, work_hours_minutes, is_regularized, check_in, check_out, notes')
       .gte('date', startDate)
       .lte('date', endDate),
     adminClient
@@ -940,12 +940,15 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
     }
   }
 
-  // key = "employeeId:date" => { status, workHoursMinutes }
+  // key = "employeeId:date" => { status, workHoursMinutes, checkIn, checkOut, notes }
   const attendanceMap = new Map();
   for (const row of attendanceResult.data || []) {
     attendanceMap.set(`${row.employee_id}:${row.date}`, {
       status: row.status,
       workHoursMinutes: row.work_hours_minutes ?? 0,
+      checkIn: row.check_in,
+      checkOut: row.check_out,
+      notes: row.notes,
     });
   }
 
@@ -967,6 +970,14 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
       const attData = attendanceMap.get(key);
       const status = attData ? attData.status : null;
       const workHours = attData ? attData.workHoursMinutes : 0;
+      const hasSwipeOrAttendance = Boolean(
+        attData &&
+          (attData.checkIn ||
+            attData.checkOut ||
+            workHours > 0 ||
+            status === 'present' ||
+            (attData.notes && attData.notes.includes('[hr_override_opposite_half_present]')))
+      );
 
       // Skip scheduled off days UNLESS HR explicitly marked the day absent
       if (isEmployeeScheduledOff(date, schedule)) {
@@ -983,7 +994,7 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
       const hasHalfDayLop = halfDayLopLeaveKeys.has(key);
 
       if (hasHalfDayPaid || hasHalfDayLop) {
-        if (workHours >= 270) {
+        if (workHours >= 270 || hasSwipeOrAttendance) {
           fraction = 0.0;
         } else {
           fraction = 0.5;
