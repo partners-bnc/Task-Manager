@@ -30,8 +30,8 @@ async function getUserDetails(supabase, user) {
 const TABLE = "crm_campaigns";
 const ZEPTOMAIL_URL = "https://api.zeptomail.in/v1.1/email";
 const ZEPTOMAIL_FROM = {
-  address: "noreply@bncglobal.in",
-  name: "noreply",
+  address: process.env.ZEPTOMAIL_FROM_ADDRESS || "noreply@bncglobal.in",
+  name: process.env.ZEPTOMAIL_FROM_NAME || "BNC Global",
 };
 
 // Helper for template variable substitution
