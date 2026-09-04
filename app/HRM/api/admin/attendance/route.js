@@ -222,10 +222,14 @@ function buildLeaveCellDetails(leaveRequest, rawAttendance) {
   const leaveCode = getLeaveAttendanceCode(leaveRequest?.leave_type || leaveTypeName);
   const session = leaveRequest?.applied_session || leaveRequest?.session || 'full_day';
   const isHalfDay = session !== 'full_day';
-  const attendanceMarked =
-    Boolean(rawAttendance?.check_in || rawAttendance?.check_out || Number(rawAttendance?.work_hours_minutes || 0) > 0) ||
-    String(rawAttendance?.attendance_status || rawAttendance?.status || '').toLowerCase() === 'present' ||
-    String(rawAttendance?.notes || '').includes(OPPOSITE_HALF_PRESENT_MARKER);
+  const isRegularized = Boolean(rawAttendance?.is_regularized);
+  const isHrOverridden = String(rawAttendance?.notes || '').includes(OPPOSITE_HALF_PRESENT_MARKER);
+  const hasFullWorkShift = Boolean(
+    rawAttendance?.check_in &&
+      rawAttendance?.check_out &&
+      Number(rawAttendance?.work_hours_minutes || 0) >= 270
+  );
+  const attendanceMarked = isRegularized || isHrOverridden || hasFullWorkShift;
   const sourceLabel = leaveRequest?.request_source === 'hr_override' ? 'HR Overwrite' : 'Approved Leave';
 
   if (isHalfDay) {
@@ -237,8 +241,8 @@ function buildLeaveCellDetails(leaveRequest, rawAttendance) {
       status: 'halfday',
       label: `${leaveTypeName} (${formatLeaveSession(session)})`,
       notes: attendanceMarked
-        ? `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Attendance was marked in the opposite half.`
-        : `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Opposite-half attendance was not marked, so the remaining half is absent.`,
+        ? `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Opposite-half attendance criteria met (Check-In, Check-Out, >= 4.5 hrs work).`
+        : `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Opposite-half attendance criteria not met (missing Check-Out or < 4.5 hrs work), so the remaining half is absent.`,
     };
   }
 
@@ -590,7 +594,7 @@ export async function GET(request) {
                 ? buildAttendanceBackfillCellDetails(rawAttendance)
                 : null;
             const leaveDetails =
-              !holiday && rendered.status !== 'weekend' && leaveRequest && !backfillDetails
+              leaveRequest && !backfillDetails
                 ? buildLeaveCellDetails(leaveRequest, rawAttendance)
                 : null;
             const normalizedStatus = String(leaveDetails?.status || backfillDetails?.status || rendered.status || '').toLowerCase() || 'missing';

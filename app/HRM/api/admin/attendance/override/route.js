@@ -258,10 +258,14 @@ function buildLeaveCellDetails(leaveRequest, rawAttendance) {
   const leaveCode = getLeaveAttendanceCode(leaveRequest?.leave_type || leaveTypeName);
   const session = leaveRequest?.applied_session || leaveRequest?.session || 'full_day';
   const isHalfDay = session !== 'full_day';
-  const attendanceMarked =
-    Boolean(rawAttendance?.check_in || rawAttendance?.check_out || Number(rawAttendance?.work_hours_minutes || 0) > 0) ||
-    String(rawAttendance?.status || '').toLowerCase() === 'present' ||
-    String(rawAttendance?.notes || '').includes(OPPOSITE_HALF_PRESENT_MARKER);
+  const isRegularized = Boolean(rawAttendance?.is_regularized);
+  const isHrOverridden = String(rawAttendance?.notes || '').includes(OPPOSITE_HALF_PRESENT_MARKER);
+  const hasFullWorkShift = Boolean(
+    rawAttendance?.check_in &&
+      rawAttendance?.check_out &&
+      Number(rawAttendance?.work_hours_minutes || 0) >= 270
+  );
+  const attendanceMarked = isRegularized || isHrOverridden || hasFullWorkShift;
   const sourceLabel =
     leaveRequest?.request_source === 'hr_override'
       ? 'HR Overwrite'
@@ -276,8 +280,8 @@ function buildLeaveCellDetails(leaveRequest, rawAttendance) {
       status: 'halfday',
       label: `${leaveTypeName} (${formatLeaveSession(session)})`,
       notes: attendanceMarked
-        ? `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Attendance was marked in the opposite half.`
-        : `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Opposite-half attendance was not marked, so the remaining half is absent.`,
+        ? `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Opposite-half attendance criteria met (Check-In, Check-Out, >= 4.5 hrs work).`
+        : `${sourceLabel}: ${leaveTypeName} approved for ${formatLeaveSession(session)}. Opposite-half attendance criteria not met (missing Check-Out or < 4.5 hrs work), so the remaining half is absent.`,
     };
   }
 
@@ -395,13 +399,14 @@ async function reverseHrOverrideRequest({
   const { error: requestError } = await adminClient
     .from('hrm_leave_requests')
     .update({
-      status: 'reversed',
+      status: 'cancelled',
       review_note: appendAuditNote(
         leaveRequest.review_note,
         `Reversed by ${actorName || 'HR Admin'} on ${getCurrentDateInTimeZone()}.`
       ),
     })
     .eq('id', leaveRequest.id);
+
 
   if (requestError) {
     throw new Error(requestError.message || 'Failed to mark HR override leave request as reversed');
@@ -514,10 +519,11 @@ async function createApprovedHrOverrideLeave({
     endDate: date,
     session: action.session,
     employeeSchedule: employee.workingSchedule,
+    allowNonWorkingDays: isLopLeaveType(leaveType),
   });
 
   if (calculation.totalDays <= 0) {
-    throw new Error('The selected date is not a working day for this employee.');
+    throw new Error('The selected date is not eligible for leave calculation.');
   }
 
   const { approvedDays, paidDays, lopDays, balanceUpdateMode } = resolveApprovedLeaveOutcome({

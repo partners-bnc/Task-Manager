@@ -191,32 +191,63 @@ export default function TeamRegularization() {
                       <td className="px-4 py-4 text-sm text-on-surface">{item.appliedOn}</td>
                       <td className="px-4 py-4">
                         {item.canReview ? (
-                          <div className="flex flex-nowrap gap-2 whitespace-nowrap">
-                            <button
-                              type="button"
-                              disabled={isReviewingId === item.id}
-                              onClick={() => handleReview(item.id, 'rejected')}
-                              className="rounded-full border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
-                            >
-                              Reject
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isReviewingId === item.id}
-                              onClick={() => handleReview(item.id, 'approved', 'half_day')}
-                              className="rounded-full border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                            >
-                              Half Day
-                            </button>
-                            <button
-                              type="button"
-                              disabled={isReviewingId === item.id}
-                              onClick={() => handleReview(item.id, 'approved', 'full_day')}
-                              className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-on-primary disabled:opacity-50"
-                            >
-                              Full Day
-                            </button>
-                          </div>
+                          (() => {
+                            const isHalfDayRequest =
+                              String(item.requestType || '').toLowerCase().includes('half') ||
+                              String(item.currentStatusLabel || '').toLowerCase().includes('half');
+
+                            if (isHalfDayRequest) {
+                              return (
+                                <div className="flex flex-nowrap gap-2 whitespace-nowrap">
+                                  <button
+                                    type="button"
+                                    disabled={isReviewingId === item.id}
+                                    onClick={() => handleReview(item.id, 'rejected')}
+                                    className="rounded-full border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                                  >
+                                    Reject
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isReviewingId === item.id}
+                                    onClick={() => handleReview(item.id, 'approved', 'half_day')}
+                                    className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-on-primary shadow-sm hover:bg-primary/90 disabled:opacity-50"
+                                  >
+                                    Approve
+                                  </button>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="flex flex-nowrap gap-2 whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  disabled={isReviewingId === item.id}
+                                  onClick={() => handleReview(item.id, 'rejected')}
+                                  className="rounded-full border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isReviewingId === item.id}
+                                  onClick={() => handleReview(item.id, 'approved', 'half_day')}
+                                  className="rounded-full border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                                >
+                                  Half Day
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isReviewingId === item.id}
+                                  onClick={() => handleReview(item.id, 'approved', 'full_day')}
+                                  className="rounded-full bg-primary px-3 py-2 text-xs font-semibold text-on-primary disabled:opacity-50"
+                                >
+                                  Full Day
+                                </button>
+                              </div>
+                            );
+                          })()
                         ) : (
                           <span className="text-sm text-on-surface-variant">Awaiting action</span>
                         )}

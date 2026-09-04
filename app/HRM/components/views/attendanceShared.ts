@@ -32,6 +32,8 @@ export interface RegularizationDay {
   label: string;
   countLabel?: string;
   hasHalfDayLeave?: boolean;
+  leaveSession?: string;
+  leaveTypeName?: string;
 }
 
 export interface RegularizationStatusItem {

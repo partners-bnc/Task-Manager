@@ -970,18 +970,16 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
       const attData = attendanceMap.get(key);
       const status = attData ? attData.status : null;
       const workHours = attData ? attData.workHoursMinutes : 0;
-      const hasSwipeOrAttendance = Boolean(
+      const hasFullPresenceCriteria = Boolean(
         attData &&
-          (attData.checkIn ||
-            attData.checkOut ||
-            workHours > 0 ||
-            status === 'present' ||
-            (attData.notes && attData.notes.includes('[hr_override_opposite_half_present]')))
+          (attData.isRegularized ||
+            (attData.notes && attData.notes.includes('[hr_override_opposite_half_present]')) ||
+            (attData.checkIn && attData.checkOut && workHours >= 270))
       );
 
-      // Skip scheduled off days UNLESS HR explicitly marked the day absent
+      // Skip scheduled off days UNLESS HR explicitly marked the day absent or LOP
       if (isEmployeeScheduledOff(date, schedule)) {
-        if (status !== 'absent') continue;
+        if (status !== 'absent' && status !== 'lop') continue;
       }
 
       // Full-day leave covers the entire day — no attendance LOP
@@ -994,7 +992,7 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
       const hasHalfDayLop = halfDayLopLeaveKeys.has(key);
 
       if (hasHalfDayPaid || hasHalfDayLop) {
-        if (workHours >= 270 || hasSwipeOrAttendance) {
+        if (hasFullPresenceCriteria) {
           fraction = 0.0;
         } else {
           fraction = 0.5;
@@ -1005,7 +1003,7 @@ export async function syncAttendancePayrollLopEntriesForMonth(year, month) {
           fraction = 0.0;
         } else if (status === 'halfday' || status === 'half_day' || status === 'late') {
           fraction = 0.5;
-        } else if (status === undefined || status === null || status === 'absent') {
+        } else if (status === undefined || status === null || status === 'absent' || status === 'lop') {
           fraction = 1.0;
         }
       }

@@ -142,22 +142,28 @@ function isEligibleAttendanceStatus(attendanceRow) {
   return ['halfday', 'absent'].includes(status);
 }
 
-function buildEligibleDay(date, attendanceRow, hasHalfDayLeave = false) {
+function buildEligibleDay(date, attendanceRow, halfDayLeaveInfo = null) {
+  const hasHalfDayLeave = Boolean(halfDayLeaveInfo);
+  const leaveSession = halfDayLeaveInfo?.session || null;
+  const leaveTypeName = halfDayLeaveInfo?.leaveTypeName || 'Leave';
+
   if (!attendanceRow) {
     return {
       date,
       kind: 'gap',
       label: 'Absent',
       hasHalfDayLeave,
+      leaveSession,
+      leaveTypeName,
     };
   }
 
   const status = resolveAttendanceStatus(attendanceRow);
   if (status === 'halfday') {
-    return { date, kind: 'gap', label: 'Half Day', hasHalfDayLeave };
+    return { date, kind: 'gap', label: 'Half Day', hasHalfDayLeave, leaveSession, leaveTypeName };
   }
   if (status === 'absent') {
-    return { date, kind: 'gap', label: 'Absent', hasHalfDayLeave };
+    return { date, kind: 'gap', label: 'Absent', hasHalfDayLeave, leaveSession, leaveTypeName };
   }
   return null;
 }
@@ -269,7 +275,7 @@ export async function GET(request) {
       getReportingManagerSummary(employeeContext.employeeId),
       adminClient
         .from('hrm_leave_requests')
-        .select('start_date, end_date, session, applied_session, status')
+        .select('start_date, end_date, session, applied_session, status, leave_type:hrm_leave_types(name)')
         .eq('employee_id', employeeContext.employeeId)
         .eq('status', 'approved')
         .lte('start_date', end)
@@ -343,14 +349,18 @@ export async function GET(request) {
         .map((row) => row.date)
     );
 
-    const halfDayLeaveDates = new Set();
+    const halfDayLeaveMap = new Map();
     for (const req of leaveRequestsResult.data || []) {
       const sess = req.applied_session || req.session || 'full_day';
       if (sess !== 'full_day') {
         const startD = req.start_date < start ? start : req.start_date;
         const endD = req.end_date > end ? end : req.end_date;
+        const leaveTypeName = req.leave_type?.name || 'Leave';
         for (const date of listDatesInRange(startD, endD)) {
-          halfDayLeaveDates.add(date);
+          halfDayLeaveMap.set(date, {
+            session: sess,
+            leaveTypeName,
+          });
         }
       }
     }
@@ -368,7 +378,7 @@ export async function GET(request) {
         continue;
       }
 
-      const day = buildEligibleDay(date, attendanceMap.get(date) || null, halfDayLeaveDates.has(date));
+      const day = buildEligibleDay(date, attendanceMap.get(date) || null, halfDayLeaveMap.get(date) || null);
       if (day) {
         eligibleDays.push(day);
       }

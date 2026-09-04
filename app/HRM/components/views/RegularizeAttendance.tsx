@@ -38,14 +38,38 @@ const REQUEST_TYPE_OPTIONS = ['Full Day', 'Half Day', 'Absent'];
 
 function getDetectedCurrentStatus(selectedDay?: RegularizationDay) {
   const label = String(selectedDay?.label || '').trim().toLowerCase();
+  if (selectedDay?.hasHalfDayLeave) {
+    const session = selectedDay?.leaveSession || 'second_half';
+    const leaveName = selectedDay?.leaveTypeName ? ` (${selectedDay.leaveTypeName})` : '';
+    return session === 'second_half' ? `Absent - 1st Half${leaveName}` : `Absent - 2nd Half${leaveName}`;
+  }
   if (label === 'half day') return 'Half Day';
   if (label === 'absent') return 'Absent';
   return '';
 }
 
 function getDefaultRequestType(selectedDay?: RegularizationDay) {
-  if (selectedDay?.hasHalfDayLeave) return 'Half Day';
+  if (selectedDay?.hasHalfDayLeave) {
+    const session = selectedDay?.leaveSession || 'second_half';
+    return session === 'second_half' ? 'Present (1st Half)' : 'Present (2nd Half)';
+  }
   return 'Full Day';
+}
+
+function getDefaultCheckIn(selectedDay?: RegularizationDay) {
+  if (selectedDay?.hasHalfDayLeave) {
+    const session = selectedDay?.leaveSession || 'second_half';
+    return session === 'second_half' ? '09:00' : '13:30';
+  }
+  return '09:00';
+}
+
+function getDefaultCheckOut(selectedDay?: RegularizationDay) {
+  if (selectedDay?.hasHalfDayLeave) {
+    const session = selectedDay?.leaveSession || 'second_half';
+    return session === 'second_half' ? '13:30' : '17:30';
+  }
+  return '17:30';
 }
 
 function createDraft(selectedDay?: RegularizationDay): DraftState {
@@ -53,8 +77,8 @@ function createDraft(selectedDay?: RegularizationDay): DraftState {
     primaryHrApproverId: '',
     currentStatus: getDetectedCurrentStatus(selectedDay),
     requestType: getDefaultRequestType(selectedDay),
-    requestedCheckIn: '09:00',
-    requestedCheckOut: '17:30',
+    requestedCheckIn: getDefaultCheckIn(selectedDay),
+    requestedCheckOut: getDefaultCheckOut(selectedDay),
     reason: '',
   };
 }
@@ -641,7 +665,7 @@ export default function RegularizeAttendance() {
                         className="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-80 disabled:cursor-not-allowed"
                       >
                         {selectedDay?.hasHalfDayLeave ? (
-                          <option value="Half Day">Half Day</option>
+                          <option value={getDefaultRequestType(selectedDay)}>{getDefaultRequestType(selectedDay)}</option>
                         ) : (
                           REQUEST_TYPE_OPTIONS.map((option) => (
                             <option key={option} value={option}>
@@ -653,7 +677,7 @@ export default function RegularizeAttendance() {
                       {selectedDay?.hasHalfDayLeave ? (
                         <p className="mt-2 text-xs text-amber-600 font-semibold flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px]">info</span>
-                          Approved half-day leave detected. You can only regularize the remaining half-day.
+                          Approved {selectedDay.leaveSession === 'second_half' ? '2nd Half' : '1st Half'} {selectedDay.leaveTypeName || 'Leave'} detected. You are applying for {selectedDay.leaveSession === 'second_half' ? '1st Half' : '2nd Half'} Attendance ({getDefaultCheckIn(selectedDay) === '09:00' ? '09:00 AM - 01:30 PM' : '01:30 PM - 05:30 PM'}).
                         </p>
                       ) : (
                         <p className="mt-2 text-xs text-on-surface-variant">

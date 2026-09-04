@@ -533,12 +533,14 @@ export async function getHolidayDateSet(startDate, endDate) {
   return new Set((data || []).map((row) => row.date));
 }
 
-export async function calculateLeaveDays({ startDate, endDate, session = 'full_day', employeeSchedule }) {
+export async function calculateLeaveDays({ startDate, endDate, session = 'full_day', employeeSchedule, allowNonWorkingDays = false }) {
   const holidayDates = await getHolidayDateSet(startDate, endDate);
   const dates = listDatesInRange(startDate, endDate);
-  const workingDates = dates.filter(
+  const filteredWorkingDates = dates.filter(
     (date) => !holidayDates.has(date) && !isEmployeeScheduledOff(date, employeeSchedule)
   );
+
+  const workingDates = allowNonWorkingDays ? dates : filteredWorkingDates;
 
   if (workingDates.length === 0) {
     return {
@@ -549,7 +551,7 @@ export async function calculateLeaveDays({ startDate, endDate, session = 'full_d
   }
 
   if (session !== 'full_day' && workingDates.length !== 1) {
-    throw new Error('Half-day leave can only be applied for a single working day.');
+    throw new Error('Half-day leave can only be applied for a single day.');
   }
 
   const totalDays = session === 'full_day' ? workingDates.length : 0.5;
