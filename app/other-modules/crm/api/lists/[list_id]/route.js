@@ -62,16 +62,32 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: "List not found" }, { status: 404 });
     }
 
-    // Fetch all leads from crm_leads to populate matching list leads
-    const { data: allLeads, error: leadsErr } = await adminClient
+    // Fetch all leads from crm_leads using range pagination to bypass PostgREST default limit
+    const { data: firstChunk, count, error: leadsErr } = await adminClient
       .from("crm_leads")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100000);
+      .select("*", { count: "exact" })
+      .range(0, 999);
 
     if (leadsErr) {
       console.error("Error fetching leads for single list:", leadsErr);
       return NextResponse.json({ list, leads: [] });
+    }
+
+    let allLeads = [...(firstChunk || [])];
+    if (count && count > 1000) {
+      const promises = [];
+      for (let i = 1000; i < count; i += 1000) {
+        promises.push(
+          adminClient
+            .from("crm_leads")
+            .select("*")
+            .range(i, i + 999)
+        );
+      }
+      const results = await Promise.all(promises);
+      results.forEach((res) => {
+        if (res.data) allLeads.push(...res.data);
+      });
     }
 
     const matchingLeads = filterLeadsForList(allLeads || [], list.selected_sources, list.selected_tags);

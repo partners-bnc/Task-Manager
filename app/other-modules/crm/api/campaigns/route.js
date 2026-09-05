@@ -245,6 +245,34 @@ export async function GET(request) {
   }
 }
 
+// Helper to fetch all leads using pagination to overcome PostgREST 1000-row limit
+async function fetchAllLeads(supabase) {
+  const { data: firstChunk, count, error } = await supabase
+    .from("crm_leads")
+    .select("*", { count: "exact" })
+    .range(0, 999);
+
+  if (error) throw error;
+
+  let leads = [...(firstChunk || [])];
+  if (count && count > 1000) {
+    const promises = [];
+    for (let i = 1000; i < count; i += 1000) {
+      promises.push(
+        supabase
+          .from("crm_leads")
+          .select("*")
+          .range(i, i + 999)
+      );
+    }
+    const results = await Promise.all(promises);
+    results.forEach((res) => {
+      if (res.data) leads.push(...res.data);
+    });
+  }
+  return leads;
+}
+
 // Helper to launch a campaign
 async function launchCampaign(supabase, campaignId) {
   const zohoToken = process.env.ZOHO_TOKEN;
@@ -266,12 +294,8 @@ async function launchCampaign(supabase, campaignId) {
 
   if (tempErr || !template) throw new Error("Template not found");
 
-  // 3. Fetch all leads
-  const { data: leads, error: leadsErr } = await supabase
-    .from("crm_leads")
-    .select("*");
-
-  if (leadsErr) throw leadsErr;
+  // 3. Fetch all leads (paginated to fetch beyond default 1000 PostgREST cap)
+  const leads = await fetchAllLeads(supabase);
 
   // 4. Fetch unsubscribed lead IDs
   const { data: unsubscribedRecipients, error: unsubErr } = await supabase
@@ -338,6 +362,12 @@ async function launchCampaign(supabase, campaignId) {
           const filterTag = String(filterValues).toLowerCase();
           const leadTags = String(lead.tags || "").toLowerCase();
           if (!leadTags.includes(filterTag)) return false;
+        } else if (key === "lead_source") {
+          if (!lead.lead_source) return false;
+          const lSrcs = lead.lead_source.split(',').map(s => s.toLowerCase().trim());
+          const filterArr = Array.isArray(filterValues) ? filterValues : [filterValues];
+          const matched = filterArr.some(fv => lSrcs.includes(String(fv).toLowerCase().trim()));
+          if (!matched) return false;
         } else if (Array.isArray(filterValues)) {
           if (!filterValues.map(v => String(v).toLowerCase()).includes(String(leadValue || "").toLowerCase())) {
             return false;

@@ -246,7 +246,12 @@ export default function CampaignsPage() {
       }
 
       // Source filter
-      if (filterSources.length > 0 && !filterSources.includes(lead.lead_source)) return false;
+      if (filterSources.length > 0) {
+        if (!lead.lead_source) return false;
+        const lSrcs = lead.lead_source.split(',').map(s => s.toLowerCase().trim());
+        const srcMatched = filterSources.some(fs => lSrcs.includes(fs.toLowerCase().trim()));
+        if (!srcMatched) return false;
+      }
       // Status filter
       if (filterStatuses.length > 0 && !filterStatuses.includes(lead.lead_status)) return false;
       // Priority filter
