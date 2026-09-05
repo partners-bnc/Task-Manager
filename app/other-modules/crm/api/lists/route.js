@@ -58,17 +58,36 @@ async function getAuthenticatedUser(supabase) {
   return user;
 }
 
-// Fetch all CRM leads to compute matching leads count per list
+// Fetch all CRM leads to compute matching leads count per list across PostgREST 1000-row limit
 async function getAllLeads() {
   try {
-    const { data, error } = await adminClient
+    const { data: firstChunk, count, error } = await adminClient
       .from("crm_leads")
-      .select("lead_id, full_name, email, phone, lead_source, tags, lead_status, lead_category, company_name, created_at");
+      .select("lead_id, full_name, email, phone, lead_source, tags, lead_status, lead_category, company_name, created_at", { count: "exact" })
+      .range(0, 999);
+
     if (error) {
       console.error("Error fetching leads for list calculation:", error);
       return [];
     }
-    return data || [];
+
+    let leads = [...(firstChunk || [])];
+    if (count && count > 1000) {
+      const promises = [];
+      for (let i = 1000; i < count; i += 1000) {
+        promises.push(
+          adminClient
+            .from("crm_leads")
+            .select("lead_id, full_name, email, phone, lead_source, tags, lead_status, lead_category, company_name, created_at")
+            .range(i, i + 999)
+        );
+      }
+      const results = await Promise.all(promises);
+      results.forEach(res => {
+        if (res.data) leads.push(...res.data);
+      });
+    }
+    return leads;
   } catch (err) {
     console.error("getAllLeads error:", err);
     return [];

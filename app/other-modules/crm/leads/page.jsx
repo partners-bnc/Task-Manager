@@ -63,32 +63,55 @@ const COMPANY_SIZES = ["1-10", "11-50", "51-200", "200+"];
 const COLUMNS = [
   { key: 'lead_id', label: 'ID' },
   { key: 'full_name', label: 'Name' },
+  { key: 'salutation', label: 'Salutation' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'date_of_birth', label: 'DOB' },
   { key: 'phone', label: 'Phone' },
   { key: 'phone_alt', label: 'Alt Phone' },
   { key: 'whatsapp', label: 'WhatsApp' },
   { key: 'email', label: 'Email' },
   { key: 'email_alt', label: 'Alt Email' },
+  { key: 'primary_business_email', label: 'Primary Biz Email' },
+  { key: 'additional_emails', label: 'Additional Emails' },
+  { key: 'business_phone', label: 'Business Phone' },
   { key: 'company_name', label: 'Company' },
   { key: 'designation', label: 'Designation' },
   { key: 'industry', label: 'Industry' },
   { key: 'website', label: 'Website' },
   { key: 'company_size', label: 'Company Size' },
+  { key: 'company_image_url', label: 'Company Logo' },
   { key: 'city', label: 'City' },
   { key: 'state', label: 'State' },
   { key: 'country', label: 'Country' },
   { key: 'business_city', label: 'Biz City' },
   { key: 'business_country', label: 'Biz Country' },
+  { key: 'timezone', label: 'Timezone' },
+  { key: 'preferred_language', label: 'Language' },
+  { key: 'preferred_contact_method', label: 'Contact Method' },
   { key: 'lead_source', label: 'Source' },
   { key: 'lead_category', label: 'Category' },
   { key: 'lead_type', label: 'Lead Type' },
   { key: 'lead_status', label: 'Status' },
   { key: 'priority', label: 'Priority' },
+  { key: 'lead_score', label: 'Score' },
   { key: 'tags', label: 'Tags' },
+  { key: 'skills', label: 'Skills' },
   { key: 'assigned_to', label: 'Assigned To' },
   { key: 'source_batch', label: 'Source Batch' },
   { key: 'notes', label: 'Notes' },
   { key: 'next_followup_date', label: 'Next Followup' },
   { key: 'last_contacted', label: 'Last Contacted' },
+  { key: 'linkedin_url', label: 'LinkedIn' },
+  { key: 'twitter_url', label: 'Twitter / X' },
+  { key: 'github_url', label: 'GitHub' },
+  { key: 'portfolio_url', label: 'Portfolio' },
+  { key: 'email_consent_status', label: 'Email Consent' },
+  { key: 'consent_source', label: 'Consent Source' },
+  { key: 'experience_company_name', label: 'Exp Company' },
+  { key: 'experience_job_title', label: 'Exp Job Title' },
+  { key: 'experience_duration_years', label: 'Exp Duration' },
+  { key: 'education_institution_name', label: 'Edu Institution' },
+  { key: 'education_degree', label: 'Edu Degree' },
   { key: 'created_at', label: 'Created At' },
   { key: 'created_by', label: 'Created By' },
   { key: 'updated_at', label: 'Updated At' },
@@ -380,12 +403,12 @@ export default function LeadsPage() {
   const [stateFilter, setStateFilter] = useState('All');
   const [countryFilter, setCountryFilter] = useState('All');
   const [genderFilter, setGenderFilter] = useState('All');
-  
+
   const [designationFilter, setDesignationFilter] = useState('All');
   const [industryFilter, setIndustryFilter] = useState('All');
   const [businessCountryFilter, setBusinessCountryFilter] = useState('All');
   const [businessCityFilter, setBusinessCityFilter] = useState('All');
-  
+
   const [batchFilter, setBatchFilter] = useState('All');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [activeListFilter, setActiveListFilter] = useState(null);
@@ -412,32 +435,55 @@ export default function LeadsPage() {
     const defaultVisible = {
       lead_id: true,
       full_name: true,
+      salutation: false,
+      gender: false,
+      date_of_birth: false,
       phone: true,
       phone_alt: false,
       whatsapp: true,
       email: true,
       email_alt: false,
+      primary_business_email: false,
+      additional_emails: false,
+      business_phone: false,
       company_name: true,
       designation: false,
       industry: false,
       website: false,
       company_size: false,
+      company_image_url: false,
       city: false,
       state: false,
       country: false,
       business_city: false,
       business_country: false,
+      timezone: false,
+      preferred_language: false,
+      preferred_contact_method: false,
       lead_source: true,
       lead_category: true,
       lead_type: true,
       lead_status: true,
       priority: true,
+      lead_score: false,
       tags: true,
+      skills: false,
       assigned_to: false,
       source_batch: false,
       notes: false,
       next_followup_date: true,
       last_contacted: false,
+      linkedin_url: false,
+      twitter_url: false,
+      github_url: false,
+      portfolio_url: false,
+      email_consent_status: false,
+      consent_source: false,
+      experience_company_name: false,
+      experience_job_title: false,
+      experience_duration_years: false,
+      education_institution_name: false,
+      education_degree: false,
       created_at: false,
       created_by: false,
       updated_at: false,
@@ -471,7 +517,7 @@ export default function LeadsPage() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 25;
+  const [itemsPerPage, setItemsPerPage] = useState(100);
 
   // Modals state
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1628,10 +1674,10 @@ export default function LeadsPage() {
       const rowNum = idx + 1;
 
       // Check name/company
-      const hasNameVal = (nameSrc && String(row[nameSrc] || '').trim()) || 
-                         (companySrc && String(row[companySrc] || '').trim()) ||
-                         (columnDefaults.full_name || '').trim() ||
-                         (columnDefaults.company_name || '').trim();
+      const hasNameVal = (nameSrc && String(row[nameSrc] || '').trim()) ||
+        (companySrc && String(row[companySrc] || '').trim()) ||
+        (columnDefaults.full_name || '').trim() ||
+        (columnDefaults.company_name || '').trim();
       if (!hasNameVal) {
         warnings.push(`Row ${rowNum}: Name and Company are both empty. Defaulting to 'Unknown Lead'.`);
       }
@@ -1698,26 +1744,44 @@ export default function LeadsPage() {
     return errors.length === 0;
   };
 
-  const validateAndRouteToDefaultsScreen = () => {
-    setImportErrors([]);
-    setImportWarnings([]);
-    const isValid = performImportValidation();
-    if (!isValid) {
-      toast.error("Validation failed. Please review the errors at the top of the mapping screen.");
-      return;
+  const validateAndRouteToDefaultsScreen = async () => {
+    setActionLoading(true);
+    await new Promise(r => setTimeout(r, 20));
+    try {
+      setImportErrors([]);
+      setImportWarnings([]);
+      const isValid = performImportValidation();
+      if (!isValid) {
+        toast.error("Validation failed. Please review the errors at the top of the mapping screen.");
+        return;
+      }
+      setImportStep(4); // Go to Mapped DB Preview (Step 4)!
+    } catch (err) {
+      console.error(err);
+      toast.error(`Validation error: ${err.message}`);
+    } finally {
+      setActionLoading(false);
     }
-    setImportStep(4); // Go to Defaults Screen (Step 4)!
   };
 
   const validateAndRouteToDuplicateCheck = async () => {
-    setImportErrors([]);
-    setImportWarnings([]);
-    const isValid = performImportValidation();
-    if (!isValid) {
-      toast.error("Validation failed. Please review the errors at the top of the mapping screen.");
-      return;
+    setActionLoading(true);
+    await new Promise(r => setTimeout(r, 20));
+    try {
+      setImportErrors([]);
+      setImportWarnings([]);
+      const isValid = performImportValidation();
+      if (!isValid) {
+        toast.error("Validation failed. Please review the errors at the top of the mapping screen.");
+        setActionLoading(false);
+        return;
+      }
+      await handleMappingSubmit();
+    } catch (err) {
+      console.error(err);
+      toast.error(`Validation error: ${err.message}`);
+      setActionLoading(false);
     }
-    await handleMappingSubmit();
   };
   const handleMappingSubmit = async () => {
     setActionLoading(true);
@@ -1735,9 +1799,9 @@ export default function LeadsPage() {
         return;
       }
 
-      // Check for duplicates in the DB based on phone or email
-      const phonesToCheck = validLeads.map(l => l.phone).filter(Boolean);
-      const emailsToCheck = validLeads.map(l => l.email).filter(Boolean);
+      // Check for duplicate preview in the DB based on a sample of phone/email (max 150 items to avoid URL length overflow)
+      const phonesToCheck = Array.from(new Set(validLeads.map(l => l.phone).filter(Boolean))).slice(0, 150);
+      const emailsToCheck = Array.from(new Set(validLeads.map(l => l.email).filter(Boolean))).slice(0, 150);
 
       let existingInDb = [];
 
@@ -1748,18 +1812,10 @@ export default function LeadsPage() {
 
         const response = await fetch(`/other-modules/crm/api/leads?${queryParams.toString()}`);
         const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          if (response.status === 401 || response.url?.includes("/login")) {
-            throw new Error("Your session has expired. Please refresh the page or log in again.");
-          }
-          throw new Error(`Server returned non-JSON response (status ${response.status}). If this persists, please try logging in again.`);
+        if (response.ok && contentType && contentType.includes("application/json")) {
+          const data = await response.json();
+          existingInDb = data.leads || [];
         }
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Failed to check duplicates');
-        }
-        const data = await response.json();
-        existingInDb = data.leads || [];
       }
 
       const duplicates = [];
@@ -1780,8 +1836,8 @@ export default function LeadsPage() {
         setDuplicateLeadsFound(duplicates);
         setImportStep(6); // Duplicate resolution selection (Step 6)
       } else {
-        // Go straight to import pipeline
-        executeBulkImportDirectly(validLeads, existingInDb);
+        // Go straight to chunked import pipeline
+        executeBulkImportDirectly(validLeads);
       }
     } catch (err) {
       console.error(err);
@@ -1800,34 +1856,7 @@ export default function LeadsPage() {
         (l.phone || l.phone_alt || l.whatsapp || l.business_phone || l.email || l.email_alt || l.primary_business_email)
       );
 
-      // Re-fetch duplicate matches
-      const phonesToCheck = validLeads.map(l => l.phone).filter(Boolean);
-      const emailsToCheck = validLeads.map(l => l.email).filter(Boolean);
-
-      let existingInDb = [];
-
-      if (phonesToCheck.length > 0 || emailsToCheck.length > 0) {
-        const queryParams = new URLSearchParams();
-        if (phonesToCheck.length > 0) queryParams.set('phones', phonesToCheck.join(','));
-        if (emailsToCheck.length > 0) queryParams.set('emails', emailsToCheck.join(','));
-
-        const response = await fetch(`/other-modules/crm/api/leads?${queryParams.toString()}`);
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-          if (response.status === 401 || response.url?.includes("/login")) {
-            throw new Error("Your session has expired. Please refresh the page or log in again.");
-          }
-          throw new Error(`Server returned non-JSON response (status ${response.status}). If this persists, please try logging in again.`);
-        }
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'Failed to check duplicates');
-        }
-        const data = await response.json();
-        existingInDb = data.leads || [];
-      }
-
-      executeBulkImportDirectly(validLeads, existingInDb);
+      executeBulkImportDirectly(validLeads);
     } catch (err) {
       console.error(err);
       toast.error(`Import failed: ${err.message}`);
@@ -1835,17 +1864,14 @@ export default function LeadsPage() {
     }
   };
 
-  const executeBulkImportDirectly = async (validLeads, existingInDb) => {
+  const executeBulkImportDirectly = async (validLeads) => {
     setImportStep(7); // Animated full-screen load stage (Step 7)
-    setAnimatedProgress(5);
-    setCurrentImportPhase("Analyzing data feed headers...");
+    setAnimatedProgress(0);
+    setCurrentImportPhase("Initializing bulk ingest pipeline...");
     setImportTicker([]);
+    setActionLoading(true);
 
     try {
-      await new Promise(r => setTimeout(r, 450));
-      setAnimatedProgress(20);
-      setCurrentImportPhase("Sanitizing phone/email structures and auditing columns...");
-
       let userDetails = 'System';
       try {
         const ctxRes = await fetch('/api/auth/context');
@@ -1857,91 +1883,73 @@ export default function LeadsPage() {
         console.error("Failed to fetch client auth context:", e);
       }
 
-      await new Promise(r => setTimeout(r, 450));
-      setAnimatedProgress(40);
-      setCurrentImportPhase("Mapping to active schema metadata and matching duplicates...");
+      const CHUNK_SIZE = 1000;
+      const totalLeads = validLeads.length;
+      const totalBatches = Math.ceil(totalLeads / CHUNK_SIZE);
 
-      const leadsToInsert = [];
-      const leadsToUpdate = [];
-      let skippedCount = 0;
+      let totalInserted = 0;
+      let totalUpdated = 0;
+      let totalSkipped = 0;
 
-      validLeads.forEach(lead => {
-        const duplicateMatch = existingInDb.find(dbItem =>
-          (lead.phone && dbItem.phone === lead.phone) ||
-          (lead.email && dbItem.email === lead.email)
-        );
+      setImportTicker([`[INIT] Starting bulk import of ${totalLeads.toLocaleString()} records across ${totalBatches} batch(es)...`]);
 
-        if (duplicateMatch) {
-          if (importConflictStrategy === 'overwrite') {
-            leadsToUpdate.push(lead);
-          } else if (importConflictStrategy === 'anyway') {
-            leadsToInsert.push(lead);
-          } else {
-            skippedCount++;
+      for (let b = 0; b < totalBatches; b++) {
+        const batchLeads = validLeads.slice(b * CHUNK_SIZE, (b + 1) * CHUNK_SIZE);
+        const batchNumber = b + 1;
+
+        setCurrentImportPhase(`Ingesting batch ${batchNumber} of ${totalBatches} (${batchLeads.length.toLocaleString()} leads)...`);
+
+        const response = await fetch('/other-modules/crm/api/leads/bulk-import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            leads: batchLeads,
+            strategy: importConflictStrategy,
+            userDetails
+          })
+        });
+
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+          if (response.status === 401 || response.url?.includes("/login")) {
+            throw new Error("Your session has expired. Please refresh the page or log in again.");
           }
-        } else {
-          leadsToInsert.push(lead);
+          throw new Error(`Server returned non-JSON response (status ${response.status}). Batch ${batchNumber} failed.`);
         }
-      });
 
-      // Show real-time ticker feedback
-      setAnimatedProgress(60);
-      setCurrentImportPhase(`Ingesting transactions (${leadsToInsert.length} insert, ${leadsToUpdate.length} update)...`);
+        const resData = await response.json();
+        if (!response.ok) {
+          throw new Error(resData.error || `Batch ${batchNumber} failed on backend transaction.`);
+        }
 
-      const allOps = [
-        ...leadsToInsert.map(l => ({ type: 'INSERT', name: l.full_name })),
-        ...leadsToUpdate.map(l => ({ type: 'UPDATE', name: l.full_name }))
-      ];
+        totalInserted += (resData.inserted || 0);
+        totalUpdated += (resData.updated || 0);
+        totalSkipped += (resData.skipped || 0);
 
-      // Quick ticker simulation for lead pipeline UX feedback
-      const tickerSampleCount = Math.min(allOps.length, 12);
-      for (let i = 0; i < tickerSampleCount; i++) {
-        const op = allOps[i];
+        const processedSoFar = Math.min((b + 1) * CHUNK_SIZE, totalLeads);
+        const progressPct = Math.round((processedSoFar / totalLeads) * 100);
+
+        setAnimatedProgress(progressPct);
         setImportTicker(prev => [
-          ...prev.slice(-6),
-          `[${op.type}] Syncing: "${op.name}" ... OK`
+          ...prev.slice(-15),
+          `[BATCH ${batchNumber}/${totalBatches}] Ingested ${batchLeads.length.toLocaleString()} leads -> Inserted: ${resData.inserted || 0}, Updated: ${resData.updated || 0}, Skipped: ${resData.skipped || 0}`
         ]);
-        await new Promise(r => setTimeout(r, 100));
+
+        // Yield event loop so browser UI thread remains 100% responsive and smooth
+        await new Promise(r => setTimeout(r, 20));
       }
 
-      setAnimatedProgress(80);
-      setCurrentImportPhase("Committing transactions to crm_leads in database via secure api...");
-
-      const response = await fetch('/other-modules/crm/api/leads/bulk-import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          leads: validLeads,
-          strategy: importConflictStrategy,
-          userDetails
-        })
-      });
-
-      const contentType = response.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        if (response.status === 401 || response.url?.includes("/login")) {
-          throw new Error("Your session has expired. Please refresh the page or log in again.");
-        }
-        throw new Error(`Server returned non-JSON response (status ${response.status}). If this persists, please try logging in again.`);
-      }
-
-      const resData = await response.json();
-      if (!response.ok) {
-        throw new Error(resData.error || 'Failed to complete transaction in backend.');
-      }
-
-      setAnimatedProgress(95);
-      setCurrentImportPhase("Rebuilding indices and refreshing Central database views...");
-      await new Promise(r => setTimeout(r, 400));
+      setAnimatedProgress(100);
+      setCurrentImportPhase("Ingest completed successfully! Refreshing database views...");
+      await new Promise(r => setTimeout(r, 300));
 
       const validationSkippedCount = getMappedLeads().length - validLeads.length;
-      setAnimatedProgress(100);
       setImportResults({
-        inserted: resData.inserted || 0,
-        updated: resData.updated || 0,
-        skipped: (resData.skipped || 0) + validationSkippedCount
+        inserted: totalInserted,
+        updated: totalUpdated,
+        skipped: totalSkipped + validationSkippedCount
       });
       setImportStep(8); // Summary (Step 8)
       fetchLeads();
@@ -1988,7 +1996,7 @@ export default function LeadsPage() {
         (lead.country?.trim().toLowerCase() === countryFilter.trim().toLowerCase());
       const matchesGender = genderFilter === 'All' ||
         (lead.gender?.trim().toLowerCase() === genderFilter.trim().toLowerCase());
-      
+
       const matchesDesignation = designationFilter === 'All' ||
         (lead.designation?.trim().toLowerCase() === designationFilter.trim().toLowerCase());
       const matchesIndustry = industryFilter === 'All' ||
@@ -1997,7 +2005,7 @@ export default function LeadsPage() {
         (lead.business_country?.trim().toLowerCase() === businessCountryFilter.trim().toLowerCase());
       const matchesBusinessCity = businessCityFilter === 'All' ||
         (lead.business_city?.trim().toLowerCase() === businessCityFilter.trim().toLowerCase());
-        
+
       const matchesBatch = batchFilter === 'All' ||
         (lead.source_batch?.trim().toLowerCase() === batchFilter.trim().toLowerCase());
 
@@ -2022,10 +2030,10 @@ export default function LeadsPage() {
         matchesList = sourceMatched && tagMatched;
       }
 
-      return matchesSearch && matchesStatus && matchesSource && matchesCategory && matchesPriority && matchesType && matchesTags && 
-             matchesCity && matchesState && matchesCountry && matchesGender && 
-             matchesDesignation && matchesIndustry && matchesBusinessCountry && matchesBusinessCity && 
-             matchesBatch && matchesList;
+      return matchesSearch && matchesStatus && matchesSource && matchesCategory && matchesPriority && matchesType && matchesTags &&
+        matchesCity && matchesState && matchesCountry && matchesGender &&
+        matchesDesignation && matchesIndustry && matchesBusinessCountry && matchesBusinessCity &&
+        matchesBatch && matchesList;
     });
 
     if (sortField) {
@@ -2642,28 +2650,28 @@ export default function LeadsPage() {
                               const ColIcon = col.icon || Tag;
 
                               return (
-                                <div key={col.key} className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl border transition-all duration-205 ${isMapped 
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/25 border-emerald-500/50 dark:border-emerald-500/40 shadow-sm' 
+                                <div key={col.key} className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl border transition-all duration-205 ${isMapped
+                                  ? 'bg-emerald-50 dark:bg-emerald-950/25 border-emerald-500/50 dark:border-emerald-500/40 shadow-sm'
                                   : 'bg-slate-50/30 dark:bg-slate-950/10 border-slate-100 dark:border-slate-850'
-                                }`}>
+                                  }`}>
                                   {/* Left side: Schema Field info */}
                                   <div className="flex flex-col justify-center">
                                     <div className="flex items-center gap-2">
                                       <ColIcon className={`w-4 h-4 shrink-0 transition-colors duration-205 ${isMapped ? 'text-emerald-500' : 'text-slate-400 dark:text-slate-500'}`} />
-                                      <span className={`text-[11.5px] font-bold transition-colors duration-200 ${isMapped 
-                                        ? 'text-emerald-900 dark:text-emerald-350' 
+                                      <span className={`text-[11.5px] font-bold transition-colors duration-200 ${isMapped
+                                        ? 'text-emerald-900 dark:text-emerald-350'
                                         : 'text-slate-700 dark:text-slate-350'
-                                      }`}>
+                                        }`}>
                                         {col.label}
                                       </span>
                                       {col.required && (
                                         <span className="text-[8px] font-extrabold uppercase bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 px-1 py-0.5 rounded">Required</span>
                                       )}
                                     </div>
-                                    <span className={`text-[9.5px] mt-0.5 truncate max-w-full font-medium transition-colors duration-200 ${isMapped 
-                                      ? 'text-emerald-600 dark:text-emerald-500 pl-6' 
+                                    <span className={`text-[9.5px] mt-0.5 truncate max-w-full font-medium transition-colors duration-200 ${isMapped
+                                      ? 'text-emerald-600 dark:text-emerald-500 pl-6'
                                       : 'text-slate-400 dark:text-slate-500 pl-6'
-                                    }`}>
+                                      }`}>
                                       {col.note || `column: ${col.key}`}
                                     </span>
                                   </div>
@@ -2713,10 +2721,19 @@ export default function LeadsPage() {
                 <button
                   onClick={validateAndRouteToDefaultsScreen}
                   disabled={actionLoading}
-                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-75 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                  Next: Mapped DB Preview <ArrowRight className="w-4 h-4" />
+                  {actionLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0"></div>
+                      <span>Mapping Leads...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Next: Mapped DB Preview</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -2989,10 +3006,19 @@ export default function LeadsPage() {
                 <button
                   onClick={validateAndRouteToDuplicateCheck}
                   disabled={actionLoading}
-                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-75 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                  Continue to Duplicate Check <ArrowRight className="w-4 h-4" />
+                  {actionLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0"></div>
+                      <span>Checking Duplicates...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Continue to Duplicate Check</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -3118,10 +3144,19 @@ export default function LeadsPage() {
                 <button
                   onClick={executeBulkImportWithResolution}
                   disabled={actionLoading}
-                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-50 cursor-pointer"
+                  className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm hover:shadow disabled:opacity-75 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {actionLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                  Execute Load Transaction <Play className="w-4 h-4" />
+                  {actionLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0"></div>
+                      <span>Starting Ingestion...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Execute Load Transaction</span>
+                      <Play className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -3430,11 +3465,41 @@ export default function LeadsPage() {
                     className="fixed inset-0 z-10"
                     onClick={() => setShowColumnDropdown(false)}
                   />
-                  <div className="absolute right-0 mt-1.5 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-20 py-2.5 px-3 select-none transition-all duration-150 animate-in fade-in slide-in-from-top-1">
-                    <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider pb-1.5 mb-2 border-b border-slate-100 dark:border-slate-700">
-                      Show/Hide Columns
+                  <div className="absolute right-0 mt-1.5 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-20 py-2.5 px-3 select-none transition-all duration-150 animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-slate-100 dark:border-slate-700">
+                      <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        Columns ({COLUMNS.length})
+                      </span>
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allOn = {};
+                            COLUMNS.forEach(c => allOn[c.key] = true);
+                            setVisibleColumns(allOn);
+                          }}
+                          className="text-blue-600 dark:text-blue-400 hover:underline font-semibold cursor-pointer"
+                        >
+                          Select All
+                        </button>
+                        <span className="text-slate-300 dark:text-slate-600">|</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaultVis = {
+                              lead_id: true, full_name: true, phone: true, whatsapp: true, email: true, company_name: true, lead_source: true, lead_category: true, lead_type: true, lead_status: true, priority: true, tags: true, next_followup_date: true
+                            };
+                            const allOff = {};
+                            COLUMNS.forEach(c => allOff[c.key] = !!defaultVis[c.key]);
+                            setVisibleColumns(allOff);
+                          }}
+                          className="text-slate-500 dark:text-slate-400 hover:underline font-semibold cursor-pointer"
+                        >
+                          Reset Default
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-1.5 max-h-[240px] overflow-y-auto scrollbar-thin">
+                    <div className="flex flex-col gap-1 max-h-[320px] overflow-y-auto scrollbar-thin pr-1">
                       {COLUMNS.map((col) => (
                         <label
                           key={col.key}
@@ -3541,11 +3606,10 @@ export default function LeadsPage() {
             {/* Advanced Filters Toggle */}
             <button
               onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border rounded-lg transition cursor-pointer select-none ${
-                showAdvancedFilters
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border rounded-lg transition cursor-pointer select-none ${showAdvancedFilters
                   ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-950/20 dark:border-blue-900/30 dark:text-blue-400'
                   : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700'
-              }`}
+                }`}
             >
               <Filter className="w-3.5 h-3.5" />
               <span>Advanced Filters</span>
@@ -3765,32 +3829,55 @@ export default function LeadsPage() {
                   </th>
                   {visibleColumns.lead_id !== false && renderSortableHeader('lead_id', 'ID')}
                   {visibleColumns.full_name !== false && renderSortableHeader('full_name', 'NAME')}
+                  {visibleColumns.salutation !== false && renderSortableHeader('salutation', 'SALUTATION')}
+                  {visibleColumns.gender !== false && renderSortableHeader('gender', 'GENDER')}
+                  {visibleColumns.date_of_birth !== false && renderSortableHeader('date_of_birth', 'DOB')}
                   {visibleColumns.phone !== false && renderSortableHeader('phone', 'PHONE')}
                   {visibleColumns.phone_alt !== false && renderSortableHeader('phone_alt', 'ALT PHONE')}
                   {visibleColumns.whatsapp !== false && renderSortableHeader('whatsapp', 'WHATSAPP')}
                   {visibleColumns.email !== false && renderSortableHeader('email', 'EMAIL')}
                   {visibleColumns.email_alt !== false && renderSortableHeader('email_alt', 'ALT EMAIL')}
+                  {visibleColumns.primary_business_email !== false && renderSortableHeader('primary_business_email', 'PRI BIZ EMAIL')}
+                  {visibleColumns.additional_emails !== false && renderSortableHeader('additional_emails', 'ADDITIONAL EMAILS')}
+                  {visibleColumns.business_phone !== false && renderSortableHeader('business_phone', 'BIZ PHONE')}
                   {visibleColumns.company_name !== false && renderSortableHeader('company_name', 'COMPANY')}
                   {visibleColumns.designation !== false && renderSortableHeader('designation', 'DESIGNATION')}
                   {visibleColumns.industry !== false && renderSortableHeader('industry', 'INDUSTRY')}
                   {visibleColumns.website !== false && renderSortableHeader('website', 'WEBSITE')}
                   {visibleColumns.company_size !== false && renderSortableHeader('company_size', 'COMPANY SIZE')}
+                  {visibleColumns.company_image_url !== false && renderSortableHeader('company_image_url', 'LOGO')}
                   {visibleColumns.city !== false && renderSortableHeader('city', 'CITY')}
                   {visibleColumns.state !== false && renderSortableHeader('state', 'STATE')}
                   {visibleColumns.country !== false && renderSortableHeader('country', 'COUNTRY')}
                   {visibleColumns.business_city !== false && renderSortableHeader('business_city', 'BIZ CITY')}
                   {visibleColumns.business_country !== false && renderSortableHeader('business_country', 'BIZ COUNTRY')}
+                  {visibleColumns.timezone !== false && renderSortableHeader('timezone', 'TIMEZONE')}
+                  {visibleColumns.preferred_language !== false && renderSortableHeader('preferred_language', 'LANGUAGE')}
+                  {visibleColumns.preferred_contact_method !== false && renderSortableHeader('preferred_contact_method', 'CONTACT METHOD')}
                   {visibleColumns.lead_source !== false && renderSortableHeader('lead_source', 'SOURCE')}
                   {visibleColumns.lead_category !== false && renderSortableHeader('lead_category', 'CATEGORY')}
                   {visibleColumns.lead_type !== false && renderSortableHeader('lead_type', 'LEAD TYPE')}
                   {visibleColumns.lead_status !== false && renderSortableHeader('lead_status', 'STATUS')}
                   {visibleColumns.priority !== false && renderSortableHeader('priority', 'PRIORITY')}
+                  {visibleColumns.lead_score !== false && renderSortableHeader('lead_score', 'SCORE')}
                   {visibleColumns.tags !== false && renderSortableHeader('tags', 'TAGS')}
+                  {visibleColumns.skills !== false && renderSortableHeader('skills', 'SKILLS')}
                   {visibleColumns.assigned_to !== false && renderSortableHeader('assigned_to', 'ASSIGNED TO')}
                   {visibleColumns.source_batch !== false && renderSortableHeader('source_batch', 'SOURCE BATCH')}
                   {visibleColumns.notes !== false && renderSortableHeader('notes', 'NOTES')}
                   {visibleColumns.next_followup_date !== false && renderSortableHeader('next_followup_date', 'NEXT FOLLOWUP')}
                   {visibleColumns.last_contacted !== false && renderSortableHeader('last_contacted', 'LAST CONTACTED')}
+                  {visibleColumns.linkedin_url !== false && renderSortableHeader('linkedin_url', 'LINKEDIN')}
+                  {visibleColumns.twitter_url !== false && renderSortableHeader('twitter_url', 'TWITTER')}
+                  {visibleColumns.github_url !== false && renderSortableHeader('github_url', 'GITHUB')}
+                  {visibleColumns.portfolio_url !== false && renderSortableHeader('portfolio_url', 'PORTFOLIO')}
+                  {visibleColumns.email_consent_status !== false && renderSortableHeader('email_consent_status', 'EMAIL CONSENT')}
+                  {visibleColumns.consent_source !== false && renderSortableHeader('consent_source', 'CONSENT SOURCE')}
+                  {visibleColumns.experience_company_name !== false && renderSortableHeader('experience_company_name', 'EXP COMPANY')}
+                  {visibleColumns.experience_job_title !== false && renderSortableHeader('experience_job_title', 'EXP JOB TITLE')}
+                  {visibleColumns.experience_duration_years !== false && renderSortableHeader('experience_duration_years', 'EXP DURATION')}
+                  {visibleColumns.education_institution_name !== false && renderSortableHeader('education_institution_name', 'EDU INSTITUTION')}
+                  {visibleColumns.education_degree !== false && renderSortableHeader('education_degree', 'EDU DEGREE')}
                   {visibleColumns.created_at !== false && renderSortableHeader('created_at', 'CREATED AT')}
                   {visibleColumns.created_by !== false && renderSortableHeader('created_by', 'CREATED BY')}
                   {visibleColumns.updated_at !== false && renderSortableHeader('updated_at', 'UPDATED AT')}
@@ -3830,6 +3917,17 @@ export default function LeadsPage() {
                     {visibleColumns.full_name !== false && (
                       <td className="py-3 px-4 text-xs font-medium text-slate-900 dark:text-white whitespace-nowrap">
                         <span>{lead.full_name || '-'}</span>
+                      </td>
+                    )}
+                    {visibleColumns.salutation !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.salutation || '-'}</td>
+                    )}
+                    {visibleColumns.gender !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.gender || '-'}</td>
+                    )}
+                    {visibleColumns.date_of_birth !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-500 whitespace-nowrap">
+                        {lead.date_of_birth ? new Date(lead.date_of_birth).toLocaleDateString() : '-'}
                       </td>
                     )}
                     {visibleColumns.phone !== false && (
@@ -3879,6 +3977,25 @@ export default function LeadsPage() {
                         ) : '-'}
                       </td>
                     )}
+                    {visibleColumns.primary_business_email !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.primary_business_email ? (
+                          <a href={`mailto:${lead.primary_business_email}`} onClick={(e) => e.stopPropagation()} className="text-blue-600 dark:text-blue-400 hover:underline">{lead.primary_business_email}</a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.additional_emails !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.additional_emails ? (Array.isArray(lead.additional_emails) ? lead.additional_emails.join(', ') : String(lead.additional_emails)) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.business_phone !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.business_phone ? (
+                          <a href={`tel:${lead.business_phone}`} onClick={(e) => e.stopPropagation()} className="text-blue-600 dark:text-blue-400 hover:underline">{lead.business_phone}</a>
+                        ) : '-'}
+                      </td>
+                    )}
                     {visibleColumns.company_name !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.company_name || '-'}</td>
                     )}
@@ -3900,6 +4017,13 @@ export default function LeadsPage() {
                     {visibleColumns.company_size !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.company_size || '-'}</td>
                     )}
+                    {visibleColumns.company_image_url !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.company_image_url ? (
+                          <img src={lead.company_image_url} alt="Logo" className="w-5 h-5 rounded object-cover inline-block" />
+                        ) : '-'}
+                      </td>
+                    )}
                     {visibleColumns.city !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.city || '-'}</td>
                     )}
@@ -3914,6 +4038,15 @@ export default function LeadsPage() {
                     )}
                     {visibleColumns.business_country !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.business_country || '-'}</td>
+                    )}
+                    {visibleColumns.timezone !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.timezone || '-'}</td>
+                    )}
+                    {visibleColumns.preferred_language !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.preferred_language || '-'}</td>
+                    )}
+                    {visibleColumns.preferred_contact_method !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.preferred_contact_method || '-'}</td>
                     )}
                     {visibleColumns.lead_source !== false && (
                       <td className="py-3 px-4 text-xs text-slate-650 dark:text-slate-350 font-normal whitespace-nowrap">{lead.lead_source || '-'}</td>
@@ -3930,10 +4063,16 @@ export default function LeadsPage() {
                     {visibleColumns.priority !== false && (
                       <td className="py-3 px-4 text-xs whitespace-nowrap">{getPriorityFlag(lead.priority)}</td>
                     )}
+                    {visibleColumns.lead_score !== false && (
+                      <td className="py-3 px-4 text-xs font-semibold text-[#6057DA] dark:text-[#7C74F0] whitespace-nowrap">{lead.lead_score ?? '-'}</td>
+                    )}
                     {visibleColumns.tags !== false && (
                       <td className="py-3 px-4 text-xs max-w-[150px] truncate text-slate-600 dark:text-slate-350 font-normal whitespace-nowrap">
                         {lead.tags ? lead.tags.split(',').map(t => t.trim()).join(', ') : '-'}
                       </td>
+                    )}
+                    {visibleColumns.skills !== false && (
+                      <td className="py-3 px-4 text-xs max-w-[150px] truncate text-slate-600 dark:text-slate-350 font-normal whitespace-nowrap" title={lead.skills || ''}>{lead.skills || '-'}</td>
                     )}
                     {visibleColumns.assigned_to !== false && (
                       <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.assigned_to || '-'}</td>
@@ -3962,6 +4101,65 @@ export default function LeadsPage() {
                             {new Date(lead.last_contacted).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                           </span>
                         ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.linkedin_url !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.linkedin_url ? (
+                          <a href={lead.linkedin_url.startsWith('http') ? lead.linkedin_url : `https://${lead.linkedin_url}`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">LinkedIn</a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.twitter_url !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.twitter_url ? (
+                          <a href={lead.twitter_url.startsWith('http') ? lead.twitter_url : `https://${lead.twitter_url}`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">Twitter / X</a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.github_url !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.github_url ? (
+                          <a href={lead.github_url.startsWith('http') ? lead.github_url : `https://${lead.github_url}`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">GitHub</a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.portfolio_url !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.portfolio_url ? (
+                          <a href={lead.portfolio_url.startsWith('http') ? lead.portfolio_url : `https://${lead.portfolio_url}`} onClick={(e) => e.stopPropagation()} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">Portfolio</a>
+                        ) : '-'}
+                      </td>
+                    )}
+                    {visibleColumns.email_consent_status !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.email_consent_status || '-'}</td>
+                    )}
+                    {visibleColumns.consent_source !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">{lead.consent_source || '-'}</td>
+                    )}
+                    {visibleColumns.experience_company_name !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.experiences && lead.experiences.length > 0 ? lead.experiences[0].company_name : (lead.experience_company_name || '-')}
+                      </td>
+                    )}
+                    {visibleColumns.experience_job_title !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.experiences && lead.experiences.length > 0 ? lead.experiences[0].job_title : (lead.experience_job_title || '-')}
+                      </td>
+                    )}
+                    {visibleColumns.experience_duration_years !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.experiences && lead.experiences.length > 0 ? (lead.experiences[0].duration_years ? `${lead.experiences[0].duration_years} yrs` : '-') : (lead.experience_duration_years ? `${lead.experience_duration_years} yrs` : '-')}
+                      </td>
+                    )}
+                    {visibleColumns.education_institution_name !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.educations && lead.educations.length > 0 ? lead.educations[0].institution_name : (lead.education_institution_name || '-')}
+                      </td>
+                    )}
+                    {visibleColumns.education_degree !== false && (
+                      <td className="py-3 px-4 text-xs font-normal text-slate-600 dark:text-slate-350 whitespace-nowrap">
+                        {lead.educations && lead.educations.length > 0 ? lead.educations[0].degree : (lead.education_degree || '-')}
                       </td>
                     )}
                     {visibleColumns.created_at !== false && (
@@ -4012,11 +4210,32 @@ export default function LeadsPage() {
         {/* Pagination Bar */}
         {!loading && processedLeads.length > 0 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 border-t border-slate-150 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/40">
-            <span className="text-xs font-medium text-slate-500">
-              Showing <span className="text-slate-800 dark:text-slate-300 font-semibold">{Math.min((currentPage - 1) * itemsPerPage + 1, processedLeads.length)}</span> to{' '}
-              <span className="text-slate-800 dark:text-slate-300 font-semibold">{Math.min(currentPage * itemsPerPage, processedLeads.length)}</span> of{' '}
-              <span className="text-slate-850 dark:text-slate-200 font-bold">{processedLeads.length}</span> leads
-            </span>
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-medium text-slate-500">
+                Showing <span className="text-slate-800 dark:text-slate-300 font-semibold">{Math.min((currentPage - 1) * itemsPerPage + 1, processedLeads.length)}</span> to{' '}
+                <span className="text-slate-800 dark:text-slate-300 font-semibold">{Math.min(currentPage * itemsPerPage, processedLeads.length)}</span> of{' '}
+                <span className="text-slate-850 dark:text-slate-200 font-bold">{processedLeads.length}</span> leads
+              </span>
+              <div className="flex items-center gap-1.5 border-l border-slate-200 dark:border-slate-700 pl-4">
+                <label htmlFor="items-per-page-select" className="text-xs font-medium text-slate-500 dark:text-slate-400">Rows per page:</label>
+                <select
+                  id="items-per-page-select"
+                  value={itemsPerPage}
+                  onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2.5 py-1 text-xs border border-slate-250 dark:border-slate-650 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={250}>250</option>
+                  <option value={500}>500</option>
+                  <option value={1000}>1000</option>
+                </select>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 disabled={currentPage === 1}

@@ -99,21 +99,59 @@ export async function GET(request) {
       });
     }
 
-    // Fetch all leads
-    const { data: leads, error: leadsErr } = await adminClient
+    // Fetch all leads across PostgREST 1000-row page boundaries
+    const { data: firstLeadsChunk, count: totalLeadsCount, error: leadsErr } = await adminClient
       .from(LEADS_TABLE)
-      .select("*")
-      .order("created_at", { ascending: false });
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(0, 999);
 
     if (leadsErr) throw leadsErr;
 
-    // Fetch all follow-ups to compile stats
-    const { data: allFollowups, error: allFollowErr } = await adminClient
+    let leads = [...(firstLeadsChunk || [])];
+    if (totalLeadsCount && totalLeadsCount > 1000) {
+      const leadPromises = [];
+      for (let i = 1000; i < totalLeadsCount; i += 1000) {
+        leadPromises.push(
+          adminClient
+            .from(LEADS_TABLE)
+            .select("*")
+            .order("created_at", { ascending: false })
+            .range(i, i + 999)
+        );
+      }
+      const leadResults = await Promise.all(leadPromises);
+      leadResults.forEach(res => {
+        if (res.data) leads.push(...res.data);
+      });
+    }
+
+    // Fetch all follow-ups across PostgREST 1000-row page boundaries
+    const { data: firstFollowupsChunk, count: totalFollowupsCount, error: allFollowErr } = await adminClient
       .from(FOLLOWUPS_TABLE)
-      .select("*")
-      .order("scheduled_at", { ascending: false });
+      .select("*", { count: "exact" })
+      .order("scheduled_at", { ascending: false })
+      .range(0, 999);
 
     if (allFollowErr) throw allFollowErr;
+
+    let allFollowups = [...(firstFollowupsChunk || [])];
+    if (totalFollowupsCount && totalFollowupsCount > 1000) {
+      const followupPromises = [];
+      for (let i = 1000; i < totalFollowupsCount; i += 1000) {
+        followupPromises.push(
+          adminClient
+            .from(FOLLOWUPS_TABLE)
+            .select("*")
+            .order("scheduled_at", { ascending: false })
+            .range(i, i + 999)
+        );
+      }
+      const followupResults = await Promise.all(followupPromises);
+      followupResults.forEach(res => {
+        if (res.data) allFollowups.push(...res.data);
+      });
+    }
 
     return NextResponse.json({
       leads: leads || [],

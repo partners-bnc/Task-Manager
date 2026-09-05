@@ -57,6 +57,9 @@ export default function CampaignsPage() {
   const [selectedCampaignDetail, setSelectedCampaignDetail] = useState(null);
   const [recipients, setRecipients] = useState([]);
   const [recipientsSearch, setRecipientsSearch] = useState("");
+  const [recipientsSourceFilter, setRecipientsSourceFilter] = useState("All");
+  const [recipientsPriorityFilter, setRecipientsPriorityFilter] = useState("All");
+  const [recipientsStatusFilter, setRecipientsStatusFilter] = useState("All");
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
   // Email Templates & Saved Lists
@@ -176,7 +179,7 @@ export default function CampaignsPage() {
   // Helper to extract email & field type following exact 4 email sections: Primary Email -> Alternate Email -> Primary Business Email -> Additional Emails
   const getLeadEmailInfo = (lead) => {
     if (!lead) return { email: "", type: "" };
-    
+
     // 1. Primary Email section
     const primary = (lead.email || lead.primary_email || "").toString().trim();
     if (primary) return { email: primary, type: "Primary" };
@@ -250,7 +253,7 @@ export default function CampaignsPage() {
       if (filterPriorities.length > 0 && !filterPriorities.includes(lead.priority)) return false;
       // Category filter
       if (filterCategories.length > 0 && !filterCategories.includes(lead.lead_category)) return false;
-      
+
       // Personal Details filters
       if (filterCities.length > 0 && !filterCities.includes(lead.city)) return false;
       if (filterStates.length > 0 && !filterStates.includes(lead.state)) return false;
@@ -434,10 +437,11 @@ export default function CampaignsPage() {
       return;
     }
 
-    const headers = ["Lead Name", "Email Sent To", "Priority", "Delivery Status", "Unsubscribed", "Date"];
+    const headers = ["Lead Name", "Email Sent To", "Lead Source", "Priority", "Delivery Status", "Unsubscribed", "Date"];
     const rows = recipients.map(r => [
       r.lead?.full_name || "Unknown Lead",
       r.email_sent_to || "",
+      r.lead?.lead_source || "N/A",
       r.lead?.priority || "Medium",
       r.unsubscribed ? "Unsubscribed" : r.delivery_status,
       r.unsubscribed ? "Yes" : "No",
@@ -456,15 +460,63 @@ export default function CampaignsPage() {
     toast.success("Recipients status exported successfully.");
   };
 
-  // Filter recipients list by search query
+  // Dynamic unique filter options for recipients table
+  const uniqueRecipientsSources = useMemo(() => {
+    const set = new Set();
+    recipients.forEach((r) => {
+      const src = r.lead?.lead_source?.trim() || "N/A";
+      set.add(src);
+    });
+    return Array.from(set).sort();
+  }, [recipients]);
+
+  const uniqueRecipientsPriorities = useMemo(() => {
+    const set = new Set();
+    recipients.forEach((r) => {
+      const prio = r.lead?.priority?.trim() || "Medium";
+      set.add(prio);
+    });
+    return Array.from(set).sort();
+  }, [recipients]);
+
+  const uniqueRecipientsStatuses = useMemo(() => {
+    const set = new Set();
+    recipients.forEach((r) => {
+      const status = r.unsubscribed ? 'Unsubscribed' : (r.delivery_status?.trim() || 'Pending');
+      set.add(status);
+    });
+    return Array.from(set).sort();
+  }, [recipients]);
+
+  // Filter recipients list by search query & dropdown column filters
   const filteredRecipients = useMemo(() => {
     return recipients.filter((r) => {
       const name = r.lead?.full_name || "";
       const email = r.email_sent_to || "";
-      const query = recipientsSearch.toLowerCase();
-      return name.toLowerCase().includes(query) || email.toLowerCase().includes(query);
+      const source = r.lead?.lead_source?.trim() || "N/A";
+      const priority = r.lead?.priority?.trim() || "Medium";
+      const status = r.unsubscribed ? "Unsubscribed" : (r.delivery_status?.trim() || "Pending");
+      const query = recipientsSearch.toLowerCase().trim();
+
+      const matchesSearch = !query ||
+        name.toLowerCase().includes(query) ||
+        email.toLowerCase().includes(query) ||
+        source.toLowerCase().includes(query) ||
+        priority.toLowerCase().includes(query) ||
+        status.toLowerCase().includes(query);
+
+      const matchesSource = recipientsSourceFilter === "All" ||
+        source.toLowerCase() === recipientsSourceFilter.trim().toLowerCase();
+
+      const matchesPriority = recipientsPriorityFilter === "All" ||
+        priority.toLowerCase() === recipientsPriorityFilter.trim().toLowerCase();
+
+      const matchesStatus = recipientsStatusFilter === "All" ||
+        status.toLowerCase() === recipientsStatusFilter.trim().toLowerCase();
+
+      return matchesSearch && matchesSource && matchesPriority && matchesStatus;
     });
-  }, [recipients, recipientsSearch]);
+  }, [recipients, recipientsSearch, recipientsSourceFilter, recipientsPriorityFilter, recipientsStatusFilter]);
 
   // Statistics calculation helpers
   const stats = useMemo(() => {
@@ -615,8 +667,8 @@ export default function CampaignsPage() {
                   key={tab.id}
                   onClick={() => setCampaignViewMode(tab.id)}
                   className={`py-3 px-1.5 text-sm font-semibold inline-flex items-center gap-2 transition-all border-b-2 whitespace-nowrap cursor-pointer ${active
-                      ? 'border-[#6057DA] text-[#6057DA] dark:border-[#7C74F0] dark:text-[#7C74F0]'
-                      : 'border-transparent text-slate-505 hover:text-slate-800 dark:hover:text-slate-200'
+                    ? 'border-[#6057DA] text-[#6057DA] dark:border-[#7C74F0] dark:text-[#7C74F0]'
+                    : 'border-transparent text-slate-505 hover:text-slate-800 dark:hover:text-slate-200'
                     }`}
                 >
                   <Icon size={16} />
@@ -646,9 +698,8 @@ export default function CampaignsPage() {
                 <div key={s.num} className="flex items-center gap-2">
                   <div
                     style={s.num <= step ? { backgroundColor: 'rgb(51, 88, 160)' } : {}}
-                    className={`h-2.5 w-16 sm:w-28 rounded-full transition-all duration-300 ${
-                      s.num <= step ? "bg-[#3358A0]" : "bg-slate-200 dark:bg-slate-800"
-                    }`}
+                    className={`h-2.5 w-16 sm:w-28 rounded-full transition-all duration-300 ${s.num <= step ? "bg-[#3358A0]" : "bg-slate-200 dark:bg-slate-800"
+                      }`}
                   />
                   <span className={`text-xs font-bold hidden md:inline ${s.num === step ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
                     {s.label}
@@ -1381,9 +1432,8 @@ export default function CampaignsPage() {
                                   }}
                                   disabled={isEnrolled}
                                   style={!isEnrolled ? { backgroundColor: 'rgb(51, 88, 160)' } : {}}
-                                  className={`px-3 py-1 text-[10px] font-bold rounded-lg text-white transition-all shrink-0 ${
-                                    isEnrolled ? 'bg-emerald-500 cursor-default opacity-90' : 'hover:opacity-90 cursor-pointer shadow-xs active:scale-95'
-                                  }`}
+                                  className={`px-3 py-1 text-[10px] font-bold rounded-lg text-white transition-all shrink-0 ${isEnrolled ? 'bg-emerald-500 cursor-default opacity-90' : 'hover:opacity-90 cursor-pointer shadow-xs active:scale-95'
+                                    }`}
                                 >
                                   {isEnrolled ? '✓ Enrolled' : '+ Add Lead'}
                                 </button>
@@ -1585,22 +1635,20 @@ export default function CampaignsPage() {
                         <button
                           type="button"
                           onClick={() => setWizardEmailFormat("html")}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                            wizardEmailFormat === "html"
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${wizardEmailFormat === "html"
                               ? "bg-white dark:bg-slate-750 text-blue-600 shadow-sm"
                               : "text-slate-450 hover:text-slate-600 dark:hover:text-slate-300"
-                          }`}
+                            }`}
                         >
                           HTML
                         </button>
                         <button
                           type="button"
                           onClick={() => setWizardEmailFormat("text")}
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                            wizardEmailFormat === "text"
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${wizardEmailFormat === "text"
                               ? "bg-white dark:bg-slate-750 text-blue-600 shadow-sm"
                               : "text-slate-450 hover:text-slate-600 dark:hover:text-slate-300"
-                          }`}
+                            }`}
                         >
                           Text
                         </button>
@@ -1617,7 +1665,7 @@ export default function CampaignsPage() {
                           <div className="flex-1 flex flex-col min-h-0">
                             <strong className="text-slate-500 dark:text-slate-450 uppercase text-[9px] block mb-1">Body Preview</strong>
                             {wizardEmailFormat === "html" ? (
-                              <div 
+                              <div
                                 className="flex-1 bg-white dark:bg-slate-900 p-3 rounded-lg border border-slate-100 dark:border-slate-850 text-xs text-slate-800 dark:text-slate-200 overflow-y-auto min-h-[220px]"
                                 dangerouslySetInnerHTML={{ __html: selectedTemplate.html_body || "" }}
                               />
@@ -1826,7 +1874,7 @@ export default function CampaignsPage() {
                   )}
                 </div>
               </div>
-                    {/* Stats Counters Grid */}
+              {/* Stats Counters Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                 {/* Total Enrolled */}
                 <div className="bg-white dark:bg-slate-850 p-4.5 rounded-2xl shadow-xs border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between hover:shadow-sm transition-all duration-200">
@@ -1903,20 +1951,89 @@ export default function CampaignsPage() {
 
               {/* Recipients list */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm overflow-hidden flex flex-col mt-6">
-                <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row justify-between sm:items-center gap-3 bg-slate-50/50 dark:bg-slate-800/20">
-                  <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-350 uppercase tracking-widest shrink-0">
-                    Recipient Delivery Logs
-                  </h3>
+                <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex flex-col xl:flex-row justify-between xl:items-center gap-3.5 bg-slate-50/50 dark:bg-slate-800/20">
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-350 uppercase tracking-widest shrink-0">
+                      Recipient Delivery Logs
+                    </h3>
+                    <span className="text-[11px] font-bold text-slate-500 bg-slate-200/60 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded-full">
+                      {filteredRecipients.length} of {recipients.length}
+                    </span>
+                  </div>
 
-                  <div className="relative max-w-sm w-full">
-                    <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
-                    <input
-                      type="text"
-                      placeholder="Search recipients name or email..."
-                      value={recipientsSearch}
-                      onChange={(e) => setRecipientsSearch(e.target.value)}
-                      className="w-full pl-9 pr-4 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none"
-                    />
+                  {/* Filter Controls to the LEFT of the Search Bar */}
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Lead Source Dropdown */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline">Source:</span>
+                      <select
+                        value={recipientsSourceFilter}
+                        onChange={(e) => setRecipientsSourceFilter(e.target.value)}
+                        className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none font-medium cursor-pointer shadow-2xs"
+                      >
+                        <option value="All">All Sources</option>
+                        {uniqueRecipientsSources.map((src) => (
+                          <option key={src} value={src}>{src}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Lead Priority Dropdown */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline">Priority:</span>
+                      <select
+                        value={recipientsPriorityFilter}
+                        onChange={(e) => setRecipientsPriorityFilter(e.target.value)}
+                        className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none font-medium cursor-pointer shadow-2xs"
+                      >
+                        <option value="All">All Priorities</option>
+                        {uniqueRecipientsPriorities.map((prio) => (
+                          <option key={prio} value={prio}>{prio}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Delivery Status Dropdown */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline">Status:</span>
+                      <select
+                        value={recipientsStatusFilter}
+                        onChange={(e) => setRecipientsStatusFilter(e.target.value)}
+                        className="px-2.5 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none font-medium cursor-pointer shadow-2xs"
+                      >
+                        <option value="All">All Statuses</option>
+                        {uniqueRecipientsStatuses.map((st) => (
+                          <option key={st} value={st}>{st}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Reset Filters button if any active filter */}
+                    {(recipientsSourceFilter !== "All" || recipientsPriorityFilter !== "All" || recipientsStatusFilter !== "All" || recipientsSearch) && (
+                      <button
+                        onClick={() => {
+                          setRecipientsSourceFilter("All");
+                          setRecipientsPriorityFilter("All");
+                          setRecipientsStatusFilter("All");
+                          setRecipientsSearch("");
+                        }}
+                        className="text-[11px] font-bold text-red-500 hover:text-red-600 px-2 py-1 bg-red-50 dark:bg-red-950/30 rounded-lg border border-red-150 dark:border-red-900/40 transition-colors cursor-pointer"
+                      >
+                        Reset
+                      </button>
+                    )}
+
+                    {/* Search Bar */}
+                    <div className="relative w-48 sm:w-56">
+                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search name or email..."
+                        value={recipientsSearch}
+                        onChange={(e) => setRecipientsSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-200 dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1926,6 +2043,7 @@ export default function CampaignsPage() {
                       <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
                         <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Lead Name</th>
                         <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Email Sent To</th>
+                        <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Lead Source</th>
                         <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Lead Priority</th>
                         <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px]">Delivery Status</th>
                         <th className="py-3 px-4 font-medium text-slate-900 dark:text-slate-200 text-[14px] text-right pr-5">Actions</th>
@@ -1934,7 +2052,7 @@ export default function CampaignsPage() {
                     <tbody className="text-[14px] font-medium text-slate-900 dark:text-slate-105 bg-white dark:bg-slate-900">
                       {filteredRecipients.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-slate-400 border border-slate-200 dark:border-slate-700">
+                          <td colSpan={6} className="p-8 text-center text-slate-400 border border-slate-200 dark:border-slate-700">
                             No recipients found.
                           </td>
                         </tr>
@@ -1948,6 +2066,11 @@ export default function CampaignsPage() {
                             </td>
                             <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
                               {r.email_sent_to}
+                            </td>
+                            <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700">
+                              <span className="bg-slate-100 text-slate-700 border border-slate-250 rounded px-2 py-0.5 text-[11px] font-semibold dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+                                {r.lead?.lead_source || "N/A"}
+                              </span>
                             </td>
                             <td className="py-1.5 px-4 border border-slate-200 dark:border-slate-700">
                               <span className="bg-slate-105 text-slate-600 border border-slate-200 rounded px-2 py-0.5 text-[10px] uppercase font-bold dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700">
@@ -2223,7 +2346,7 @@ export default function CampaignsPage() {
                           </span>
                           <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-6 h-6 flex items-center justify-center rounded-full shadow-sm">
                             {columnCampaigns.length}
-                          </span>
+                            Update in the follow-up page of the KPI while lead showing volume 1000          </span>
                         </div>
 
                         <div className="space-y-3 flex-1 overflow-y-auto max-h-[600px] pb-4" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>

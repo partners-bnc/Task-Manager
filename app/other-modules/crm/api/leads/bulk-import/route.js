@@ -128,36 +128,46 @@ export async function POST(request) {
     let skippedCount = 0;
 
     // 1. Extract phone and email addresses to check for duplicates in the DB
-    const phonesToCheck = leads.map(l => l.phone).filter(Boolean);
-    const emailsToCheck = leads.map(l => l.email).filter(Boolean);
+    const phonesToCheck = Array.from(new Set(leads.map(l => l.phone).filter(Boolean)));
+    const emailsToCheck = Array.from(new Set(leads.map(l => l.email).filter(Boolean)));
 
     let existingInDb = [];
 
     if (phonesToCheck.length > 0 || emailsToCheck.length > 0) {
-      let queryParts = [];
-      if (phonesToCheck.length > 0) {
-        const batchSize = 100;
-        for (let i = 0; i < phonesToCheck.length; i += batchSize) {
-          const chunk = phonesToCheck.slice(i, i + batchSize);
-          queryParts.push(`phone.in.(${chunk.map(p => `"${p}"`).join(',')})`);
-        }
-      }
-      if (emailsToCheck.length > 0) {
-        const batchSize = 100;
-        for (let i = 0; i < emailsToCheck.length; i += batchSize) {
-          const chunk = emailsToCheck.slice(i, i + batchSize);
-          queryParts.push(`email.in.(${chunk.map(e => `"${e}"`).join(',')})`);
+      // Run duplicate queries in batches to avoid PostgREST query length limits
+      const DUPLICATE_BATCH_SIZE = 50;
+      const fetchedResults = [];
+
+      // Query phones in batches of 50
+      for (let i = 0; i < phonesToCheck.length; i += DUPLICATE_BATCH_SIZE) {
+        const phoneChunk = phonesToCheck.slice(i, i + DUPLICATE_BATCH_SIZE);
+        const { data, error } = await adminClient
+          .from('crm_leads')
+          .select('lead_id, full_name, phone, email')
+          .in('phone', phoneChunk);
+        if (!error && data) {
+          fetchedResults.push(...data);
         }
       }
 
-      // Check duplicates using adminClient to bypass RLS policies
-      const { data, error } = await adminClient
-        .from('crm_leads')
-        .select('lead_id, full_name, phone, email')
-        .or(queryParts.join(','));
+      // Query emails in batches of 50
+      for (let i = 0; i < emailsToCheck.length; i += DUPLICATE_BATCH_SIZE) {
+        const emailChunk = emailsToCheck.slice(i, i + DUPLICATE_BATCH_SIZE);
+        const { data, error } = await adminClient
+          .from('crm_leads')
+          .select('lead_id, full_name, phone, email')
+          .in('email', emailChunk);
+        if (!error && data) {
+          fetchedResults.push(...data);
+        }
+      }
 
-      if (error) throw error;
-      existingInDb = data || [];
+      // Deduplicate results by lead_id
+      const existingMap = new Map();
+      fetchedResults.forEach(item => {
+        if (item && item.lead_id) existingMap.set(item.lead_id, item);
+      });
+      existingInDb = Array.from(existingMap.values());
     }
 
     // 2. Classify leads into insert, update, or skip
@@ -213,9 +223,9 @@ export async function POST(request) {
     let insertedCount = 0;
     let updatedCount = 0;
 
-    // 3. Batch insert using adminClient
+    // 3. Batch insert using adminClient (chunk size 250 for high performance)
     if (leadsToInsert.length > 0) {
-      const chunkSize = 100;
+      const chunkSize = 250;
       for (let i = 0; i < leadsToInsert.length; i += chunkSize) {
         const chunk = leadsToInsert.slice(i, i + chunkSize);
         

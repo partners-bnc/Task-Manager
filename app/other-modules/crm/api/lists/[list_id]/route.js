@@ -66,7 +66,8 @@ export async function GET(request, { params }) {
     const { data: allLeads, error: leadsErr } = await adminClient
       .from("crm_leads")
       .select("*")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(100000);
 
     if (leadsErr) {
       console.error("Error fetching leads for single list:", leadsErr);

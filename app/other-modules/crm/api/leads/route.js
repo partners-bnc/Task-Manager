@@ -190,26 +190,59 @@ export async function GET(request) {
     const sortField = searchParams.get("sortField") || "industry";
     const sortDirection = searchParams.get("sortDirection") || "asc";
 
-    // Query all leads
-    let dbQuery = adminClient.from(TABLE).select("*");
+    // Query leads count and initial chunk
+    let baseQuery = adminClient.from(TABLE);
+    let dbQuery;
 
     if (sortField === "industry") {
-      dbQuery = dbQuery
+      dbQuery = baseQuery
+        .select("*", { count: "exact" })
         .order("industry", { ascending: sortDirection === 'asc', nullsFirst: false })
         .order("lead_id", { ascending: true });
     } else {
-      dbQuery = dbQuery.order(
-        sortField === "next_followup_date" || sortField === "last_contacted" || sortField === "notes" ? "created_at" : sortField,
-        { ascending: sortDirection === 'asc' }
-      );
+      dbQuery = baseQuery
+        .select("*", { count: "exact" })
+        .order(
+          sortField === "next_followup_date" || sortField === "last_contacted" || sortField === "notes" ? "created_at" : sortField,
+          { ascending: sortDirection === 'asc' }
+        );
     }
 
-    const { data, error } = await dbQuery;
+    const { data: firstChunk, count, error } = await dbQuery.range(0, 999);
 
     if (error) throw error;
 
+    let allData = [...(firstChunk || [])];
+
+    // PostgREST hard-caps single requests to 1000 rows.
+    // If total count > 1000, fetch remaining pages in parallel range chunks.
+    if (count && count > 1000) {
+      const fetchPromises = [];
+      for (let i = 1000; i < count; i += 1000) {
+        let pQuery;
+        if (sortField === "industry") {
+          pQuery = adminClient.from(TABLE)
+            .select("*")
+            .order("industry", { ascending: sortDirection === 'asc', nullsFirst: false })
+            .order("lead_id", { ascending: true });
+        } else {
+          pQuery = adminClient.from(TABLE)
+            .select("*")
+            .order(
+              sortField === "next_followup_date" || sortField === "last_contacted" || sortField === "notes" ? "created_at" : sortField,
+              { ascending: sortDirection === 'asc' }
+            );
+        }
+        fetchPromises.push(pQuery.range(i, i + 999));
+      }
+      const results = await Promise.all(fetchPromises);
+      results.forEach(res => {
+        if (res.data) allData.push(...res.data);
+      });
+    }
+
     // Populate followups dynamically
-    const populatedLeads = await populateLeadsFollowupData(data || []);
+    const populatedLeads = await populateLeadsFollowupData(allData || []);
 
     // If sorting by populated fields, handle sorting in memory
     if (sortField === "next_followup_date" || sortField === "last_contacted" || sortField === "notes") {

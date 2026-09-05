@@ -3,19 +3,55 @@ import { adminClient } from "@/utils/supabase/admin";
 
 export async function GET() {
   try {
-    // 1. Fetch leads
-    const { data: leads, error: leadsErr } = await adminClient
+    // 1. Fetch leads across PostgREST 1000-row page boundaries
+    const { data: firstChunk, count, error: leadsErr } = await adminClient
       .from("crm_leads")
-      .select("lead_id, lead_status, lead_category, lead_source, industry, country, created_at");
+      .select("lead_id, lead_status, lead_category, lead_source, industry, country, created_at", { count: "exact" })
+      .range(0, 999);
       
     if (leadsErr) throw leadsErr;
 
-    // 2. Fetch follow-ups
-    const { data: followups, error: followupsErr } = await adminClient
+    let leads = [...(firstChunk || [])];
+    if (count && count > 1000) {
+      const fetchPromises = [];
+      for (let i = 1000; i < count; i += 1000) {
+        fetchPromises.push(
+          adminClient
+            .from("crm_leads")
+            .select("lead_id, lead_status, lead_category, lead_source, industry, country, created_at")
+            .range(i, i + 999)
+        );
+      }
+      const results = await Promise.all(fetchPromises);
+      results.forEach(res => {
+        if (res.data) leads.push(...res.data);
+      });
+    }
+
+    // 2. Fetch follow-ups across PostgREST 1000-row page boundaries
+    const { data: firstFollowups, count: followupsCount, error: followupsErr } = await adminClient
       .from("crm_follow_ups")
-      .select("followup_id, followup_type, status, scheduled_at, completed_at, outcome, assigned_to");
+      .select("followup_id, followup_type, status, scheduled_at, completed_at, outcome, assigned_to", { count: "exact" })
+      .range(0, 999);
       
     if (followupsErr) throw followupsErr;
+
+    let followups = [...(firstFollowups || [])];
+    if (followupsCount && followupsCount > 1000) {
+      const fPromises = [];
+      for (let i = 1000; i < followupsCount; i += 1000) {
+        fPromises.push(
+          adminClient
+            .from("crm_follow_ups")
+            .select("followup_id, followup_type, status, scheduled_at, completed_at, outcome, assigned_to")
+            .range(i, i + 999)
+        );
+      }
+      const fResults = await Promise.all(fPromises);
+      fResults.forEach(res => {
+        if (res.data) followups.push(...res.data);
+      });
+    }
 
     // 3. Fetch campaigns
     const { data: campaigns, error: campaignsErr } = await adminClient
